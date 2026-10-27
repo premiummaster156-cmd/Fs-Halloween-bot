@@ -59,3 +59,13 @@ test("weekly activity starts on Monday UTC regardless of weekday", () => {
   assert.equal(getWeekStart("2026-10-25T23:59:59.000Z"), "2026-10-19");
   assert.equal(getWeekStart("2026-10-26T00:00:00.000Z"), "2026-10-26");
 });
+
+
+test("equipment effects are combined and capped", () => {
+  const { combineEffects } = require("../src/services/inventory");
+  const result = combineEffects([
+    { effects: { crimeChance: 9, heistChance: 8, workPayBonus: 0.2, fineReduction: 0.3 } },
+    { effects: { crimeChance: 9, heistChance: 9, workPayBonus: 0.2, fineReduction: 0.3 } }
+  ]);
+  assert.deepEqual(result, { crimeChance: 15, heistChance: 15, workPayBonus: 0.25, fineReduction: 0.35 });
+});

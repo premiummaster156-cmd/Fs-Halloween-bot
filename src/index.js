@@ -12,6 +12,7 @@ const { CasinoGame } = require("./games/casino");
 const { HeistsGame } = require("./games/heists");
 const { HalloweenGame } = require("./games/halloween");
 const { ActivityService } = require("./services/activity");
+const { InventoryService } = require("./services/inventory");
 const { respond } = require("./ui");
 
 async function start() {
@@ -20,12 +21,13 @@ async function start() {
   await migrate();
   const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
   const economy = new EconomyService(pool);
+  const inventory = new InventoryService(pool, economy);
   client.services = {
-    pool, balancing, economy,
-    jobs: new JobsGame(pool, economy),
-    crime: new CrimeGame(pool, economy),
+    pool, balancing, economy, inventory,
+    jobs: new JobsGame(pool, economy, inventory),
+    crime: new CrimeGame(pool, economy, inventory),
     casino: new CasinoGame(pool, economy),
-    heists: new HeistsGame(pool, economy),
+    heists: new HeistsGame(pool, economy, inventory),
     halloween: new HalloweenGame(pool),
     activity: new ActivityService(pool, economy)
   };

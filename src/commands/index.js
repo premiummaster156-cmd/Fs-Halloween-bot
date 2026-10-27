@@ -134,11 +134,49 @@ const commands = [
     }
   },
   {
-    data: new SlashCommandBuilder().setName("inventory").setDescription("View your inventory."),
+    data: new SlashCommandBuilder().setName("inventory").setDescription("View your inventory and equipped gear."),
     async execute(i, s) {
-      const r = await s.pool.query("SELECT item_id, quantity FROM inventory WHERE guild_id = $1 AND user_id = $2 AND quantity > 0 ORDER BY quantity DESC, item_id ASC LIMIT 25", [i.guildId, i.user.id]);
-      const rows = r.rows.map((x) => "**" + x.item_id.replaceAll("_", " ") + "** × " + x.quantity);
-      return respond(i, { title: "Inventory", description: rows.length ? rows.join("\n") : "Your inventory is empty. Seasonal items can be purchased through /event shop." });
+      const r = await s.inventory.getInventory(i.guildId, i.user.id);
+      const owned = r.items.map((x) => "**" + x.item.name + "** × " + x.quantity + (x.equipped ? " • EQUIPPED" : ""));
+      const gear = r.equipped.map((x) => "**" + x.slot + ":** " + x.item.name);
+      return respond(i, { title: "Inventory & Equipment", description: (owned.length ? owned.join("\n") : "Your inventory is empty.") + "\n\n**Equipped gear**\n" + (gear.length ? gear.join("\n") : "Nothing equipped yet.") });
+    }
+  },
+
+  {
+    data: new SlashCommandBuilder().setName("shop").setDescription("Browse or buy Fukishokai equipment.")
+      .addSubcommand((s) => s.setName("view").setDescription("View available equipment."))
+      .addSubcommand((s) => s.setName("buy").setDescription("Buy equipment using Fuk Coins.")
+        .addStringOption((o) => o.setName("item").setDescription("Item to buy").setRequired(true)
+          .addChoices(...balancing.items.map((item) => ({ name: item.name + " — " + item.cost.toLocaleString() + " FC", value: item.id })))),
+    async execute(i, s) {
+      if (i.options.getSubcommand() === "buy") {
+        const r = await s.inventory.buy(i.guildId, i.user.id, i.options.getString("item"));
+        return respond(i, { kind: "success", title: "Purchase Complete", description: "You bought **" + r.item.name + "**.\\n" + r.item.description + "\\nWallet remaining: **" + r.walletRemaining.toLocaleString() + " FC**." });
+      }
+      const lines = balancing.items.map((item) => "**" + item.name + "** — " + item.cost.toLocaleString() + " FC • Level " + item.minLevel + "+\\nSlot: " + item.slot + "\\n" + item.description);
+      return respond(i, { title: "Fukishokai Equipment Shop", description: lines.join("\\n\\n").slice(0, 4000) });
+    }
+  },
+  {
+    data: new SlashCommandBuilder().setName("equip").setDescription("Equip an item you own.")
+      .addStringOption((o) => o.setName("item").setDescription("Equipment to equip").setRequired(true)
+        .addChoices(...balancing.items.filter((item) => item.type === "equipment").map((item) => ({ name: item.name, value: item.id })))),
+    async execute(i, s) {
+      const r = await s.inventory.equip(i.guildId, i.user.id, i.options.getString("item"));
+      return respond(i, { kind: "success", title: "Equipment Updated", description: "Equipped **" + r.item.name + "** in your **" + r.item.slot + "** slot." + (r.previousItem ? "\\nReplaced: " + r.previousItem.name : "") });
+    }
+  },
+  {
+    data: new SlashCommandBuilder().setName("unequip").setDescription("Remove gear from an equipment slot.")
+      .addStringOption((o) => o.setName("slot").setDescription("Slot to clear").setRequired(true).addChoices(
+        { name: "Hands", value: "hands" }, { name: "Outfit", value: "outfit" },
+        { name: "Gadget", value: "gadget" }, { name: "Armor", value: "armor" },
+        { name: "Vehicle", value: "vehicle" }, { name: "Bag", value: "bag" }, { name: "Charm", value: "charm" }
+      )),
+    async execute(i, s) {
+      const r = await s.inventory.unequip(i.guildId, i.user.id, i.options.getString("slot"));
+      return respond(i, { kind: "success", title: "Gear Unequipped", description: "Removed **" + r.item.name + "** from your " + r.slot + " slot. The item remains in your inventory." });
     }
   },
   {

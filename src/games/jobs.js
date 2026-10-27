@@ -5,7 +5,7 @@ const { transaction } = require("../database/pool");
 const { trackActionTx } = require("../services/events");
 
 class JobsGame {
-  constructor(pool, economy) { this.pool = pool; this.economy = economy; }
+  constructor(pool, economy, inventory) { this.pool = pool; this.economy = economy; this.inventory = inventory; }
   list() { return balancing.jobs.map((job) => ({ ...job })); }
 
   async view(guildId, userId) {
@@ -37,7 +37,9 @@ class JobsGame {
       if (!job) throw new DomainError("You do not have a job yet. Use /job to view careers and apply.", "NO_JOB");
       await claimCooldownTx(client, guildId, userId, "work", job.cooldownMs);
       const factor = 1 + (randomInt(-18, 18) / 100);
-      const pay = calculateWorkPay(job, Number(player.job_level), factor);
+      const gear = this.inventory ? await this.inventory.getEffectsTx(client, guildId, userId) : {};
+      const basePay = calculateWorkPay(job, Number(player.job_level), factor);
+      const pay = Math.max(1, Math.floor(basePay * (1 + (gear.workPayBonus || 0))));
       await this.economy.mutateTx(client, guildId, userId, pay, "job_work", uuid(), { jobId: job.id, jobLevel: Number(player.job_level) });
       await client.query("UPDATE players SET work_count = work_count + 1, job_xp = job_xp + $3, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [guildId, userId, job.xp]);
       const updated = await client.query("SELECT job_level, job_xp FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [guildId, userId]);

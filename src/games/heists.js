@@ -6,7 +6,7 @@ const { transaction } = require("../database/pool");
 const { trackActionTx } = require("../services/events");
 
 class HeistsGame {
-  constructor(pool, economy) { this.pool = pool; this.economy = economy; }
+  constructor(pool, economy, inventory) { this.pool = pool; this.economy = economy; this.inventory = inventory; }
   missions() { return balancing.heists.map((mission) => ({ ...mission })); }
 
   async create(guildId, userId, missionId) {
@@ -57,7 +57,16 @@ class HeistsGame {
       if (crew.length < mission.minParticipants) throw new DomainError("You need at least " + mission.minParticipants + " crew members to start.", "HEIST_CREW_TOO_SMALL");
       for (const member of crew) await claimCooldownTx(client, guildId, member.user_id, "heist", mission.cooldownMs);
       const averageLevel = crew.reduce((sum, member) => sum + Number(member.level), 0) / crew.length;
-      const roleBonus = crew.reduce((sum, member) => sum + balancing.heistRoles[member.role_id].bonus, 0);
+      const gearByUser = new Map();
+      for (const member of crew) {
+        const effects = this.inventory ? await this.inventory.getEffectsTx(client, guildId, member.user_id) : {};
+        gearByUser.set(member.user_id, effects);
+      }
+      const uniqueRoles = new Set(crew.map((member) => member.role_id)).size;
+      const roleBonus = crew.reduce((sum, member) => {
+        const gear = gearByUser.get(member.user_id) || {};
+        return sum + balancing.heistRoles[member.role_id].bonus + (gear.heistChance || 0);
+      }, 0) + Math.max(0, uniqueRoles - 1) * 2;
       const successChance = calculateHeistChance(mission.baseChance, averageLevel, crew.length, mission.difficulty, roleBonus);
       const roll = randomInt(1, 100);
       const succeeded = roll <= successChance;
@@ -75,7 +84,8 @@ class HeistsGame {
         }
       } else {
         for (const member of crew) {
-          const fine = Math.min(Number(member.wallet), mission.failPenalty);
+          const gear = gearByUser.get(member.user_id) || {};
+          const fine = Math.min(Number(member.wallet), Math.floor(mission.failPenalty * (1 - (gear.fineReduction || 0))));
           if (fine > 0) await this.economy.mutateTx(client, guildId, member.user_id, -fine, "heist_failed_fine", reference + ":" + member.user_id, { heistId, missionId: mission.id, roll });
           await client.query("UPDATE players SET reputation = GREATEST(-100, reputation - 1) WHERE guild_id = $1 AND user_id = $2", [guildId, member.user_id]);
         }

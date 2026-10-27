@@ -163,3 +163,15 @@ CREATE TABLE IF NOT EXISTS daily_chat_rewards (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (guild_id, user_id, reward_day)
 );
+
+
+CREATE TABLE IF NOT EXISTS equipped_items (
+  guild_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  slot TEXT NOT NULL,
+  item_id TEXT NOT NULL,
+  equipped_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (guild_id, user_id, slot),
+  UNIQUE (guild_id, user_id, item_id)
+);
+CREATE INDEX IF NOT EXISTS equipped_items_user_idx ON equipped_items (guild_id, user_id);

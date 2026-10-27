@@ -18,6 +18,16 @@ module.exports = {
     { id: "underboss", name: "Underboss", tier: 6, minLevel: 21, minWallet: 300000, payMin: 1350, payMax: 2300, cooldownMs: 65 * minute, xp: 80, description: "Coordinate valuable operations and trusted crews." },
     { id: "crime_boss", name: "Crime Boss", tier: 7, minLevel: 30, minWallet: 1000000, payMin: 2200, payMax: 3800, cooldownMs: 75 * minute, xp: 105, description: "The highest career tier, earned through long-term progress." }
   ],
+  items: [
+    { id: "reinforced_gloves", name: "Reinforced Gloves", type: "equipment", slot: "hands", cost: 3500, minLevel: 2, description: "Improve control during risky jobs.", effects: { crimeChance: 3 } },
+    { id: "urban_disguise", name: "Urban Disguise", type: "equipment", slot: "outfit", cost: 9000, minLevel: 5, description: "Blend into busy areas and plan a cleaner exit.", effects: { crimeChance: 4, heistChance: 1 } },
+    { id: "operator_radio", name: "Operator Radio", type: "equipment", slot: "gadget", cost: 12500, minLevel: 6, description: "Improve crew coordination during a heist.", effects: { heistChance: 4 } },
+    { id: "reinforced_vest", name: "Reinforced Vest", type: "equipment", slot: "armor", cost: 18000, minLevel: 8, description: "Reduce losses when a risky operation fails.", effects: { fineReduction: 0.12, heistChance: 1 } },
+    { id: "delivery_bike", name: "Delivery Bike", type: "equipment", slot: "vehicle", cost: 25000, minLevel: 10, description: "Finish legal shifts more efficiently.", effects: { workPayBonus: 0.08 } },
+    { id: "field_toolkit", name: "Field Toolkit", type: "equipment", slot: "bag", cost: 32000, minLevel: 12, description: "A versatile kit for demanding clan operations.", effects: { workPayBonus: 0.04, crimeChance: 2, heistChance: 2 } },
+    { id: "smuggler_satchel", name: "Smuggler Satchel", type: "equipment", slot: "bag", cost: 58000, minLevel: 17, description: "Carry valuables more safely on advanced jobs.", effects: { crimeChance: 4, fineReduction: 0.05 } },
+    { id: "crimson_charm", name: "Crimson Charm", type: "equipment", slot: "charm", cost: 85000, minLevel: 20, description: "A rare Fukishokai keepsake that improves several operations.", effects: { crimeChance: 2, heistChance: 3, workPayBonus: 0.03 } }
+  ],
   crimes: [
     { id: "pickpocket", name: "Pickpocket", minLevel: 1, baseChance: 67, rewardMin: 90, rewardMax: 220, fineMin: 35, fineMax: 100, cooldownMs: 12 * minute, xp: 12, difficulty: 1 },
     { id: "shoplift", name: "Shoplift", minLevel: 4, baseChance: 54, rewardMin: 260, rewardMax: 650, fineMin: 120, fineMax: 290, cooldownMs: 22 * minute, xp: 22, difficulty: 2 },
