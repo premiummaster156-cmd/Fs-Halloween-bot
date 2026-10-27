@@ -148,7 +148,7 @@ const commands = [
       .addSubcommand((s) => s.setName("view").setDescription("View available equipment."))
       .addSubcommand((s) => s.setName("buy").setDescription("Buy equipment using Fuk Coins.")
         .addStringOption((o) => o.setName("item").setDescription("Item to buy").setRequired(true)
-          .addChoices(...balancing.items.map((item) => ({ name: item.name + " — " + item.cost.toLocaleString() + " FC", value: item.id })))),
+          .addChoices(...balancing.items.map((item) => ({ name: item.name + " — " + item.cost.toLocaleString() + " FC", value: item.id }))))),
     async execute(i, s) {
       if (i.options.getSubcommand() === "buy") {
         const r = await s.inventory.buy(i.guildId, i.user.id, i.options.getString("item"));
