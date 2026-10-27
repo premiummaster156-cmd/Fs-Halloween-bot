@@ -18,7 +18,7 @@ async function trackActionTx(client, guildId, userId, action, amount = 1) {
   for (const quest of quests) {
     await client.query(
       "INSERT INTO event_quest_progress (guild_id, user_id, event_id, quest_id, progress) VALUES ($1, $2, $3, $4, LEAST($5, $6)) ON CONFLICT (guild_id, user_id, event_id, quest_id) DO UPDATE SET progress = LEAST(event_quest_progress.progress + EXCLUDED.progress, $6), updated_at = NOW()",
-      [guildId, userId, event.event_id, quest.id, Math.max(0, Math.floor(amount)), quest.goal, quest.goal]
+      [guildId, userId, event.event_id, quest.id, Math.max(0, Math.floor(amount)), quest.goal]
     );
   }
 }
