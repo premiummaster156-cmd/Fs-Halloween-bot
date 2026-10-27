@@ -1,10 +1,9 @@
 const { Pool } = require("pg");
 const settings = require("../config/settings");
 
-if (!settings.databaseUrl) throw new Error("DATABASE_URL is missing. Configure PostgreSQL before starting the bot.");
 const tls = /neon\.tech|sslmode=require/i.test(settings.databaseUrl);
 const pool = new Pool({
-  connectionString: settings.databaseUrl,
+  ...(settings.databaseUrl ? { connectionString: settings.databaseUrl } : {}),
   max: Math.max(2, Math.min(20, Number(process.env.DB_POOL_MAX || 10))),
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
