@@ -75,7 +75,7 @@ const commands = [
     data: new SlashCommandBuilder().setName("job").setDescription("View careers or apply for a job.")
       .addSubcommand((s) => s.setName("view").setDescription("View your career and available jobs."))
       .addSubcommand((s) => s.setName("apply").setDescription("Apply for a career.")
-        .addStringOption((o) => o.setName("career").setDescription("Career to apply for").setRequired(true).addChoices(...balancing.jobs.map((j) => ({ name: j.name, value: j.id })))),
+        .addStringOption((o) => o.setName("career").setDescription("Career to apply for").setRequired(true).addChoices(...balancing.jobs.map((j) => ({ name: j.name, value: j.id }))))),
     async execute(i, s) {
       if (i.options.getSubcommand() === "apply") {
         const r = await s.jobs.apply(i.guildId, i.user.id, i.options.getString("career"));
@@ -163,8 +163,8 @@ const commands = [
   {
     data: new SlashCommandBuilder().setName("heist").setDescription("Plan and run cooperative heists.")
       .addSubcommand((s) => s.setName("missions").setDescription("View available missions."))
-      .addSubcommand((s) => s.setName("create").setDescription("Start recruiting a crew.").addStringOption((o) => o.setName("mission").setDescription("Mission").setRequired(true).addChoices(...balancing.heists.map((m) => ({ name: m.name, value: m.id }))))
-      .addSubcommand((s) => s.setName("join").setDescription("Join a recruiting crew.").addStringOption((o) => o.setName("id").setDescription("Heist ID").setRequired(true)).addStringOption((o) => o.setName("role").setDescription("Crew role").setRequired(true).addChoices(...Object.entries(balancing.heistRoles).map(([value, r]) => ({ name: r.label, value }))))
+      .addSubcommand((s) => s.setName("create").setDescription("Start recruiting a crew.").addStringOption((o) => o.setName("mission").setDescription("Mission").setRequired(true).addChoices(...balancing.heists.map((m) => ({ name: m.name, value: m.id })))))
+      .addSubcommand((s) => s.setName("join").setDescription("Join a recruiting crew.").addStringOption((o) => o.setName("id").setDescription("Heist ID").setRequired(true)).addStringOption((o) => o.setName("role").setDescription("Crew role").setRequired(true).addChoices(...Object.entries(balancing.heistRoles).map(([value, r]) => ({ name: r.label, value })))))
       .addSubcommand((s) => s.setName("start").setDescription("Run a heist as its leader.").addStringOption((o) => o.setName("id").setDescription("Heist ID").setRequired(true)))
       .addSubcommand((s) => s.setName("status").setDescription("View a heist and its crew.").addStringOption((o) => o.setName("id").setDescription("Heist ID").setRequired(true))),
     async execute(i, s) {
@@ -203,9 +203,9 @@ const commands = [
     data: new SlashCommandBuilder().setName("event").setDescription("View and progress through Halloween.")
       .addSubcommand((s) => s.setName("status").setDescription("View event balance and progress."))
       .addSubcommand((s) => s.setName("quests").setDescription("View your Halloween quests."))
-      .addSubcommand((s) => s.setName("claim").setDescription("Claim a completed quest.").addStringOption((o) => o.setName("quest").setDescription("Quest").setRequired(true).addChoices(...balancing.halloween.quests.map((q) => ({ name: q.name, value: q.id }))))
+      .addSubcommand((s) => s.setName("claim").setDescription("Claim a completed quest.").addStringOption((o) => o.setName("quest").setDescription("Quest").setRequired(true).addChoices(...balancing.halloween.quests.map((q) => ({ name: q.name, value: q.id })))))
       .addSubcommand((s) => s.setName("shop").setDescription("View seasonal collectibles."))
-      .addSubcommand((s) => s.setName("buy").setDescription("Buy a collectible.").addStringOption((o) => o.setName("item").setDescription("Item").setRequired(true).addChoices(...balancing.halloween.shop.map((item) => ({ name: item.name + " — " + item.cost + " Candy", value: item.id })))),
+      .addSubcommand((s) => s.setName("buy").setDescription("Buy a collectible.").addStringOption((o) => o.setName("item").setDescription("Item").setRequired(true).addChoices(...balancing.halloween.shop.map((item) => ({ name: item.name + " — " + item.cost + " Candy", value: item.id }))))),
     async execute(i, s) {
       const action = i.options.getSubcommand();
       if (action === "status" || action === "quests") {
