@@ -2,8 +2,10 @@ require("dotenv").config();
 const fs = require("node:fs");
 const path = require("node:path");
 const { pool, transaction } = require("./pool");
+const settings = require("../config/settings");
 
 async function migrate() {
+  if (!settings.databaseUrl) throw new Error("DATABASE_URL is missing. Configure PostgreSQL before migration or startup.");
   const sql = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf8");
   await transaction(async (client) => { await client.query(sql); });
   console.log("[database] Schema applied.");
