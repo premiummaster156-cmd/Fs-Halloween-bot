@@ -13,4 +13,6 @@ jobs:
         with:
           node-version: 20
       - run: npm install
+      - name: Syntax check all JavaScript files
+        run: find src scripts tests -name '*.js' -print0 | xargs -0 -n1 node --check
       - run: npm test
