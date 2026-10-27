@@ -8,6 +8,7 @@ module.exports = {
     transferMinimum: 1, transferMaximum: 500000,
     maxWallet: 2000000000
   },
+  chat: { countCooldownMs: 15000, rewardMin: 1, rewardMax: 3, dailyRewardCap: 250 },
   jobs: [
     { id: "street_runner", name: "Street Runner", tier: 1, minLevel: 1, minWallet: 0, payMin: 120, payMax: 210, cooldownMs: 30 * minute, xp: 24, description: "Take small deliveries and learn the city." },
     { id: "delivery_rider", name: "Delivery Rider", tier: 2, minLevel: 3, minWallet: 2500, payMin: 220, payMax: 380, cooldownMs: 35 * minute, xp: 30, description: "Complete risky deliveries on a tight schedule." },
@@ -54,6 +55,9 @@ module.exports = {
   halloween: {
     eventId: "halloween-2026",
     finalRoleQuestCount: 5,
+    weeklyMessageGoal: 1000,
+    weeklyMessageCandyReward: 75,
+    weeklyMessagePointsReward: 75,
     quests: [
       { id: "first_shift", name: "First Shift", action: "work", goal: 3, candy: 30, points: 30, description: "Complete 3 work shifts." },
       { id: "daily_regular", name: "Daily Regular", action: "daily", goal: 2, candy: 25, points: 25, description: "Claim your daily reward twice." },

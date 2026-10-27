@@ -11,13 +11,14 @@ const { CrimeGame } = require("./games/crime");
 const { CasinoGame } = require("./games/casino");
 const { HeistsGame } = require("./games/heists");
 const { HalloweenGame } = require("./games/halloween");
+const { ActivityService } = require("./services/activity");
 const { respond } = require("./ui");
 
 async function start() {
   if (!settings.discordToken) throw new Error("DISCORD_TOKEN is missing.");
   if (!settings.clientId) throw new Error("CLIENT_ID is missing.");
   await migrate();
-  const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+  const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
   const economy = new EconomyService(pool);
   client.services = {
     pool, balancing, economy,
@@ -25,7 +26,8 @@ async function start() {
     crime: new CrimeGame(pool, economy),
     casino: new CasinoGame(pool, economy),
     heists: new HeistsGame(pool, economy),
-    halloween: new HalloweenGame(pool)
+    halloween: new HalloweenGame(pool),
+    activity: new ActivityService(pool, economy)
   };
   client.commands = loadCommands();
 
@@ -53,6 +55,13 @@ async function start() {
         console.error("[command] Could not send error response:", replyError.message);
       }
     }
+  });
+
+  client.on(Events.MessageCreate, (message) => {
+    if (!message.guildId || message.author.bot || message.webhookId) return;
+    client.services.activity.trackMessage(message).catch((error) => {
+      console.error("[activity] Message tracking failed:", error.message);
+    });
   });
 
   client.on(Events.Error, (error) => console.error("[discord] Client error:", error.message));

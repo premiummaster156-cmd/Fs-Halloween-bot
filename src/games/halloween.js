@@ -4,6 +4,7 @@ const { DomainError } = require("../utils/core");
 const { transaction } = require("../database/pool");
 const { ensurePlayerTx } = require("../services/economy");
 const { activeEventTx } = require("../services/events");
+const { getWeekStart } = require("../services/activity");
 
 class HalloweenGame {
   constructor(pool) { this.pool = pool; }
@@ -45,6 +46,51 @@ class HalloweenGame {
       claims: claims.rows.map((row) => row.quest_id),
       wallet: wallet.rows[0] || { candy: 0, points: 0 }
     };
+  }
+
+
+  async claimWeeklyActivity(guildId, userId, activityService) {
+    const { transaction } = require("../database/pool");
+    const weekStart = getWeekStart();
+    return transaction(async (client) => {
+      const event = await activeEventTx(client, guildId);
+      if (!event) throw new DomainError("The Halloween event is not active in this server.", "EVENT_INACTIVE");
+      await ensurePlayerTx(client, guildId, userId);
+      const activity = await client.query(
+        "SELECT messages FROM weekly_activity WHERE guild_id = $1 AND user_id = $2 AND week_start = $3 FOR UPDATE",
+        [guildId, userId, weekStart]
+      );
+      const messages = activity.rowCount ? Number(activity.rows[0].messages) : 0;
+      if (messages < balancing.halloween.weeklyMessageGoal) {
+        throw new DomainError(
+          "You have " + messages + "/" + balancing.halloween.weeklyMessageGoal + " eligible messages this week.",
+          "WEEKLY_ACTIVITY_INCOMPLETE"
+        );
+      }
+      const questId = "weekly_messages:" + weekStart;
+      const claim = await client.query(
+        "INSERT INTO event_claims (guild_id, user_id, event_id, quest_id, candy, points) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING RETURNING quest_id",
+        [guildId, userId, event.event_id, questId, balancing.halloween.weeklyMessageCandyReward, balancing.halloween.weeklyMessagePointsReward]
+      );
+      if (!claim.rowCount) throw new DomainError("You already claimed this week's activity reward.", "WEEKLY_ACTIVITY_CLAIMED");
+      await client.query(
+        "INSERT INTO event_wallets (guild_id, user_id, event_id, candy, points) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (guild_id, user_id, event_id) DO UPDATE SET candy = event_wallets.candy + EXCLUDED.candy, points = event_wallets.points + EXCLUDED.points, updated_at = NOW()",
+        [guildId, userId, event.event_id, balancing.halloween.weeklyMessageCandyReward, balancing.halloween.weeklyMessagePointsReward]
+      );
+      const count = await client.query(
+        "SELECT COUNT(*)::int AS claimed FROM event_claims WHERE guild_id = $1 AND user_id = $2 AND event_id = $3",
+        [guildId, userId, event.event_id]
+      );
+      return {
+        messages,
+        weekStart,
+        candy: balancing.halloween.weeklyMessageCandyReward,
+        points: balancing.halloween.weeklyMessagePointsReward,
+        claimedCount: count.rows[0].claimed,
+        eligibleForRole: count.rows[0].claimed >= balancing.halloween.finalRoleQuestCount,
+        roleId: event.role_id
+      };
+    });
   }
 
   async claimQuest(guildId, userId, questId) {

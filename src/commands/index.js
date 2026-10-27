@@ -108,9 +108,14 @@ const commands = [
   {
     data: new SlashCommandBuilder().setName("leaderboard").setDescription("View Fukishokai game rankings.")
       .addStringOption((o) => o.setName("type").setDescription("Ranking type").setRequired(false).addChoices(
-        { name: "Wealth", value: "wealth" }, { name: "Level", value: "level" }, { name: "Lifetime earned", value: "earned" })),
+        { name: "Wealth", value: "wealth" }, { name: "Level", value: "level" }, { name: "Lifetime earned", value: "earned" }, { name: "Weekly activity", value: "activity" })),
     async execute(i, s) {
       const type = i.options.getString("type") || "wealth";
+      if (type === "activity") {
+        const activity = await s.activity.leaderboard(i.guildId, 10);
+        const lines = activity.rows.map((row, index) => "**" + (index + 1) + ".** <@" + row.user_id + "> — " + Number(row.messages).toLocaleString() + " messages");
+        return respond(i, { title: "Weekly Activity Leaderboard", description: lines.length ? "Week starting " + activity.weekStart + "\n\n" + lines.join("\n") : "No tracked messages this week yet." });
+      }
       const rows = await getLeaderboard(s.pool, i.guildId, type, 10);
       if (!rows.length) return respond(i, { title: "Leaderboard", description: "No players are ranked yet." });
       const lines = rows.map((row, index) => "**" + (index + 1) + ".** <@" + row.user_id + "> — " +
@@ -203,11 +208,34 @@ const commands = [
     data: new SlashCommandBuilder().setName("event").setDescription("View and progress through Halloween.")
       .addSubcommand((s) => s.setName("status").setDescription("View event balance and progress."))
       .addSubcommand((s) => s.setName("quests").setDescription("View your Halloween quests."))
+      .addSubcommand((s) => s.setName("weekly").setDescription("Check your 1,000-message Halloween mission."))
+      .addSubcommand((s) => s.setName("weekly-claim").setDescription("Claim the weekly message mission reward."))
       .addSubcommand((s) => s.setName("claim").setDescription("Claim a completed quest.").addStringOption((o) => o.setName("quest").setDescription("Quest").setRequired(true).addChoices(...balancing.halloween.quests.map((q) => ({ name: q.name, value: q.id })))))
       .addSubcommand((s) => s.setName("shop").setDescription("View seasonal collectibles."))
       .addSubcommand((s) => s.setName("buy").setDescription("Buy a collectible.").addStringOption((o) => o.setName("item").setDescription("Item").setRequired(true).addChoices(...balancing.halloween.shop.map((item) => ({ name: item.name + " — " + item.cost + " Candy", value: item.id }))))),
     async execute(i, s) {
       const action = i.options.getSubcommand();
+      if (action === "weekly") {
+        const weekly = await s.activity.getWeekly(i.guildId, i.user.id);
+        const event = await s.halloween.getEvent(i.guildId);
+        const active = event && event.enabled && new Date(event.starts_at).getTime() <= Date.now() && new Date(event.ends_at).getTime() > Date.now();
+        return respond(i, {
+          title: "Weekly Halloween Mission",
+          description: "Reach **" + weekly.goal.toLocaleString() + " eligible messages** during the week starting " + weekly.weekStart + ".\n\nYour progress: **" + weekly.messages.toLocaleString() + "/" + weekly.goal.toLocaleString() + "** messages.\n\nReward: **" + balancing.halloween.weeklyMessageCandyReward + " Candy** and " + balancing.halloween.weeklyMessagePointsReward + " event points." + (active ? "\n\nUse /event weekly-claim when you reach the goal." : "\n\nThe Halloween event must be active to claim the reward.")
+        });
+      }
+      if (action === "weekly-claim") {
+        const r = await s.halloween.claimWeeklyActivity(i.guildId, i.user.id, s.activity);
+        if (r.eligibleForRole && r.roleId) {
+          try {
+            const member = await i.guild.members.fetch(i.user.id);
+            await member.roles.add(r.roleId, "Completed the weekly Halloween activity mission");
+          } catch (error) {
+            console.warn("[event] Weekly activity role could not be added:", error.message);
+          }
+        }
+        return respond(i, { kind: "success", title: "Weekly Mission Complete", description: "You reached " + r.messages.toLocaleString() + " eligible messages and received **" + r.candy + " Candy** plus " + r.points + " event points. Claims toward the final role: " + r.claimedCount + "/" + balancing.halloween.finalRoleQuestCount + "." });
+      }
       if (action === "status" || action === "quests") {
         const r = await s.halloween.status(i.guildId, i.user.id);
         if (!r.event) return respond(i, { title: "Halloween Event", description: "An administrator needs to start the event in this server." });

@@ -51,3 +51,11 @@ test("economy balance, job, heist, and quest data is internally valid", () => {
   }
   assert.equal(new Set(balancing.halloween.quests.map((item) => item.id)).size, balancing.halloween.quests.length);
 });
+
+
+test("weekly activity starts on Monday UTC regardless of weekday", () => {
+  const { getWeekStart } = require("../src/services/activity");
+  assert.equal(getWeekStart("2026-10-27T09:00:00.000Z"), "2026-10-26");
+  assert.equal(getWeekStart("2026-10-25T23:59:59.000Z"), "2026-10-19");
+  assert.equal(getWeekStart("2026-10-26T00:00:00.000Z"), "2026-10-26");
+});

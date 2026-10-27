@@ -20,8 +20,8 @@ Invite the bot with the bot and applications.commands scopes. Never commit a rea
 
 ## Commands
 
-- /balance, /daily, /work, /job, /profile, /leaderboard
-- /crime, /casino, /heist, /event
+- /balance, /bank, /daily, /work, /job, /profile, /leaderboard, /activity, /transfer, /inventory
+- /crime, /casino, /heist, /event (including the weekly 1,000-message Halloween mission)
 - /admin for approved economy and event controls
 
 ## Design
