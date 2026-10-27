@@ -148,7 +148,7 @@ const commands = [
       .addSubcommand((s) => s.setName("view").setDescription("View available equipment."))
       .addSubcommand((s) => s.setName("buy").setDescription("Buy equipment using Fuk Coins.")
         .addStringOption((o) => o.setName("item").setDescription("Item to buy").setRequired(true)
-          .addChoices(...balancing.items.map((item) => ({ name: item.name + " — " + item.cost.toLocaleString() + " FC", value: item.id }))))),
+          .addChoices(...balancing.items.map((item) => ({ name: item.name + " — " + item.cost.toLocaleString() + " FC", value: item.id })))))) ,
     async execute(i, s) {
       if (i.options.getSubcommand() === "buy") {
         const r = await s.inventory.buy(i.guildId, i.user.id, i.options.getString("item"));
@@ -161,7 +161,7 @@ const commands = [
   {
     data: new SlashCommandBuilder().setName("equip").setDescription("Equip an item you own.")
       .addStringOption((o) => o.setName("item").setDescription("Equipment to equip").setRequired(true)
-        .addChoices(...balancing.items.filter((item) => item.type === "equipment").map((item) => ({ name: item.name, value: item.id })))),
+        .addChoices(...balancing.items.filter((item) => item.type === "equipment").map((item) => ({ name: item.name, value: item.id }))))),
     async execute(i, s) {
       const r = await s.inventory.equip(i.guildId, i.user.id, i.options.getString("item"));
       return respond(i, { kind: "success", title: "Equipment Updated", description: "Equipped **" + r.item.name + "** in your **" + r.item.slot + "** slot." + (r.previousItem ? "\\nReplaced: " + r.previousItem.name : "") });
