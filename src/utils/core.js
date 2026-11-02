@@ -38,7 +38,7 @@ function uuid() { return crypto.randomUUID(); }
 function clamp(value, minimum, maximum) { return Math.min(maximum, Math.max(minimum, value)); }
 function levelXpRequired(level) {
   const safeLevel = Math.max(1, Math.floor(level));
-  return 100 + (safeLevel * safeLevel * 35);
+  return 50 + (safeLevel * 10);
 }
 function calculateWorkPay(job, jobLevel, randomPercent) {
   const level = Math.max(1, Math.floor(jobLevel || 1));

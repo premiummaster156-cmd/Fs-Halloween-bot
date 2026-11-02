@@ -42,7 +42,7 @@ class HeistsGame {
     });
   }
 
-  async start(guildId, userId, heistId) {
+  async start(guildId, userId, heistId, roleIdsByUser = new Map()) {
     return transaction(async (client) => {
       const query = await client.query("SELECT * FROM heists WHERE id = $1 AND guild_id = $2 FOR UPDATE", [heistId, guildId]);
       const heist = query.rows[0];
@@ -78,7 +78,7 @@ class HeistsGame {
         for (const share of shares) {
           await this.economy.mutateTx(client, guildId, share.userId, share.amount, "heist_reward", reference + ":" + share.userId, { heistId, missionId: mission.id });
           await client.query("UPDATE players SET heists_completed = heists_completed + 1, reputation = LEAST(100, reputation + 2) WHERE guild_id = $1 AND user_id = $2", [guildId, share.userId]);
-          await this.economy.addXpTx(client, guildId, share.userId, 40 + mission.difficulty * 20);
+          await this.economy.addXpTx(client, guildId, share.userId, 40 + mission.difficulty * 20, roleIdsByUser.get(share.userId) || []);
           await trackActionTx(client, guildId, share.userId, "heist_success", 1);
           await trackActionTx(client, guildId, share.userId, "wallet_earned", share.amount);
         }

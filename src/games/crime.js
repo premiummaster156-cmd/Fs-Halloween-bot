@@ -8,7 +8,7 @@ class CrimeGame {
   constructor(pool, economy, inventory) { this.pool = pool; this.economy = economy; this.inventory = inventory; }
   list() { return balancing.crimes.map((crime) => ({ ...crime })); }
 
-  async attempt(guildId, userId, crimeId) {
+  async attempt(guildId, userId, crimeId, roleIds = []) {
     const crime = balancing.crimes.find((item) => item.id === crimeId);
     if (!crime) throw new DomainError("Choose a valid crime.", "CRIME_NOT_FOUND");
     return transaction(async (client) => {
@@ -29,7 +29,7 @@ class CrimeGame {
         reward = Math.floor(randomInt(crime.rewardMin, crime.rewardMax) * (1 + Math.min(0.3, Number(player.level) * 0.004)));
         await this.economy.mutateTx(client, guildId, userId, reward, "crime_success", reference, { crimeId, successChance });
         await client.query("UPDATE players SET crime_successes = crime_successes + 1, reputation = LEAST(100, reputation + 1), updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [guildId, userId]);
-        await this.economy.addXpTx(client, guildId, userId, crime.xp);
+        await this.economy.addXpTx(client, guildId, userId, crime.xp, roleIds);
         await trackActionTx(client, guildId, userId, "crime_success", 1);
         await trackActionTx(client, guildId, userId, "wallet_earned", reward);
       } else {

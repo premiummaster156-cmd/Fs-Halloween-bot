@@ -3,10 +3,11 @@ const settings = require("./config/settings");
 
 function createEmbed(options = {}) {
   const brand = settings.brand;
+  const thumbnail = options.thumbnail || options.iconUrl || brand.icons[options.icon] || brand.iconUrl;
   const embed = new EmbedBuilder()
     .setColor(options.color || brand.primary)
-    .setAuthor({ name: brand.emoji + " " + brand.name })
-    .setFooter({ text: options.footer || "Fukishokai • " + brand.name });
+    .setAuthor({ name: brand.name })
+    .setFooter({ text: options.footer || "Use /guide for a quick walkthrough." });
   if (options.title) embed.setTitle(String(options.title).slice(0, 256));
   if (options.description) embed.setDescription(String(options.description).slice(0, 4096));
   if (Array.isArray(options.fields) && options.fields.length) {
@@ -16,7 +17,7 @@ function createEmbed(options = {}) {
       inline: Boolean(field.inline)
     })));
   }
-  if (options.thumbnail) embed.setThumbnail(options.thumbnail);
+  if (thumbnail) embed.setThumbnail(thumbnail);
   if (options.image) embed.setImage(options.image);
   if (options.timestamp !== false) embed.setTimestamp();
   return embed;
@@ -30,8 +31,9 @@ const colors = {
 };
 async function respond(interaction, options = {}) {
   const color = colors[options.kind] ? colors[options.kind]() : colors.info();
-  const embed = createEmbed({ ...options, color });
-  const payload = { embeds: [embed], ephemeral: Boolean(options.ephemeral) };
+  const icon = options.icon || (options.kind === "error" || options.kind === "warning" ? "failed" : null);
+  const embed = createEmbed({ ...options, icon, color });
+  const payload = { embeds: [embed], ephemeral: Boolean(options.ephemeral), components: options.components || [] };
   if (interaction.deferred || interaction.replied) {
     delete payload.ephemeral;
     return interaction.editReply(payload);

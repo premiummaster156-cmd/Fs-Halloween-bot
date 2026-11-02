@@ -19,13 +19,14 @@ async function audit(pool, guildId, actorId, action, targetId = null, details = 
   }
 }
 
-async function sendLog(client, content) {
-  if (!settings.logChannelId) return;
+async function sendLog(client, guildId, content) {
   try {
-    const channel = await client.channels.fetch(settings.logChannelId);
+    const channelId = await client.services.guildSettings.get(guildId, "logChannelId");
+    if (!channelId) return;
+    const channel = await client.channels.fetch(channelId);
     if (channel && channel.isTextBased()) await channel.send({ content: String(content).slice(0, 1900) });
   } catch (error) {
-    log("warn", "Could not send to configured log channel", { message: error.message });
+    log("warn", "Could not send to the server's configured log channel", { guildId, message: error.message });
   }
 }
 

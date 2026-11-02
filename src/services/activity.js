@@ -26,7 +26,7 @@ class ActivityService {
     return getWeekStart(value);
   }
 
-  async trackMessage(message) {
+  async trackMessage(message, roleIds = []) {
     if (!message || !message.guildId || !message.author || message.author.bot || message.webhookId) {
       return { counted: false, reason: "ignored" };
     }
@@ -50,12 +50,15 @@ class ActivityService {
         [guildId, userId, rewardDay]
       );
       const daily = await client.query(
-        "SELECT earned FROM daily_chat_rewards WHERE guild_id = $1 AND user_id = $2 AND reward_day = $3 FOR UPDATE",
+        "SELECT earned, xp_earned FROM daily_chat_rewards WHERE guild_id = $1 AND user_id = $2 AND reward_day = $3 FOR UPDATE",
         [guildId, userId, rewardDay]
       );
       const earnedToday = Number(daily.rows[0].earned);
       const remaining = Math.max(0, balancing.chat.dailyRewardCap - earnedToday);
       const reward = Math.min(remaining, randomInt(balancing.chat.rewardMin, balancing.chat.rewardMax));
+      const xpEarnedToday = Number(daily.rows[0].xp_earned);
+      const xpRemaining = Math.max(0, balancing.chat.dailyXpCap - xpEarnedToday);
+      const xpReward = Math.min(xpRemaining, balancing.chat.xpPerMessage);
 
       if (reward > 0) {
         await this.economy.mutateTx(client, guildId, userId, reward, "chat_activity_reward", uuid(), {
@@ -72,11 +75,23 @@ class ActivityService {
         );
       }
 
+      let progression = null;
+      if (xpReward > 0) {
+        progression = await this.economy.addXpTx(client, guildId, userId, xpReward, roleIds);
+        await client.query(
+          "UPDATE daily_chat_rewards SET xp_earned = xp_earned + $4, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2 AND reward_day = $3",
+          [guildId, userId, rewardDay, xpReward]
+        );
+      }
+
       return {
         counted: true,
         messages: Number(counted.rows[0].messages),
         reward,
         rewardCapRemaining: Math.max(0, remaining - reward),
+        xpReward,
+        xpCapRemaining: Math.max(0, xpRemaining - xpReward),
+        progression,
         weekStart
       };
     });
@@ -100,7 +115,9 @@ class ActivityService {
   async leaderboard(guildId, limit = 10) {
     const weekStart = getWeekStart();
     const result = await this.pool.query(
-      "SELECT w.user_id, w.messages, w.chat_earned FROM weekly_activity w WHERE w.guild_id = $1 AND w.week_start = $2 AND NOT EXISTS (SELECT 1 FROM leaderboard_exclusions e WHERE e.guild_id = w.guild_id AND e.user_id = w.user_id) ORDER BY w.messages DESC, w.user_id ASC LIMIT $3",
+      "SELECT a.user_id, a.messages, a.chat_earned FROM weekly_activity a WHERE a.guild_id = $1 AND a.week_start = $2 " +
+      "AND NOT EXISTS (SELECT 1 FROM leaderboard_exclusions x WHERE x.guild_id = a.guild_id AND x.user_id = a.user_id) " +
+      "ORDER BY a.messages DESC, a.user_id ASC LIMIT $3",
       [guildId, weekStart, Math.max(1, Math.min(25, limit))]
     );
     return { weekStart, rows: result.rows };

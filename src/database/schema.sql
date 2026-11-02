@@ -160,9 +160,11 @@ CREATE TABLE IF NOT EXISTS daily_chat_rewards (
   user_id TEXT NOT NULL,
   reward_day DATE NOT NULL,
   earned BIGINT NOT NULL DEFAULT 0 CHECK (earned >= 0),
+  xp_earned BIGINT NOT NULL DEFAULT 0 CHECK (xp_earned >= 0),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (guild_id, user_id, reward_day)
 );
+ALTER TABLE daily_chat_rewards ADD COLUMN IF NOT EXISTS xp_earned BIGINT NOT NULL DEFAULT 0 CHECK (xp_earned >= 0);
 
 
 CREATE TABLE IF NOT EXISTS equipped_items (
@@ -177,12 +179,13 @@ CREATE TABLE IF NOT EXISTS equipped_items (
 CREATE INDEX IF NOT EXISTS equipped_items_user_idx ON equipped_items (guild_id, user_id);
 
 
--- Members excluded from competitive leaderboards without altering their balances.
 CREATE TABLE IF NOT EXISTS leaderboard_exclusions (
   guild_id TEXT NOT NULL,
   user_id TEXT NOT NULL,
-  reason TEXT NOT NULL,
   excluded_by TEXT NOT NULL,
-  excluded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  reason TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (guild_id, user_id)
 );
+CREATE INDEX IF NOT EXISTS leaderboard_exclusions_guild_idx
+  ON leaderboard_exclusions (guild_id, user_id);

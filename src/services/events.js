@@ -17,25 +17,26 @@ async function trackActionTx(client, guildId, userId, action, amount = 1) {
   const quests = balancing.halloween.quests.filter((quest) => quest.action === action);
   for (const quest of quests) {
     await client.query(
-      "INSERT INTO event_quest_progress (guild_id, user_id, event_id, quest_id, progress) VALUES ($1, $2, $3, $4, LEAST($5, $6)) ON CONFLICT (guild_id, user_id, event_id, quest_id) DO UPDATE SET progress = LEAST(event_quest_progress.progress + EXCLUDED.progress, $6), updated_at = NOW()",
+      "INSERT INTO event_quest_progress (guild_id, user_id, event_id, quest_id, progress) VALUES ($1, $2, $3, $4, LEAST($5::bigint, $6::bigint)) ON CONFLICT (guild_id, user_id, event_id, quest_id) DO UPDATE SET progress = LEAST(event_quest_progress.progress + EXCLUDED.progress, $6::bigint), updated_at = NOW()",
       [guildId, userId, event.event_id, quest.id, Math.max(0, Math.floor(amount)), quest.goal]
     );
   }
 }
 
 class HalloweenGame {
-  constructor(pool) { this.pool = pool; }
+  constructor(pool, guildSettings) { this.pool = pool; this.guildSettings = guildSettings; }
 
   async startEvent(guildId, actorId, roleId, endsAt) {
     const end = new Date(endsAt || settings.halloweenEndsAt);
     if (Number.isNaN(end.getTime()) || end.getTime() <= Date.now()) {
       throw new DomainError("Event end date must be a valid future date.", "EVENT_END_INVALID");
     }
+    const rewardRoleId = roleId || (this.guildSettings && await this.guildSettings.get(guildId, "halloweenRoleId")) || settings.defaultEventRoleId || null;
     await this.pool.query(
       "INSERT INTO halloween_events (guild_id, event_id, starts_at, ends_at, role_id, enabled, created_by) VALUES ($1, $2, NOW(), $3, $4, TRUE, $5) ON CONFLICT (guild_id, event_id) DO UPDATE SET starts_at = NOW(), ends_at = EXCLUDED.ends_at, role_id = EXCLUDED.role_id, enabled = TRUE, created_by = EXCLUDED.created_by, updated_at = NOW()",
-      [guildId, balancing.halloween.eventId, end, roleId || settings.defaultEventRoleId || null, actorId]
+      [guildId, balancing.halloween.eventId, end, rewardRoleId, actorId]
     );
-    return { eventId: balancing.halloween.eventId, endsAt: end, roleId: roleId || settings.defaultEventRoleId || null };
+    return { eventId: balancing.halloween.eventId, endsAt: end, roleId: rewardRoleId };
   }
 
   async stopEvent(guildId, actorId) {

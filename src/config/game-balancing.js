@@ -8,15 +8,16 @@ module.exports = {
     transferMinimum: 1, transferMaximum: 500000,
     maxWallet: 2000000000
   },
-  chat: { countCooldownMs: 15000, rewardMin: 1, rewardMax: 3, dailyRewardCap: 250 },
+  progression: { xpMultiplier: 3, roleBoosterMultiplier: 2 },
+  chat: { countCooldownMs: 15000, rewardMin: 1, rewardMax: 3, dailyRewardCap: 250, xpPerMessage: 2, dailyXpCap: 100 },
   jobs: [
-    { id: "street_runner", name: "Street Runner", tier: 1, minLevel: 1, minWallet: 0, payMin: 120, payMax: 210, cooldownMs: 30 * minute, xp: 24, description: "Take small deliveries and learn the city." },
-    { id: "delivery_rider", name: "Delivery Rider", tier: 2, minLevel: 3, minWallet: 2500, payMin: 220, payMax: 380, cooldownMs: 35 * minute, xp: 30, description: "Complete risky deliveries on a tight schedule." },
-    { id: "shopkeeper", name: "Shopkeeper", tier: 3, minLevel: 6, minWallet: 9000, payMin: 330, payMax: 570, cooldownMs: 40 * minute, xp: 38, description: "Manage supplies and keep the operation running." },
-    { id: "enforcer", name: "Enforcer", tier: 4, minLevel: 10, minWallet: 25000, payMin: 520, payMax: 880, cooldownMs: 45 * minute, xp: 48, description: "Protect clan operations and handle difficult jobs." },
-    { id: "smuggler", name: "Smuggler", tier: 5, minLevel: 15, minWallet: 90000, payMin: 850, payMax: 1450, cooldownMs: 55 * minute, xp: 62, description: "Move high-value goods while managing risk." },
-    { id: "underboss", name: "Underboss", tier: 6, minLevel: 21, minWallet: 300000, payMin: 1350, payMax: 2300, cooldownMs: 65 * minute, xp: 80, description: "Coordinate valuable operations and trusted crews." },
-    { id: "crime_boss", name: "Crime Boss", tier: 7, minLevel: 30, minWallet: 1000000, payMin: 2200, payMax: 3800, cooldownMs: 75 * minute, xp: 105, description: "The highest career tier, earned through long-term progress." }
+    { id: "street_runner", name: "Street Runner", tier: 1, minLevel: 1, minWallet: 0, payMin: 120, payMax: 210, cooldownMs: 10 * minute, xp: 24, description: "Take small deliveries and learn the city." },
+    { id: "delivery_rider", name: "Delivery Rider", tier: 2, minLevel: 3, minWallet: 2500, payMin: 220, payMax: 380, cooldownMs: 10 * minute, xp: 30, description: "Complete risky deliveries on a tight schedule." },
+    { id: "shopkeeper", name: "Shopkeeper", tier: 3, minLevel: 6, minWallet: 9000, payMin: 330, payMax: 570, cooldownMs: 10 * minute, xp: 38, description: "Manage supplies and keep the operation running." },
+    { id: "enforcer", name: "Enforcer", tier: 4, minLevel: 10, minWallet: 25000, payMin: 520, payMax: 880, cooldownMs: 10 * minute, xp: 48, description: "Protect clan operations and handle difficult jobs." },
+    { id: "smuggler", name: "Smuggler", tier: 5, minLevel: 15, minWallet: 90000, payMin: 850, payMax: 1450, cooldownMs: 10 * minute, xp: 62, description: "Move high-value goods while managing risk." },
+    { id: "underboss", name: "Underboss", tier: 6, minLevel: 21, minWallet: 300000, payMin: 1350, payMax: 2300, cooldownMs: 10 * minute, xp: 80, description: "Coordinate valuable operations and trusted crews." },
+    { id: "crime_boss", name: "Crime Boss", tier: 7, minLevel: 30, minWallet: 1000000, payMin: 2200, payMax: 3800, cooldownMs: 10 * minute, xp: 105, description: "The highest career tier, earned through long-term progress." }
   ],
   items: [
     { id: "reinforced_gloves", name: "Reinforced Gloves", type: "equipment", slot: "hands", cost: 3500, minLevel: 2, description: "Improve control during risky jobs.", effects: { crimeChance: 3 } },

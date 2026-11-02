@@ -18,10 +18,13 @@ async function getPlayer(pool, guildId, userId) {
   return result.rows[0];
 }
 async function getLeaderboard(pool, guildId, metric = "wealth", limit = 10) {
-  const columns = { wealth: "(p.wallet + p.bank)", level: "p.level", earned: "p.lifetime_earned" };
+  const columns = { wealth: "(wallet + bank)", level: "level", earned: "lifetime_earned" };
   const column = columns[metric] || columns.wealth;
   const result = await pool.query(
-    "SELECT p.user_id, p.wallet, p.bank, p.level, p.xp, p.lifetime_earned, (" + column + ") AS score FROM players p WHERE p.guild_id = $1 AND NOT EXISTS (SELECT 1 FROM leaderboard_exclusions e WHERE e.guild_id = p.guild_id AND e.user_id = p.user_id) ORDER BY score DESC, p.user_id ASC LIMIT $2",
+    "SELECT p.user_id, p.wallet, p.bank, p.level, p.xp, p.lifetime_earned, (" + column + ") AS score " +
+    "FROM players p WHERE p.guild_id = $1 " +
+    "AND NOT EXISTS (SELECT 1 FROM leaderboard_exclusions x WHERE x.guild_id = p.guild_id AND x.user_id = p.user_id) " +
+    "ORDER BY score DESC, p.user_id ASC LIMIT $2",
     [guildId, Math.max(1, Math.min(25, limit))]
   );
   return result.rows;
@@ -32,6 +35,23 @@ class EconomyService {
   transact(callback) { return transaction(callback); }
   ensurePlayerTx(client, guildId, userId) { return ensurePlayerTx(client, guildId, userId); }
   claimCooldownTx(client, guildId, userId, key, ms) { return claimCooldownTx(client, guildId, userId, key, ms); }
+
+  async excludeFromLeaderboards(guildId, userId, actorId, reason) {
+    const result = await this.pool.query(
+      "INSERT INTO leaderboard_exclusions (guild_id, user_id, excluded_by, reason) VALUES ($1, $2, $3, $4) " +
+      "ON CONFLICT (guild_id, user_id) DO UPDATE SET excluded_by = EXCLUDED.excluded_by, reason = EXCLUDED.reason, created_at = NOW() RETURNING user_id",
+      [guildId, userId, actorId, reason]
+    );
+    return { excluded: result.rowCount > 0 };
+  }
+
+  async includeInLeaderboards(guildId, userId) {
+    const result = await this.pool.query(
+      "DELETE FROM leaderboard_exclusions WHERE guild_id = $1 AND user_id = $2 RETURNING user_id",
+      [guildId, userId]
+    );
+    return { included: result.rowCount > 0 };
+  }
 
   async getBalance(guildId, userId) {
     const player = await getPlayer(this.pool, guildId, userId);
@@ -47,7 +67,7 @@ class EconomyService {
     const existing = await client.query("SELECT id FROM economy_ledger WHERE guild_id = $1 AND user_id = $2 AND reference = $3", [guildId, userId, ref]);
     if (existing.rowCount) return { duplicate: true, balance: Number(result.rows[0].wallet) };
     const next = Number(result.rows[0].wallet) + amount;
-    if (next < 0) throw new DomainError("You do not have enough Fuk Coins in your wallet.", "INSUFFICIENT_FUNDS");
+    if (next < 0) throw new DomainError("You do not have enough FS Coins in your wallet.", "INSUFFICIENT_FUNDS");
     if (next > balancing.economy.maxWallet) throw new DomainError("That amount would exceed the wallet limit.", "WALLET_LIMIT");
     await client.query(
       "UPDATE players SET wallet = $3, lifetime_earned = lifetime_earned + $4, lifetime_spent = lifetime_spent + $5, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2",
@@ -60,8 +80,14 @@ class EconomyService {
     return { duplicate: false, balance: next, delta: amount };
   }
 
-  async addXpTx(client, guildId, userId, amount) {
-    const gained = Math.max(0, Math.floor(amount));
+  async addXpTx(client, guildId, userId, amount, roleIds = []) {
+    const booster = await client.query(
+      "SELECT setting_value FROM guild_settings WHERE guild_id = $1 AND setting_key = 'xpBoosterRoleId'",
+      [guildId]
+    );
+    const hasBooster = booster.rowCount && roleIds.includes(booster.rows[0].setting_value);
+    const multiplier = balancing.progression.xpMultiplier * (hasBooster ? balancing.progression.roleBoosterMultiplier : 1);
+    const gained = Math.max(0, Math.floor(amount * multiplier));
     const result = await client.query("SELECT level, xp FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [guildId, userId]);
     if (!result.rowCount) return { gained, level: 1, levelsGained: 0 };
     let level = Number(result.rows[0].level);
@@ -73,7 +99,7 @@ class EconomyService {
       levelsGained += 1;
     }
     await client.query("UPDATE players SET level = $3, xp = $4, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [guildId, userId, level, xp]);
-    return { gained, level, levelsGained, xp, nextLevelXp: levelXpRequired(level) };
+    return { gained, multiplier, level, levelsGained, xp, nextLevelXp: levelXpRequired(level) };
   }
 
   async transfer(guildId, fromUserId, toUserId, amount) {
@@ -93,14 +119,14 @@ class EconomyService {
     });
   }
 
-  async daily(guildId, userId) {
+  async daily(guildId, userId, roleIds = []) {
     return transaction(async (client) => {
       await ensurePlayerTx(client, guildId, userId);
       await claimCooldownTx(client, guildId, userId, "daily", balancing.economy.dailyCooldownMs);
       const row = await client.query("SELECT level FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [guildId, userId]);
       const amount = randomInt(balancing.economy.dailyMin, balancing.economy.dailyMax) + Number(row.rows[0].level) * 8;
       await this.mutateTx(client, guildId, userId, amount, "daily_reward", uuid(), {});
-      const progression = await this.addXpTx(client, guildId, userId, balancing.economy.dailyXp);
+      const progression = await this.addXpTx(client, guildId, userId, balancing.economy.dailyXp, roleIds);
       const events = require("./events");
       await events.trackActionTx(client, guildId, userId, "daily", 1);
       await events.trackActionTx(client, guildId, userId, "wallet_earned", amount);

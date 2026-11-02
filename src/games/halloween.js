@@ -7,18 +7,19 @@ const { activeEventTx } = require("../services/events");
 const { getWeekStart } = require("../services/activity");
 
 class HalloweenGame {
-  constructor(pool) { this.pool = pool; }
+  constructor(pool, guildSettings) { this.pool = pool; this.guildSettings = guildSettings; }
 
   async startEvent(guildId, actorId, roleId, endsAt) {
     const end = new Date(endsAt || settings.halloweenEndsAt);
     if (Number.isNaN(end.getTime()) || end.getTime() <= Date.now()) {
       throw new DomainError("The event end date must be a valid date in the future.", "EVENT_END_INVALID");
     }
+    const rewardRoleId = roleId || await this.guildSettings.get(guildId, "halloweenRoleId");
     await this.pool.query(
       "INSERT INTO halloween_events (guild_id, event_id, starts_at, ends_at, role_id, enabled, created_by) VALUES ($1, $2, NOW(), $3, $4, TRUE, $5) ON CONFLICT (guild_id, event_id) DO UPDATE SET starts_at = NOW(), ends_at = EXCLUDED.ends_at, role_id = EXCLUDED.role_id, enabled = TRUE, created_by = EXCLUDED.created_by, updated_at = NOW()",
-      [guildId, balancing.halloween.eventId, end, roleId || settings.defaultEventRoleId || null, actorId]
+      [guildId, balancing.halloween.eventId, end, rewardRoleId, actorId]
     );
-    return { eventId: balancing.halloween.eventId, endsAt: end, roleId: roleId || settings.defaultEventRoleId || null };
+    return { eventId: balancing.halloween.eventId, endsAt: end, roleId: rewardRoleId };
   }
 
   async stopEvent(guildId, actorId) {
@@ -30,9 +31,16 @@ class HalloweenGame {
     return { eventId: result.rows[0].event_id, actorId };
   }
 
+  async getEvent(guildId) {
+    const result = await this.pool.query(
+      "SELECT * FROM halloween_events WHERE guild_id = $1 AND event_id = $2 LIMIT 1",
+      [guildId, balancing.halloween.eventId]
+    );
+    return result.rows[0] || null;
+  }
+
   async status(guildId, userId) {
-    const eventResult = await this.pool.query("SELECT * FROM halloween_events WHERE guild_id = $1 AND event_id = $2", [guildId, balancing.halloween.eventId]);
-    const event = eventResult.rows[0] || null;
+    const event = await this.getEvent(guildId);
     if (!event) return { active: false, event: null, quests: balancing.halloween.quests, progress: [], claims: [], wallet: { candy: 0, points: 0 } };
     const active = Boolean(event.enabled) && new Date(event.starts_at).getTime() <= Date.now() && new Date(event.ends_at).getTime() > Date.now();
     const [progress, claims, wallet] = await Promise.all([
