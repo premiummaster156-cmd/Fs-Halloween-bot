@@ -192,6 +192,18 @@ async function handleAdminPanelComponent(interaction, services) {
     const setting = settingByAction[action];
     if (!setting || !interaction.values[0]) throw new Error("Unknown admin panel setting selector.");
     const value = interaction.values[0];
+    if (setting.key === "halloweenRoleId") {
+      const selectedRole = await interaction.guild.roles.fetch(value);
+      if (!selectedRole) {
+        return interaction.followUp({ content: "That role could not be found. Please select an existing server role.", ephemeral: true });
+      }
+      if (selectedRole.id === interaction.guildId || selectedRole.managed) {
+        return interaction.followUp({
+          content: "That role cannot be used as the Halloween reward because Discord marks it as managed (or it is @everyone). Create a normal server role such as **Halloween Champion**, then select that role here.",
+          ephemeral: true
+        });
+      }
+    }
     await services.guildSettings.set(interaction.guildId, setting.key, value, interaction.user.id);
     await audit(services.pool, interaction.guildId, interaction.user.id, "server_setting_updated", null, { setting: setting.key, value });
     await sendLog(interaction.client, interaction.guildId, setting.label + " updated by <@" + interaction.user.id + ">.");
