@@ -554,10 +554,12 @@ const commands = [
       }
       if (action === "weekly-claim") {
         const r = await s.halloween.claimWeeklyActivity(i.guildId, i.user.id, s.activity);
-        if (r.eligibleForRole && r.roleId) {
+        const configuredRewardRole = await s.guildSettings.get(i.guildId, "halloweenRoleId");
+        const rewardRoleId = configuredRewardRole || r.roleId;
+        if (r.eligibleForRole && rewardRoleId) {
           try {
             const member = await i.guild.members.fetch(i.user.id);
-            await member.roles.add(r.roleId, "Completed the weekly Halloween activity mission");
+            await member.roles.add(rewardRoleId, "Completed the weekly Halloween activity mission");
           } catch (error) {
             console.warn("[event] Weekly activity role could not be added:", error.message);
           }
@@ -567,6 +569,16 @@ const commands = [
       if (action === "status" || action === "quests") {
         const r = await s.halloween.status(i.guildId, i.user.id);
         if (!r.event) return respond(i, { icon: "task", title: "Halloween Event", description: "An administrator needs to start the event in this server." });
+        const configuredRewardRole = await s.guildSettings.get(i.guildId, "halloweenRoleId");
+        const rewardRoleId = configuredRewardRole || r.event.role_id;
+        if (r.active && r.claims.length >= balancing.halloween.finalRoleQuestCount && rewardRoleId) {
+          try {
+            const member = await i.guild.members.fetch(i.user.id);
+            if (!member.roles.cache.has(rewardRoleId)) await member.roles.add(rewardRoleId, "Completed the Halloween final reward requirement");
+          } catch (error) {
+            console.warn("[event] Final reward role could not be reconciled:", error.message);
+          }
+        }
         const progress = new Map(r.progress.map((x) => [x.quest_id, Number(x.progress)]));
         const claims = new Set(r.claims);
         const lines = r.quests.map((q) => "**" + q.name + "** — " + Math.min(q.goal, progress.get(q.id) || 0) + "/" + q.goal + (claims.has(q.id) ? " • CLAIMED" : "") + "\n" + q.description + " Reward: " + q.candy + " Candy.");
@@ -576,10 +588,12 @@ const commands = [
       }
       if (action === "claim") {
         const r = await s.halloween.claimQuest(i.guildId, i.user.id, i.options.getString("quest"));
-        if (r.eligibleForRole && r.roleId) {
+        const configuredRewardRole = await s.guildSettings.get(i.guildId, "halloweenRoleId");
+        const rewardRoleId = configuredRewardRole || r.roleId;
+        if (r.eligibleForRole && rewardRoleId) {
           try {
             const member = await i.guild.members.fetch(i.user.id);
-            await member.roles.add(r.roleId, "Completed the Halloween quest requirement");
+            await member.roles.add(rewardRoleId, "Completed the Halloween quest requirement");
           } catch (error) {
             console.warn("[event] Event role could not be added:", error.message);
           }
