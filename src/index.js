@@ -110,7 +110,7 @@ async function start() {
     }
 
     const startedAt = Date.now();
-    const privateReply = command.data.name === "admin" || !privilegedUser;
+    const privateReply = command.data.name === "admin";
     try {
       // Acknowledge before any database or Discord API work; Discord expires unacknowledged interactions quickly.
       await interaction.deferReply(privateReply ? { flags: MessageFlags.Ephemeral } : {});
