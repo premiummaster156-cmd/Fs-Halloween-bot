@@ -17,6 +17,28 @@ const { InventoryService } = require("./services/inventory");
 const { GuildSettingsService } = require("./services/guild-settings");
 const { respond } = require("./ui");
 
+const MEMBER_COMMANDS_CHANNEL_ID = "1566508610459271478";
+
+async function isPrivilegedCommandUser(interaction, guildSettings) {
+  if (
+    (settings.ownerId && interaction.user.id === settings.ownerId) ||
+    (interaction.guild && interaction.guild.ownerId === interaction.user.id) ||
+    (interaction.memberPermissions && (
+      interaction.memberPermissions.has("Administrator") ||
+      interaction.memberPermissions.has("ManageGuild")
+    ))
+  ) return true;
+
+  const roleIds = interaction.member && interaction.member.roles && interaction.member.roles.cache
+    ? Array.from(interaction.member.roles.cache.keys())
+    : [];
+  const configuredAdminRoleId = await guildSettings.get(interaction.guildId, "adminRoleId");
+  return Boolean(
+    (configuredAdminRoleId && roleIds.includes(configuredAdminRoleId)) ||
+    settings.adminRoleIds.some((id) => roleIds.includes(id))
+  );
+}
+
 async function start() {
   if (!settings.discordToken) throw new Error("DISCORD_TOKEN is missing.");
   if (!settings.clientId) throw new Error("CLIENT_ID is missing.");
@@ -70,8 +92,25 @@ async function start() {
       });
     }
 
+    let privilegedUser = false;
+    try {
+      privilegedUser = await isPrivilegedCommandUser(interaction, client.services.guildSettings);
+    } catch (error) {
+      console.error("[commands] Could not check channel access:", error.code || error.name, error.message);
+      return respond(interaction, { kind: "error", ephemeral: true, title: "Access Check Failed", description: "Please try again shortly." });
+    }
+
+    if (!privilegedUser && interaction.channelId !== MEMBER_COMMANDS_CHANNEL_ID) {
+      return respond(interaction, {
+        kind: "error",
+        ephemeral: true,
+        title: "Use the Commands Channel",
+        description: "Member commands can only be used in <#" + MEMBER_COMMANDS_CHANNEL_ID + ">. Your command response is private."
+      });
+    }
+
     const startedAt = Date.now();
-    const privateReply = command.data.name === "admin";
+    const privateReply = command.data.name === "admin" || !privilegedUser;
     try {
       // Acknowledge before any database or Discord API work; Discord expires unacknowledged interactions quickly.
       await interaction.deferReply(privateReply ? { flags: MessageFlags.Ephemeral } : {});
