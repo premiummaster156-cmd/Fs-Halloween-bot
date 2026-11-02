@@ -1,5 +1,5 @@
 require("dotenv").config();
-const { Client, GatewayIntentBits, Events, MessageFlags } = require("discord.js");
+const { Client, GatewayIntentBits, Events, MessageFlags, PermissionFlagsBits } = require("discord.js");
 const { DomainError } = require("./utils/core");
 const settings = require("./config/settings");
 const balancing = require("./config/game-balancing");
@@ -24,8 +24,8 @@ async function isPrivilegedCommandUser(interaction, guildSettings) {
     (settings.ownerId && interaction.user.id === settings.ownerId) ||
     (interaction.guild && interaction.guild.ownerId === interaction.user.id) ||
     (interaction.memberPermissions && (
-      interaction.memberPermissions.has("Administrator") ||
-      interaction.memberPermissions.has("ManageGuild")
+      interaction.memberPermissions.has(PermissionFlagsBits.Administrator) ||
+      interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild)
     ))
   ) return true;
 
