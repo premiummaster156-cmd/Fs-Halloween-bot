@@ -175,3 +175,14 @@ CREATE TABLE IF NOT EXISTS equipped_items (
   UNIQUE (guild_id, user_id, item_id)
 );
 CREATE INDEX IF NOT EXISTS equipped_items_user_idx ON equipped_items (guild_id, user_id);
+
+
+-- Members excluded from competitive leaderboards without altering their balances.
+CREATE TABLE IF NOT EXISTS leaderboard_exclusions (
+  guild_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  excluded_by TEXT NOT NULL,
+  excluded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (guild_id, user_id)
+);
