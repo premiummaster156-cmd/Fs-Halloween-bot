@@ -86,7 +86,7 @@ async function adminPanel(i, services) {
     description: "Configure this server directly here. Use the menus below to set roles and the log channel, or clear a setting.",
     fields: [
       { name: "Access", value: "Manage Server, Administrator, or the configured admin role can use admin controls." },
-      { name: "Economy", value: "Use **/admin grant** or **/admin remove** with a member, amount, and audit reason." },
+      { name: "Economy", value: "Use **/admin grant** for FS Coins or XP, **/admin set-level** for player levels, and **/admin set-job** for careers. These controls are owner-only." },
       { name: "Logging", value: configured.logChannelId ? "<#" + configured.logChannelId + ">" : "Not configured" },
       { name: "Halloween reward role", value: configured.halloweenRoleId ? "<@&" + configured.halloweenRoleId + ">" : "Not configured" },
       { name: "2x XP role", value: configured.xpBoosterRoleId ? "<@&" + configured.xpBoosterRoleId + ">" : "Not configured. Members with this role get double XP." },
@@ -575,8 +575,10 @@ const commands = [
   {
     data: new SlashCommandBuilder().setName("admin").setDescription("Authorized economy and Halloween controls.")
       .addSubcommand((s) => s.setName("panel").setDescription("View the private server admin panel."))
-      .addSubcommand((s) => s.setName("grant").setDescription("Grant FS Coins.").addUserOption((o) => o.setName("member").setDescription("Member").setRequired(true)).addIntegerOption((o) => o.setName("amount").setDescription("Amount").setRequired(true).setMinValue(1).setMaxValue(10000000)).addStringOption((o) => o.setName("reason").setDescription("Reason").setRequired(true)))
+      .addSubcommand((s) => s.setName("grant").setDescription("Grant FS Coins or XP.").addUserOption((o) => o.setName("member").setDescription("Member to update").setRequired(true)).addStringOption((o) => o.setName("type").setDescription("Resource to grant").setRequired(true).addChoices({ name: "FS Coins", value: "coins" }, { name: "XP", value: "xp" })).addIntegerOption((o) => o.setName("amount").setDescription("Amount to grant").setRequired(true).setMinValue(1).setMaxValue(10000000)).addStringOption((o) => o.setName("reason").setDescription("Audit reason").setRequired(true).setMaxLength(500)))
       .addSubcommand((s) => s.setName("remove").setDescription("Remove FS Coins.").addUserOption((o) => o.setName("member").setDescription("Member").setRequired(true)).addIntegerOption((o) => o.setName("amount").setDescription("Amount").setRequired(true).setMinValue(1).setMaxValue(10000000)).addStringOption((o) => o.setName("reason").setDescription("Reason").setRequired(true)))
+      .addSubcommand((s) => s.setName("set-level").setDescription("Set a player level directly.").addUserOption((o) => o.setName("member").setDescription("Member").setRequired(true)).addIntegerOption((o) => o.setName("level").setDescription("New player level").setRequired(true).setMinValue(1).setMaxValue(100)).addStringOption((o) => o.setName("reason").setDescription("Audit reason").setRequired(true).setMaxLength(500)))
+      .addSubcommand((s) => s.setName("set-job").setDescription("Assign a career and job level.").addUserOption((o) => o.setName("member").setDescription("Member").setRequired(true)).addStringOption((o) => o.setName("career").setDescription("Career to assign").setRequired(true).addChoices(...balancing.jobs.map((j) => ({ name: j.name, value: j.id })))).addIntegerOption((o) => o.setName("job-level").setDescription("Job level (defaults to 1)").setRequired(false).setMinValue(1).setMaxValue(100)).addStringOption((o) => o.setName("reason").setDescription("Audit reason").setRequired(true).setMaxLength(500)))
       .addSubcommand((s) => s.setName("leaderboard-exclude").setDescription("Exclude a member from all competitive leaderboards.").addUserOption((o) => o.setName("member").setDescription("Member to exclude").setRequired(true)).addStringOption((o) => o.setName("reason").setDescription("Reason for exclusion").setRequired(true).setMaxLength(500)))
       .addSubcommand((s) => s.setName("leaderboard-include").setDescription("Restore a member's leaderboard eligibility.").addUserOption((o) => o.setName("member").setDescription("Member to restore").setRequired(true)))
       .addSubcommand((s) => s.setName("event-start").setDescription("Start the Halloween event.").addRoleOption((o) => o.setName("role").setDescription("Final reward role").setRequired(false)))
@@ -603,19 +605,75 @@ const commands = [
         await sendLog(i.client, i.guildId, "Leaderboard eligibility restored by <@" + i.user.id + "> for <@" + target.id + ">.");
         return respond(i, { kind: "success", title: "Member Restored", description: result.included ? target.username + " is eligible for leaderboards again." : target.username + " was not excluded." });
       }
-      if (action === "grant" || action === "remove") {
+      if (["grant", "remove", "set-level", "set-job"].includes(action)) {
+        if (!ownerAllowed(i)) return respond(i, { kind: "error", ephemeral: true, icon: "failed", title: "Owner Only", description: "Only the server owner or configured bot owner can edit player money, XP, levels, or careers." });
         const target = i.options.getUser("member");
-        if (action === "grant" && (!ownerAllowed(i) || target.id === i.user.id)) {
-          return respond(i, { kind: "error", ephemeral: true, icon: "failed", title: "Grant Restricted", description: "Only the server owner or configured bot owner may grant FS Coins, and self-grants are not allowed." });
-        }
-        const amount = i.options.getInteger("amount") * (action === "grant" ? 1 : -1);
         const reason = i.options.getString("reason");
+
+        if (action === "grant") {
+          const amount = i.options.getInteger("amount");
+          const type = i.options.getString("type");
+          if (type === "coins") {
+            await s.economy.transact(async (client) => {
+              await s.economy.mutateTx(client, i.guildId, target.id, amount, "admin_grant", uuid(), { actorId: i.user.id, reason, resource: "coins" });
+            });
+            await audit(s.pool, i.guildId, i.user.id, "admin_grant_coins", target.id, { amount, reason });
+            await sendLog(i.client, i.guildId, "FS Coins granted by <@" + i.user.id + "> to <@" + target.id + "> (" + amount.toLocaleString() + " FC): " + reason);
+            return respond(i, { kind: "success", icon: "settings", title: "FS Coins Granted", description: "Granted **" + amount.toLocaleString() + " FC** to " + target.username + ".", fields: [{ name: "Reason", value: reason }] });
+          }
+
+          const progression = await s.economy.transact(async (client) => {
+            await s.economy.ensurePlayerTx(client, i.guildId, target.id);
+            const current = await client.query("SELECT level, xp FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [i.guildId, target.id]);
+            let level = Number(current.rows[0].level);
+            let xp = Number(current.rows[0].xp) + amount;
+            let levelsGained = 0;
+            while (level < 100 && xp >= levelXpRequired(level)) {
+              xp -= levelXpRequired(level);
+              level += 1;
+              levelsGained += 1;
+            }
+            if (level >= 100) xp = 0;
+            await client.query("UPDATE players SET level = $3, xp = $4, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [i.guildId, target.id, level, xp]);
+            return { level, xp, levelsGained };
+          });
+          await audit(s.pool, i.guildId, i.user.id, "admin_grant_xp", target.id, { amount, reason, newLevel: progression.level, levelsGained: progression.levelsGained });
+          await sendLog(i.client, i.guildId, "XP granted by <@" + i.user.id + "> to <@" + target.id + "> (" + amount.toLocaleString() + " XP): " + reason);
+          return respond(i, { kind: "success", icon: "settings", title: "XP Granted", description: "Granted **" + amount.toLocaleString() + " XP** to " + target.username + ". Current level: **" + progression.level + "**." + (progression.levelsGained ? " Levels gained: " + progression.levelsGained + "." : ""), fields: [{ name: "Reason", value: reason }] });
+        }
+
+        if (action === "remove") {
+          const amount = i.options.getInteger("amount");
+          await s.economy.transact(async (client) => {
+            await s.economy.mutateTx(client, i.guildId, target.id, -amount, "admin_remove", uuid(), { actorId: i.user.id, reason });
+          });
+          await audit(s.pool, i.guildId, i.user.id, "economy_remove", target.id, { amount: -amount, reason });
+          await sendLog(i.client, i.guildId, "FS Coins removed by <@" + i.user.id + "> from <@" + target.id + "> (" + amount.toLocaleString() + " FC): " + reason);
+          return respond(i, { kind: "success", icon: "settings", title: "FS Coins Removed", description: "Removed **" + amount.toLocaleString() + " FC** from " + target.username + ".", fields: [{ name: "Reason", value: reason }] });
+        }
+
+        if (action === "set-level") {
+          const level = i.options.getInteger("level");
+          await s.economy.transact(async (client) => {
+            await s.economy.ensurePlayerTx(client, i.guildId, target.id);
+            await client.query("UPDATE players SET level = $3, xp = 0, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [i.guildId, target.id, level]);
+          });
+          await audit(s.pool, i.guildId, i.user.id, "admin_set_level", target.id, { level, reason });
+          await sendLog(i.client, i.guildId, "Player level set by <@" + i.user.id + "> for <@" + target.id + "> to level " + level + ": " + reason);
+          return respond(i, { kind: "success", icon: "settings", title: "Player Level Updated", description: "Set " + target.username + "'s player level to **" + level + "** and reset current-level XP to 0.", fields: [{ name: "Reason", value: reason }] });
+        }
+
+        const career = i.options.getString("career");
+        const job = balancing.jobs.find((entry) => entry.id === career);
+        if (!job) return respond(i, { kind: "error", ephemeral: true, icon: "failed", title: "Invalid Career", description: "That career is not available." });
+        const jobLevel = i.options.getInteger("job-level") || 1;
         await s.economy.transact(async (client) => {
-          await s.economy.mutateTx(client, i.guildId, target.id, amount, "admin_" + action, uuid(), { actorId: i.user.id, reason });
+          await s.economy.ensurePlayerTx(client, i.guildId, target.id);
+          await client.query("UPDATE players SET job_id = $3, job_level = $4, job_xp = 0, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [i.guildId, target.id, career, jobLevel]);
         });
-        await audit(s.pool, i.guildId, i.user.id, "economy_" + action, target.id, { amount, reason });
-        await sendLog(i.client, i.guildId, "FS Coins " + action + " by <@" + i.user.id + "> for <@" + target.id + "> (" + Math.abs(amount).toLocaleString() + " FC): " + reason);
-        return respond(i, { kind: "success", icon: "settings", title: "Economy Updated", description: (action === "grant" ? "Granted " : "Removed ") + Math.abs(amount).toLocaleString() + " FC " + (action === "grant" ? "to " : "from ") + target.username + ".", fields: [{ name: "Reason", value: reason }] });
+        await audit(s.pool, i.guildId, i.user.id, "admin_set_job", target.id, { career, jobLevel, reason });
+        await sendLog(i.client, i.guildId, "Career set by <@" + i.user.id + "> for <@" + target.id + "> to " + job.name + " level " + jobLevel + ": " + reason);
+        return respond(i, { kind: "success", icon: "settings", title: "Career Updated", description: "Assigned **" + job.name + " · Level " + jobLevel + "** to " + target.username + ".", fields: [{ name: "Reason", value: reason }] });
       }
       if (action === "event-start") {
         const role = i.options.getRole("role");
