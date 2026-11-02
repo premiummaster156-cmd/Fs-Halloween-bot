@@ -14,7 +14,7 @@ function interactionRoleIds(interaction) {
 }
 
 async function adminAllowed(interaction, guildSettings) {
-  if (settings.ownerId && interaction.user.id === settings.ownerId) return true;
+  if (ownerAllowed(interaction)) return true;
   if (interaction.memberPermissions && (
     interaction.memberPermissions.has(PermissionFlagsBits.Administrator) ||
     interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild)
