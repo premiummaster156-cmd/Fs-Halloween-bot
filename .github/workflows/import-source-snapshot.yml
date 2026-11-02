@@ -1,0 +1,46 @@
+name: Import current source snapshot
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".sync/part-*.b64"
+      - ".sync/part-*.b64"
+permissions:
+  contents: write
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Import source snapshot
+        run: |
+          cat .sync/part-01.b64 .sync/part-02.b64 .sync/part-03.b64 .sync/part-04.b64 .sync/part-05.b64 .sync/part-06.b64 .sync/part-07.b64 .sync/part-08.b64 .sync/part-09a.b64 .sync/part-09b.b64 .sync/part-10.b64 .sync/part-11.b64 .sync/part-12.b64 .sync/part-13.b64 .sync/part-14.b64 | base64 --decode > /tmp/fukishokai-source.tar.xz
+          mkdir -p /tmp/fukishokai-source
+          tar -xJf /tmp/fukishokai-source.tar.xz -C /tmp/fukishokai-source
+          rsync -a --delete --exclude='.git/' --exclude='.github/' /tmp/fukishokai-source/ ./
+          rm -rf .sync
+          rm -f .github/workflows/import-source-snapshot.yml
+      - name: Install dependencies
+        run: npm ci
+      - name: Check JavaScript syntax
+        run: find src scripts tests -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Validate slash commands
+        run: node -e "const commands = require('./src/commands').loadCommands(); for (const command of commands.values()) command.data.toJSON(); console.log('Validated ' + commands.size + ' commands')"
+      - name: Run tests
+        run: npm test
+      - name: Commit synchronized source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No source changes to commit"
+            exit 0
+          fi
+          git commit -m "Sync latest Fukishokai Halloween bot source"
+          git push origin HEAD:main
