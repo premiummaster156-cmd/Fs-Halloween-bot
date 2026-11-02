@@ -33,6 +33,77 @@ function ownerAllowed(interaction) {
   );
 }
 
+async function assignHalloweenRewardRole(interaction, roleId, reason) {
+  const guild = interaction.guild;
+  let step = "validate";
+
+  try {
+    if (!roleId) return { assigned: false, issue: "No Halloween reward role is configured." };
+
+    step = "fetch-role";
+    const role = await guild.roles.fetch(roleId);
+    if (!role) return { assigned: false, issue: "The configured Halloween reward role no longer exists." };
+
+    step = "fetch-target-member";
+    const member = await guild.members.fetch(interaction.user.id);
+
+    step = "fetch-bot-member";
+    const botMember = guild.members.me || await guild.members.fetchMe();
+
+    const diagnostics = {
+      guildId: guild.id,
+      targetUserId: member.id,
+      targetIsGuildOwner: member.id === guild.ownerId,
+      roleId: role.id,
+      roleName: role.name,
+      roleManaged: role.managed,
+      rolePosition: role.position,
+      botUserId: botMember.id,
+      botHasManageRoles: botMember.permissions.has(PermissionFlagsBits.ManageRoles),
+      botHighestRoleId: botMember.roles.highest.id,
+      botHighestRolePosition: botMember.roles.highest.position
+    };
+
+    if (member.id === guild.ownerId) {
+      console.warn("[event] Final reward role blocked: target is the server owner.", diagnostics);
+      return { assigned: false, issue: "Discord does not allow the bot to assign roles to the server owner." };
+    }
+    if (role.id === guild.id) {
+      console.warn("[event] Final reward role blocked: selected role is @everyone.", diagnostics);
+      return { assigned: false, issue: "The @everyone role cannot be assigned as a reward." };
+    }
+    if (role.managed) {
+      console.warn("[event] Final reward role blocked: selected role is integration-managed.", diagnostics);
+      return { assigned: false, issue: "The selected role is managed by an integration and cannot be assigned by the bot." };
+    }
+    if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
+      console.warn("[event] Final reward role blocked: bot is missing Manage Roles.", diagnostics);
+      return { assigned: false, issue: "The bot is missing the Manage Roles permission." };
+    }
+    if (botMember.roles.highest.comparePositionTo(role) <= 0) {
+      console.warn("[event] Final reward role blocked by role hierarchy.", diagnostics);
+      return { assigned: false, issue: "The Halloween reward role is not below the bot's highest role." };
+    }
+    if (member.roles.cache.has(role.id)) return { assigned: true, alreadyHadRole: true };
+
+    step = "assign-role";
+    await member.roles.add(role, reason);
+    console.log("[event] Final reward role assigned.", diagnostics);
+    return { assigned: true, alreadyHadRole: false };
+  } catch (error) {
+    console.error("[event] Final reward role assignment failed.", {
+      step,
+      guildId: guild && guild.id,
+      targetUserId: interaction.user.id,
+      roleId,
+      discordCode: error.code || null,
+      httpStatus: error.status || null,
+      message: error.message
+    });
+    return { assigned: false, issue: "Discord rejected the role assignment. Check the bot console for the exact failed step and Discord error code." };
+  }
+}
+
 async function adminPanel(i, services) {
   const [event, configured] = await Promise.all([
     services.halloween.status(i.guildId, i.user.id),
@@ -556,28 +627,22 @@ const commands = [
         const r = await s.halloween.claimWeeklyActivity(i.guildId, i.user.id, s.activity);
         const configuredRewardRole = await s.guildSettings.get(i.guildId, "halloweenRoleId");
         const rewardRoleId = configuredRewardRole || r.roleId;
+        let roleNotice = "";
         if (r.eligibleForRole && rewardRoleId) {
-          try {
-            const member = await i.guild.members.fetch(i.user.id);
-            await member.roles.add(rewardRoleId, "Completed the weekly Halloween activity mission");
-          } catch (error) {
-            console.warn("[event] Weekly activity role could not be added:", error.message);
-          }
+          const assignment = await assignHalloweenRewardRole(i, rewardRoleId, "Completed the weekly Halloween activity mission");
+          if (!assignment.assigned) roleNotice = "\\n\\n**Reward role not assigned:** " + assignment.issue;
         }
-        return respond(i, { kind: "success", icon: "task", title: "Weekly Mission Complete", description: "You reached " + r.messages.toLocaleString() + " eligible messages and received **" + r.candy + " Candy** plus " + r.points + " event points. Claims toward the final role: " + r.claimedCount + "/" + balancing.halloween.finalRoleQuestCount + "." });
+        return respond(i, { kind: "success", icon: "task", title: "Weekly Mission Complete", description: "You reached " + r.messages.toLocaleString() + " eligible messages and received **" + r.candy + " Candy** plus " + r.points + " event points. Claims toward the final role: " + r.claimedCount + "/" + balancing.halloween.finalRoleQuestCount + "." + roleNotice });
       }
       if (action === "status" || action === "quests") {
         const r = await s.halloween.status(i.guildId, i.user.id);
         if (!r.event) return respond(i, { icon: "task", title: "Halloween Event", description: "An administrator needs to start the event in this server." });
         const configuredRewardRole = await s.guildSettings.get(i.guildId, "halloweenRoleId");
         const rewardRoleId = configuredRewardRole || r.event.role_id;
+        let roleNotice = "";
         if (r.claims.length >= balancing.halloween.finalRoleQuestCount && rewardRoleId) {
-          try {
-            const member = await i.guild.members.fetch(i.user.id);
-            if (!member.roles.cache.has(rewardRoleId)) await member.roles.add(rewardRoleId, "Completed the Halloween final reward requirement");
-          } catch (error) {
-            console.error("[event] Final reward role could not be reconciled:", { guildId: i.guildId, userId: i.user.id, roleId: rewardRoleId, error: error.message });
-          }
+          const assignment = await assignHalloweenRewardRole(i, rewardRoleId, "Completed the Halloween final reward requirement");
+          if (!assignment.assigned) roleNotice = "\\n\\n**Final reward role not assigned:** " + assignment.issue;
         }
         const progress = new Map(r.progress.map((x) => [x.quest_id, Number(x.progress)]));
         const claims = new Set(r.claims);
@@ -590,15 +655,12 @@ const commands = [
         const r = await s.halloween.claimQuest(i.guildId, i.user.id, i.options.getString("quest"));
         const configuredRewardRole = await s.guildSettings.get(i.guildId, "halloweenRoleId");
         const rewardRoleId = configuredRewardRole || r.roleId;
+        let roleNotice = "";
         if (r.eligibleForRole && rewardRoleId) {
-          try {
-            const member = await i.guild.members.fetch(i.user.id);
-            await member.roles.add(rewardRoleId, "Completed the Halloween quest requirement");
-          } catch (error) {
-            console.warn("[event] Event role could not be added:", error.message);
-          }
+          const assignment = await assignHalloweenRewardRole(i, rewardRoleId, "Completed the Halloween quest requirement");
+          if (!assignment.assigned) roleNotice = "\\n\\n**Final reward role not assigned:** " + assignment.issue;
         }
-        return respond(i, { kind: "success", icon: "task", title: "Quest Claimed", description: "**" + r.quest.name + "** completed. You received **" + r.quest.candy + " Candy** and " + r.quest.points + " points." });
+        return respond(i, { kind: "success", icon: "task", title: "Quest Claimed", description: "**" + r.quest.name + "** completed. You received **" + r.quest.candy + " Candy** and " + r.quest.points + " points." + roleNotice });
       }
       if (action === "shop") return respond(i, { icon: "task", title: "Halloween Shop", description: balancing.halloween.shop.map((item) => "**" + item.name + "** — " + item.cost + " Candy\n" + item.description).join("\n\n") });
       const r = await s.halloween.buyItem(i.guildId, i.user.id, i.options.getString("item"));
