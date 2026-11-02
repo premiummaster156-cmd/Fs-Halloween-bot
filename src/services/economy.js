@@ -21,7 +21,7 @@ async function getLeaderboard(pool, guildId, metric = "wealth", limit = 10) {
   const columns = { wealth: "(wallet + bank)", level: "level", earned: "lifetime_earned" };
   const column = columns[metric] || columns.wealth;
   const result = await pool.query(
-    "SELECT user_id, wallet, bank, level, xp, lifetime_earned, (" + column + ") AS score FROM players WHERE guild_id = $1 ORDER BY score DESC, user_id ASC LIMIT $2",
+    "SELECT p.user_id, p.wallet, p.bank, p.level, p.xp, p.lifetime_earned, (" + column.replace(/\\b(wallet|bank|level|lifetime_earned)\\b/g, "p.$1") + ") AS score FROM players p WHERE p.guild_id = $1 AND NOT EXISTS (SELECT 1 FROM leaderboard_exclusions e WHERE e.guild_id = p.guild_id AND e.user_id = p.user_id) ORDER BY score DESC, p.user_id ASC LIMIT $2",
     [guildId, Math.max(1, Math.min(25, limit))]
   );
   return result.rows;
