@@ -45,7 +45,7 @@ The existing `.env` in this project already has values configured for the requir
 - **Equipment:** /shop, /inventory, /equip, /unequip
 - **Games:** /crime, /casino, /heist
 - **Halloween:** /event, including the weekly message mission
-- **Server administration:** /admin panel, /admin grant, /admin remove, /admin event-start, /admin event-stop (restricted to approved administrators)
+- **Server administration:** /admin panel, /admin grant, /admin remove, /admin set-level, /admin set-job, /admin leaderboard-exclude, /admin leaderboard-include, /admin event-start, /admin event-stop. Player economy/progression edits are restricted to the server owner or configured bot owner.
 
 ### First steps
 
@@ -69,4 +69,4 @@ Set `OWNER_ID` and/or `ADMIN_ROLE_IDS` in `.env` to control access to admin comm
 
 The server owner or configured bot owner can use `/admin leaderboard-exclude` to hide a member from Wealth, Level, Lifetime Earned, and Weekly Activity leaderboards. `/admin leaderboard-include` restores eligibility. Exclusion does not change the member's balance or progression and is stored in PostgreSQL.
 
-Administrative FS Coin grants are restricted to the server owner or configured bot owner. Self-grants are blocked; grants and removals remain recorded in the audit log.
+The server owner and configured bot owner can use `/admin grant` to grant FS Coins or XP to themselves or any member, `/admin set-level` to set a player's level, and `/admin set-job` to assign a career and job level. `/admin remove` removes FS Coins. These player-editing commands are owner-only (the configured admin role cannot use them), and every change is recorded in the audit log with a reason.
