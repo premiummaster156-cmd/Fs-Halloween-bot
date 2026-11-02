@@ -475,12 +475,31 @@ const commands = [
       }
       if (action === "create") {
         const r = await s.heists.create(i.guildId, i.user.id, i.options.getString("mission"));
-        return respond(i, { kind: "success", title: "Recruiting: " + r.mission.name, description: "Heist ID: **" + r.id + "**\nShare the ID with your crew, let them join, then use /heist start.",
+        const copyIdButton = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId("heist-copy-id:" + i.id)
+            .setLabel("Show Copyable Heist ID")
+            .setStyle(ButtonStyle.Primary)
+        );
+        const message = await respond(i, { kind: "success", title: "Recruiting: " + r.mission.name, description: "Heist ID: **" + r.id + "**\n\nOn mobile, tap **Show Copyable Heist ID** to get the ID in a plain message you can long-press and copy. Share it with your crew, let them join, then use /heist start.",
+          components: [copyIdButton],
           fields: [
             { name: "Crew size", value: r.mission.minParticipants + "-" + r.mission.maxParticipants, inline: true },
             { name: "Potential payout", value: r.mission.payoutMin.toLocaleString() + "-" + r.mission.payoutMax.toLocaleString() + " FC", inline: true },
             { name: "Difficulty", value: String(r.mission.difficulty), inline: true }
           ] });
+        const collector = message.createMessageComponentCollector({ componentType: ComponentType.Button, time: 15 * 60 * 1000 });
+        collector.on("collect", async (component) => {
+          if (component.customId !== "heist-copy-id:" + i.id) return;
+          await component.reply({
+            content: "Copy this Heist ID:\n\n\u0060\u0060\u0060text\n" + r.id + "\n\u0060\u0060\u0060",
+            flags: MessageFlags.Ephemeral
+          });
+        });
+        collector.on("end", () => {
+          message.edit({ components: [] }).catch(() => {});
+        });
+        return message;
       }
       const id = i.options.getString("id");
       if (action === "join") {
