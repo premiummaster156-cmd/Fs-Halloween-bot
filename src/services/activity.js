@@ -100,7 +100,7 @@ class ActivityService {
   async leaderboard(guildId, limit = 10) {
     const weekStart = getWeekStart();
     const result = await this.pool.query(
-      "SELECT user_id, messages, chat_earned FROM weekly_activity WHERE guild_id = $1 AND week_start = $2 ORDER BY messages DESC, user_id ASC LIMIT $3",
+      "SELECT w.user_id, w.messages, w.chat_earned FROM weekly_activity w WHERE w.guild_id = $1 AND w.week_start = $2 AND NOT EXISTS (SELECT 1 FROM leaderboard_exclusions e WHERE e.guild_id = w.guild_id AND e.user_id = w.user_id) ORDER BY w.messages DESC, w.user_id ASC LIMIT $3",
       [guildId, weekStart, Math.max(1, Math.min(25, limit))]
     );
     return { weekStart, rows: result.rows };
