@@ -305,12 +305,36 @@ const commands = [
     data: new SlashCommandBuilder().setName("admin").setDescription("Authorized economy and Halloween controls.")
       .addSubcommand((s) => s.setName("grant").setDescription("Grant Fuk Coins.").addUserOption((o) => o.setName("member").setDescription("Member").setRequired(true)).addIntegerOption((o) => o.setName("amount").setDescription("Amount").setRequired(true).setMinValue(1).setMaxValue(10000000)).addStringOption((o) => o.setName("reason").setDescription("Reason").setRequired(true)))
       .addSubcommand((s) => s.setName("remove").setDescription("Remove Fuk Coins.").addUserOption((o) => o.setName("member").setDescription("Member").setRequired(true)).addIntegerOption((o) => o.setName("amount").setDescription("Amount").setRequired(true).setMinValue(1).setMaxValue(10000000)).addStringOption((o) => o.setName("reason").setDescription("Reason").setRequired(true)))
+      .addSubcommand((s) => s.setName("leaderboard-exclude").setDescription("Exclude a member from competitive leaderboards (owner only).").addUserOption((o) => o.setName("member").setDescription("Member").setRequired(true)).addStringOption((o) => o.setName("reason").setDescription("Reason").setRequired(true)))
+      .addSubcommand((s) => s.setName("leaderboard-include").setDescription("Restore a member to competitive leaderboards (owner only).").addUserOption((o) => o.setName("member").setDescription("Member").setRequired(true)))
       .addSubcommand((s) => s.setName("event-start").setDescription("Start the Halloween event.").addRoleOption((o) => o.setName("role").setDescription("Final reward role").setRequired(false)))
       .addSubcommand((s) => s.setName("event-stop").setDescription("Stop the Halloween event.")),
     async execute(i, s) {
       if (!adminAllowed(i)) return respond(i, { kind: "error", ephemeral: true, title: "Permission Denied", description: "You need Manage Server, an approved admin role, or the configured owner ID." });
       const action = i.options.getSubcommand();
+      if (action === "leaderboard-exclude" || action === "leaderboard-include") {
+        if (!settings.ownerId || i.user.id !== settings.ownerId) {
+          return respond(i, { kind: "error", ephemeral: true, title: "Owner Only", description: "Only the configured bot owner can change leaderboard exclusions." });
+        }
+        const target = i.options.getUser("member");
+        if (action === "leaderboard-exclude") {
+          const reason = i.options.getString("reason");
+          await s.pool.query(
+            "INSERT INTO leaderboard_exclusions (guild_id, user_id, reason, excluded_by) VALUES ($1, $2, $3, $4) ON CONFLICT (guild_id, user_id) DO UPDATE SET reason = EXCLUDED.reason, excluded_by = EXCLUDED.excluded_by, excluded_at = NOW()",
+            [i.guildId, target.id, reason, i.user.id]
+          );
+          await audit(s.pool, i.guildId, i.user.id, "leaderboard_member_excluded", target.id, { reason });
+          return respond(i, { kind: "success", title: "Leaderboards Updated", description: target.username + " was excluded from competitive leaderboards. Their balance and items are unchanged." });
+        }
+        await s.pool.query("DELETE FROM leaderboard_exclusions WHERE guild_id = $1 AND user_id = $2", [i.guildId, target.id]);
+        await audit(s.pool, i.guildId, i.user.id, "leaderboard_member_included", target.id, {});
+        return respond(i, { kind: "success", title: "Leaderboards Updated", description: target.username + " can appear on leaderboards again." });
+      }
       if (action === "grant" || action === "remove") {
+        const target = i.options.getUser("member");
+        if (action === "grant" && target.id === i.user.id) {
+          return respond(i, { kind: "error", ephemeral: true, title: "Not Allowed", description: "You cannot grant Fuk Coins to yourself." });
+        }
         const target = i.options.getUser("member");
         const amount = i.options.getInteger("amount") * (action === "grant" ? 1 : -1);
         const reason = i.options.getString("reason");
