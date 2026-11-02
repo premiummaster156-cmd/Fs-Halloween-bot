@@ -33,3 +33,8 @@ The game modules are designed around mechanics, balance, persistence, and tests 
 ## Production notes
 
 Use environment variables in the hosting provider. Configure admin roles and event role IDs, monitor logs, back up the database, and run npm test before deploying balance changes. For a large community, review pool limits and database query performance as usage grows.
+
+
+## Leaderboard fairness controls
+
+The configured bot owner (`OWNER_ID`) can use `/admin leaderboard-exclude member:<member> reason:<reason>` to hide a member from the economy and weekly activity leaderboards without deleting their balance or inventory. Use `/admin leaderboard-include member:<member>` to restore them. These controls require the `leaderboard_exclusions` table, which is created by `npm run db:migrate`. Admin grant commands also reject grants to the invoking account.
