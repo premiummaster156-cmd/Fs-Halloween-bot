@@ -59,6 +59,7 @@ async function assignHalloweenRewardRole(interaction, roleId, reason) {
       roleManaged: role.managed,
       rolePosition: role.position,
       botUserId: botMember.id,
+      botHasAdministrator: botMember.permissions.has(PermissionFlagsBits.Administrator),
       botHasManageRoles: botMember.permissions.has(PermissionFlagsBits.ManageRoles),
       botHighestRoleId: botMember.roles.highest.id,
       botHighestRolePosition: botMember.roles.highest.position
@@ -630,7 +631,7 @@ const commands = [
         let roleNotice = "";
         if (r.eligibleForRole && rewardRoleId) {
           const assignment = await assignHalloweenRewardRole(i, rewardRoleId, "Completed the weekly Halloween activity mission");
-          if (!assignment.assigned) roleNotice = "\\n\\n**Reward role not assigned:** " + assignment.issue;
+          if (!assignment.assigned) roleNotice = "\n\n**Reward role not assigned:** " + assignment.issue;
         }
         return respond(i, { kind: "success", icon: "task", title: "Weekly Mission Complete", description: "You reached " + r.messages.toLocaleString() + " eligible messages and received **" + r.candy + " Candy** plus " + r.points + " event points. Claims toward the final role: " + r.claimedCount + "/" + balancing.halloween.finalRoleQuestCount + "." + roleNotice });
       }
@@ -642,14 +643,14 @@ const commands = [
         let roleNotice = "";
         if (r.claims.length >= balancing.halloween.finalRoleQuestCount && rewardRoleId) {
           const assignment = await assignHalloweenRewardRole(i, rewardRoleId, "Completed the Halloween final reward requirement");
-          if (!assignment.assigned) roleNotice = "\\n\\n**Final reward role not assigned:** " + assignment.issue;
+          if (!assignment.assigned) roleNotice = "\n\n**Final reward role not assigned:** " + assignment.issue;
         }
         const progress = new Map(r.progress.map((x) => [x.quest_id, Number(x.progress)]));
         const claims = new Set(r.claims);
         const lines = r.quests.map((q) => "**" + q.name + "** — " + Math.min(q.goal, progress.get(q.id) || 0) + "/" + q.goal + (claims.has(q.id) ? " • CLAIMED" : "") + "\n" + q.description + " Reward: " + q.candy + " Candy.");
-        if (action === "quests") return respond(i, { icon: "task", title: "Halloween Quests", description: lines.join("\n\n").slice(0, 4000) });
+        if (action === "quests") return respond(i, { icon: "task", title: "Halloween Quests", description: (lines.join("\n\n") + roleNotice).slice(0, 4000) });
         return respond(i, { icon: "task", title: "Fukishokai Halloween", description: (r.active ? "Event is active." : "Event is not active.") + "\nEnds <t:" + Math.floor(new Date(r.event.ends_at).getTime() / 1000) + ":R>\n\n**Candy:** " + Number(r.wallet.candy || 0).toLocaleString() + "\n**Points:** " + Number(r.wallet.points || 0).toLocaleString(),
-          fields: [{ name: "Quests", value: lines.slice(0, 3).join("\n\n").slice(0, 1024) }] });
+          fields: [{ name: "Quests", value: (lines.slice(0, 3).join("\n\n") + roleNotice).slice(0, 1024) }] });
       }
       if (action === "claim") {
         const r = await s.halloween.claimQuest(i.guildId, i.user.id, i.options.getString("quest"));
@@ -658,7 +659,7 @@ const commands = [
         let roleNotice = "";
         if (r.eligibleForRole && rewardRoleId) {
           const assignment = await assignHalloweenRewardRole(i, rewardRoleId, "Completed the Halloween quest requirement");
-          if (!assignment.assigned) roleNotice = "\\n\\n**Final reward role not assigned:** " + assignment.issue;
+          if (!assignment.assigned) roleNotice = "\n\n**Final reward role not assigned:** " + assignment.issue;
         }
         return respond(i, { kind: "success", icon: "task", title: "Quest Claimed", description: "**" + r.quest.name + "** completed. You received **" + r.quest.candy + " Candy** and " + r.quest.points + " points." + roleNotice });
       }
