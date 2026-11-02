@@ -571,12 +571,12 @@ const commands = [
         if (!r.event) return respond(i, { icon: "task", title: "Halloween Event", description: "An administrator needs to start the event in this server." });
         const configuredRewardRole = await s.guildSettings.get(i.guildId, "halloweenRoleId");
         const rewardRoleId = configuredRewardRole || r.event.role_id;
-        if (r.active && r.claims.length >= balancing.halloween.finalRoleQuestCount && rewardRoleId) {
+        if (r.claims.length >= balancing.halloween.finalRoleQuestCount && rewardRoleId) {
           try {
             const member = await i.guild.members.fetch(i.user.id);
             if (!member.roles.cache.has(rewardRoleId)) await member.roles.add(rewardRoleId, "Completed the Halloween final reward requirement");
           } catch (error) {
-            console.warn("[event] Final reward role could not be reconciled:", error.message);
+            console.error("[event] Final reward role could not be reconciled:", { guildId: i.guildId, userId: i.user.id, roleId: rewardRoleId, error: error.message });
           }
         }
         const progress = new Map(r.progress.map((x) => [x.quest_id, Number(x.progress)]));
