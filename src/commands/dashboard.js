@@ -602,6 +602,151 @@ async function handleSelection(i, s, scope, owner, action, parts) {
   }
 }
 
+function getHeistCrewLines(crew) {
+  return crew.map((member) => {
+    const role = balancing.heistRoles[member.role_id] || { label: "Crew member" };
+    return "<@" + member.user_id + "> — **" + role.label + "**";
+  });
+}
+
+function buildHeistEmbed(snapshot) {
+  const heist = snapshot.heist;
+  const mission = balancing.heists.find((item) => item.id === heist.mission_id);
+  const crewLines = getHeistCrewLines(snapshot.crew);
+  const recruiting = heist.status === "recruiting";
+  const succeeded = heist.status === "success";
+  const statusLabel = recruiting ? "RECRUITING" : succeeded ? "MISSION SUCCESS" : heist.status === "failed" ? "MISSION FAILED" : heist.status.toUpperCase();
+  const description = recruiting
+    ? "A crew is being assembled for **" + (mission ? mission.name : "the mission") + "**. The crew board updates whenever someone joins."
+    : succeeded
+      ? "The crew completed **" + (mission ? mission.name : "the mission") + "** and secured **" + Number(heist.total_payout).toLocaleString() + " FC** in total."
+      : heist.status === "failed"
+        ? "The crew's attempt at **" + (mission ? mission.name : "the mission") + "** was unsuccessful. The mission result has been recorded."
+        : "**" + (mission ? mission.name : "The mission") + "**";
+  const fields = [
+    { name: "Mission leader", value: "<@" + heist.leader_id + ">", inline: true },
+    { name: "Crew size", value: snapshot.crew.length + "/" + (mission ? mission.maxParticipants : snapshot.crew.length), inline: true },
+    { name: "Crew members and roles", value: crewLines.length ? crewLines.join("\n").slice(0, 1000) : "No crew members yet." },
+    { name: "Crew ID", value: heist.id }
+  ];
+  if (!recruiting && heist.success_chance != null) {
+    fields.push({ name: "Success chance", value: heist.success_chance + "%", inline: true });
+    fields.push({ name: "Final roll", value: String(heist.roll), inline: true });
+    if (succeeded) fields.push({ name: "Team payout", value: Number(heist.total_payout).toLocaleString() + " FC", inline: true });
+  } else if (mission) {
+    fields.push({ name: "Minimum crew", value: mission.minParticipants + " members", inline: true });
+  }
+  return createEmbed({
+    title: "FUKISHOKAI  /  HEIST CREW  ·  " + statusLabel,
+    description,
+    fields,
+    color: recruiting ? settings.brand.primary : succeeded ? settings.brand.success : settings.brand.danger,
+    icon: "task",
+    footer: recruiting ? "FUKISHOKAI  •  Join the crew and choose your role" : "FUKISHOKAI  •  Mission result"
+  });
+}
+
+async function getPublicTextChannel(i, channelId = i.channelId) {
+  if (!channelId) return null;
+  const channel = await i.client.channels.fetch(channelId).catch(() => null);
+  return channel && channel.isTextBased() && typeof channel.send === "function" ? channel : null;
+}
+
+async function sendHeistEmbed(channel, embed, fallbackText) {
+  try {
+    return await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
+  } catch (_) {
+    return channel.send({ content: fallbackText, allowedMentions: { parse: [] } });
+  }
+}
+
+async function publishNewHeistBoard(i, s, heistId) {
+  const channel = await getPublicTextChannel(i);
+  if (!channel) return { posted: false, note: "The bot could not post the crew board in this channel. Check its send-message permission." };
+  const snapshot = await s.heists.status(i.guildId, heistId);
+  const mission = balancing.heists.find((item) => item.id === snapshot.heist.mission_id);
+  const message = await sendHeistEmbed(
+    channel,
+    buildHeistEmbed(snapshot),
+    "HEIST CREW · " + (mission ? mission.name : "Mission") + "\nLeader: <@" + snapshot.heist.leader_id + ">\nCrew: " + getHeistCrewLines(snapshot.crew).join(" | ") + "\nCrew ID: " + heistId
+  );
+  await s.heists.setAnnouncement(i.guildId, heistId, channel.id, message.id);
+  return { posted: true, channel, message, snapshot };
+}
+
+async function refreshHeistBoard(i, s, heistId) {
+  const snapshot = await s.heists.status(i.guildId, heistId);
+  let channel = snapshot.heist.announcement_channel_id
+    ? await getPublicTextChannel(i, snapshot.heist.announcement_channel_id)
+    : null;
+  if (!channel) channel = await getPublicTextChannel(i);
+  if (!channel) return { posted: false, snapshot };
+  const embed = buildHeistEmbed(snapshot);
+  let message = null;
+  if (snapshot.heist.announcement_message_id && channel.messages?.fetch) {
+    message = await channel.messages.fetch(snapshot.heist.announcement_message_id).catch(() => null);
+  }
+  if (message) {
+    try {
+      await message.edit({ embeds: [embed], allowedMentions: { parse: [] } });
+    } catch (_) {
+      message = null;
+    }
+  }
+  if (!message) {
+    const mission = balancing.heists.find((item) => item.id === snapshot.heist.mission_id);
+    message = await sendHeistEmbed(
+      channel,
+      embed,
+      "HEIST CREW · " + (mission ? mission.name : "Mission") + "\nCrew: " + getHeistCrewLines(snapshot.crew).join(" | ") + "\nCrew ID: " + heistId
+    );
+    await s.heists.setAnnouncement(i.guildId, heistId, channel.id, message.id);
+  }
+  return { posted: true, channel, message, snapshot };
+}
+
+async function announceHeistJoin(i, snapshot, joiningUserId, roleLabel) {
+  const channel = snapshot.heist.announcement_channel_id
+    ? await getPublicTextChannel(i, snapshot.heist.announcement_channel_id)
+    : await getPublicTextChannel(i);
+  if (!channel) return;
+  const mission = balancing.heists.find((item) => item.id === snapshot.heist.mission_id);
+  const embed = createEmbed({
+    title: "HEIST CREW  /  NEW MEMBER",
+    description: "<@" + joiningUserId + "> joined **" +
+      (mission ? mission.name : "the mission") + "** as **" + roleLabel + "**.",
+    fields: [
+      { name: "Current crew", value: snapshot.crew.length + "/" +
+        (mission ? mission.maxParticipants : snapshot.crew.length), inline: true },
+      { name: "Crew roster", value: getHeistCrewLines(snapshot.crew).join("\n").slice(0, 1000) }
+    ],
+    color: settings.brand.primary,
+    icon: "profile",
+    footer: "FUKISHOKAI  •  Crew board updated"
+  });
+  await channel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(async () => {
+    await channel.send({
+      content: "HEIST CREW UPDATE · <@" + joiningUserId + "> joined as " + roleLabel + ".",
+      allowedMentions: { parse: [] }
+    }).catch(() => null);
+  });
+}
+
+async function announceHeistResult(i, snapshot) {
+  const channel = snapshot.heist.announcement_channel_id
+    ? await getPublicTextChannel(i, snapshot.heist.announcement_channel_id)
+    : await getPublicTextChannel(i);
+  if (!channel) return;
+  const embed = buildHeistEmbed(snapshot);
+  await sendHeistEmbed(
+    channel,
+    embed,
+    "HEIST RESULT · " + (snapshot.heist.status === "success" ? "SUCCESS" : "FAILED") +
+      "\nCrew: " + getHeistCrewLines(snapshot.crew).join(" | ") +
+      "\nTeam payout: " + Number(snapshot.heist.total_payout).toLocaleString() + " FC"
+  ).catch(() => null);
+}
+
 function navButton(owner) { return row(btn(owner, "home", "Dashboard")); }
 
 async function handleButton(i, s) {
