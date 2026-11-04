@@ -33,6 +33,8 @@ async function start() {
   const guildSettings = new GuildSettingsService(pool);
   const security = new SecurityService(pool, guildSettings);
   const customCommands = new CustomCommandService(pool);
+  const restoredCommandFiles = await customCommands.restoreWorkspaceFiles();
+  console.log("[workspace] Restored " + restoredCommandFiles + " JavaScript command file(s).");
   client.services = {
     pool, balancing, economy, inventory, guildSettings, security, customCommands,
     jobs: new JobsGame(pool, economy, inventory),

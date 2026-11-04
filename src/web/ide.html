@@ -26,7 +26,7 @@
 <nav class="activity"><button class="active" title="Explorer">▤</button><button title="Search" disabled>⌕</button><button title="Source control" disabled>⑂</button><button title="Extensions" disabled>▦</button></nav>
 <aside class="explorer">
  <div class="explorer-head"><span>EXPLORER</span><div><button id="new-btn" title="New JavaScript command">＋</button><button id="refresh-btn" title="Refresh">↻</button></div></div>
- <div class="folder-label"><span>▾</span>commands</div>
+ <div class="folder-label"><span>▾</span>admin-workspace / server</div>
  <div class="file-tree" id="file-tree"></div>
  <div class="folder-label" style="color:#858592;font-size:9px;letter-spacing:1px">OUTLINE</div>
  <div style="padding:0 12px 12px;font-size:10px;color:#777">Command exports</div>
@@ -98,7 +98,7 @@
   if(dirty&&!confirm("Discard unsaved changes and open another file?"))return;
   selected={...command};editor.setValue(command.sourceCode||starter);setDirty(false);setFileName(selected.name);drawFiles();
   $("status-message").textContent=selected.isActive?"Active command":selected.deployedAt?"Deployed · not active":"Draft";
-  $("activate-btn").disabled=!selected.deployedAt||selected.isActive;$("activate-btn").textContent=selected.isActive?"Active":"Activate";setPanel("terminal");log("Opened commands/"+selected.name+".js","ok");
+  $("activate-btn").disabled=!selected.deployedAt||selected.isActive;$("activate-btn").textContent=selected.isActive?"Active":"Activate";setPanel("terminal");log("Opened admin-workspace/"+selected.name+".js","ok");
  }
  function chooseNew(){
   if(dirty&&!confirm("Discard unsaved changes and create a new file?"))return;
@@ -146,7 +146,7 @@
  async function init(){
   try{
    const session=await api("/api/session");if(!session.authenticated)return;
-   csrf=session.csrf;$("user-name").textContent=session.user.globalName||session.user.username;$("server-name").textContent=session.guildName+" · Custom command workspace";
+   csrf=session.csrf;$("user-name").textContent=session.user.globalName||session.user.username;$("server-name").textContent=session.guildName+" · admin-workspace JavaScript commands";
    $("login").classList.add("hidden");$("app").classList.remove("hidden");
    require.config({paths:{vs:"https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs"}});
    window.MonacoEnvironment={getWorkerUrl:function(){const worker="self.MonacoEnvironment={baseUrl:'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/'};importScripts('https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/base/worker/workerMain.js');";return "data:text/javascript;charset=utf-8,"+encodeURIComponent(worker);}};

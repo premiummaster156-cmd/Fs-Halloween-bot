@@ -10,7 +10,7 @@ const WORKSPACE_ROOT = path.resolve(
 
 function validateGuildId(guildId) {
   const value = String(guildId || "");
-  if (!/^\\d{1,25}$/.test(value)) {
+  if (!/^\d{1,25}$/.test(value)) {
     const error = new Error("A valid Discord server ID is required for the admin workspace.");
     error.code = "ADMIN_WORKSPACE_INVALID_PATH";
     throw error;
@@ -88,7 +88,7 @@ async function listCommandFiles(guildId) {
     throw error;
   }
   return entries
-    .filter((entry) => entry.isFile() && /^[a-z0-9_-]{1,32}\\.js$/.test(entry.name))
+    .filter((entry) => entry.isFile() && /^[a-z0-9_-]{1,32}\.js$/.test(entry.name))
     .map((entry) => ({
       name: entry.name.slice(0, -3),
       path: path.relative(process.cwd(), path.join(directory, entry.name)).split(path.sep).join("/")

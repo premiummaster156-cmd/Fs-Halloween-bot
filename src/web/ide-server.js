@@ -2,12 +2,11 @@ const http = require("node:http");
 const crypto = require("node:crypto");
 const path = require("node:path");
 const fs = require("node:fs");
-const { execFile } = require("node:child_process");
-const { promisify } = require("node:util");
 const settings = require("../config/settings");
+const workspace = require("../services/admin-workspace");
+const { inspectCommandSource } = require("../services/custom-commands");
 const { audit, sendLog } = require("../utils/logging");
 
-const execFileAsync = promisify(execFile);
 const sessions = new Map();
 const oauthStates = new Map();
 const WINDOW_MS = 60_000;
@@ -152,7 +151,8 @@ function safeCommandRecord(record) {
     sourceCode: record.source_code || "",
     isActive: Boolean(record.is_active),
     deployedAt: record.deployed_at,
-    updatedAt: record.updated_at || null
+    updatedAt: record.updated_at || null,
+    workspacePath: "admin-workspace/" + settings.ideGuildId + "/" + record.name + ".js"
   };
 }
 function toPreviewPayload(payload) {
@@ -161,17 +161,7 @@ function toPreviewPayload(payload) {
     embeds: (payload.embeds || []).map((embed) => typeof embed.toJSON === "function" ? embed.toJSON() : embed)
   };
 }
-async function runDeployment(guildId) {
-  const executable = process.platform === "win32" ? "npm.cmd" : "npm";
-  const result = await execFileAsync(executable, ["run", "deploy-commands"], {
-    cwd: process.cwd(),
-    env: { ...process.env, DEPLOY_GUILD_ID: guildId },
-    timeout: 90_000,
-    maxBuffer: 1024 * 1024,
-    shell: process.platform === "win32"
-  });
-  return String(result.stdout || "").slice(-7000);
-}
+
 
 function createIdeServer(client, services) {
   const htmlPath = path.join(__dirname, "ide.html");
@@ -252,6 +242,90 @@ function createIdeServer(client, services) {
         return json(res, 200, { ok: true });
       }
 
+      if (url.pathname.startsWith("/api/ai/workspace/")) {
+        if (!settings.adminWorkspaceApiKey) {
+          return json(res, 404, { error: "The AI workspace integration is not enabled." });
+        }
+        const authorization = String(req.headers.authorization || "");
+        const suppliedKey = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+        const expectedKey = Buffer.from(settings.adminWorkspaceApiKey);
+        const actualKey = Buffer.from(suppliedKey);
+        const authorized = actualKey.length === expectedKey.length &&
+          crypto.timingSafeEqual(actualKey, expectedKey);
+        if (!authorized) return json(res, 401, { error: "Workspace API key is missing or invalid." });
+
+        const guildId = settings.ideGuildId;
+        const filesPath = "/api/ai/workspace/files";
+        const fileRoute = url.pathname.match(/^\/api\/ai\/workspace\/files\/([a-z0-9_-]{1,32}\.js)$/i);
+        const actorId = "ai_workspace_agent";
+
+        if (req.method === "GET" && url.pathname === filesPath) {
+          const records = await services.customCommands.list(guildId);
+          const files = [];
+          for (const record of records) {
+            if (!record.source_code) continue;
+            const sourceCode = await workspace.readCommandFile(guildId, record.name) || record.source_code;
+            files.push({
+              name: record.name + ".js",
+              path: "admin-workspace/" + guildId + "/" + record.name + ".js",
+              sourceCode,
+              isActive: Boolean(record.is_active),
+              deployed: Boolean(record.deployed_at)
+            });
+          }
+          return json(res, 200, { files });
+        }
+
+        if (req.method === "POST" && url.pathname === filesPath) {
+          const body = await readBody(req);
+          const fileName = String(body.fileName || "").trim();
+          const match = fileName.match(/^([a-z0-9_-]{1,32})\.js$/);
+          if (!match) return json(res, 400, { error: "fileName must be a simple command name ending in .js." });
+          const inspected = await inspectCommandSource(body.sourceCode);
+          if (inspected.name !== match[1]) {
+            return json(res, 400, { error: "The JavaScript export name must match the .js file name." });
+          }
+          const existing = await services.customCommands.getByName(guildId, inspected.name);
+          const input = { id: existing?.id || null, sourceCode: body.sourceCode };
+          const saved = body.publish === false
+            ? await services.customCommands.saveSource(guildId, actorId, input)
+            : await services.customCommands.publishSource(guildId, actorId, input);
+          await audit(services.pool, guildId, actorId, body.publish === false ? "ai_workspace_file_saved" : "ai_workspace_file_published", saved.id, {
+            name: saved.name, file: "admin-workspace/" + guildId + "/" + saved.name + ".js"
+          });
+          await sendLog(client, guildId, "JavaScript command file " + saved.name + ".js was " +
+            (body.publish === false ? "saved as a draft" : "published and activated") + " by the authorized AI workspace agent.");
+          return json(res, 200, {
+            ok: true,
+            file: { name: saved.name + ".js", path: "admin-workspace/" + guildId + "/" + saved.name + ".js" },
+            command: { id: saved.id, name: saved.name, description: saved.description, isActive: Boolean(saved.is_active) },
+            deployment: saved.deployment || null
+          });
+        }
+
+        if (req.method === "GET" && fileRoute) {
+          const name = fileRoute[1].slice(0, -3);
+          const record = await services.customCommands.getByName(guildId, name);
+          const sourceCode = await workspace.readCommandFile(guildId, name);
+          if (!record || sourceCode === null) return json(res, 404, { error: "That JavaScript command file does not exist." });
+          return json(res, 200, {
+            file: { name: name + ".js", path: "admin-workspace/" + guildId + "/" + name + ".js", sourceCode }
+          });
+        }
+
+        if (req.method === "DELETE" && fileRoute) {
+          const name = fileRoute[1].slice(0, -3);
+          const record = await services.customCommands.getByName(guildId, name);
+          if (!record) return json(res, 404, { error: "That JavaScript command file does not exist." });
+          await services.customCommands.remove(guildId, record.id, actorId);
+          const deployment = await services.customCommands.deployGuild(guildId);
+          await audit(services.pool, guildId, actorId, "ai_workspace_file_deleted", record.id, { name });
+          await sendLog(client, guildId, "JavaScript command file " + name + ".js was deleted by the authorized AI workspace agent.");
+          return json(res, 200, { ok: true, deployment });
+        }
+        return json(res, 404, { error: "AI workspace route not found." });
+      }
+
       const session = await requireSession(req, client, services);
       if (!session) return json(res, 401, { error: "Sign in with an authorized Fukishōkai account." });
       if (!rateLimit(session, "normal")) return json(res, 429, { error: "Please slow down and try again shortly." });
@@ -305,8 +379,8 @@ function createIdeServer(client, services) {
             return json(res, 429, { error: "Please wait before deploying again." });
           }
           session.lastDeployAt = Date.now();
-          const output = await runDeployment(settings.ideGuildId);
-          await audit(services.pool, settings.ideGuildId, session.user.id, "custom_commands_deployed", id, { name: record.name });
+          const output = await services.customCommands.deployGuild(settings.ideGuildId);
+          await audit(services.pool, settings.ideGuildId, session.user.id, "custom_commands_deployed", id, { name: record.name, ...output });
           await sendLog(client, settings.ideGuildId, "Custom slash commands deployed by <@" + session.user.id + ">.");
           return json(res, 200, { ok: true, output });
         }
@@ -325,8 +399,8 @@ function createIdeServer(client, services) {
         }
         if (req.method === "DELETE" && !action) {
           const removed = await services.customCommands.remove(settings.ideGuildId, id, session.user.id);
-          await runDeployment(settings.ideGuildId);
-          await audit(services.pool, settings.ideGuildId, session.user.id, "custom_command_deleted", id, { name: removed.name });
+          const deployment = await services.customCommands.deployGuild(settings.ideGuildId);
+          await audit(services.pool, settings.ideGuildId, session.user.id, "custom_command_deleted", id, { name: removed.name, ...deployment });
           await sendLog(client, settings.ideGuildId, "Custom command /" + removed.name + " deleted by <@" + session.user.id + ">.");
           return json(res, 200, { ok: true });
         }

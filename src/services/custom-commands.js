@@ -461,7 +461,7 @@ class CustomCommandService {
     if (!settings.discordToken || !settings.clientId) {
       fail("DISCORD_TOKEN and CLIENT_ID are required to register slash commands.", "CUSTOM_COMMAND_DEPLOY_CONFIG");
     }
-    if (!/^\\d{1,25}$/.test(String(guildId || ""))) fail("A valid server ID is required.");
+    if (!/^\d{1,25}$/.test(String(guildId || ""))) fail("A valid server ID is required.");
     const builtIn = Array.from(require("../commands").loadCommands().values())
       .map((command) => command.data.toJSON());
     const rows = await this.list(guildId);
