@@ -53,7 +53,7 @@ class JobsGame {
     if (correct < 1 || correct > total) throw new DomainError("Answer at least one work question correctly to earn a shift reward.", "NO_CORRECT_WORK_ANSWERS");
     return transaction(async (client) => {
       await ensurePlayerTx(client, guildId, userId);
-      const result = await client.query("SELECT level, job_id, job_level, job_xp FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [guildId, userId]);
+      const result = await client.query("SELECT level, job_id, job_level, job_xp, prestige FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [guildId, userId]);
       const player = result.rows[0];
       const job = balancing.jobs.find((item) => item.id === player.job_id);
       if (!job) throw new DomainError("You no longer have a job. Apply for a career before finishing this shift.", "NO_JOB");
