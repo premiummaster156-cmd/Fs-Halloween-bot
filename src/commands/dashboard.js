@@ -100,7 +100,7 @@ async function recordMemberAction(i, services, action, announcement, details = {
         await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
       } catch (embedError) {
         await channel.send({
-          content: "FUKISHOKAI activity · " + displayName + " " + announcement,
+          content: "FUKISHOKAI activity · <@" + actorId + "> (" + displayName + ") " + announcement,
           allowedMentions: { parse: [] }
         });
       }
