@@ -37,13 +37,22 @@ function row(...items) { return new ActionRowBuilder().addComponents(...items); 
 function menu(owner, action, placeholder, options) {
   return row(new StringSelectMenuBuilder().setCustomId(["dash", owner, action].join(":")).setPlaceholder(placeholder).setMinValues(1).setMaxValues(1).addOptions(options.slice(0, 25)));
 }
+async function safeAudit(i, services, action, targetId = null, details = {}) {
+  if (await services.security.isAboveBotRole(i.guild, i.user.id)) return;
+  return audit(services.pool, i.guildId, i.user.id, action, targetId, details);
+}
+async function safeSendLog(i, services, content) {
+  if (await services.security.isAboveBotRole(i.guild, i.user.id)) return;
+  return sendLog(i.client, i.guildId, content);
+}
+
 async function recordMemberAction(i, services, action, announcement, details = {}, kind = "success") {
   // Higher-ranked members and owners are outside the bot's logging/enforcement scope.
   if (await services.security.isAboveBotRole(i.guild, i.user.id)) return;
   const actorId = i.user.id;
   const displayName = i.member?.displayName || i.user.globalName || i.user.username;
   await audit(services.pool, i.guildId, actorId, action, actorId, details);
-  await sendLog(i.client, i.guildId, "Member activity: " + action + " · " + displayName + " (" + actorId + ")" +
+  await safeSendLog(i, s, "Member activity: " + action + " · " + displayName + " (" + actorId + ")" +
     (Object.keys(details).length ? " · " + JSON.stringify(details).slice(0, 700) : ""));
   try {
     let channel = i.channel;
@@ -454,8 +463,8 @@ async function handleSelection(i, s, scope, owner, action, parts) {
       if (!allowed.includes(value)) throw new Error("Unknown server setting.");
       await i.deferUpdate();
       await s.guildSettings.clear(i.guildId, value);
-      await audit(s.pool, i.guildId, owner, "server_setting_cleared", null, { setting: value });
-      await sendLog(i.client, i.guildId, value + " cleared by <@" + owner + ">.");
+      await safeAudit(i, s, "server_setting_cleared", null, { setting: value });
+      await safeSendLog(i, s, value + " cleared by <@" + owner + ">.");
       return i.editReply(await renderAdmin(i.guildId, owner, "settings", s));
     }
     if (action.startsWith("setting-")) {
@@ -474,8 +483,8 @@ async function handleSelection(i, s, scope, owner, action, parts) {
         }
       }
       await s.guildSettings.set(i.guildId, setting[0], value, owner);
-      await audit(s.pool, i.guildId, owner, "server_setting_updated", null, { setting: setting[0], value });
-      await sendLog(i.client, i.guildId, setting[1] + " updated by <@" + owner + ">.");
+      await safeAudit(i, s, "server_setting_updated", null, { setting: setting[0], value });
+      await safeSendLog(i, s, setting[1] + " updated by <@" + owner + ">.");
       return i.editReply(await renderAdmin(i.guildId, owner, "settings", s));
     }
     if (action === "career-select") {
@@ -625,8 +634,8 @@ async function handleButton(i, s) {
       if (!isOwner(i)) return i.reply({ content: "Only the server owner or configured bot owner can change leaderboard eligibility.", flags: MessageFlags.Ephemeral });
       await i.deferUpdate();
       await s.economy.includeInLeaderboards(i.guildId, target);
-      await audit(s.pool, i.guildId, owner, "leaderboard_member_included", target, {});
-      await sendLog(i.client, i.guildId, "Leaderboard eligibility restored by <@" + owner + "> for <@" + target + ">.");
+      await safeAudit(i, s, "leaderboard_member_included", target, {});
+      await safeSendLog(i, s, "Leaderboard eligibility restored by <@" + owner + "> for <@" + target + ">.");
       return i.editReply(await renderAdmin(i.guildId, owner, "fairness", s, target));
     }
     if (action === "event-start" || action === "event-stop") {
@@ -634,12 +643,12 @@ async function handleButton(i, s) {
       if (action === "event-start") {
         const roleId = await s.guildSettings.get(i.guildId, "halloweenRoleId");
         const result = await s.halloween.startEvent(i.guildId, owner, roleId);
-        await audit(s.pool, i.guildId, owner, "halloween_event_started", null, { eventId: result.eventId, roleId: result.roleId, endsAt: result.endsAt });
-        await sendLog(i.client, i.guildId, "Halloween event started by <@" + owner + ">.");
+        await safeAudit(i, s, "halloween_event_started", null, { eventId: result.eventId, roleId: result.roleId, endsAt: result.endsAt });
+        await safeSendLog(i, s, "Halloween event started by <@" + owner + ">.");
       } else {
         await s.halloween.stopEvent(i.guildId, owner);
-        await audit(s.pool, i.guildId, owner, "halloween_event_stopped", null, {});
-        await sendLog(i.client, i.guildId, "Halloween event stopped by <@" + owner + ">.");
+        await safeAudit(i, s, "halloween_event_stopped", null, {});
+        await safeSendLog(i, s, "Halloween event stopped by <@" + owner + ">.");
       }
       return i.editReply(await renderAdmin(i.guildId, owner, "event", s));
     }
@@ -817,14 +826,14 @@ async function handleModal(i, s) {
           await c.query("UPDATE players SET level = $3, xp = $4, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [i.guildId, target, level, xp]);
           return { level, gained };
         });
-        await audit(s.pool, i.guildId, owner, "admin_grant_xp", target, { amount, reason, newLevel: r.level, levelsGained: r.gained });
-        await sendLog(i.client, i.guildId, "XP granted to <@" + target + "> by <@" + owner + ">: " + amount.toLocaleString() + ". Reason: " + reason);
+        await safeAudit(i, s, "admin_grant_xp", target, { amount, reason, newLevel: r.level, levelsGained: r.gained });
+        await safeSendLog(i, s, "XP granted to <@" + target + "> by <@" + owner + ">: " + amount.toLocaleString() + ". Reason: " + reason);
         return i.editReply(panel("XP GRANTED", "Added **" + amount.toLocaleString() + " XP** to <@" + target + ">.\nCurrent level: **" + r.level + "**.", [{ name: "Audit reason", value: reason }], [], "success"));
       }
       const delta = action === "grant-fc" ? amount : -amount;
       await s.economy.transact((c) => s.economy.mutateTx(c, i.guildId, target, delta, action === "grant-fc" ? "admin_grant" : "admin_remove", uuid(), { actorId: owner, reason }));
-      await audit(s.pool, i.guildId, owner, action === "grant-fc" ? "admin_grant_coins" : "economy_remove", target, { amount: delta, reason });
-      await sendLog(i.client, i.guildId, "FS Coins " + (delta > 0 ? "granted to " : "removed from ") + "<@" + target + "> by <@" + owner + ">: " + amount.toLocaleString() + ". Reason: " + reason);
+      await safeAudit(i, s, action === "grant-fc" ? "admin_grant_coins" : "economy_remove", target, { amount: delta, reason });
+      await safeSendLog(i, s, "FS Coins " + (delta > 0 ? "granted to " : "removed from ") + "<@" + target + "> by <@" + owner + ">: " + amount.toLocaleString() + ". Reason: " + reason);
       return i.editReply(panel(delta > 0 ? "FS COINS GRANTED" : "FS COINS REMOVED", (delta > 0 ? "Granted " : "Removed ") + "**" + amount.toLocaleString() + " FC** " + (delta > 0 ? "for " : "from ") + "<@" + target + ">.", [{ name: "Audit reason", value: reason }], [], "success"));
     }
     if (action === "set-level") {
@@ -833,8 +842,8 @@ async function handleModal(i, s) {
         await s.economy.ensurePlayerTx(c, i.guildId, target);
         await c.query("UPDATE players SET level = $3, xp = 0, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [i.guildId, target, level]);
       });
-      await audit(s.pool, i.guildId, owner, "admin_set_level", target, { level, reason });
-      await sendLog(i.client, i.guildId, "Player level set to " + level + " for <@" + target + "> by <@" + owner + ">. Reason: " + reason);
+      await safeAudit(i, s, "admin_set_level", target, { level, reason });
+      await safeSendLog(i, s, "Player level set to " + level + " for <@" + target + "> by <@" + owner + ">. Reason: " + reason);
       return i.editReply(panel("PLAYER LEVEL UPDATED", "Set <@" + target + ">'s player level to **" + level + "**. Current-level XP was reset to zero.", [{ name: "Audit reason", value: reason }], [], "success"));
     }
     if (action === "career-modal") {
@@ -846,14 +855,14 @@ async function handleModal(i, s) {
         await s.economy.ensurePlayerTx(c, i.guildId, target);
         await c.query("UPDATE players SET job_id = $3, job_level = $4, job_xp = 0, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [i.guildId, target, career, level]);
       });
-      await audit(s.pool, i.guildId, owner, "admin_set_job", target, { career, jobLevel: level, reason });
-      await sendLog(i.client, i.guildId, "Career assigned to <@" + target + "> by <@" + owner + ">: " + job.name + " level " + level + ". Reason: " + reason);
+      await safeAudit(i, s, "admin_set_job", target, { career, jobLevel: level, reason });
+      await safeSendLog(i, s, "Career assigned to <@" + target + "> by <@" + owner + ">: " + job.name + " level " + level + ". Reason: " + reason);
       return i.editReply(panel("CAREER ASSIGNED", "Assigned **" + job.name + " · Level " + level + "** to <@" + target + ">.", [{ name: "Audit reason", value: reason }], [], "success"));
     }
     if (action === "exclude-modal") {
       await s.economy.excludeFromLeaderboards(i.guildId, target, owner, reason);
-      await audit(s.pool, i.guildId, owner, "leaderboard_member_excluded", target, { reason });
-      await sendLog(i.client, i.guildId, "Leaderboard exclusion by <@" + owner + "> for <@" + target + ">: " + reason);
+      await safeAudit(i, s, "leaderboard_member_excluded", target, { reason });
+      await safeSendLog(i, s, "Leaderboard exclusion by <@" + owner + "> for <@" + target + ">: " + reason);
       return i.editReply(panel("MEMBER EXCLUDED", "<@" + target + "> is now hidden from competitive leaderboards. Their wallet and progress are unchanged.", [{ name: "Reason", value: reason }], [], "success"));
     }
   }
