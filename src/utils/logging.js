@@ -24,7 +24,12 @@ async function sendLog(client, guildId, content) {
     const channelId = await client.services.guildSettings.get(guildId, "logChannelId");
     if (!channelId) return;
     const channel = await client.channels.fetch(channelId);
-    if (channel && channel.isTextBased()) await channel.send({ content: String(content).slice(0, 1900) });
+    if (channel && channel.isTextBased() && channel.guildId === guildId) {
+      await channel.send({
+        content: String(content).slice(0, 1900),
+        allowedMentions: { parse: [] }
+      });
+    }
   } catch (error) {
     log("warn", "Could not send to the server's configured log channel", { guildId, message: error.message });
   }
