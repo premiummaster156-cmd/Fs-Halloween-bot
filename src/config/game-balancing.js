@@ -20,19 +20,19 @@ module.exports = {
     { id: "crime_boss", name: "Crime Boss", tier: 7, minLevel: 30, minWallet: 1000000, payMin: 2200, payMax: 3800, cooldownMs: 10 * minute, xp: 105, description: "The highest career tier, earned through long-term progress." }
   ],
   items: [
-    { id: "reinforced_gloves", name: "Reinforced Gloves", type: "equipment", slot: "hands", cost: 3500, minLevel: 2, description: "Reliable handling improves crime success and reduces crime cooldowns.", effects: { crimeChance: 3, crimeCooldownReduction: 0.05 } },
-    { id: "urban_disguise", name: "Urban Disguise", type: "equipment", slot: "outfit", cost: 9000, minLevel: 5, description: "Stay unnoticed on operations and get a small edge at the casino.", effects: { crimeChance: 4, heistChance: 1, casinoChance: 0.6, casinoCooldownReduction: 0.04 } },
-    { id: "operator_radio", name: "Operator Radio", type: "equipment", slot: "gadget", cost: 12500, minLevel: 6, description: "Coordinate crews, improve mission success and earn more XP.", effects: { heistChance: 4, heistCooldownReduction: 0.08, xpBonus: 0.04 } },
-    { id: "reinforced_vest", name: "Reinforced Vest", type: "equipment", slot: "armor", cost: 18000, minLevel: 8, description: "Reduce operation fines and add a steady income bonus.", effects: { fineReduction: 0.12, heistChance: 1, moneyBonus: 0.04, workCooldownReduction: 0.03 } },
-    { id: "delivery_bike", name: "Delivery Bike", type: "equipment", slot: "vehicle", cost: 25000, minLevel: 10, description: "Increase work salary and work XP while shortening shift cooldowns.", effects: { workPayBonus: 0.12, workXpBonus: 0.08, workCooldownReduction: 0.12 } },
-    { id: "field_toolkit", name: "Field Toolkit", type: "equipment", slot: "bag", cost: 32000, minLevel: 12, description: "A balanced kit for better pay, income and operation chances.", effects: { workPayBonus: 0.08, moneyBonus: 0.05, crimeChance: 2, heistChance: 2, crimeCooldownReduction: 0.04 } },
-    { id: "smuggler_satchel", name: "Smuggler Satchel", type: "equipment", slot: "belt", cost: 58000, minLevel: 17, description: "Improve crime success, reduce fines and shorten daily reward cooldowns.", effects: { crimeChance: 5, fineReduction: 0.10, xpBonus: 0.06, dailyCooldownReduction: 0.05 } },
-    { id: "crimson_charm", name: "Crimson Charm", type: "equipment", slot: "charm", cost: 85000, minLevel: 20, description: "A rare keepsake that improves work, income, XP and risky operations.", effects: { crimeChance: 3, heistChance: 4, workPayBonus: 0.10, moneyBonus: 0.08, xpBonus: 0.10, casinoChance: 0.8, workCooldownReduction: 0.06 } },
-    { id: "phantom_chronometer", name: "Phantom Chronometer", type: "equipment", slot: "watch", cost: 145000, minLevel: 26, description: "Advanced timing gear that shortens work, crime, heist, daily and casino cooldowns.", effects: { workCooldownReduction: 0.12, crimeCooldownReduction: 0.10, heistCooldownReduction: 0.10, dailyCooldownReduction: 0.08, casinoCooldownReduction: 0.12, xpBonus: 0.08 } },
-    { id: "syndicate_ledger", name: "Syndicate Ledger", type: "equipment", slot: "badge", cost: 240000, minLevel: 32, description: "Elite equipment for higher income, XP and improved gambling luck.", effects: { moneyBonus: 0.15, xpBonus: 0.15, workPayBonus: 0.12, crimeRewardBonus: 0.08, casinoChance: 1.5, slotLuck: 12, heistChance: 3 } }
+    { id: "reinforced_gloves", name: "Reinforced Gloves", type: "equipment", slot: "hands", cost: 3500, minLevel: 2, description: "Reliable handling improves crime success and reduces crime cooldowns.", effects: { crimeChance: 3, crimeCooldownReduction: 0.05, candyDropBonus: 0.01 } },
+    { id: "urban_disguise", name: "Urban Disguise", type: "equipment", slot: "outfit", cost: 9000, minLevel: 5, description: "Stay unnoticed on operations and get a small edge at the casino.", effects: { crimeChance: 4, heistChance: 1, casinoChance: 0.6, casinoCooldownReduction: 0.04, candyDropBonus: 0.015 } },
+    { id: "operator_radio", name: "Operator Radio", type: "equipment", slot: "gadget", cost: 12500, minLevel: 6, description: "Coordinate crews, improve mission success and earn more XP.", effects: { heistChance: 4, heistCooldownReduction: 0.08, xpBonus: 0.04, candyDropBonus: 0.02 } },
+    { id: "reinforced_vest", name: "Reinforced Vest", type: "equipment", slot: "armor", cost: 18000, minLevel: 8, description: "Reduce operation fines and add a steady income bonus.", effects: { fineReduction: 0.12, heistChance: 1, moneyBonus: 0.04, workCooldownReduction: 0.03, candyDropBonus: 0.02 } },
+    { id: "delivery_bike", name: "Delivery Bike", type: "equipment", slot: "vehicle", cost: 25000, minLevel: 10, description: "Increase work salary and work XP while shortening shift cooldowns.", effects: { workPayBonus: 0.12, workXpBonus: 0.08, workCooldownReduction: 0.12, candyDropBonus: 0.025 } },
+    { id: "field_toolkit", name: "Field Toolkit", type: "equipment", slot: "bag", cost: 32000, minLevel: 12, description: "A balanced kit for better pay, income and operation chances.", effects: { workPayBonus: 0.08, moneyBonus: 0.05, crimeChance: 2, heistChance: 2, crimeCooldownReduction: 0.04, candyDropBonus: 0.03 } },
+    { id: "smuggler_satchel", name: "Smuggler Satchel", type: "equipment", slot: "belt", cost: 58000, minLevel: 17, description: "Improve crime success, reduce fines and shorten daily reward cooldowns.", effects: { crimeChance: 5, fineReduction: 0.10, xpBonus: 0.06, dailyCooldownReduction: 0.05, candyDropBonus: 0.035 } },
+    { id: "crimson_charm", name: "Crimson Charm", type: "equipment", slot: "charm", cost: 85000, minLevel: 20, description: "A rare keepsake that improves work, income, XP and risky operations.", effects: { crimeChance: 3, heistChance: 4, workPayBonus: 0.10, moneyBonus: 0.08, xpBonus: 0.10, casinoChance: 0.8, workCooldownReduction: 0.06, candyDropBonus: 0.04 } },
+    { id: "phantom_chronometer", name: "Phantom Chronometer", type: "equipment", slot: "watch", cost: 145000, minLevel: 26, description: "Advanced timing gear that shortens work, crime, heist, daily and casino cooldowns.", effects: { workCooldownReduction: 0.12, crimeCooldownReduction: 0.10, heistCooldownReduction: 0.10, dailyCooldownReduction: 0.08, casinoCooldownReduction: 0.12, xpBonus: 0.08, candyDropBonus: 0.045 } },
+    { id: "syndicate_ledger", name: "Syndicate Ledger", type: "equipment", slot: "badge", cost: 240000, minLevel: 32, description: "Elite equipment for higher income, XP and improved gambling luck.", effects: { moneyBonus: 0.15, xpBonus: 0.15, workPayBonus: 0.12, crimeRewardBonus: 0.08, casinoChance: 1.5, slotLuck: 12, heistChance: 3, candyDropBonus: 0.05 } }
   ],
   itemUpgrades: { maxLevel: 5, effectPerLevel: 0.15, costBaseFactor: 0.65, costGrowthFactor: 1.7, levelRequirementPerUpgrade: 2 },
-  rebirth: { startingWallet: 1000, firstWalletRequirement: 12000, firstLevelRequirement: 8, walletRequirementGrowth: 1.5, levelRequirementGrowth: 2, firstQuestClaimsRequirement: 1, questClaimsGrowth: 1, firstJobLevelRequirement: 1, jobLevelGrowthEvery: 2, firstWorkShiftsRequirement: 3, workShiftsGrowth: 2 },
+  rebirth: { startingWallet: 1000, firstWalletRequirement: 12000, firstLevelRequirement: 8, walletRequirementGrowth: 1.5, levelRequirementGrowth: 2, firstQuestClaimsRequirement: 1, questClaimsGrowth: 1, firstJobLevelRequirement: 1, jobLevelGrowthEvery: 2, firstWorkShiftsRequirement: 3, workShiftsGrowth: 2, itemRequirementsStartAt: 3, firstGearItemsRequirement: 1, gearItemsGrowth: 1, firstCandyItemsRequirement: 1, candyItemsGrowth: 1, firstCandyBalanceRequirement: 25, candyBalanceGrowth: 25, gearUpgradeRequirementsStartAt: 4, firstGearUpgradeLevelsRequirement: 1, gearUpgradeLevelsGrowth: 1 },
   crimes: [
     { id: "pickpocket", name: "Pickpocket", minLevel: 1, baseChance: 67, rewardMin: 90, rewardMax: 220, fineMin: 35, fineMax: 100, cooldownMs: 12 * minute, xp: 12, difficulty: 1 },
     { id: "shoplift", name: "Shoplift", minLevel: 4, baseChance: 54, rewardMin: 260, rewardMax: 650, fineMin: 120, fineMax: 290, cooldownMs: 22 * minute, xp: 22, difficulty: 2 },
@@ -81,6 +81,15 @@ module.exports = {
     muscle: { bonus: 3, label: "Muscle" },
     scout: { bonus: 5, label: "Scout" }
   },
+  candyDrops: {
+    // Chance is rolled once for each genuine FC earning transaction. Gear adds percentage points.
+    daily_reward: { chance: 0.12, min: 1, max: 2 },
+    job_work: { chance: 0.20, min: 1, max: 2 },
+    crime_success: { chance: 0.14, min: 1, max: 2 },
+    heist_reward: { chance: 0.26, min: 2, max: 4 },
+    casino_payout: { chance: 0.06, min: 1, max: 2 },
+    chat_activity_reward: { chance: 0.025, min: 1, max: 1 }
+  },
   halloween: {
     eventId: "halloween-2026",
     finalRoleQuestCount: 5,
@@ -96,9 +105,9 @@ module.exports = {
       { id: "steady_income", name: "Steady Income", action: "wallet_earned", goal: 2500, candy: 45, points: 45, description: "Earn 2,500 Fuk Coins from game rewards." }
     ],
     shop: [
-      { id: "pumpkin_charm", name: "Pumpkin Charm", cost: 75, description: "A seasonal collectible." },
-      { id: "ghost_token", name: "Ghost Token", cost: 140, description: "A rare Halloween collectible." },
-      { id: "crimson_relic", name: "Crimson Relic", cost: 280, description: "An exclusive high-tier collectible." }
+      { id: "pumpkin_charm", name: "Pumpkin Charm", cost: 75, unique: true, description: "A seasonal collectible and a first collectible milestone for advanced rebirths." },
+      { id: "ghost_token", name: "Ghost Token", cost: 140, unique: true, description: "A rare Halloween collectible and a rebirth milestone." },
+      { id: "crimson_relic", name: "Crimson Relic", cost: 280, unique: true, description: "An exclusive high-tier collectible and the final Candy-shop rebirth milestone." }
     ]
   }
 };
