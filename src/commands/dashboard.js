@@ -489,7 +489,9 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
         })))));
     }
     components.push(row(
-      aBtn(owner, "custom-command-create", "Create command", ButtonStyle.Success, "➕"),
+      settings.idePublicUrl
+        ? new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Open Code Studio").setURL(settings.idePublicUrl.replace(/\/+$/, "") + "/ide?new=1")
+        : aBtn(owner, "custom-command-create", "Code Studio URL needed", ButtonStyle.Secondary).setDisabled(true),
       aBtn(owner, "custom-command-deploy", "Run npm run deploy-commands", ButtonStyle.Primary, "🚀")
     ));
     components.push(row(aBtn(owner, "home", "Admin console")));
