@@ -15,10 +15,39 @@ class SecurityService {
     this.unauthorizedAttempts = new Map();
     this.destructiveAttempts = new Map();
     this.alertedAt = new Map();
+    this.hierarchyCache = new Map();
   }
 
   isOwner(userId, guildOwnerId) {
     return Boolean(userId && (userId === guildOwnerId || (settings.ownerId && userId === settings.ownerId)));
+  }
+
+  async isAboveBotRole(guild, userId) {
+    if (!guild || !userId) return false;
+    if (this.isOwner(userId, guild.ownerId)) return true;
+
+    const cacheKey = guild.id + ":" + userId;
+    const cached = this.hierarchyCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.exempt;
+
+    try {
+      const [member, botMember] = await Promise.all([
+        guild.members.fetch(userId),
+        guild.members.me ? Promise.resolve(guild.members.me) : guild.members.fetchMe()
+      ]);
+      const exempt = member.roles.highest.comparePositionTo(botMember.roles.highest) > 0;
+      this.hierarchyCache.set(cacheKey, { exempt, expiresAt: Date.now() + 20000 });
+      if (this.hierarchyCache.size > 5000) {
+        for (const [key, item] of this.hierarchyCache) {
+          if (item.expiresAt <= Date.now()) this.hierarchyCache.delete(key);
+        }
+      }
+      return exempt;
+    } catch (_) {
+      // Fail closed for bot enforcement: if hierarchy cannot be verified,
+      // do not generate an alert or take an automated action against this actor.
+      return true;
+    }
   }
 
   pushWindow(map, key, now, windowMs) {
@@ -48,7 +77,7 @@ class SecurityService {
   }
 
   async checkAccess(interaction) {
-    if (this.isOwner(interaction.user.id, interaction.guild?.ownerId)) return { allowed: true };
+    if (await this.isAboveBotRole(interaction.guild, interaction.user.id)) return { allowed: true };
     const restriction = await this.getRestriction(interaction.guildId, interaction.user.id);
     return restriction ? { allowed: false, reason: restriction.reason, expiresAt: restriction.expires_at } : { allowed: true };
   }
@@ -119,7 +148,7 @@ class SecurityService {
   }
 
   async checkCommandRate(interaction) {
-    if (this.isOwner(interaction.user.id, interaction.guild?.ownerId)) return { allowed: true };
+    if (await this.isAboveBotRole(interaction.guild, interaction.user.id)) return { allowed: true };
     const now = Date.now();
     const key = interaction.guildId + ":" + interaction.user.id;
     const attempts = this.pushWindow(this.commandAttempts, key, now, 10000);
@@ -135,7 +164,7 @@ class SecurityService {
   }
 
   async checkComponentRate(interaction) {
-    if (this.isOwner(interaction.user.id, interaction.guild?.ownerId)) return { allowed: true };
+    if (await this.isAboveBotRole(interaction.guild, interaction.user.id)) return { allowed: true };
     const now = Date.now();
     const key = interaction.guildId + ":" + interaction.user.id;
     const attempts = this.pushWindow(this.componentAttempts, key, now, 10000);
@@ -151,7 +180,7 @@ class SecurityService {
   }
 
   async recordCooldownAttempt(interaction, error) {
-    if (this.isOwner(interaction.user.id, interaction.guild?.ownerId)) return;
+    if (await this.isAboveBotRole(interaction.guild, interaction.user.id)) return;
     const key = interaction.guildId + ":" + interaction.user.id;
     const attempts = this.pushWindow(this.cooldownAttempts, key, Date.now(), WINDOW_MS);
     await this.pool.query(
@@ -173,7 +202,7 @@ class SecurityService {
   }
 
   async recordUnauthorizedControlAttempt(interaction, controlId) {
-    if (this.isOwner(interaction.user.id, interaction.guild?.ownerId)) return;
+    if (await this.isAboveBotRole(interaction.guild, interaction.user.id)) return;
     const key = interaction.guildId + ":" + interaction.user.id + ":control";
     const attempts = this.pushWindow(this.unauthorizedAttempts, key, Date.now(), 300000);
     await this.pool.query(
@@ -190,7 +219,7 @@ class SecurityService {
   }
 
   async recordUnauthorizedAdminAttempt(interaction) {
-    if (this.isOwner(interaction.user.id, interaction.guild?.ownerId)) return;
+    if (await this.isAboveBotRole(interaction.guild, interaction.user.id)) return;
     const key = interaction.guildId + ":" + interaction.user.id + ":admin";
     const attempts = this.pushWindow(this.commandAttempts, key, Date.now(), 300000);
     await this.pool.query(
@@ -220,7 +249,8 @@ class SecurityService {
       return;
     }
     const actorId = entry?.executor?.id;
-    if (!actorId || actorId === client.user?.id || this.isOwner(actorId, guild.ownerId)) return;
+    if (!actorId || actorId === client.user?.id) return;
+    if (await this.isAboveBotRole(guild, actorId)) return;
     const key = guild.id + ":" + actorId;
     const attempts = this.pushWindow(this.destructiveAttempts, key, Date.now(), 20000);
     const threshold = kind === "member_ban" ? 5 : 3;
@@ -249,16 +279,34 @@ class SecurityService {
     );
     if (!incident.rowCount) return interaction.reply({ content: "This security incident could not be found.", flags: MessageFlags.Ephemeral });
 
-    if (action === "pause" || action === "block") {
+    if (action === "pause" || action === "block" || action === "timeout") {
       if (!targetId || incident.rows[0].user_id !== targetId) {
         return interaction.reply({ content: "This alert has no valid target to restrict.", flags: MessageFlags.Ephemeral });
       }
-      const expires = action === "pause" ? new Date(Date.now() + 600000) : null;
-      await this.pool.query(
-        "INSERT INTO bot_user_restrictions (guild_id, user_id, expires_at, reason, created_by) VALUES ($1, $2, $3, $4, $5) " +
-        "ON CONFLICT (guild_id, user_id) DO UPDATE SET expires_at = EXCLUDED.expires_at, reason = EXCLUDED.reason, created_by = EXCLUDED.created_by, updated_at = NOW()",
-        [guildId, targetId, expires, "Security restriction from incident #" + incidentId, interaction.user.id]
-      );
+      if (await this.isAboveBotRole(interaction.guild, targetId)) {
+        return interaction.reply({
+          content: "No action was taken. This member's highest role is above the bot's highest role, so they are excluded from bot security enforcement.",
+          flags: MessageFlags.Ephemeral
+        });
+      }
+      if (action === "timeout") {
+        const member = await interaction.guild.members.fetch(targetId);
+        const botMember = interaction.guild.members.me || await interaction.guild.members.fetchMe();
+        if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers) || !member.moderatable) {
+          return interaction.reply({
+            content: "Discord did not allow the bot to timeout this member. Check Moderate Members permission and role hierarchy.",
+            flags: MessageFlags.Ephemeral
+          });
+        }
+        await member.timeout(10 * 60 * 1000, "Owner-approved response to security incident #" + incidentId);
+      } else {
+        const expires = action === "pause" ? new Date(Date.now() + 600000) : null;
+        await this.pool.query(
+          "INSERT INTO bot_user_restrictions (guild_id, user_id, expires_at, reason, created_by) VALUES ($1, $2, $3, $4, $5) " +
+          "ON CONFLICT (guild_id, user_id) DO UPDATE SET expires_at = EXCLUDED.expires_at, reason = EXCLUDED.reason, created_by = EXCLUDED.created_by, updated_at = NOW()",
+          [guildId, targetId, expires, "Security restriction from incident #" + incidentId, interaction.user.id]
+        );
+      }
     } else if (action === "unblock") {
       if (!targetId) return interaction.reply({ content: "This alert has no valid target to unblock.", flags: MessageFlags.Ephemeral });
       await this.pool.query("DELETE FROM bot_user_restrictions WHERE guild_id = $1 AND user_id = $2", [guildId, targetId]);
