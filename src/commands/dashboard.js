@@ -288,34 +288,52 @@ async function renderMenu(guildId, owner, page, s) {
       checkRow(status.checks.careerLevel, "Career level", (status.currentJob ? status.currentJob.name + " · " : "") + "Level " + status.currentJobLevel + "/" + status.jobLevelRequired),
       checkRow(status.checks.workShifts, "Work shifts this run", status.workShiftsCompleted + "/" + status.workShiftsRequired + " completed shifts")
     ];
+    if (status.gearItemsRequired > 0) {
+      checks.push(checkRow(status.checks.gearItems, "Different gear items owned", status.gearItemsCount + "/" + status.gearItemsRequired + " equipment pieces"));
+      checks.push(checkRow(status.checks.candyItems, "Candy-shop collectibles owned", status.candyItemsCount + "/" + status.candyItemsRequired + " unique collectibles"));
+      checks.push(checkRow(status.checks.candyBalance, "Unspent Candy reserve", status.candyBalance.toLocaleString() + "/" + status.candyBalanceRequired + " Candy"));
+    }
+    if (status.gearUpgradeLevelsRequired > 0) {
+      checks.push(checkRow(status.checks.gearUpgrades, "Combined gear upgrade levels", status.gearUpgradeLevels + "/" + status.gearUpgradeLevelsRequired + " upgrade levels"));
+    }
     if (page === "rebirth-confirm") {
       return panel("CONFIRM REBIRTH", "This is a permanent progression reset. Your next run receives a **" + status.nextMultiplier.toLocaleString() + "× FC and XP earning multiplier**.",
         [
           { name: "You will lose", value: "Wallet and bank balance (your new wallet will be 1,000 FC), player level and XP, current career and career level, and reputation." },
-          { name: "You will keep", value: "Owned gear, gear upgrades, equipped items, lifetime statistics, event claims, and rebirth history." },
+          { name: "You will keep", value: "Owned gear, gear upgrades, equipped items, lifetime statistics, event claims, Candy balance and Candy-shop collectibles." },
           ...checks,
           { name: "Eligibility", value: status.eligible ? "All requirements are complete. You can rebirth." : "Finish the requirements marked above before confirming." }
         ],
         [row(btn(owner, "rebirth-confirm", "Confirm permanent reset", ButtonStyle.Danger).setDisabled(!status.eligible), btn(owner, "rebirth", "Cancel", ButtonStyle.Secondary)), nav],
         "warning");
     }
-    return panel("REBIRTH  /  PRESTIGE", "Each rebirth doubles your permanent FC and XP earning multiplier. Requirements rise gradually, while money and player-level targets grow at a gentler pace.",
+    const requirementLines = [
+      "• Combined savings: " + status.walletRequired.toLocaleString() + " FC",
+      "• Player level: " + status.levelRequired,
+      "• Claimed event quests: " + status.questClaimsRequired,
+      "• Active career, job level " + status.jobLevelRequired + "+",
+      "• Work shifts this run: " + status.workShiftsRequired
+    ];
+    if (status.gearItemsRequired > 0) {
+      requirementLines.push(
+        "• Different gear items: " + status.gearItemsRequired,
+        "• Unique Candy-shop collectibles: " + status.candyItemsRequired,
+        "• Unspent Candy reserve: " + status.candyBalanceRequired
+      );
+    }
+    if (status.gearUpgradeLevelsRequired > 0) requirementLines.push("• Combined gear upgrade levels: " + status.gearUpgradeLevelsRequired);
+    return panel("REBIRTH  /  PRESTIGE", "Each rebirth doubles your permanent FC and XP earning multiplier. Equipment and Candy milestones begin only after the first three rebirths.",
       [
         { name: "Current rebirths", value: String(status.rebirths), inline: true },
         { name: "Current multiplier", value: status.multiplier.toLocaleString() + "×", inline: true },
         { name: "Next multiplier", value: status.nextMultiplier.toLocaleString() + "×", inline: true },
-        { name: "Next run requirements", value:
-          "• Combined savings: " + status.walletRequired.toLocaleString() + " FC\n" +
-          "• Player level: " + status.levelRequired + "\n" +
-          "• Claimed event quests: " + status.questClaimsRequired + "\n" +
-          "• Active career, job level " + status.jobLevelRequired + "+\n" +
-          "• Work shifts this run: " + status.workShiftsRequired
-        },
+        { name: "Next run requirements", value: requirementLines.join("\n") },
         { name: "Your progress", value: checks.map((x) => x.name + " — " + x.value).join("\n").slice(0, 1024) },
-        { name: "After rebirth", value: "Wallet becomes 1,000 FC, bank becomes 0 and player level returns to 1. Your current career and reputation reset. Gear, upgrades, lifetime records and claimed event rewards stay." },
-        { name: "Progression curve", value: "FC target grows by 1.5× per rebirth. Player-level target grows by 2 levels. Quest claims and required work shifts increase gradually." }
+        { name: "Your Candy balance", value: status.candyBalance.toLocaleString() + " Candy · Drops come from earning FC, and equipped gear improves the chance." },
+        { name: "After rebirth", value: "Wallet becomes 1,000 FC, bank becomes 0 and player level returns to 1. Your current career and reputation reset. Gear, upgrades, Candy, collectibles, lifetime records and claimed event rewards stay." },
+        { name: "Progression curve", value: "FC target grows by 1.5× and player level by 2 per rebirth. Quest claims and work shifts rise gradually. Gear, Candy and upgrade requirements begin when preparing for rebirth four." }
       ],
-      [row(btn(owner, "rebirth-review", "Review rebirth", ButtonStyle.Danger)), nav]);
+      [row(btn(owner, "rebirth-review", "Review rebirth", ButtonStyle.Danger), btn(owner, "event-shop", "Candy shop", ButtonStyle.Secondary)), nav]);
   }
   if (page === "games") {
     return panel("OPERATIONS  /  GAME ROOM", "These activities involve risk. Read the possible costs and requirements before starting.",
@@ -357,9 +375,12 @@ async function renderMenu(guildId, owner, page, s) {
   if (page === "event") {
     const r = await s.halloween.status(guildId, owner);
     const weekly = await s.activity.getWeekly(guildId, owner);
-    if (!r.event) return panel("HALLOWEEN EVENT", "The seasonal event has not been configured by an administrator yet.", [
-      { name: "Weekly activity", value: bar(weekly.messages, weekly.goal) + "\nAll human-member messages count toward your weekly total, without a counting cooldown." }
-    ], [row(btn(owner, "weekly", "Weekly mission", ButtonStyle.Primary)), nav]);
+    if (!r.event) return panel("HALLOWEEN  /  CANDY COLLECTION", "The event schedule has ended or is not configured, but your Candy balance and collectible shop remain available for long-term rebirth progress. Candy can still drop from eligible earning actions.",
+      [
+        { name: "🍬 Candy balance", value: Number(r.wallet.candy || 0).toLocaleString() + " Candy", inline: true },
+        { name: "Weekly activity", value: bar(weekly.messages, weekly.goal) + "\nAll human-member messages count toward your weekly total, without a counting cooldown." },
+        { name: "Candy drops", value: "Earn FC through Daily, Work, Crime, Heists, Casino wins or chat rewards. Equipped gear improves your chance of finding Candy." }
+      ], [row(btn(owner, "event-shop", "Candy shop", ButtonStyle.Primary), btn(owner, "weekly", "Weekly mission", ButtonStyle.Secondary)), nav]);
     const progress = new Map(r.progress.map((x) => [x.quest_id, Number(x.progress)]));
     const claims = new Set(r.claims);
     const lines = r.quests.map((q) => {
@@ -387,10 +408,19 @@ async function renderMenu(guildId, owner, page, s) {
     ], [...(canClaim ? [row(btn(owner, "weekly-claim", "Claim weekly reward", ButtonStyle.Success, "🎁"))] : []), nav]);
   }
   if (page === "event-shop") {
-    const options = balancing.halloween.shop.map((x) => ({ label: x.name, value: x.id, description: x.cost + " Candy · " + x.description.slice(0, 70) }));
-    return panel("HALLOWEEN COLLECTIBLES", "Choose a seasonal collectible to purchase with Candy. Purchased items are added to your inventory.",
-      balancing.halloween.shop.map((x) => ({ name: x.name + " · " + x.cost + " Candy", value: x.description })),
-      [menu(owner, "event-buy", "Choose a collectible", options), nav]);
+    const status = await s.halloween.status(guildId, owner);
+    const owned = await s.inventory.getInventory(guildId, owner);
+    const ownedIds = new Set(owned.items.map((x) => x.item.id));
+    const options = balancing.halloween.shop
+      .filter((x) => !x.unique || !ownedIds.has(x.id))
+      .map((x) => ({ label: x.name, value: x.id, description: x.cost + " Candy · " + x.description.slice(0, 65) }));
+    return panel("HALLOWEEN  /  CANDY COLLECTIBLES",
+      "Your balance: **" + Number(status.wallet.candy || 0).toLocaleString() + " Candy**. Collectibles are unique, stay in your inventory permanently and count toward later rebirth milestones. The shop stays open after the event schedule ends.",
+      balancing.halloween.shop.map((x) => ({
+        name: x.name + " · " + x.cost + " Candy" + (ownedIds.has(x.id) ? " · OWNED" : ""),
+        value: x.description
+      })),
+      [...(options.length ? [menu(owner, "event-buy", "Choose a collectible", options)] : []), nav]);
   }
   if (page === "rankings") {
     return panel("FUKISHOKAI  /  LEADERBOARDS", "Choose the ranking you want to view.",
@@ -658,13 +688,14 @@ async function handleSelection(i, s, scope, owner, action, parts) {
     }
     if (action === "crime-run") {
       const r = await s.crime.attempt(i.guildId, owner, value, memberRoleIds(i));
+      const candyText = r.candyDrop ? " and found **" + r.candyDrop.amount + " Candy**" : "";
       await recordMemberAction(i, s, "crime_attempt", r.succeeded
-        ? "completed **" + r.crime.name + "** and earned " + r.reward.toLocaleString() + " FC."
+        ? "completed **" + r.crime.name + "** and earned " + r.reward.toLocaleString() + " FC" + candyText + "."
         : "attempted **" + r.crime.name + "** and paid a " + r.fine.toLocaleString() + " FC fine.",
-        { crimeId: r.crime.id, succeeded: r.succeeded, reward: r.reward, fine: r.fine, successChance: r.successChance }, r.succeeded ? "success" : "warning");
+        { crimeId: r.crime.id, succeeded: r.succeeded, reward: r.reward, fine: r.fine, candy: r.candyDrop?.amount || 0, successChance: r.successChance }, r.succeeded ? "success" : "warning");
       return i.editReply(panel(r.succeeded ? "OPERATION SUCCESSFUL" : "OPERATION FAILED",
-        r.succeeded ? "You completed **" + r.crime.name + "** and earned **" + r.reward.toLocaleString() + " FC**." : "You were caught during **" + r.crime.name + "** and paid a fine of **" + r.fine.toLocaleString() + " FC**.",
-        [{ name: "Success chance", value: r.successChance + "%", inline: true }, { name: r.succeeded ? "Reward" : "Fine", value: (r.succeeded ? r.reward : r.fine).toLocaleString() + " FC", inline: true }],
+        r.succeeded ? "You completed **" + r.crime.name + "** and earned **" + r.reward.toLocaleString() + " FC**." + (r.candyDrop ? "\n🍬 You found **" + r.candyDrop.amount + " Candy**!" : "") : "You were caught during **" + r.crime.name + "** and paid a fine of **" + r.fine.toLocaleString() + " FC**.",
+        [{ name: "Success chance", value: r.successChance + "%", inline: true }, { name: r.succeeded ? "Reward" : "Fine", value: (r.succeeded ? r.reward : r.fine).toLocaleString() + " FC", inline: true }, ...(r.candyDrop ? [{ name: "Candy found", value: "+" + r.candyDrop.amount, inline: true }] : [])],
         [row(btn(owner, "crime", "Back to crime")), navButton(owner)], r.succeeded ? "success" : "warning"));
     }
     if (action === "event-claim") {
@@ -989,9 +1020,10 @@ async function handleButton(i, s) {
   if (action === "daily") {
     await i.deferUpdate();
     const r = await s.economy.daily(i.guildId, owner, memberRoleIds(i));
-    await recordMemberAction(i, s, "daily_reward_claimed", "claimed a daily reward and earned " + r.amount.toLocaleString() + " FC.", { amount: r.amount, xp: r.progression.gained });
-    return i.editReply(panel("DAILY REWARD CLAIMED", "You received **" + r.amount.toLocaleString() + " FC** and **" + r.progression.gained + " XP**." + (r.progression.levelsGained ? "\n🎉 You reached level " + r.progression.level + "!" : ""),
-      [{ name: "Current level", value: String(r.progression.level), inline: true }],
+    const candyText = r.candyDrop ? " and found **" + r.candyDrop.amount + " Candy**" : "";
+    await recordMemberAction(i, s, "daily_reward_claimed", "claimed a daily reward and earned " + r.amount.toLocaleString() + " FC" + candyText + ".", { amount: r.amount, xp: r.progression.gained, candy: r.candyDrop?.amount || 0 });
+    return i.editReply(panel("DAILY REWARD CLAIMED", "You received **" + r.amount.toLocaleString() + " FC** and **" + r.progression.gained + " XP**." + (r.progression.levelsGained ? "\n🎉 You reached level " + r.progression.level + "!" : "") + (r.candyDrop ? "\n🍬 A Candy drop appeared! You found **" + r.candyDrop.amount + " Candy**." : ""),
+      [{ name: "Current level", value: String(r.progression.level), inline: true }, ...(r.candyDrop ? [{ name: "Candy found", value: "+" + r.candyDrop.amount, inline: true }] : [])],
       [row(btn(owner, "earn", "Back to Earn")), navButton(owner)], "success"));
   }
   if (action === "work") {
@@ -1016,9 +1048,10 @@ async function handleButton(i, s) {
     sessions.delete(session.id);
     if (!session.correct) return i.editReply(panel("SHIFT TEST COMPLETE", "You answered 0/3 correctly. At least one correct answer is required to earn FC or XP. Your work cooldown still applies.", [], [row(btn(owner, "earn", "Back to Earn")), navButton(owner)], "warning"));
     const r = await s.jobs.completeShift(i.guildId, owner, session.shift.job.id, session.correct, 3, memberRoleIds(i));
-    await recordMemberAction(i, s, "work_shift_completed", "completed a **" + r.job.name + "** work shift with " + session.correct + "/3 correct answers and earned " + r.pay.toLocaleString() + " FC.", { careerId: r.job.id, correct: session.correct, total: 3, pay: r.pay, xp: r.progression.gained });
-    return i.editReply(panel("SHIFT COMPLETE", "You answered **" + session.correct + "/3** correctly and earned **" + r.pay.toLocaleString() + " FC** plus **" + r.progression.gained + " XP**.",
-      [{ name: "Career", value: r.job.name + " · Level " + r.jobLevel, inline: true }, { name: "Player level", value: String(r.progression.level), inline: true }, { name: "Promotion", value: r.promoted ? "Job level increased!" : "Progress saved" }],
+    const candyText = r.candyDrop ? " and found **" + r.candyDrop.amount + " Candy**" : "";
+    await recordMemberAction(i, s, "work_shift_completed", "completed a **" + r.job.name + "** work shift with " + session.correct + "/3 correct answers and earned " + r.pay.toLocaleString() + " FC" + candyText + ".", { careerId: r.job.id, correct: session.correct, total: 3, pay: r.pay, xp: r.progression.gained, candy: r.candyDrop?.amount || 0 });
+    return i.editReply(panel("SHIFT COMPLETE", "You answered **" + session.correct + "/3** correctly and earned **" + r.pay.toLocaleString() + " FC** plus **" + r.progression.gained + " XP**." + (r.candyDrop ? "\n🍬 You found **" + r.candyDrop.amount + " Candy**!" : ""),
+      [{ name: "Career", value: r.job.name + " · Level " + r.jobLevel, inline: true }, { name: "Player level", value: String(r.progression.level), inline: true }, { name: "Promotion", value: r.promoted ? "Job level increased!" : "Progress saved" }, ...(r.candyDrop ? [{ name: "Candy found", value: "+" + r.candyDrop.amount, inline: true }] : [])],
       [row(btn(owner, "profile", "View profile")), navButton(owner)], "success"));
   }
   if (action === "deposit" || action === "withdraw") return i.showModal(modal("dash:" + owner + ":bank-modal:" + action, action === "deposit" ? "Deposit into bank" : "Withdraw from bank", [{ id: "amount", label: "Amount in FC", placeholder: "1000", max: 12 }]));
@@ -1094,12 +1127,13 @@ async function handleModal(i, s) {
         { name: "Wager", value: r.wager.toLocaleString() + " FC", inline: true },
         { name: "Payout", value: r.payout.toLocaleString() + " FC", inline: true },
         { name: "Net result", value: (r.net > 0 ? "+" : "") + r.net.toLocaleString() + " FC", inline: true },
+        ...(r.candyDrop ? [{ name: "🍬 Candy found", value: "+" + r.candyDrop.amount, inline: true }] : []),
         { name: "Fair-play rule", value: "Same published odds for everyone · " + r.cooldownMs / 1000 + "-second cooldown · " + Math.round(r.theoreticalReturnRate * 100) + "% long-run return" }
       ], [], r.won ? "success" : "warning");
       await recordMemberAction(i, s, "casino_round",
         "played **" + r.game.name + "** with a " + r.wager.toLocaleString() + " FC wager, received " +
         r.payout.toLocaleString() + " FC, and finished with a net result of " + (r.net > 0 ? "+" : "") +
-        r.net.toLocaleString() + " FC.",
+        r.net.toLocaleString() + " FC" + (r.candyDrop ? " and found " + r.candyDrop.amount + " Candy" : "") + ".",
         { game: r.game.name, wager: r.wager, payout: r.payout, net: r.net },
         r.won ? "success" : "warning",
         resultPayload.embeds[0]);
