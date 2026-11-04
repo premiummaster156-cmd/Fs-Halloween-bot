@@ -35,19 +35,32 @@ module.exports = {
     { id: "smuggle", name: "Smuggle", minLevel: 9, baseChance: 42, rewardMin: 700, rewardMax: 1650, fineMin: 300, fineMax: 720, cooldownMs: 35 * minute, xp: 38, difficulty: 3 }
   ],
   casino: {
-    cooldownMs: 5000, minBet: 100, maxBet: 100000,
+    // Equal, fixed limits for every player. Daily exposure is tracked from the economy ledger.
+    cooldownMs: 30 * 1000,
+    minBet: 100,
+    maxBet: 1000,
+    dailyWagerLimit: 5000,
+    targetReturnRate: 0.95,
     games: {
-      coinflip: { name: "Coin Flip", minLevel: 1, winningChance: 47, multiplierHundredths: 200, description: "47% win chance; a win returns twice the bet." },
-      dice: { name: "High Dice", minLevel: 3, winningChance: 32, multiplierHundredths: 290, description: "Roll a 5 or 6 to win." },
+      coinflip: {
+        name: "Coin Flip", minLevel: 1,
+        winningChance: 47.5, multiplierHundredths: 200,
+        description: "47.5% win chance. A win returns 2× your bet. Long-run theoretical return: 95%."
+      },
+      dice: {
+        name: "High Dice", minLevel: 3,
+        winningChance: 33.333333, multiplierHundredths: 285,
+        description: "Roll a 5 or 6 (2 chances out of 6). A win returns 2.85× your bet. Long-run theoretical return: 95%."
+      },
       slots: {
         name: "Slots", minLevel: 5,
         outcomes: [
-          { maxRoll: 39, label: "Jackpot", multiplierHundredths: 1000 },
-          { maxRoll: 119, label: "Big win", multiplierHundredths: 400 },
-          { maxRoll: 299, label: "Small win", multiplierHundredths: 130 },
+          { maxRoll: 9, label: "Jackpot", multiplierHundredths: 1000 },
+          { maxRoll: 49, label: "Big win", multiplierHundredths: 400 },
+          { maxRoll: 249, label: "Small win", multiplierHundredths: 345 },
           { maxRoll: 999, label: "No win", multiplierHundredths: 0 }
         ],
-        description: "Rare large payouts with a house edge."
+        description: "1% Jackpot (10×), 4% Big win (4×), 20% Small win (3.45×), 75% no win. Long-run theoretical return: 95%."
       }
     }
   },
