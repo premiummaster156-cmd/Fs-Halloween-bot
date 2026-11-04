@@ -21,11 +21,9 @@ function memberRoleIds(i) {
   const roles = i.member?.roles;
   return roles?.cache ? Array.from(roles.cache.keys()) : Array.isArray(roles) ? roles : [];
 }
-async function isAdmin(i, guildSettings) {
-  if (isOwner(i) || i.memberPermissions?.has(PermissionFlagsBits.Administrator) || i.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) return true;
-  const configured = await guildSettings.get(i.guildId, "adminRoleId");
-  const ids = memberRoleIds(i);
-  return Boolean((configured && ids.includes(configured)) || settings.adminRoleIds.some((id) => ids.includes(id)));
+async function isAdmin(i) {
+  // Discord Administrator / Manage Server roles do not grant control of the bot.
+  return isOwner(i);
 }
 function btn(owner, action, label, style = ButtonStyle.Secondary, emoji, extra) {
   const b = new ButtonBuilder().setCustomId(["dash", owner, action, extra].filter(Boolean).join(":")).setLabel(label).setStyle(style);
@@ -39,6 +37,29 @@ function row(...items) { return new ActionRowBuilder().addComponents(...items); 
 function menu(owner, action, placeholder, options) {
   return row(new StringSelectMenuBuilder().setCustomId(["dash", owner, action].join(":")).setPlaceholder(placeholder).setMinValues(1).setMaxValues(1).addOptions(options.slice(0, 25)));
 }
+async function recordMemberAction(i, services, action, announcement, details = {}, kind = "success") {
+  const actorId = i.user.id;
+  const displayName = i.member?.displayName || i.user.globalName || i.user.username;
+  await audit(services.pool, i.guildId, actorId, action, actorId, details);
+  await sendLog(i.client, i.guildId, "Member activity: " + action + " · " + displayName + " (" + actorId + ")" +
+    (Object.keys(details).length ? " · " + JSON.stringify(details).slice(0, 700) : ""));
+  try {
+    if (i.channel && i.channel.isTextBased() && typeof i.channel.send === "function") {
+      const colors = { success: settings.brand.success, warning: settings.brand.warning, info: settings.brand.primary };
+      const embed = createEmbed({
+        title: "FUKISHOKAI  /  MEMBER ACTIVITY",
+        description: "**" + displayName + "** " + announcement,
+        color: colors[kind] || colors.info,
+        icon: "profile",
+        footer: "FUKISHOKAI  •  Activity announcement"
+      });
+      await i.channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
+    }
+  } catch (error) {
+    console.warn("[activity] Could not publish member action:", action, error.code || error.message);
+  }
+}
+
 function panel(title, description, fields = [], components = [], kind = "info", footer = "FUKISHOKAI  •  Your interactive game centre") {
   const palette = {
     info: settings.brand.primary, success: settings.brand.success,
@@ -461,6 +482,7 @@ async function handleSelection(i, s, scope, owner, action, parts) {
   if (action === "job-apply") {
     await i.deferUpdate();
     const result = await s.jobs.apply(i.guildId, owner, value);
+    await recordMemberAction(i, s, "career_applied", "applied for **" + result.job.name + "**.", { careerId: result.job.id, careerName: result.job.name });
     return i.editReply(panel("CAREER CONFIRMED", "You are now a **" + result.job.name + "**.\n" + result.job.description + "\n\nYour career is ready. Open Earn to start a shift.", [
       { name: "Starting pay", value: result.job.payMin.toLocaleString() + "–" + result.job.payMax.toLocaleString() + " FC", inline: true },
       { name: "Cooldown", value: Math.round(result.job.cooldownMs / 60000) + " minutes", inline: true }
@@ -474,18 +496,25 @@ async function handleSelection(i, s, scope, owner, action, parts) {
     await i.deferUpdate();
     if (action === "equip") {
       const r = await s.inventory.equip(i.guildId, owner, value);
+      await recordMemberAction(i, s, "equipment_equipped", "equipped **" + r.item.name + "**.", { itemId: r.item.id, slot: r.item.slot });
       return i.editReply(panel("EQUIPMENT UPDATED", "Equipped **" + r.item.name + "** in the **" + r.item.slot + "** slot." + (r.previousItem ? "\nReplaced: " + r.previousItem.name : ""), [], [row(btn(owner, "gear", "View gear")), navButton(owner)], "success"));
     }
     if (action === "unequip") {
       const r = await s.inventory.unequip(i.guildId, owner, value);
+      await recordMemberAction(i, s, "equipment_unequipped", "unequipped **" + r.item.name + "**.", { itemId: r.item.id, slot: r.slot });
       return i.editReply(panel("GEAR UNEQUIPPED", "Removed **" + r.item.name + "** from your " + r.slot + " slot. The item remains in your inventory.", [], [row(btn(owner, "gear", "View gear")), navButton(owner)], "success"));
     }
     if (action === "shop-buy") {
       const r = await s.inventory.buy(i.guildId, owner, value);
+      await recordMemberAction(i, s, "shop_purchase", "purchased **" + r.item.name + "** for " + r.item.cost.toLocaleString() + " FC.", { itemId: r.item.id, cost: r.item.cost });
       return i.editReply(panel("PURCHASE COMPLETE", "You purchased **" + r.item.name + "**.\n" + r.item.description, [{ name: "Wallet remaining", value: r.walletRemaining.toLocaleString() + " FC" }], [row(btn(owner, "gear", "View gear")), navButton(owner)], "success"));
     }
     if (action === "crime-run") {
       const r = await s.crime.attempt(i.guildId, owner, value, memberRoleIds(i));
+      await recordMemberAction(i, s, "crime_attempt", r.succeeded
+        ? "completed **" + r.crime.name + "** and earned " + r.reward.toLocaleString() + " FC."
+        : "attempted **" + r.crime.name + "** and paid a " + r.fine.toLocaleString() + " FC fine.",
+        { crimeId: r.crime.id, succeeded: r.succeeded, reward: r.reward, fine: r.fine, successChance: r.successChance }, r.succeeded ? "success" : "warning");
       return i.editReply(panel(r.succeeded ? "OPERATION SUCCESSFUL" : "OPERATION FAILED",
         r.succeeded ? "You completed **" + r.crime.name + "** and earned **" + r.reward.toLocaleString() + " FC**." : "You were caught during **" + r.crime.name + "** and paid a fine of **" + r.fine.toLocaleString() + " FC**.",
         [{ name: "Success chance", value: r.successChance + "%", inline: true }, { name: r.succeeded ? "Reward" : "Fine", value: (r.succeeded ? r.reward : r.fine).toLocaleString() + " FC", inline: true }],
@@ -494,19 +523,20 @@ async function handleSelection(i, s, scope, owner, action, parts) {
     if (action === "event-claim") {
       const r = await s.halloween.claimQuest(i.guildId, owner, value);
       const configured = await s.guildSettings.get(i.guildId, "halloweenRoleId");
-      const rewardRole = configured || r.roleId;
+      const selectedRewardRole = configured || r.roleId;
       let note = "";
-      if (r.eligibleForRole && rewardRole) {
-        const assigned = await rewardRole(i, rewardRole, "Completed the Halloween quest requirement");
+      if (r.eligibleForRole && selectedRewardRole) {
+        const assigned = await rewardRole(i, selectedRewardRole, "Completed the Halloween quest requirement");
         if (!assigned.assigned) note = "\n\n**Reward role not assigned:** " + assigned.issue;
       }
-      await audit(s.pool, i.guildId, owner, "halloween_quest_claimed", owner, { questId: r.quest.id, candy: r.quest.candy, points: r.quest.points });
+      await recordMemberAction(i, s, "halloween_quest_claimed", "claimed the **" + r.quest.name + "** quest and received " + r.quest.candy + " Candy.", { questId: r.quest.id, candy: r.quest.candy, points: r.quest.points });
       return i.editReply(panel("QUEST CLAIMED", "**" + r.quest.name + "** completed. You received **" + r.quest.candy + " Candy** and **" + r.quest.points + " event points**." + note,
         [{ name: "Final role progress", value: r.claimedCount + "/" + balancing.halloween.finalRoleQuestCount + " claims" }],
         [row(btn(owner, "event", "Back to Halloween")), navButton(owner)], "success"));
     }
     if (action === "event-buy") {
       const r = await s.halloween.buyItem(i.guildId, owner, value);
+      await recordMemberAction(i, s, "halloween_item_purchased", "purchased the seasonal item **" + r.item.name + "** for " + r.item.cost + " Candy.", { itemId: r.item.id, cost: r.item.cost });
       return i.editReply(panel("SEASONAL ITEM PURCHASED", "You bought **" + r.item.name + "**.\n" + r.item.description, [{ name: "Candy remaining", value: r.remainingCandy.toLocaleString() }], [row(btn(owner, "event", "Back to Halloween")), navButton(owner)], "success"));
     }
     if (action === "ranking-type") {
@@ -527,6 +557,7 @@ async function handleSelection(i, s, scope, owner, action, parts) {
   if (action === "heist-create") {
     await i.deferUpdate();
     const r = await s.heists.create(i.guildId, owner, value);
+    await recordMemberAction(i, s, "heist_created", "created a crew for **" + r.mission.name + "**.", { heistId: r.id, missionId: r.mission.id });
     return i.editReply(panel("CREW CREATED  /  RECRUITING", "**" + r.mission.name + "** is ready for members to join. Share the ID below with your crew.", [
       { name: "HEIST ID", value: "||" + r.id + "||" },
       { name: "Crew size", value: r.mission.minParticipants + "–" + r.mission.maxParticipants + " members" }
@@ -536,6 +567,7 @@ async function handleSelection(i, s, scope, owner, action, parts) {
     await i.deferUpdate();
     const heistId = parts[3];
     const r = await s.heists.join(i.guildId, owner, heistId, value);
+    await recordMemberAction(i, s, "heist_joined", "joined a **" + r.mission.name + "** crew as **" + r.role.label + "**.", { heistId, roleId: value });
     return i.editReply(panel("YOU JOINED THE CREW", "You joined **" + r.mission.name + "** as **" + r.role.label + "**.", [
       { name: "Crew size", value: r.count + "/" + r.maximum }
     ], [row(btn(owner, "heists", "Heist menu")), navButton(owner)], "success"));
@@ -624,6 +656,7 @@ async function handleButton(i, s) {
   if (action === "daily") {
     await i.deferUpdate();
     const r = await s.economy.daily(i.guildId, owner, memberRoleIds(i));
+    await recordMemberAction(i, s, "daily_reward_claimed", "claimed a daily reward and earned " + r.amount.toLocaleString() + " FC.", { amount: r.amount, xp: r.progression.gained });
     return i.editReply(panel("DAILY REWARD CLAIMED", "You received **" + r.amount.toLocaleString() + " FC** and **" + r.progression.gained + " XP**." + (r.progression.levelsGained ? "\n🎉 You reached level " + r.progression.level + "!" : ""),
       [{ name: "Current level", value: String(r.progression.level), inline: true }],
       [row(btn(owner, "earn", "Back to Earn")), navButton(owner)], "success"));
@@ -650,6 +683,7 @@ async function handleButton(i, s) {
     sessions.delete(session.id);
     if (!session.correct) return i.editReply(panel("SHIFT TEST COMPLETE", "You answered 0/3 correctly. At least one correct answer is required to earn FC or XP. Your work cooldown still applies.", [], [row(btn(owner, "earn", "Back to Earn")), navButton(owner)], "warning"));
     const r = await s.jobs.completeShift(i.guildId, owner, session.shift.job.id, session.correct, 3, memberRoleIds(i));
+    await recordMemberAction(i, s, "work_shift_completed", "completed a **" + r.job.name + "** work shift with " + session.correct + "/3 correct answers and earned " + r.pay.toLocaleString() + " FC.", { careerId: r.job.id, correct: session.correct, total: 3, pay: r.pay, xp: r.progression.gained });
     return i.editReply(panel("SHIFT COMPLETE", "You answered **" + session.correct + "/3** correctly and earned **" + r.pay.toLocaleString() + " FC** plus **" + r.progression.gained + " XP**.",
       [{ name: "Career", value: r.job.name + " · Level " + r.jobLevel, inline: true }, { name: "Player level", value: String(r.progression.level), inline: true }, { name: "Promotion", value: r.promoted ? "Job level increased!" : "Progress saved" }],
       [row(btn(owner, "profile", "View profile")), navButton(owner)], "success"));
@@ -675,7 +709,7 @@ async function handleButton(i, s) {
       const assigned = await rewardRole(i, reward, "Completed the weekly Halloween activity mission");
       if (!assigned.assigned) note = "\n\n**Reward role not assigned:** " + assigned.issue;
     }
-    await audit(s.pool, i.guildId, owner, "halloween_weekly_claimed", owner, { messages: r.messages, candy: r.candy });
+    await recordMemberAction(i, s, "halloween_weekly_claimed", "claimed the weekly activity reward for " + r.messages.toLocaleString() + " eligible messages and received " + r.candy + " Candy.", { messages: r.messages, candy: r.candy, points: r.points });
     return i.editReply(panel("WEEKLY REWARD CLAIMED", "You reached " + r.messages.toLocaleString() + " eligible messages and received **" + r.candy + " Candy** plus **" + r.points + " event points**." + note,
       [{ name: "Final reward progress", value: r.claimedCount + "/" + balancing.halloween.finalRoleQuestCount + " claims" }],
       [row(btn(owner, "event", "Back to Halloween")), navButton(owner)], "success"));
