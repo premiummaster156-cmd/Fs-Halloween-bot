@@ -4,6 +4,9 @@ const {
   StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle,
   MessageFlags, PermissionFlagsBits
 } = require("discord.js");
+const { execFile } = require("node:child_process");
+const { promisify } = require("node:util");
+const execFileAsync = promisify(execFile);
 const settings = require("../config/settings");
 const balancing = require("../config/game-balancing");
 const { createEmbed } = require("../ui");
@@ -156,6 +159,7 @@ function modal(customId, title, fields) {
     const input = new TextInputBuilder().setCustomId(f.id).setLabel(f.label).setPlaceholder(f.placeholder || "")
       .setStyle(f.paragraph ? TextInputStyle.Paragraph : TextInputStyle.Short)
       .setRequired(f.required !== false).setMaxLength(f.max || 100);
+    if (typeof f.value === "string" && f.value.length) input.setValue(f.value.slice(0, f.max || 100));
     m.addComponents(row(input));
   }
   return m;
@@ -463,8 +467,57 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
       ], [
         row(aBtn(owner, "settings", "Server settings", ButtonStyle.Primary, "⚙️"), aBtn(owner, "event", "Event controls", ButtonStyle.Secondary, "🎃")),
         row(aBtn(owner, "player", "Player management", ButtonStyle.Secondary, "👤"), aBtn(owner, "fairness", "Leaderboard fairness", ButtonStyle.Secondary, "🏆")),
-        row(aBtn(owner, "logs", "Audit history", ButtonStyle.Secondary, "📋"), aBtn(owner, "refresh", "Refresh", ButtonStyle.Secondary, "🔄"))
+        row(aBtn(owner, "custom-commands", "Custom commands", ButtonStyle.Primary, "🧩"), aBtn(owner, "logs", "Audit history", ButtonStyle.Secondary, "📋"), aBtn(owner, "refresh", "Refresh", ButtonStyle.Secondary, "🔄"))
       ], "info", "FUKISHOKAI  •  Private administrator console");
+  }
+  if (page === "custom-commands") {
+    const commands = await s.customCommands.list(guildId);
+    const lines = commands.length
+      ? commands.slice(0, 15).map((item) => "**/" + item.name + "** · " + (item.is_active ? "🟢 Active" : "⚪ Inactive") +
+        " · " + (item.deployed_at ? "Deployed" : "Needs deployment") + "\n" + item.description).join("\n\n")
+      : "No custom commands yet. Create one using the button below.";
+    const components = [];
+    if (commands.length) {
+      components.push(row(new StringSelectMenuBuilder()
+        .setCustomId("admin:" + owner + ":custom-command-select")
+        .setPlaceholder("Select a custom command")
+        .setMinValues(1).setMaxValues(1)
+        .addOptions(commands.slice(0, 25).map((item) => ({
+          label: "/" + item.name,
+          value: item.id,
+          description: (item.is_active ? "Active · " : item.deployed_at ? "Inactive · " : "Draft · ") + item.description.slice(0, 70)
+        })))));
+    }
+    components.push(row(
+      aBtn(owner, "custom-command-create", "Create command", ButtonStyle.Success, "➕"),
+      aBtn(owner, "custom-command-deploy", "Run npm run deploy-commands", ButtonStyle.Primary, "🚀")
+    ));
+    components.push(row(aBtn(owner, "home", "Admin console")));
+    return panel("CUSTOM SLASH COMMANDS", "Create commands using the safe JSON command editor. Save a draft, deploy slash commands, then activate it. Custom commands can send text or embeds with member and option placeholders. They cannot execute JavaScript or host commands.",
+      [{ name: "Saved commands", value: lines.slice(0, 3900) },
+       { name: "Workflow", value: "1. Create or edit code\n2. Run npm run deploy-commands\n3. Select the command and press Activate" },
+       { name: "Placeholders", value: "{user} · {username} · {server} · {channel} · {option.name} · {option.name.username} · {option.name.mention}" }],
+      components);
+  }
+  if (page === "custom-command") {
+    const command = await s.customCommands.get(guildId, targetId);
+    if (!command) return renderAdmin(guildId, owner, "custom-commands", s);
+    const code = JSON.stringify(command.definition, null, 2);
+    const status = command.is_active ? "🟢 Active" : command.deployed_at ? "🟡 Deployed · Not active" : "⚪ Draft · Needs deployment";
+    const activateButton = aBtn(owner, command.is_active ? "custom-command-deactivate" : "custom-command-activate",
+      command.is_active ? "Deactivate" : "Activate",
+      command.is_active ? ButtonStyle.Danger : ButtonStyle.Success, null, command.id);
+    if (!command.is_active && !command.deployed_at) activateButton.setDisabled(true);
+    return panel("CUSTOM COMMAND  /  " + command.name,
+      "**/" + command.name + "** · " + status + "\n" + command.description,
+      [
+        { name: "Command code (JSON)", value: code.slice(0, 3900) },
+        { name: "Activation", value: command.is_active ? "This command is available to members." : command.deployed_at ? "Deployed. Activate it to let members use it." : "Save changes, deploy slash commands, then activate it." }
+      ],
+      [
+        row(activateButton, aBtn(owner, "custom-command-edit", "Edit code", ButtonStyle.Secondary, "✏️", command.id)),
+        row(aBtn(owner, "custom-command-deploy", "Run npm run deploy-commands", ButtonStyle.Primary, "🚀"), aBtn(owner, "custom-command-delete", "Delete", ButtonStyle.Danger, "🗑️", command.id), aBtn(owner, "custom-commands", "Back"))
+      ]);
   }
   if (page === "settings") {
     const cfg = await s.guildSettings.getAll(guildId);
