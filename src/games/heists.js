@@ -1,6 +1,6 @@
 const { randomUUID } = require("node:crypto");
 const balancing = require("../config/game-balancing");
-const { randomInt, uuid, calculateHeistChance, splitReward, DomainError, claimCooldownTx } = require("../utils/core");
+const { randomInt, uuid, calculateHeistChance, splitReward, DomainError, claimCooldownTx, applyCooldownReduction } = require("../utils/core");
 const { ensurePlayerTx } = require("../services/economy");
 const { transaction } = require("../database/pool");
 const { trackActionTx } = require("../services/events");
@@ -55,13 +55,17 @@ class HeistsGame {
       );
       const crew = crewResult.rows;
       if (crew.length < mission.minParticipants) throw new DomainError("You need at least " + mission.minParticipants + " crew members to start.", "HEIST_CREW_TOO_SMALL");
-      for (const member of crew) await claimCooldownTx(client, guildId, member.user_id, "heist", mission.cooldownMs);
-      const averageLevel = crew.reduce((sum, member) => sum + Number(member.level), 0) / crew.length;
       const gearByUser = new Map();
       for (const member of crew) {
         const effects = this.inventory ? await this.inventory.getEffectsTx(client, guildId, member.user_id) : {};
         gearByUser.set(member.user_id, effects);
       }
+      for (const member of crew) {
+        const gear = gearByUser.get(member.user_id) || {};
+        const cooldownMs = applyCooldownReduction(mission.cooldownMs, gear.heistCooldownReduction, 5 * 60 * 1000);
+        await claimCooldownTx(client, guildId, member.user_id, "heist", cooldownMs);
+      }
+      const averageLevel = crew.reduce((sum, member) => sum + Number(member.level), 0) / crew.length;
       const uniqueRoles = new Set(crew.map((member) => member.role_id)).size;
       const roleBonus = crew.reduce((sum, member) => {
         const gear = gearByUser.get(member.user_id) || {};
@@ -73,14 +77,15 @@ class HeistsGame {
       const reference = uuid();
       let totalPayout = 0;
       if (succeeded) {
-        totalPayout = randomInt(mission.payoutMin, mission.payoutMax);
-        const shares = splitReward(totalPayout, crew.map((member) => member.user_id));
+        const baseTotalPayout = randomInt(mission.payoutMin, mission.payoutMax);
+        const shares = splitReward(baseTotalPayout, crew.map((member) => member.user_id));
         for (const share of shares) {
-          await this.economy.mutateTx(client, guildId, share.userId, share.amount, "heist_reward", reference + ":" + share.userId, { heistId, missionId: mission.id });
+          const earning = await this.economy.mutateTx(client, guildId, share.userId, share.amount, "heist_reward", reference + ":" + share.userId, { heistId, missionId: mission.id });
+          totalPayout += earning.delta;
           await client.query("UPDATE players SET heists_completed = heists_completed + 1, reputation = LEAST(100, reputation + 2) WHERE guild_id = $1 AND user_id = $2", [guildId, share.userId]);
           await this.economy.addXpTx(client, guildId, share.userId, 40 + mission.difficulty * 20, roleIdsByUser.get(share.userId) || []);
           await trackActionTx(client, guildId, share.userId, "heist_success", 1);
-          await trackActionTx(client, guildId, share.userId, "wallet_earned", share.amount);
+          await trackActionTx(client, guildId, share.userId, "wallet_earned", earning.delta);
         }
       } else {
         for (const member of crew) {
