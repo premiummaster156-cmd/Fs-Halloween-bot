@@ -4,18 +4,42 @@ const { ensurePlayerTx } = require("./economy");
 const { DomainError, uuid } = require("../utils/core");
 
 function combineEffects(items) {
-  const result = { crimeChance: 0, heistChance: 0, workPayBonus: 0, fineReduction: 0 };
+  const result = {
+    crimeChance: 0, heistChance: 0, workPayBonus: 0, workXpBonus: 0,
+    moneyBonus: 0, xpBonus: 0, crimeRewardBonus: 0, fineReduction: 0,
+    casinoChance: 0, slotLuck: 0,
+    workCooldownReduction: 0, crimeCooldownReduction: 0, heistCooldownReduction: 0,
+    dailyCooldownReduction: 0, casinoCooldownReduction: 0
+  };
+  const cooldownRemainders = {
+    workCooldownReduction: 1, crimeCooldownReduction: 1, heistCooldownReduction: 1,
+    dailyCooldownReduction: 1, casinoCooldownReduction: 1
+  };
   for (const item of items) {
     const effects = item.effects || {};
-    result.crimeChance += Number(effects.crimeChance || 0);
-    result.heistChance += Number(effects.heistChance || 0);
-    result.workPayBonus += Number(effects.workPayBonus || 0);
-    result.fineReduction += Number(effects.fineReduction || 0);
+    const upgradeLevel = Math.max(0, Math.min(balancing.itemUpgrades.maxLevel, Number(item.upgradeLevel ?? item.upgrade_level) || 0));
+    const factor = 1 + upgradeLevel * balancing.itemUpgrades.effectPerLevel;
+    for (const key of ["crimeChance", "heistChance", "workPayBonus", "workXpBonus", "moneyBonus", "xpBonus", "crimeRewardBonus", "fineReduction", "casinoChance", "slotLuck"]) {
+      result[key] += Number(effects[key] || 0) * factor;
+    }
+    for (const key of Object.keys(cooldownRemainders)) {
+      const reduction = Math.max(0, Math.min(0.45, Number(effects[key] || 0) * factor));
+      cooldownRemainders[key] *= 1 - reduction;
+    }
   }
-  result.crimeChance = Math.min(15, result.crimeChance);
+  result.crimeChance = Math.min(20, result.crimeChance);
   result.heistChance = Math.min(15, result.heistChance);
-  result.workPayBonus = Math.min(0.25, result.workPayBonus);
-  result.fineReduction = Math.min(0.35, result.fineReduction);
+  result.workPayBonus = Math.min(0.60, result.workPayBonus);
+  result.workXpBonus = Math.min(0.60, result.workXpBonus);
+  result.moneyBonus = Math.min(0.50, result.moneyBonus);
+  result.xpBonus = Math.min(0.50, result.xpBonus);
+  result.crimeRewardBonus = Math.min(0.30, result.crimeRewardBonus);
+  result.fineReduction = Math.min(0.60, result.fineReduction);
+  result.casinoChance = Math.min(5, result.casinoChance);
+  result.slotLuck = Math.min(30, Math.floor(result.slotLuck));
+  for (const key of Object.keys(cooldownRemainders)) {
+    result[key] = Math.min(0.45, 1 - cooldownRemainders[key]);
+  }
   return result;
 }
 
@@ -79,6 +103,47 @@ class InventoryService {
     });
   }
 
+  async upgrade(guildId, userId, itemId) {
+    const item = balancing.items.find((entry) => entry.id === itemId && entry.type === "equipment");
+    if (!item) throw new DomainError("That item cannot be upgraded.", "ITEM_NOT_UPGRADABLE");
+    return transaction(async (client) => {
+      await ensurePlayerTx(client, guildId, userId);
+      const playerResult = await client.query(
+        "SELECT level, wallet FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE",
+        [guildId, userId]
+      );
+      const owned = await client.query(
+        "SELECT quantity, upgrade_level FROM inventory WHERE guild_id = $1 AND user_id = $2 AND item_id = $3 FOR UPDATE",
+        [guildId, userId, item.id]
+      );
+      if (!owned.rowCount || Number(owned.rows[0].quantity) < 1) {
+        throw new DomainError("You must own this item before upgrading it.", "ITEM_NOT_OWNED");
+      }
+      const currentLevel = Number(owned.rows[0].upgrade_level || 0);
+      const nextLevel = currentLevel + 1;
+      if (nextLevel > balancing.itemUpgrades.maxLevel) {
+        throw new DomainError("This item is already at its maximum upgrade level.", "ITEM_MAX_UPGRADE");
+      }
+      const requiredLevel = item.minLevel + nextLevel * balancing.itemUpgrades.levelRequirementPerUpgrade;
+      if (Number(playerResult.rows[0].level) < requiredLevel) {
+        throw new DomainError("You need level " + requiredLevel + " to upgrade " + item.name + " to level " + nextLevel + ".", "ITEM_UPGRADE_LEVEL_REQUIRED");
+      }
+      const costFactor = balancing.itemUpgrades.costBaseFactor + nextLevel * balancing.itemUpgrades.costPerLevelFactor;
+      const cost = Math.ceil(item.cost * costFactor);
+      if (Number(playerResult.rows[0].wallet) < cost) {
+        throw new DomainError("You need " + cost.toLocaleString() + " FC in your wallet for this upgrade.", "ITEM_UPGRADE_FUNDS_REQUIRED");
+      }
+      await this.economy.mutateTx(client, guildId, userId, -cost, "item_upgrade", uuid(), {
+        itemId: item.id, previousLevel: currentLevel, upgradeLevel: nextLevel
+      });
+      await client.query(
+        "UPDATE inventory SET upgrade_level = $4, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2 AND item_id = $3",
+        [guildId, userId, item.id, nextLevel]
+      );
+      return { item, previousLevel: currentLevel, upgradeLevel: nextLevel, cost, walletRemaining: Number(playerResult.rows[0].wallet) - cost };
+    });
+  }
+
   async unequip(guildId, userId, slot) {
     const result = await this.pool.query(
       "DELETE FROM equipped_items WHERE guild_id = $1 AND user_id = $2 AND slot = $3 RETURNING item_id",
@@ -91,7 +156,7 @@ class InventoryService {
   async getInventory(guildId, userId) {
     const [owned, equipped] = await Promise.all([
       this.pool.query(
-        "SELECT item_id, quantity FROM inventory WHERE guild_id = $1 AND user_id = $2 AND quantity > 0 ORDER BY item_id",
+        "SELECT item_id, quantity, upgrade_level FROM inventory WHERE guild_id = $1 AND user_id = $2 AND quantity > 0 ORDER BY item_id",
         [guildId, userId]
       ),
       this.pool.query(
@@ -103,7 +168,7 @@ class InventoryService {
     return {
       items: owned.rows.map((row) => {
         const item = balancing.items.find((entry) => entry.id === row.item_id);
-        return { item: item || { id: row.item_id, name: row.item_id }, quantity: Number(row.quantity), equipped: equippedIds.has(row.item_id) };
+        return { item: item || { id: row.item_id, name: row.item_id }, quantity: Number(row.quantity), upgradeLevel: Number(row.upgrade_level || 0), equipped: equippedIds.has(row.item_id) };
       }),
       equipped: equipped.rows.map((row) => ({ slot: row.slot, item: balancing.items.find((entry) => entry.id === row.item_id) || { id: row.item_id, name: row.item_id } }))
     };
@@ -111,19 +176,25 @@ class InventoryService {
 
   async getEffectsTx(client, guildId, userId) {
     const result = await client.query(
-      "SELECT item_id FROM equipped_items WHERE guild_id = $1 AND user_id = $2",
+      "SELECT e.item_id, i.upgrade_level FROM equipped_items e JOIN inventory i ON i.guild_id = e.guild_id AND i.user_id = e.user_id AND i.item_id = e.item_id WHERE e.guild_id = $1 AND e.user_id = $2",
       [guildId, userId]
     );
-    const items = result.rows.map((row) => balancing.items.find((item) => item.id === row.item_id)).filter(Boolean);
+    const items = result.rows.map((row) => {
+      const item = balancing.items.find((entry) => entry.id === row.item_id);
+      return item ? { ...item, upgradeLevel: Number(row.upgrade_level || 0) } : null;
+    }).filter(Boolean);
     return combineEffects(items);
   }
 
   async getEffects(guildId, userId) {
     const result = await this.pool.query(
-      "SELECT item_id FROM equipped_items WHERE guild_id = $1 AND user_id = $2",
+      "SELECT e.item_id, i.upgrade_level FROM equipped_items e JOIN inventory i ON i.guild_id = e.guild_id AND i.user_id = e.user_id AND i.item_id = e.item_id WHERE e.guild_id = $1 AND e.user_id = $2",
       [guildId, userId]
     );
-    return combineEffects(result.rows.map((row) => balancing.items.find((item) => item.id === row.item_id)).filter(Boolean));
+    return combineEffects(result.rows.map((row) => {
+      const item = balancing.items.find((entry) => entry.id === row.item_id);
+      return item ? { ...item, upgradeLevel: Number(row.upgrade_level || 0) } : null;
+    }).filter(Boolean));
   }
 }
 
