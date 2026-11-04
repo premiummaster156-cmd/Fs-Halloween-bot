@@ -208,7 +208,7 @@ async function renderMenu(guildId, owner, page, s) {
     });
     const ready = r.quests.filter((q) => !claims.has(q.id) && (progress.get(q.id) || 0) >= q.goal);
     const controls = [];
-    if (ready.length) controls.push(menu(owner, "event-claim", "Choose a completed quest to claim", ready.map((q) => ({ label: q.name, value: q.id, description: q.candy + " Candy · " + q.points + " points" })));
+    if (ready.length) controls.push(menu(owner, "event-claim", "Choose a completed quest to claim", ready.map((q) => ({ label: q.name, value: q.id, description: q.candy + " Candy · " + q.points + " points" }))));
     controls.push(row(btn(owner, "weekly", "Weekly mission"), btn(owner, "event-shop", "Seasonal shop"), btn(owner, "event-refresh", "Refresh", ButtonStyle.Primary)));
     controls.push(nav);
     return panel("HALLOWEEN  /  SEASONAL EVENT", (r.active ? "🟢 Event active" : "⚪ Event inactive") + " · Ends <t:" + Math.floor(new Date(r.event.ends_at).getTime() / 1000) + ":R>\n\n**Candy:** " + Number(r.wallet.candy || 0).toLocaleString() + " · **Event points:** " + Number(r.wallet.points || 0).toLocaleString() + "\n**Final reward:** " + r.claims.length + "/" + balancing.halloween.finalRoleQuestCount + " quests claimed.",
