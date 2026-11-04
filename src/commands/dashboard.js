@@ -80,7 +80,7 @@ async function recordMemberAction(i, services, action, announcement, details = {
         description: "<@" + actorId + "> · **" + displayName + "** " + announcement,
         color: colors[kind] || colors.info,
         icon: "profile",
-        footer: "FUKISHOKAI  •  Activity announcement"
+        footer: false
       });
       // Every public activity receipt identifies its actor, including custom game-result embeds.
       // Keep the brand author intact and use a dedicated field for consistent attribution.
@@ -837,7 +837,7 @@ function buildHeistEmbed(snapshot) {
     fields,
     color: recruiting ? settings.brand.primary : succeeded ? settings.brand.success : settings.brand.danger,
     icon: "task",
-    footer: recruiting ? "FUKISHOKAI  •  Join the crew and choose your role" : "FUKISHOKAI  •  Mission result"
+    footer: false
   });
 }
 
@@ -1165,7 +1165,7 @@ async function handleModal(i, s) {
         { name: "Net result", value: (r.net > 0 ? "+" : "") + r.net.toLocaleString() + " FC", inline: true },
         ...(r.candyDrop ? [{ name: "🍬 Candy found", value: "+" + r.candyDrop.amount, inline: true }] : []),
         { name: "Fair-play rule", value: "Same published odds for everyone · " + r.cooldownMs / 1000 + "-second cooldown · " + Math.round(r.theoreticalReturnRate * 100) + "% long-run return" }
-      ], [], r.won ? "success" : "warning");
+      ], [], r.won ? "success" : "warning", false);
       await recordMemberAction(i, s, "casino_round",
         "played **" + r.game.name + "** with a " + r.wager.toLocaleString() + " FC wager, received " +
         r.payout.toLocaleString() + " FC, and finished with a net result of " + (r.net > 0 ? "+" : "") +
