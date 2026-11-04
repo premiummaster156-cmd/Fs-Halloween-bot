@@ -1,0 +1,68 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const { inspectCommandSource, runInIsolatedProcess } = require("../src/services/custom-commands");
+
+const commandSource = String.raw`const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName("workspace_hello")
+    .setDescription("Send a hello message")
+    .addStringOption(option => option
+      .setName("name")
+      .setDescription("Name to greet")
+      .setRequired(false)),
+
+  async execute(interaction) {
+    const name = interaction.options.getString("name") || interaction.user.username;
+    const embed = new EmbedBuilder()
+      .setTitle("Hello")
+      .setDescription("Hello, " + name + "!")
+      .setColor("#B46A86");
+    await interaction.reply({ embeds: [embed] });
+  }
+};`;
+
+test("JavaScript modules expose slash command metadata through SlashCommandBuilder", async () => {
+  const metadata = await inspectCommandSource(commandSource);
+  assert.equal(metadata.name, "workspace_hello");
+  assert.equal(metadata.description, "Send a hello message");
+  assert.equal(metadata.definition.options[0].name, "name");
+  assert.equal(metadata.definition.options[0].type, "string");
+});
+
+test("JavaScript command receives an interaction facade and can reply with an embed", async () => {
+  const execution = await runInIsolatedProcess(commandSource, "run", {
+    commandName: "workspace_hello",
+    user: { id: "123", username: "tester", displayName: "Tester", mention: "<@123>" },
+    member: { id: "123", displayName: "Tester" },
+    guild: { id: "456", name: "Fukishokai" },
+    channel: { id: "789", name: "general", mention: "<#789>" },
+    options: { name: "Ari" }
+  });
+
+  assert.equal(execution.calls.length, 1);
+  assert.equal(execution.calls[0].method, "reply");
+  assert.equal(execution.calls[0].payload.embeds[0].title, "Hello");
+  assert.equal(execution.calls[0].payload.embeds[0].description, "Hello, Ari!");
+  assert.equal(execution.result, null);
+});
+
+test("custom JavaScript cannot access Node process or arbitrary modules", async () => {
+  const isolatedSource = String.raw`module.exports = {
+  data: { name: "sandbox_check", description: "Check isolation" },
+  async execute() {
+    let blocked = false;
+    try { require("node:fs"); } catch (_) { blocked = true; }
+    return {
+      content: "process=" + typeof process +
+        "; fetch=" + typeof fetch +
+        "; arbitraryRequireBlocked=" + blocked
+    };
+  }
+};`;
+  const execution = await runInIsolatedProcess(isolatedSource, "run", {});
+  assert.match(execution.result.content, /process=undefined/);
+  assert.match(execution.result.content, /fetch=undefined/);
+  assert.match(execution.result.content, /arbitraryRequireBlocked=true/);
+});

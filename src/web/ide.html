@@ -48,34 +48,35 @@
 (() => {
  const $ = id => document.getElementById(id);
  const starter = [
- "module.exports = {",
- "  data: {",
- "    name: \\"welcome-member\\",",
- "    description: \\"Send a welcome message\\",",
- "    visibility: \\"public\\",",
- "    options: [",
- "      { name: \\"member\\", description: \\"Member to welcome\\", type: \\"user\\", required: false }",
- "    ]",
- "  },",
+ "const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');",
  "",
- "  async execute({ user, guild, channel, options }) {",
- "    const target = options.member || user;",
- "    return {",
- "      embeds: [{",
- "        title: \\"Welcome to \\" + guild.name,",
- "        description: \\"Welcome, \\" + (target.globalName || target.username || target.name) + \\"!\\",",
- "        color: \\"#B46A86\\",",
- "        fields: [",
- "          { name: \\"Welcomed by\\", value: user.mention, inline: true },",
- "          { name: \\"Channel\\", value: channel.mention, inline: true }",
- "        ],",
- "        footer: { text: \\"Fukishōkai · Community\\" }",
- "      }]",
- "    };",
+ "module.exports = {",
+ "  data: new SlashCommandBuilder()",
+ "    .setName('welcome_member')",
+ "    .setDescription('Send a welcome message')",
+ "    .addUserOption(option => option",
+ "      .setName('member')",
+ "      .setDescription('Member to welcome')",
+ "      .setRequired(false))",
+ "    .setVisibility('public'),",
+ "",
+ "  async execute(interaction) {",
+ "    const target = interaction.options.getUser('member') || interaction.user;",
+ "    const embed = new EmbedBuilder()",
+ "      .setTitle('Welcome to ' + interaction.guild.name)",
+ "      .setDescription('Welcome, ' + (target.globalName || target.username || target.name) + '!')",
+ "      .setColor('#B46A86')",
+ "      .addFields(",
+ "        { name: 'Welcomed by', value: interaction.user.mention, inline: true },",
+ "        { name: 'Channel', value: interaction.channel.mention, inline: true }",
+ "      )",
+ "      .setFooter({ text: 'Fukishōkai · Community' });",
+ "",
+ "    await interaction.reply({ embeds: [embed] });",
  "  }",
  "};"
- ].join("\\n");
- let editor=null, csrf="", commands=[], selected=null, dirty=false;
+].join('\n');
+let editor=null, csrf="", commands=[], selected=null, dirty=false;
  const api=async(url,options={})=>{
   const headers={ "Content-Type":"application/json",...(options.headers||{}) };
   if(options.method && options.method!=="GET") headers["X-CSRF-Token"]=csrf;

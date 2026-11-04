@@ -266,14 +266,31 @@ function customCommandInput(interaction, definition) {
     }
   }
   return {
+    id: interaction.id || null,
+    commandName: interaction.commandName,
     user: {
       id: interaction.user.id,
       username: interaction.user.username,
+      globalName: interaction.user.globalName || null,
       displayName: interaction.member?.displayName || interaction.user.globalName || interaction.user.username,
       mention: "<@" + interaction.user.id + ">"
     },
-    guild: { id: interaction.guildId, name: interaction.guild?.name || "Server" },
+    member: {
+      id: interaction.user.id,
+      displayName: interaction.member?.displayName || interaction.user.globalName || interaction.user.username,
+      user: {
+        id: interaction.user.id,
+        username: interaction.user.username,
+        globalName: interaction.user.globalName || null
+      }
+    },
+    guild: { id: interaction.guildId, name: interaction.guild?.name || "Server", ownerId: interaction.guild?.ownerId || null },
     channel: { id: interaction.channelId, name: interaction.channel?.name || "channel", mention: "<#" + interaction.channelId + ">" },
+    clientUser: interaction.client?.user ? {
+      id: interaction.client.user.id,
+      username: interaction.client.user.username,
+      tag: interaction.client.user.tag || null
+    } : null,
     options
   };
 }
@@ -297,10 +314,24 @@ function normalizeCustomReply(result) {
     }
     payload.embeds = result.embeds.map((source) => {
       if (!source || typeof source !== "object" || Array.isArray(source)) fail("Each embed must be an object.");
-      assertOnlyKeys(source, new Set(["title", "description", "color", "fields", "footer", "author", "url"]), "embed");
+      assertOnlyKeys(source, new Set(["title", "description", "color", "fields", "footer", "author", "url", "timestamp", "image", "thumbnail"]), "embed");
       const embed = new EmbedBuilder().setTimestamp(new Date());
       if (source.title !== undefined) embed.setTitle(validText(source.title, "Embed title", 1, 256));
       if (source.description !== undefined) embed.setDescription(validText(source.description, "Embed description", 1, 4096));
+      if (source.timestamp !== undefined) {
+        const timestamp = new Date(source.timestamp);
+        if (!Number.isFinite(timestamp.getTime())) fail("Embed timestamp must be a valid date.");
+        embed.setTimestamp(timestamp);
+      }
+      for (const property of ["image", "thumbnail"]) {
+        if (source[property] !== undefined) {
+          const image = typeof source[property] === "string" ? source[property] : source[property]?.url;
+          const clean = validText(image, "Embed " + property + " URL", 1, 2048);
+          if (!/^https:\/\//i.test(clean)) fail("Embed image URLs must use HTTPS.");
+          if (property === "image") embed.setImage(clean);
+          else embed.setThumbnail(clean);
+        }
+      }
       if (source.url !== undefined) {
         const url = validText(source.url, "Embed URL", 1, 2048);
         if (!/^https:\/\//i.test(url)) fail("Embed URLs must use HTTPS.");
@@ -526,20 +557,45 @@ class CustomCommandService {
     const definition = record.definition && record.definition.response
       ? record.definition
       : parseDefinition(record.definition);
-    if (record.source_code) {
-      const sourceCode = await workspace.readCommandFile(interaction.guildId, record.name)
-        .catch(() => record.source_code);
-      const input = customCommandInput(interaction, definition);
-      const result = await runInIsolatedProcess(sourceCode || record.source_code, "run", input);
-      return interaction.editReply(normalizeCustomReply(result.result));
+    if (!record.source_code) {
+      return interaction.editReply(buildReply(interaction, definition));
     }
-    return interaction.editReply(buildReply(interaction, definition));
+
+    const sourceCode = await workspace.readCommandFile(interaction.guildId, record.name)
+      .catch(() => record.source_code);
+    const execution = await runInIsolatedProcess(sourceCode || record.source_code, "run", customCommandInput(interaction, definition));
+    let hasReplied = false;
+
+    for (const call of execution.calls || []) {
+      const payload = normalizeCustomReply(call.payload);
+      if (call.method === "reply") {
+        if (hasReplied) await interaction.followUp(payload);
+        else await interaction.editReply(payload);
+        hasReplied = true;
+      } else if (call.method === "editReply") {
+        await interaction.editReply(payload);
+        hasReplied = true;
+      } else if (call.method === "followUp") {
+        await interaction.followUp(payload);
+        hasReplied = true;
+      }
+    }
+
+    if (execution.result !== null && execution.result !== undefined) {
+      const payload = normalizeCustomReply(execution.result);
+      if (hasReplied) await interaction.followUp(payload);
+      else await interaction.editReply(payload);
+      hasReplied = true;
+    }
+    if (!hasReplied) fail("The command must call interaction.reply(), interaction.editReply(), or return a response object.", "CUSTOM_COMMAND_OUTPUT_INVALID");
   }
 
   async previewSource(sourceCode, input) {
     await inspectCommandSource(sourceCode);
-    const result = await runInIsolatedProcess(sourceCode, "run", input);
-    return normalizeCustomReply(result.result);
+    const execution = await runInIsolatedProcess(sourceCode, "run", input);
+    const firstReply = (execution.calls || []).find((call) => call && ["reply", "editReply", "followUp"].includes(call.method));
+    const output = execution.result !== null && execution.result !== undefined ? execution.result : firstReply?.payload;
+    return normalizeCustomReply(output);
   }
 }
 

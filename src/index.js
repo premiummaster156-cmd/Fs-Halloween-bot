@@ -168,7 +168,7 @@ async function start() {
     try {
       await interaction.deferReply(privateReply ? { flags: MessageFlags.Ephemeral } : {});
     } catch (error) {
-      console.error("[interaction] Could not acknowledge /" + command.data.name + ":", error.code || error.name, error.message);
+      console.error("[interaction] Could not acknowledge /" + interaction.commandName + ":", error.code || error.name, error.message);
       return;
     }
 
@@ -199,7 +199,7 @@ async function start() {
       }
     } finally {
       const elapsedMs = Date.now() - startedAt;
-      if (elapsedMs >= 3000) console.warn("[command] /" + command.data.name + " took " + elapsedMs + "ms in guild " + interaction.guildId + ".");
+      if (elapsedMs >= 3000) console.warn("[command] /" + interaction.commandName + " took " + elapsedMs + "ms in guild " + interaction.guildId + ".");
     }
   });
 
