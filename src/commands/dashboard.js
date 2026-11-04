@@ -740,17 +740,21 @@ async function handleModal(i, s) {
           await s.economy.mutateTx(c, i.guildId, owner, amount, "bank_withdrawal", uuid(), {});
         }
       });
+      await recordMemberAction(i, s, target === "deposit" ? "bank_deposit" : "bank_withdrawal",
+        (target === "deposit" ? "deposited " : "withdrew ") + amount.toLocaleString() + " FC " + (target === "deposit" ? "into the bank." : "from the bank."),
+        { amount });
       return i.editReply(panel(target === "deposit" ? "DEPOSIT COMPLETE" : "WITHDRAWAL COMPLETE", amount.toLocaleString() + " FC was " + (target === "deposit" ? "moved into your bank." : "moved into your wallet."), [], [], "success"));
     }
     if (action === "transfer-modal") {
       const amount = numberField(i, "amount", balancing.economy.transferMinimum, balancing.economy.transferMaximum, "Transfer");
       await s.economy.transfer(i.guildId, owner, target, amount);
-      await audit(s.pool, i.guildId, owner, "member_transfer", target, { amount });
+      await recordMemberAction(i, s, "member_transfer", "sent " + amount.toLocaleString() + " FC to <@" + target + ">.", { amount, recipientId: target });
       return i.editReply(panel("TRANSFER COMPLETE", "Sent **" + amount.toLocaleString() + " FC** to <@" + target + ">.", [], [], "success"));
     }
     if (action === "casino-modal") {
       const amount = numberField(i, "amount", balancing.casino.minBet, balancing.casino.maxBet, "Wager");
       const r = await s.casino.play(i.guildId, owner, target, amount);
+      await recordMemberAction(i, s, "casino_round", "played **" + r.game.name + "** with a " + r.wager.toLocaleString() + " FC wager and a net result of " + (r.net > 0 ? "+" : "") + r.net.toLocaleString() + " FC.", { gameId: r.gameId, wager: r.wager, payout: r.payout, net: r.net, dailyWagerRemaining: r.dailyWagerRemaining }, r.won ? "success" : "warning");
       return i.editReply(panel(r.game.name + "  /  " + (r.won ? "WIN" : "LOSS"), r.outcome, [
         { name: "Wager", value: r.wager.toLocaleString() + " FC", inline: true },
         { name: "Payout", value: r.payout.toLocaleString() + " FC", inline: true },
@@ -768,6 +772,10 @@ async function handleModal(i, s) {
       }
       if (target === "heist-start") {
         const r = await s.heists.start(i.guildId, owner, id, new Map([[owner, memberRoleIds(i)]]));
+        await recordMemberAction(i, s, "heist_completed", r.succeeded
+          ? "completed **" + r.mission.name + "** with the crew and shared a total payout of " + r.totalPayout.toLocaleString() + " FC."
+          : "attempted **" + r.mission.name + "** with the crew, but the operation failed.",
+          { heistId: id, missionId: r.mission.id, succeeded: r.succeeded, totalPayout: r.totalPayout, successChance: r.successChance }, r.succeeded ? "success" : "warning");
         return i.editReply(panel(r.succeeded ? "HEIST SUCCESSFUL" : "HEIST FAILED",
           r.succeeded ? "Your crew completed **" + r.mission.name + "** and secured **" + r.totalPayout.toLocaleString() + " FC**." : "The operation failed. The crew paid the mission penalty.",
           [{ name: "Success chance", value: r.successChance + "%", inline: true }, { name: "Roll", value: String(r.roll), inline: true }, { name: "Payout", value: r.totalPayout.toLocaleString() + " FC", inline: true }], [], r.succeeded ? "success" : "warning"));
