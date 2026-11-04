@@ -113,6 +113,7 @@ test("repeated cooldown blocks create a security alert but do not auto-punish", 
     query: async (...args) => { writes.push(args); return { rowCount: 1, rows: [] }; }
   };
   const security = new SecurityService(pool, {});
+  security.isAboveBotRole = async () => false;
   const incidents = [];
   security.createIncident = async (_client, details) => { incidents.push(details); };
   const interaction = {
@@ -136,6 +137,7 @@ test("repeated cooldown blocks create a security alert but do not auto-punish", 
 test("slash command burst is rate-limited without granting Administrator access", async () => {
   const { SecurityService } = require("../src/services/security");
   const security = new SecurityService({}, {});
+  security.isAboveBotRole = async () => false;
   const incidents = [];
   security.createIncident = (_client, details) => { incidents.push(details); return Promise.resolve(); };
   const interaction = {
