@@ -44,7 +44,11 @@ async function recordMemberAction(i, services, action, announcement, details = {
   await sendLog(i.client, i.guildId, "Member activity: " + action + " · " + displayName + " (" + actorId + ")" +
     (Object.keys(details).length ? " · " + JSON.stringify(details).slice(0, 700) : ""));
   try {
-    if (i.channel && i.channel.isTextBased() && typeof i.channel.send === "function") {
+    let channel = i.channel;
+    if ((!channel || !channel.isTextBased()) && i.channelId) {
+      channel = await i.client.channels.fetch(i.channelId);
+    }
+    if (channel && channel.isTextBased() && typeof channel.send === "function") {
       const colors = { success: settings.brand.success, warning: settings.brand.warning, info: settings.brand.primary };
       const embed = createEmbed({
         title: "FUKISHOKAI  /  MEMBER ACTIVITY",
@@ -53,7 +57,14 @@ async function recordMemberAction(i, services, action, announcement, details = {
         icon: "profile",
         footer: "FUKISHOKAI  •  Activity announcement"
       });
-      await i.channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
+      try {
+        await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
+      } catch (embedError) {
+        await channel.send({
+          content: "FUKISHOKAI activity · " + displayName + " " + announcement,
+          allowedMentions: { parse: [] }
+        });
+      }
     }
   } catch (error) {
     console.warn("[activity] Could not publish member action:", action, error.code || error.message);
@@ -385,7 +396,7 @@ async function openMenu(i, s) {
   return i.editReply(payload);
 }
 async function openAdmin(i, s) {
-  if (!await isAdmin(i, s.guildSettings)) return i.editReply(panel("ACCESS DENIED", "You need Administrator, Manage Server or the configured admin role to open this console.", [], [], "error"));
+  if (!await isAdmin(i)) return i.editReply(panel("ACCESS DENIED", "Only the server owner or configured bot owner can open the administration console.", [], [], "error"));
   return i.editReply(await renderAdmin(i.guildId, i.user.id, "home", s));
 }
 async function rewardRole(i, roleId, reason) {
