@@ -239,3 +239,27 @@ test("security alert refuses bot restrictions or timeouts against a higher-ranke
   assert.match(reply.content, /No action was taken/);
   assert.equal(writes.length, 1);
 });
+
+
+test("configured Admin Role grants admin access and monitoring exemption", async () => {
+  const { SecurityService } = require("../src/services/security");
+  const security = new SecurityService({}, {
+    get: async (_guildId, key) => key === "adminRoleId" ? "trusted-admin-role" : null
+  });
+  const guild = {
+    id: "guild-admin",
+    ownerId: "guild-owner",
+    members: {
+      me: { roles: { highest: { id: "bot-role" } } },
+      fetch: async (userId) => ({
+        id: userId,
+        roles: {
+          cache: { has: (roleId) => roleId === "trusted-admin-role" },
+          highest: { comparePositionTo: () => -1 }
+        }
+      })
+    }
+  };
+  assert.equal(await security.hasAdminAccess(guild, "trusted-admin"), true);
+  assert.equal(await security.isAboveBotRole(guild, "trusted-admin"), true);
+});
