@@ -128,9 +128,9 @@ class EconomyService {
       balancing.rebirth.firstLevelRequirement + rebirths * balancing.rebirth.levelRequirementGrowth);
     const claim = await this.pool.query(
       "SELECT event_id, quest_id, claimed_at FROM event_claims WHERE guild_id = $1 AND user_id = $2 " +
-      "AND quest_id NOT LIKE 'weekly_messages:%' AND ($3::timestamptz IS NULL OR claimed_at > $3) " +
+      "AND quest_id NOT LIKE 'weekly_messages:%' " +
       "ORDER BY claimed_at DESC LIMIT 1",
-      [guildId, userId, player.last_rebirth_at || null]
+      [guildId, userId]
     );
     const wealth = Number(player.wallet) + Number(player.bank);
     return {
@@ -167,12 +167,12 @@ class EconomyService {
       }
       const claim = await client.query(
         "SELECT quest_id FROM event_claims WHERE guild_id = $1 AND user_id = $2 " +
-        "AND quest_id NOT LIKE 'weekly_messages:%' AND ($3::timestamptz IS NULL OR claimed_at > $3) " +
+        "AND quest_id NOT LIKE 'weekly_messages:%' " +
         "ORDER BY claimed_at DESC LIMIT 1",
         [guildId, userId, player.last_rebirth_at || null]
       );
       if (!claim.rowCount) {
-        throw new DomainError("Complete at least one event quest and claim its reward since your last rebirth.", "REBIRTH_EVENT_REWARD_REQUIRED");
+        throw new DomainError("Complete at least one event quest and claim its reward before your first rebirth.", "REBIRTH_EVENT_REWARD_REQUIRED");
       }
       const newRebirths = rebirths + 1;
       const reset = await client.query(
