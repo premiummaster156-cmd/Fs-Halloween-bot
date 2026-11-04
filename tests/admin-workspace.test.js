@@ -5,19 +5,28 @@ const os = require("node:os");
 const fs = require("node:fs/promises");
 const workspace = require("../src/services/admin-workspace");
 
-test("admin workspace creates, reads, lists and deletes JavaScript command files", async () => {
+test("admin workspace writes, reads, updates, lists and deletes JavaScript command files", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "fukishokai-workspace-"));
   try {
     const guildId = "123456789012345678";
-    const source = "module.exports = { data: { name: 'hello', description: 'Hello' }, async execute() { return { content: 'hi' }; } };";
-    const target = workspace.getCommandFilePath(guildId, "hello", root);
-    await fs.mkdir(path.dirname(target), { recursive: true });
-    await fs.writeFile(target, source, "utf8");
-    assert.equal(await fs.readFile(target, "utf8"), source);
-    const files = await fs.readdir(path.dirname(target));
-    assert.deepEqual(files, ["hello.js"]);
-    await fs.rm(target);
-    await fs.rm(root, { recursive: true, force: true });
+    const original = "module.exports = { data: { name: 'hello', description: 'Hello' }, async execute() { return { content: 'first' }; } };";
+    const updated = "module.exports = { data: { name: 'hello', description: 'Hello' }, async execute() { return { content: 'updated live' }; } };";
+
+    const filePath = await workspace.writeCommandFile(guildId, "hello", original, root);
+    assert.equal(filePath, workspace.getCommandFilePath(guildId, "hello", root));
+    assert.equal(path.basename(filePath), "hello.js");
+    assert.equal(await workspace.readCommandFile(guildId, "hello", root), original);
+
+    const files = await workspace.listCommandFiles(guildId, root);
+    assert.deepEqual(files.map((file) => file.name), ["hello"]);
+    assert.match(files[0].path, /admin-workspace|fukishokai-workspace/);
+
+    await workspace.writeCommandFile(guildId, "hello", updated, root);
+    assert.equal(await workspace.readCommandFile(guildId, "hello", root), updated);
+
+    await workspace.deleteCommandFile(guildId, "hello", root);
+    assert.equal(await workspace.readCommandFile(guildId, "hello", root), null);
+    assert.deepEqual(await workspace.listCommandFiles(guildId, root), []);
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }
