@@ -35,7 +35,7 @@ async function start() {
     pool, balancing, economy, inventory, guildSettings, security,
     jobs: new JobsGame(pool, economy, inventory),
     crime: new CrimeGame(pool, economy, inventory),
-    casino: new CasinoGame(pool, economy),
+    casino: new CasinoGame(pool, economy, inventory),
     heists: new HeistsGame(pool, economy, inventory),
     halloween: new HalloweenGame(pool, guildSettings),
     activity: new ActivityService(pool, economy)
