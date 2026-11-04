@@ -487,7 +487,7 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
     }
     components.push(row(
       settings.idePublicUrl
-        ? new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Open Code Studio").setURL(settings.idePublicUrl.replace(/\/+$/, "") + "/ide?new=1")
+        ? new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Open Code Studio").setURL(settings.idePublicUrl.replace(/\/+$/, "") + "/ide?new=1&guildId=" + encodeURIComponent(guildId))
         : aBtn(owner, "custom-command-create", "Code Studio URL needed", ButtonStyle.Secondary).setDisabled(true),
       aBtn(owner, "custom-command-deploy", "Sync slash commands", ButtonStyle.Primary, "🚀")
     ));
@@ -503,7 +503,7 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
     if (!command) return renderAdmin(guildId, owner, "custom-commands", s);
     const editButton = settings.idePublicUrl
       ? new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Open in Code Studio")
-        .setURL(settings.idePublicUrl.replace(/\/+$/, "") + "/ide?commandId=" + encodeURIComponent(command.id))
+        .setURL(settings.idePublicUrl.replace(/\/+$/, "") + "/ide?commandId=" + encodeURIComponent(command.id) + "&guildId=" + encodeURIComponent(guildId))
       : aBtn(owner, "custom-command-edit", "Code Studio URL needed", ButtonStyle.Secondary, null, command.id).setDisabled(true);
     const status = command.is_active ? "🟢 Active" : command.deployed_at ? "🟡 Deployed · Not active" : "⚪ Draft · Needs deployment";
     const activateButton = aBtn(owner, command.is_active ? "custom-command-deactivate" : "custom-command-activate",
