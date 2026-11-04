@@ -1,4 +1,4 @@
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require("discord.js");
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, PermissionFlagsBits } = require("discord.js");
 const settings = require("../config/settings");
 const { log } = require("../utils/logging");
 
@@ -86,6 +86,8 @@ class SecurityService {
         new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + userId + ":pause").setLabel("Pause bot access · 10m").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + userId + ":block").setLabel("Block bot access").setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + userId + ":unblock").setLabel("Remove bot block").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + userId + ":timeout")
+          .setLabel("Timeout 10m").setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + userId + ":ignore").setLabel("Ignore alert").setStyle(ButtonStyle.Secondary)
       ));
     } else {
@@ -260,11 +262,24 @@ class SecurityService {
     } else if (action === "unblock") {
       if (!targetId) return interaction.reply({ content: "This alert has no valid target to unblock.", flags: MessageFlags.Ephemeral });
       await this.pool.query("DELETE FROM bot_user_restrictions WHERE guild_id = $1 AND user_id = $2", [guildId, targetId]);
+    } else if (action === "timeout") {
+      if (!targetId || incident.rows[0].user_id !== targetId) {
+        return interaction.reply({ content: "This alert has no valid target to timeout.", flags: MessageFlags.Ephemeral });
+      }
+      const member = await interaction.guild.members.fetch(targetId);
+      const botMember = interaction.guild.members.me || await interaction.guild.members.fetchMe();
+      if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers) || !member.moderatable) {
+        return interaction.reply({
+          content: "Discord did not allow the bot to timeout this member. Check Moderate Members permission and role hierarchy.",
+          flags: MessageFlags.Ephemeral
+        });
+      }
+      await member.timeout(10 * 60 * 1000, "Owner-approved response to security incident #" + incidentId);
     } else if (action !== "ignore") {
       return interaction.reply({ content: "Unknown security action.", flags: MessageFlags.Ephemeral });
     }
 
-    const status = action === "ignore" ? "ignored" : action === "pause" ? "restricted_10m" : action === "block" ? "blocked_from_bot" : "bot_access_restored";
+    const status = action === "ignore" ? "ignored" : action === "pause" ? "restricted_10m" : action === "block" ? "blocked_from_bot" : action === "timeout" ? "timed_out_10m" : "bot_access_restored";
     await this.pool.query(
       "UPDATE security_incidents SET status = $2, updated_by = $3, updated_at = NOW() WHERE id = $1",
       [incidentId, status, interaction.user.id]
@@ -278,7 +293,8 @@ class SecurityService {
       ignored: "Alert #" + incidentId + " marked as reviewed. No action was taken.",
       restricted_10m: "<@" + targetId + "> cannot use the bot for 10 minutes. No server timeout was applied.",
       blocked_from_bot: "<@" + targetId + "> is blocked from this bot until an owner removes the restriction. No server timeout was applied.",
-      bot_access_restored: "Bot access restored for <@" + targetId + ">."
+      bot_access_restored: "Bot access restored for <@" + targetId + ">.",
+      timed_out_10m: "<@" + targetId + "> was timed out for 10 minutes by an owner-approved security action."
     };
     const followUpControls = (action === "pause" || action === "block") && targetId
       ? [new ActionRowBuilder().addComponents(
