@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS players (
   lifetime_spent BIGINT NOT NULL DEFAULT 0 CHECK (lifetime_spent >= 0),
   reputation INTEGER NOT NULL DEFAULT 0,
   work_count BIGINT NOT NULL DEFAULT 0,
+  rebirth_work_count BIGINT NOT NULL DEFAULT 0 CHECK (rebirth_work_count >= 0),
   crime_successes BIGINT NOT NULL DEFAULT 0,
   heists_completed BIGINT NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -21,6 +22,7 @@ CREATE TABLE IF NOT EXISTS players (
   PRIMARY KEY (guild_id, user_id)
 );
 ALTER TABLE players ADD COLUMN IF NOT EXISTS last_rebirth_at TIMESTAMPTZ;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS rebirth_work_count BIGINT NOT NULL DEFAULT 0 CHECK (rebirth_work_count >= 0);
 CREATE INDEX IF NOT EXISTS players_balance_idx ON players (guild_id, (wallet + bank) DESC);
 CREATE INDEX IF NOT EXISTS players_level_idx ON players (guild_id, level DESC, xp DESC);
 CREATE INDEX IF NOT EXISTS players_earned_idx ON players (guild_id, lifetime_earned DESC);
