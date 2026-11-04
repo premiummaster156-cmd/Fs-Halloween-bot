@@ -1022,20 +1022,22 @@ async function handleButton(i, s) {
     await recordMemberAction(i, s, "player_rebirth", "completed Rebirth #" + result.rebirths + " and gained a permanent " + result.multiplier.toLocaleString() + "× FC and XP multiplier.", {
       rebirths: result.rebirths, multiplier: result.multiplier, previousWealth: result.previousWealth
     });
-    return i.editReply(panel("REBIRTH COMPLETE", "Your new run has started. You now have **1,000 FC**, **level 1**, and a permanent **" + result.multiplier.toLocaleString() + "× FC and XP earning multiplier**.",
+    const nextTargets = [
+      result.nextWalletRequired.toLocaleString() + " FC",
+      "Level " + result.nextLevelRequired,
+      result.nextQuestClaimsRequired + " quests",
+      "Job level " + result.nextJobLevelRequired,
+      result.nextWorkShiftsRequired + " shifts"
+    ];
+    if (result.nextGearItemsRequired > 0) {
+      nextTargets.push(result.nextGearItemsRequired + " gear", result.nextCandyItemsRequired + " Candy items", result.nextCandyBalanceRequired + " Candy");
+    }
+    if (result.nextGearUpgradeLevelsRequired > 0) nextTargets.push(result.nextGearUpgradeLevelsRequired + " upgrade levels");
+    return i.editReply(panel("REBIRTH COMPLETE", "Rebirth #" + result.rebirths + " · **" + result.multiplier.toLocaleString() + "× FC/XP**. New run: **1,000 FC · Level 1**.",
       [
-        { name: "Rebirth count", value: String(result.rebirths), inline: true },
-        { name: "Next wealth requirement", value: result.nextWalletRequired.toLocaleString() + " FC", inline: true },
-        { name: "Next level requirement", value: "Level " + result.nextLevelRequired, inline: true },
-        { name: "Next career requirement", value: "Apply for a job and reach job level " + result.nextJobLevelRequired, inline: true },
-        { name: "Next event quest requirement", value: result.nextQuestClaimsRequired + " normal event quest rewards claimed", inline: true },
-        { name: "Next work requirement", value: result.nextWorkShiftsRequired + " completed shifts in the next run", inline: true },
-        ...(result.nextGearItemsRequired > 0 ? [{ name: "Next gear requirement", value: result.nextGearItemsRequired + " different equipment items", inline: true }] : []),
-        ...(result.nextCandyItemsRequired > 0 ? [{ name: "Next Candy collectible requirement", value: result.nextCandyItemsRequired + " unique Candy-shop items", inline: true }] : []),
-        ...(result.nextCandyBalanceRequired > 0 ? [{ name: "Next Candy reserve", value: result.nextCandyBalanceRequired + " unspent Candy", inline: true }] : []),
-        ...(result.nextGearUpgradeLevelsRequired > 0 ? [{ name: "Next gear upgrade requirement", value: result.nextGearUpgradeLevelsRequired + " combined upgrade levels", inline: true }] : []),
-        { name: "Gear and upgrades", value: "Your inventory, equipped items, upgrade levels, Candy and Candy-shop collectibles were preserved." }
-      ], [row(btn(owner, "profile", "View profile"), btn(owner, "gear", "View gear")), navButton(owner)], "success"));
+        { name: "Next rebirth", value: nextTargets.join(" · ") },
+        { name: "Kept", value: "Gear, upgrades, Candy, collectibles and lifetime stats." }
+      ], [row(btn(owner, "profile", "Profile"), btn(owner, "gear", "Gear")), navButton(owner)], "success"));
   }
   if (action === "daily") {
     await i.deferUpdate();
