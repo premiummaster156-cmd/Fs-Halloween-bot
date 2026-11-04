@@ -5,7 +5,8 @@ const settings = require("./config/settings");
 const balancing = require("./config/game-balancing");
 const { pool } = require("./database/pool");
 const { migrate } = require("./database/migrate");
-const { loadCommands, handleAdminPanelComponent } = require("./commands");
+const { loadCommands } = require("./commands");
+const { handleDashboardInteraction } = require("./commands/dashboard");
 const { EconomyService } = require("./services/economy");
 const { JobsGame } = require("./games/jobs");
 const { CrimeGame } = require("./games/crime");
@@ -63,23 +64,29 @@ async function start() {
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
-    if (interaction.isAnySelectMenu() && interaction.customId.startsWith("admin-panel:")) {
+    const isDashboardInteraction =
+      (interaction.isButton() || interaction.isAnySelectMenu() || interaction.isModalSubmit()) &&
+      (interaction.customId.startsWith("dash:") || interaction.customId.startsWith("admin:"));
+
+    if (isDashboardInteraction) {
       try {
-        await handleAdminPanelComponent(interaction, client.services);
+        await handleDashboardInteraction(interaction, client.services);
       } catch (error) {
-        console.error("[admin] Panel setting update failed:", error.code || error.name, error.message);
+        console.error("[dashboard] Interaction failed:", error.code || error.name, error.message);
         try {
-          if (interaction.deferred || interaction.replied) {
-            await interaction.editReply({ content: "The setting could not be updated. Please try again.", embeds: [], components: [] });
-          } else {
-            await interaction.reply({ content: "The setting could not be updated. Please try again.", flags: MessageFlags.Ephemeral });
-          }
+          await respond(interaction, {
+            kind: error.code === "COOLDOWN" ? "warning" : "error",
+            icon: error.code === "COOLDOWN" ? "cooldown" : "failed",
+            title: error.code === "COOLDOWN" ? "Please wait" : "Action could not be completed",
+            description: error instanceof DomainError ? error.message : error.message || "Please try again. Your progress has not been intentionally changed."
+          });
         } catch (replyError) {
-          console.error("[admin] Could not report panel setting failure:", replyError.code || replyError.name, replyError.message);
+          console.error("[dashboard] Could not report interaction failure:", replyError.code || replyError.name, replyError.message);
         }
       }
       return;
     }
+
     if (!interaction.isChatInputCommand()) return;
     if (!interaction.inGuild()) return respond(interaction, { kind: "error", ephemeral: true, title: "Server Only", description: "Use this command inside Fukishokai." });
     const command = client.commands.get(interaction.commandName);
@@ -105,21 +112,16 @@ async function start() {
         kind: "error",
         ephemeral: true,
         title: "Use the Commands Channel",
-        description: "Member commands can only be used in <#" + MEMBER_COMMANDS_CHANNEL_ID + ">. Your command response is private."
+        description: "Open member commands in <#" + MEMBER_COMMANDS_CHANNEL_ID + ">. This notice is private."
       });
     }
 
     const startedAt = Date.now();
-    const privateReply = command.data.name === "admin";
+    const privateReply = command.data.name === "admin" || command.data.name === "menu";
     try {
-      // Acknowledge before any database or Discord API work; Discord expires unacknowledged interactions quickly.
       await interaction.deferReply(privateReply ? { flags: MessageFlags.Ephemeral } : {});
     } catch (error) {
-      console.error(
-        "[interaction] Could not acknowledge /" + command.data.name + " for " + interaction.user.id + ":",
-        error.code || error.name,
-        error.message
-      );
+      console.error("[interaction] Could not acknowledge /" + command.data.name + ":", error.code || error.name, error.message);
       return;
     }
 
@@ -131,23 +133,15 @@ async function start() {
         await respond(interaction, {
           kind: error.code === "COOLDOWN" ? "warning" : "error",
           icon: error.code === "COOLDOWN" ? "cooldown" : "failed",
-          title: error.code === "COOLDOWN" ? "Take a Break" : "Action Failed",
-          description: error instanceof DomainError
-            ? error.message
-            : "The command could not be completed right now. Please try again shortly."
+          title: error.code === "COOLDOWN" ? "Please wait" : "Action could not be completed",
+          description: error instanceof DomainError ? error.message : "The command could not be completed right now. Please try again shortly."
         });
       } catch (replyError) {
-        console.error(
-          "[command] Could not send error response for /" + command.data.name + ":",
-          replyError.code || replyError.name,
-          replyError.message
-        );
+        console.error("[command] Could not send error response:", replyError.code || replyError.name, replyError.message);
       }
     } finally {
       const elapsedMs = Date.now() - startedAt;
-      if (elapsedMs >= 3000) {
-        console.warn("[command] /" + command.data.name + " took " + elapsedMs + "ms in guild " + interaction.guildId + ".");
-      }
+      if (elapsedMs >= 3000) console.warn("[command] /" + command.data.name + " took " + elapsedMs + "ms in guild " + interaction.guildId + ".");
     }
   });
 
