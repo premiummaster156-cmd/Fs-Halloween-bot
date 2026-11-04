@@ -4,9 +4,6 @@ const {
   StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle,
   MessageFlags, PermissionFlagsBits
 } = require("discord.js");
-const { execFile } = require("node:child_process");
-const { promisify } = require("node:util");
-const execFileAsync = promisify(execFile);
 const settings = require("../config/settings");
 const balancing = require("../config/game-balancing");
 const { createEmbed } = require("../ui");
@@ -492,12 +489,12 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
       settings.idePublicUrl
         ? new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Open Code Studio").setURL(settings.idePublicUrl.replace(/\/+$/, "") + "/ide?new=1")
         : aBtn(owner, "custom-command-create", "Code Studio URL needed", ButtonStyle.Secondary).setDisabled(true),
-      aBtn(owner, "custom-command-deploy", "Run npm run deploy-commands", ButtonStyle.Primary, "🚀")
+      aBtn(owner, "custom-command-deploy", "Sync slash commands", ButtonStyle.Primary, "🚀")
     ));
     components.push(row(aBtn(owner, "home", "Admin console")));
-    return panel("CUSTOM SLASH COMMANDS", "Open Code Studio to create and edit JavaScript command files. Save, test, deploy slash commands, then activate the command here. The browser editor includes syntax highlighting, autocomplete, formatting, preview and a deployment terminal.",
+    return panel("CUSTOM SLASH COMMANDS", "Open Code Studio to create and edit JavaScript files saved under admin-workspace/<server-id>/. Save, test, sync slash commands and activate the command here. New commands become available without restarting the bot. The browser editor includes syntax highlighting, autocomplete, formatting and preview.",
       [{ name: "Saved commands", value: lines.slice(0, 1000) },
-       { name: "Workflow", value: "1. Create or edit code\n2. Run npm run deploy-commands\n3. Select the command and press Activate" },
+       { name: "Workflow", value: "1. Create or edit code\n2. Sync slash commands\n3. Select the command and press Activate" },
        { name: "Placeholders", value: "{user} · {username} · {server} · {channel} · {option.name} · {option.name.username} · {option.name.mention}" }],
       components);
   }
@@ -516,12 +513,12 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
     return panel("CUSTOM COMMAND  /  " + command.name,
       "**/" + command.name + "** · " + status + "\n" + command.description,
       [
-        { name: "JavaScript source", value: command.source_code ? command.source_code.length.toLocaleString() + " characters · Open Code Studio to edit the .js file." : "Legacy command definition · Open Code Studio to replace it with JavaScript." },
+        { name: "JavaScript file", value: command.source_code ? "admin-workspace/" + guildId + "/" + command.name + ".js · " + command.source_code.length.toLocaleString() + " characters." : "Legacy command. Open Code Studio to replace it with a JavaScript file." },
         { name: "Activation", value: command.is_active ? "This command is available to members." : command.deployed_at ? "Deployed. Activate it to let members use it." : "Save changes, deploy slash commands, then activate it." }
       ],
       [
         row(activateButton, editButton),
-        row(aBtn(owner, "custom-command-deploy", "Run npm run deploy-commands", ButtonStyle.Primary, "🚀"), aBtn(owner, "custom-command-delete", "Delete", ButtonStyle.Danger, "🗑️", command.id), aBtn(owner, "custom-commands", "Back"))
+        row(aBtn(owner, "custom-command-deploy", "Sync slash commands", ButtonStyle.Primary, "🚀"), aBtn(owner, "custom-command-delete", "Delete", ButtonStyle.Danger, "🗑️", command.id), aBtn(owner, "custom-commands", "Back"))
       ]);
   }
   if (page === "settings") {
@@ -1004,44 +1001,18 @@ async function handleButton(i, s) {
     if (action === "custom-commands") {
       return i.update(await renderAdmin(i.guildId, owner, "custom-commands", s));
     }
-    if (action === "custom-command-create") {
-      const example = JSON.stringify({
-        options: [{ name: "member", description: "Member to greet", type: "user", required: false }],
-        response: { visibility: "public", title: "Welcome", description: "Hello {option.member.username}!" }
-      }, null, 2);
-      return i.showModal(modal("admin:" + owner + ":custom-command-create", "Create custom command", [
-        { id: "name", label: "Slash command name", placeholder: "welcome", max: 32 },
-        { id: "description", label: "Command description", placeholder: "Send a welcome message", max: 100 },
-        { id: "code", label: "Command code (JSON)", paragraph: true, max: 4000, value: example },
-        { id: "reason", label: "Audit reason", paragraph: true, max: 500 }
-      ]));
-    }
-    if (action === "custom-command-edit") {
-      const command = await s.customCommands.get(i.guildId, target);
-      if (!command) return i.reply({ content: "That custom command no longer exists.", flags: MessageFlags.Ephemeral });
-      return i.showModal(modal("admin:" + owner + ":custom-command-update:" + target, "Edit custom command", [
-        { id: "name", label: "Slash command name", placeholder: "welcome", max: 32, value: command.name },
-        { id: "description", label: "Command description", placeholder: "Send a welcome message", max: 100, value: command.description },
-        { id: "code", label: "Command code (JSON)", paragraph: true, max: 4000, value: JSON.stringify(command.definition, null, 2) },
-        { id: "reason", label: "Audit reason", paragraph: true, max: 500 }
-      ]));
+    if (action === "custom-command-create" || action === "custom-command-edit") {
+      return i.reply({ content: "Custom slash commands are created and edited as JavaScript files in Code Studio. Open /admin panel → Custom commands and choose Open Code Studio.", flags: MessageFlags.Ephemeral });
     }
     if (action === "custom-command-deploy") {
       await i.deferUpdate();
       try {
-        const executable = process.platform === "win32" ? "npm.cmd" : "npm";
-        await execFileAsync(executable, ["run", "deploy-commands"], {
-          cwd: process.cwd(),
-          env: { ...process.env, DEPLOY_GUILD_ID: i.guildId },
-          timeout: 90000,
-          maxBuffer: 1024 * 1024,
-          shell: process.platform === "win32"
-        });
-        await safeAudit(i, s, "custom_commands_deployed", null, { guildId: i.guildId });
+        const deployment = await s.customCommands.deployGuild(i.guildId);
+        await safeAudit(i, s, "custom_commands_deployed", null, { guildId: i.guildId, ...deployment });
         await safeSendLog(i, s, "Custom slash commands were deployed by <@" + owner + ">.");
         const page = target ? "custom-command" : "custom-commands";
         const payload = await renderAdmin(i.guildId, owner, page, s, target);
-        if (payload.embeds?.[0]) payload.embeds[0].addFields({ name: "Deployment", value: "Slash commands registered successfully. Select a command and press Activate." });
+        if (payload.embeds?.[0]) payload.embeds[0].addFields({ name: "Deployment", value: "Registered " + deployment.registeredCount + " slash commands. No bot restart was required. Select a command and press Activate." });
         return i.editReply(payload);
       } catch (error) {
         console.error("[custom-commands] Deployment failed:", error.code || error.name, error.message);
@@ -1063,7 +1034,9 @@ async function handleButton(i, s) {
       await i.deferUpdate();
       const removed = await s.customCommands.remove(i.guildId, target, owner);
       await safeAudit(i, s, "custom_command_deleted", target, { name: removed.name });
-      await safeSendLog(i, s, "Custom command /" + removed.name + " was removed by <@" + owner + ">. Redeploy commands to remove it from Discord.");
+      await s.customCommands.deployGuild(i.guildId);
+      await safeAudit(i, s, "custom_commands_deployed", null, { guildId: i.guildId, reason: "command_deleted" });
+      await safeSendLog(i, s, "Custom command /" + removed.name + " was removed from Discord by <@" + owner + ">.");
       return i.editReply(await renderAdmin(i.guildId, owner, "custom-commands", s));
     }
     if (action === "home" || action === "refresh" || action === "settings" || action === "clear-settings" || action === "event" || action === "player" || action === "fairness" || action === "logs" || action === "event-stop-confirm") {

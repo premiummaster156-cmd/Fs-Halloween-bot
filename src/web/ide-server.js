@@ -379,7 +379,8 @@ function createIdeServer(client, services) {
             return json(res, 429, { error: "Please wait before deploying again." });
           }
           session.lastDeployAt = Date.now();
-          const output = await services.customCommands.deployGuild(settings.ideGuildId);
+          const deployment = await services.customCommands.deployGuild(settings.ideGuildId);
+          const output = "Registered " + deployment.registeredCount + " slash commands (" + deployment.customCount + " custom) without restarting the bot.";
           await audit(services.pool, settings.ideGuildId, session.user.id, "custom_commands_deployed", id, { name: record.name, ...output });
           await sendLog(client, settings.ideGuildId, "Custom slash commands deployed by <@" + session.user.id + ">.");
           return json(res, 200, { ok: true, output });
