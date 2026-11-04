@@ -587,7 +587,7 @@ async function handleSelection(i, s, scope, owner, action, parts) {
     if (value === owner) return i.reply({ content: "You cannot transfer FC to yourself.", flags: MessageFlags.Ephemeral });
     return i.showModal(modal("dash:" + owner + ":transfer-modal:" + value, "Send FS Coins", [{ id: "amount", label: "Amount in FC", placeholder: "1000", max: 12 }]));
   }
-  if (action === "equip" || action === "unequip" || action === "shop-buy" || action === "crime-run" || action === "event-claim" || action === "event-buy" || action === "ranking-type") {
+  if (action === "equip" || action === "unequip" || action === "shop-buy" || action === "upgrade-item" || action === "crime-run" || action === "event-claim" || action === "event-buy" || action === "ranking-type") {
     await i.deferUpdate();
     if (action === "equip") {
       const r = await s.inventory.equip(i.guildId, owner, value);
@@ -603,6 +603,13 @@ async function handleSelection(i, s, scope, owner, action, parts) {
       const r = await s.inventory.buy(i.guildId, owner, value);
       await recordMemberAction(i, s, "shop_purchase", "purchased **" + r.item.name + "** for " + r.item.cost.toLocaleString() + " FC.", { itemId: r.item.id, cost: r.item.cost });
       return i.editReply(panel("PURCHASE COMPLETE", "You purchased **" + r.item.name + "**.\n" + r.item.description, [{ name: "Wallet remaining", value: r.walletRemaining.toLocaleString() + " FC" }], [row(btn(owner, "gear", "View gear")), navButton(owner)], "success"));
+    }
+    if (action === "upgrade-item") {
+      const r = await s.inventory.upgrade(i.guildId, owner, value);
+      await recordMemberAction(i, s, "equipment_upgraded", "upgraded **" + r.item.name + "** to level " + r.upgradeLevel + " for " + r.cost.toLocaleString() + " FC.", { itemId: r.item.id, upgradeLevel: r.upgradeLevel, cost: r.cost });
+      return i.editReply(panel("GEAR UPGRADED", "**" + r.item.name + "** is now at upgrade level **" + r.upgradeLevel + "/" + balancing.itemUpgrades.maxLevel + "**. Its effects are stronger while equipped.",
+        [{ name: "Upgrade cost", value: r.cost.toLocaleString() + " FC", inline: true }, { name: "Wallet remaining", value: r.walletRemaining.toLocaleString() + " FC", inline: true }],
+        [row(btn(owner, "gear", "View gear")), navButton(owner)], "success"));
     }
     if (action === "crime-run") {
       const r = await s.crime.attempt(i.guildId, owner, value, memberRoleIds(i));
@@ -913,9 +920,24 @@ async function handleButton(i, s) {
     if (roleNotice && payload.embeds[0]) payload.embeds[0].addFields({ name: "Final reward role", value: roleNotice });
     return i.editReply(payload);
   }
-  const pages = ["home", "profile", "earn", "career", "bank", "transfer", "gear", "shop", "games", "crime", "casino", "heists", "weekly", "event-shop", "rankings", "help"];
+  const pages = ["home", "profile", "earn", "career", "bank", "transfer", "gear", "shop", "games", "crime", "casino", "heists", "weekly", "event-shop", "rankings", "rebirth", "help"];
   if (pages.includes(action)) return i.update(await renderMenu(i.guildId, owner, action, s));
   if (action === "refresh") return i.update(await renderMenu(i.guildId, owner, "home", s));
+  if (action === "rebirth-review") return i.update(await renderMenu(i.guildId, owner, "rebirth-confirm", s));
+  if (action === "rebirth-confirm") {
+    await i.deferUpdate();
+    const result = await s.economy.rebirth(i.guildId, owner);
+    await recordMemberAction(i, s, "player_rebirth", "completed Rebirth #" + result.rebirths + " and gained a permanent " + result.multiplier.toLocaleString() + "× FC and XP multiplier.", {
+      rebirths: result.rebirths, multiplier: result.multiplier, previousWealth: result.previousWealth
+    });
+    return i.editReply(panel("REBIRTH COMPLETE", "Your new run has started. You now have **1,000 FC**, **level 1**, and a permanent **" + result.multiplier.toLocaleString() + "× FC and XP earning multiplier**.",
+      [
+        { name: "Rebirth count", value: String(result.rebirths), inline: true },
+        { name: "Next wealth requirement", value: result.nextWalletRequired.toLocaleString() + " FC", inline: true },
+        { name: "Next level requirement", value: "Level " + result.nextLevelRequired, inline: true },
+        { name: "Gear and upgrades", value: "Your inventory, equipped items and upgrade levels were preserved." }
+      ], [row(btn(owner, "profile", "View profile"), btn(owner, "gear", "View gear")), navButton(owner)], "success"));
+  }
   if (action === "daily") {
     await i.deferUpdate();
     const r = await s.economy.daily(i.guildId, owner, memberRoleIds(i));
