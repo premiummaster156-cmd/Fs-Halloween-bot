@@ -575,7 +575,10 @@ function navButton(owner) { return row(btn(owner, "home", "Dashboard")); }
 async function handleButton(i, s) {
   const p = i.customId.split(":");
   const scope = p[0], owner = p[1], action = p[2];
-  if (i.user.id !== owner) return i.reply({ content: "This private dashboard belongs to another member. Run /menu or /admin panel to open your own.", flags: MessageFlags.Ephemeral });
+  if (i.user.id !== owner) {
+    await s.security.recordUnauthorizedControlAttempt(i, i.customId).catch(() => {});
+    return i.reply({ content: "This private dashboard belongs to another member. Run /menu to open your own.", flags: MessageFlags.Ephemeral });
+  }
   if (scope === "admin" && !await isAdmin(i, s.guildSettings)) return i.reply({ content: "You no longer have permission to use this control.", flags: MessageFlags.Ephemeral });
   if (scope === "admin") {
     const target = p[3];
@@ -716,7 +719,10 @@ async function handleButton(i, s) {
 async function handleModal(i, s) {
   const p = i.customId.split(":");
   const scope = p[0], owner = p[1], action = p[2], target = p[3];
-  if (i.user.id !== owner) return i.reply({ content: "This form belongs to another member.", flags: MessageFlags.Ephemeral });
+  if (i.user.id !== owner) {
+    await s.security.recordUnauthorizedControlAttempt(i, i.customId).catch(() => {});
+    return i.reply({ content: "This form belongs to another member.", flags: MessageFlags.Ephemeral });
+  }
   await i.deferReply({ flags: MessageFlags.Ephemeral });
   if (scope === "dash") {
     if (action === "bank-modal") {
@@ -846,7 +852,10 @@ async function handleDashboardInteraction(i, s) {
   if (i.isButton()) return handleButton(i, s);
   if (i.isAnySelectMenu()) {
     const p = i.customId.split(":");
-    if (i.user.id !== p[1]) return i.reply({ content: "This private dashboard belongs to another member.", flags: MessageFlags.Ephemeral });
+    if (i.user.id !== p[1]) {
+      await s.security.recordUnauthorizedControlAttempt(i, i.customId).catch(() => {});
+      return i.reply({ content: "This private dashboard belongs to another member.", flags: MessageFlags.Ephemeral });
+    }
     return handleSelection(i, s, p[0], p[1], p[2], p);
   }
 }
