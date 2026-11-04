@@ -36,23 +36,27 @@ async function main() {
     const context = isolate.createContextSync();
     context.global.setSync("__input", request.input || {}, { copy: true });
 
-    const prefix = "const module = { exports: {} }; const exports = module.exports;\n";
-    const suffix = "\n; module.exports;";
-    const script = isolate.compileScriptSync(prefix + request.source + suffix);
+    const prefix = "const module = { exports: {} }; const exports = module.exports;\\n";
 
     if (request.mode === "inspect") {
-      const exported = script.runSync(context, { timeout: 500, copy: true });
-      if (!exported || typeof exported !== "object" || !exported.data || typeof exported.data !== "object") {
-        throw new Error("Export a command object with a data definition.");
-      }
+      const script = isolate.compileScriptSync(prefix + request.source + "\\n; JSON.stringify(module.exports.data)");
+      const dataJson = script.runSync(context, { timeout: 500, copy: true });
       const inspectScript = isolate.compileScriptSync("typeof module.exports.execute === 'function' ? 'ok' : 'missing'");
       const hasExecute = inspectScript.runSync(context, { timeout: 100, copy: true });
-      if (hasExecute !== "ok") throw new Error("Your command file must export an execute function.");
-      write({ ok: true, data: exported.data });
+      if (typeof dataJson !== "string" || hasExecute !== "ok") {
+        throw new Error("Export { data: { name, description, options }, execute() } from your command file.");
+      }
+      write({ ok: true, data: JSON.parse(dataJson) });
       return;
     }
 
     if (request.mode !== "run") throw new Error("Unknown command runner operation.");
+    const initScript = isolate.compileScriptSync(prefix + request.source + "\\n; true");
+    initScript.runSync(context, { timeout: 500, copy: true });
+    const inspectScript = isolate.compileScriptSync("typeof module.exports.execute === 'function' ? 'ok' : 'missing'");
+    if (inspectScript.runSync(context, { timeout: 100, copy: true }) !== "ok") {
+      throw new Error("Your command file must export an execute function.");
+    }
     let settled = false;
     let resolveResult;
     const resultPromise = new Promise((resolve) => { resolveResult = resolve; });
