@@ -83,7 +83,7 @@ test("gear upgrades strengthen effects and cooldown reductions stack safely", ()
     { upgradeLevel: 0, effects: { workPayBonus: 0.10, workCooldownReduction: 0.10 } }
   ]);
   assert.equal(result.workPayBonus, 0.13 * 1 + 0.10);
-  assert.ok(Math.abs(result.workCooldownReduction - (1 - (1 - 0.23) * (1 - 0.10))) < 0.000001);
+  assert.ok(Math.abs(result.workCooldownReduction - (1 - (1 - 0.26) * (1 - 0.10))) < 0.000001);
   assert.ok(result.workCooldownReduction <= 0.45);
 });
 
