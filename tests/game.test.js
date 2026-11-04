@@ -308,3 +308,49 @@ test("configured Admin Role skips cooldown audit and command throttling", async 
   await security.recordUnauthorizedAdminAttempt(interaction);
   assert.equal(writes.length, 0);
 });
+
+
+test("public heist board lists the leader and every member with their selected role", () => {
+  const { buildHeistEmbed } = require("../src/commands/dashboard");
+  const embed = buildHeistEmbed({
+    heist: {
+      id: "crew-board-test",
+      leader_id: "leader-123",
+      mission_id: "night_market",
+      status: "recruiting",
+      total_payout: 0,
+      success_chance: null,
+      roll: null
+    },
+    crew: [
+      { user_id: "leader-123", role_id: "planner" },
+      { user_id: "member-456", role_id: "hacker" },
+      { user_id: "member-789", role_id: "driver" }
+    ]
+  });
+  const roster = embed.data.fields.find((field) => field.name === "Crew members and roles");
+  assert.ok(roster);
+  assert.match(roster.value, /<@leader-123>.*Planner/);
+  assert.match(roster.value, /<@member-456>.*Hacker/);
+  assert.match(roster.value, /<@member-789>.*Driver/);
+});
+
+test("public heist board clearly distinguishes successful and failed results", () => {
+  const { buildHeistEmbed } = require("../src/commands/dashboard");
+  const base = {
+    heist: {
+      id: "crew-result-test",
+      leader_id: "leader-123",
+      mission_id: "night_market",
+      total_payout: 2500,
+      success_chance: 55,
+      roll: 42
+    },
+    crew: [{ user_id: "leader-123", role_id: "planner" }, { user_id: "member-456", role_id: "hacker" }]
+  };
+  const won = buildHeistEmbed({ ...base, heist: { ...base.heist, status: "success" } });
+  const lost = buildHeistEmbed({ ...base, heist: { ...base.heist, status: "failed", total_payout: 0 } });
+  assert.match(won.data.title, /MISSION SUCCESS/);
+  assert.match(won.data.description, /2,500 FC/);
+  assert.match(lost.data.title, /MISSION FAILED/);
+});
