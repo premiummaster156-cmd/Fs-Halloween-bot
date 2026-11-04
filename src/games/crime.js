@@ -26,10 +26,12 @@ class CrimeGame {
       const reference = uuid();
       let reward = 0;
       let fine = 0;
+      let candyDrop = null;
       if (succeeded) {
         const baseReward = Math.floor(randomInt(crime.rewardMin, crime.rewardMax) * (1 + Math.min(0.3, Number(player.level) * 0.004)));
         const earning = await this.economy.mutateTx(client, guildId, userId, Math.floor(baseReward * (1 + (gear.crimeRewardBonus || 0))), "crime_success", reference, { crimeId, successChance });
         reward = earning.delta;
+        candyDrop = earning.candyDrop || null;
         await client.query("UPDATE players SET crime_successes = crime_successes + 1, reputation = LEAST(100, reputation + 1), updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [guildId, userId]);
         await this.economy.addXpTx(client, guildId, userId, crime.xp, roleIds);
         await trackActionTx(client, guildId, userId, "crime_success", 1);
@@ -40,7 +42,7 @@ class CrimeGame {
         if (fine > 0) await this.economy.mutateTx(client, guildId, userId, -fine, "crime_failed_fine", reference, { crimeId, successChance });
         await client.query("UPDATE players SET reputation = GREATEST(-100, reputation - 2), updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [guildId, userId]);
       }
-      return { crime, succeeded, successChance, reward, fine };
+      return { crime, succeeded, successChance, reward, fine, candyDrop };
     });
   }
 }
