@@ -77,11 +77,25 @@ async function recordMemberAction(i, services, action, announcement, details = {
       const colors = { success: settings.brand.success, warning: settings.brand.warning, info: settings.brand.primary };
       const embed = publicResultEmbed || createEmbed({
         title: "FUKISHOKAI  /  MEMBER ACTIVITY",
-        description: "**" + displayName + "** " + announcement,
+        description: "<@" + actorId + "> · **" + displayName + "** " + announcement,
         color: colors[kind] || colors.info,
         icon: "profile",
         footer: "FUKISHOKAI  •  Activity announcement"
       });
+      // Every public activity receipt identifies its actor, including custom game-result embeds.
+      // Keep the brand author intact and use a dedicated field for consistent attribution.
+      if (publicResultEmbed) {
+        const alreadyHasActor = publicResultEmbed.data?.fields?.some((field) =>
+          /^(member|player|performed by)$/i.test(String(field.name || "").trim())
+        );
+        if (!alreadyHasActor) {
+          publicResultEmbed.addFields({
+            name: "Player",
+            value: "<@" + actorId + "> · **" + displayName + "**",
+            inline: false
+          });
+        }
+      }
       try {
         await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
       } catch (embedError) {
