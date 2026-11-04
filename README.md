@@ -59,19 +59,28 @@ Casino games remain available with transparent odds and equal limits: 100–1,00
 
 ## Operations
 
-Set `OWNER_ID` and/or `ADMIN_ROLE_IDS` in `.env` to control access to the admin console. Configure the additional admin role, log channel, Halloween reward role and 2× XP role in **/admin panel**. The Halloween reward must be a normal assignable server role, not `@everyone` or an integration-managed role. Back up the database before the event ends. Run `npm test` before deploying changes.
+Set **OWNER_ID** in `.env` to the bot owner's Discord user ID. The server owner and this configured bot owner are the only people who can open or operate **/admin panel**. Discord Administrator, Manage Server, and other admin roles do not grant bot-control access. `ADMIN_ROLE_IDS` is no longer used for bot access.
 
-After updating the bot code, run `npm run deploy-commands` so Discord replaces the older slash-command list with `/menu` and `/admin panel`.
+Configure the log channel, Halloween reward role and 2× XP role in **/admin panel → Server settings**. The Halloween reward role must be a normal assignable server role, not `@everyone` or an integration-managed role.
+
+Members open **/menu** in the configured game channel. The dashboard itself stays private; successful gameplay and economy actions are announced in that same channel. Navigation, refreshes and ordinary cooldown messages are not posted publicly.
+
+The bot records successful member actions, admin changes, failed actions, cooldown blocks and security incidents in PostgreSQL and the configured log channel. The configured log channel should allow the bot to view the channel and send messages. Give the bot **View Audit Log** permission if you want the security monitor to attribute bursts of channel deletions, role deletions or bans to the member who performed them. The bot uses the standard Guild Moderation gateway intent; it does not require Message Content, Guild Members or Guild Presences for these protections.
+
+Security alerts mention the server owner and configured bot owner. Their buttons can ignore an alert, pause a member's access to this bot for 10 minutes, block bot access until an owner removes the restriction, or restore bot access. No timeout, kick or ban is applied automatically. These restrictions affect this bot only, not the member's Discord permissions.
+
+After updating the bot code, run `npm run deploy-commands` so Discord replaces the old slash-command registrations with `/menu` and `/admin panel`. The database schema is applied automatically at bot startup. Back up the database before the event ends and run `npm test` before deploying changes.
 
 
 ## Administration controls
 
 Open **/admin panel** to manage the server from one private interface:
 
-- **Server settings:** admin role, Halloween reward role, 2× XP role, admin log channel, and clear-setting controls.
+- **Server settings:** Halloween reward role, 2× XP role, log channel, and clear-setting controls.
 - **Event controls:** start/restart or stop the Halloween event. Stopping requires confirmation.
 - **Player management:** select a member, inspect their player details, and open Grant FC, Grant XP, Remove FC, Set level or Assign career forms.
 - **Leaderboard fairness:** select a member and exclude or restore them from competitive rankings.
 - **Audit history:** review the ten most recent administrative changes.
+- **Security:** owner-controlled bot-access restrictions are applied from alerts in the log channel.
 
-Access to settings and event controls is granted to administrators, Manage Server users and configured admin roles. Currency, XP, level, career and leaderboard eligibility edits are restricted to the server owner or configured bot owner. Player edits require an audit reason and are recorded in PostgreSQL.
+All admin actions are owner-only, require audit reasons for player edits, and are recorded in PostgreSQL.
