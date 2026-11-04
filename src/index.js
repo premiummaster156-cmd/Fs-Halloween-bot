@@ -91,7 +91,7 @@ async function start() {
           await security.recordCooldownAttempt(interaction, error).catch((loggingError) =>
             console.error("[security] Could not record cooldown attempt:", loggingError.message)
           );
-        } else {
+        } else if (!(await security.isAboveBotRole(interaction.guild, interaction.user.id))) {
           await require("./utils/logging").audit(pool, interaction.guildId, interaction.user.id, "member_interaction_failed", interaction.user.id, {
             code: error.code || error.name,
             customId: interaction.customId || null
@@ -173,7 +173,7 @@ async function start() {
         await security.recordCooldownAttempt(interaction, error).catch((loggingError) =>
           console.error("[security] Could not record cooldown attempt:", loggingError.message)
         );
-      } else {
+      } else if (!(await security.isAboveBotRole(interaction.guild, interaction.user.id))) {
         await require("./utils/logging").audit(pool, interaction.guildId, interaction.user.id, "command_failed", interaction.user.id, {
           command: interaction.commandName,
           code: error.code || error.name
