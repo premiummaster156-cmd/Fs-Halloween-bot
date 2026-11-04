@@ -154,3 +154,83 @@ test("slash command burst is rate-limited without granting Administrator access"
   assert.equal(incidents.length, 1);
   assert.equal(incidents[0].category, "command_spam");
 });
+
+
+test("members with a higher role than the bot are excluded from security monitoring", async () => {
+  const { SecurityService } = require("../src/services/security");
+  const security = new SecurityService({}, {});
+  const makeGuild = (id, comparison) => ({
+    id,
+    ownerId: "guild-owner",
+    members: {
+      me: { roles: { highest: { id: "bot-role" } } },
+      fetch: async (userId) => ({
+        id: userId,
+        roles: { highest: { comparePositionTo: () => comparison } }
+      })
+    }
+  });
+
+  assert.equal(await security.isAboveBotRole(makeGuild("g-high", 1), "staff-member"), true);
+  assert.equal(await security.isAboveBotRole(makeGuild("g-low", -1), "regular-member"), false);
+  assert.equal(await security.isAboveBotRole(makeGuild("g-owner", -1), "guild-owner"), true);
+});
+
+test("higher-ranked members are not rate-limited, cooldown-logged or escalated", async () => {
+  const { SecurityService } = require("../src/services/security");
+  const writes = [];
+  const pool = { query: async (...args) => { writes.push(args); return { rowCount: 1, rows: [] }; } };
+  const security = new SecurityService(pool, {});
+  security.isAboveBotRole = async () => true;
+  const incidents = [];
+  security.createIncident = async (_client, input) => { incidents.push(input); };
+
+  const interaction = {
+    user: { id: "senior-staff" },
+    guild: { id: "guild-1", ownerId: "guild-owner" },
+    guildId: "guild-1",
+    client: {},
+    commandName: "menu",
+    customId: "dash:senior-staff:daily"
+  };
+
+  for (let index = 0; index < 15; index += 1) {
+    assert.equal((await security.checkCommandRate(interaction)).allowed, true);
+    assert.equal((await security.checkComponentRate(interaction)).allowed, true);
+  }
+  await security.recordCooldownAttempt(interaction, { remainingMs: 5000 });
+  await security.recordUnauthorizedAdminAttempt(interaction);
+  await security.recordUnauthorizedControlAttempt(interaction, interaction.customId);
+
+  assert.equal(writes.length, 0);
+  assert.equal(incidents.length, 0);
+});
+
+test("security alert refuses bot restrictions or timeouts against a higher-ranked member", async () => {
+  const { SecurityService } = require("../src/services/security");
+  const writes = [];
+  const pool = {
+    query: async (sql, params) => {
+      writes.push({ sql, params });
+      if (String(sql).includes("SELECT id, user_id FROM security_incidents")) {
+        return { rowCount: 1, rows: [{ id: "12", user_id: "senior-staff" }] };
+      }
+      return { rowCount: 1, rows: [] };
+    }
+  };
+  const security = new SecurityService(pool, {});
+  security.isAboveBotRole = async (_guild, userId) => userId === "senior-staff";
+
+  let reply;
+  const interaction = {
+    customId: "security:12:guild-1:senior-staff:timeout",
+    guildId: "guild-1",
+    user: { id: "guild-owner" },
+    guild: { id: "guild-1", ownerId: "guild-owner" },
+    reply: async (value) => { reply = value; }
+  };
+
+  await security.handleAlertInteraction(interaction);
+  assert.match(reply.content, /No action was taken/);
+  assert.equal(writes.length, 1);
+});
