@@ -495,7 +495,7 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
       aBtn(owner, "custom-command-deploy", "Run npm run deploy-commands", ButtonStyle.Primary, "🚀")
     ));
     components.push(row(aBtn(owner, "home", "Admin console")));
-    return panel("CUSTOM SLASH COMMANDS", "Create commands using the safe JSON command editor. Save a draft, deploy slash commands, then activate it. Custom commands can send text or embeds with member and option placeholders. They cannot execute JavaScript or host commands.",
+    return panel("CUSTOM SLASH COMMANDS", "Open Code Studio to create and edit JavaScript command files. Save, test, deploy slash commands, then activate the command here. The browser editor includes syntax highlighting, autocomplete, formatting, preview and a deployment terminal.",
       [{ name: "Saved commands", value: lines.slice(0, 1000) },
        { name: "Workflow", value: "1. Create or edit code\n2. Run npm run deploy-commands\n3. Select the command and press Activate" },
        { name: "Placeholders", value: "{user} · {username} · {server} · {channel} · {option.name} · {option.name.username} · {option.name.mention}" }],
