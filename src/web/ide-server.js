@@ -101,13 +101,14 @@ async function authoriseMember(client, services, userId) {
   const guildId = settings.ideGuildId;
   if (!guildId) throw new Error("IDE_GUILD_ID is not configured.");
   const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId);
+  const isServerOwner = userId === guild.ownerId;
+  const isBotOwner = Boolean(settings.ownerId && userId === settings.ownerId);
   const member = await guild.members.fetch(userId).catch(() => null);
-  if (!member) throw new Error("You must be a member of the Fukishōkai server to open Code Studio.");
   const trustedRoleId = await services.guildSettings.get(guildId, "adminRoleId");
-  const permitted = userId === guild.ownerId ||
-    (settings.ownerId && userId === settings.ownerId) ||
-    Boolean(trustedRoleId && member.roles.cache.has(trustedRoleId));
-  if (!permitted) throw new Error("Code Studio is limited to the server owner, bot owner and configured Admin Role.");
+  const hasTrustedRole = Boolean(member && trustedRoleId && member.roles.cache.has(trustedRoleId));
+  if (!isServerOwner && !isBotOwner && !hasTrustedRole) {
+    throw new Error("Code Studio is limited to the server owner, bot owner and configured Admin Role.");
+  }
   return { guild, member, trustedRoleId };
 }
 async function requireSession(req, client, services) {
@@ -124,7 +125,10 @@ async function requireSession(req, client, services) {
   }
   session.expiresAt = Date.now() + SESSION_MS;
   session.guildName = access.guild.name;
-  return { ...session, sessionId: id, guild: access.guild, member: access.member };
+  session.sessionId = id;
+  session.guild = access.guild;
+  session.member = access.member;
+  return session;
 }
 function rateLimit(session, action) {
   const now = Date.now();
@@ -242,7 +246,9 @@ function createIdeServer(client, services) {
 
       if (req.method === "DELETE" && url.pathname === "/api/session") {
         const session = await requireSession(req, client, services);
+        if (session && !verifyMutation(req, session)) return json(res, 403, { error: "Security check failed." });
         if (session) sessions.delete(session.sessionId);
+        res.setHeader("Set-Cookie", clearSessionCookie());
         return json(res, 200, { ok: true });
       }
 
@@ -255,7 +261,9 @@ function createIdeServer(client, services) {
         return json(res, 200, { commands: records.map(safeCommandRecord) });
       }
 
-      if (req.method === "POST" && !verifyMutation(req, session)) return json(res, 403, { error: "Security check failed. Refresh Code Studio and try again." });
+      if ((req.method === "POST" || req.method === "DELETE") && !verifyMutation(req, session)) {
+        return json(res, 403, { error: "Security check failed. Refresh Code Studio and try again." });
+      }
 
       if (req.method === "POST" && url.pathname === "/api/commands") {
         const body = await readBody(req);
