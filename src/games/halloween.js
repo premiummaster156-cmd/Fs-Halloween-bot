@@ -40,19 +40,30 @@ class HalloweenGame {
   }
 
   async status(guildId, userId) {
-    const event = await this.getEvent(guildId);
-    if (!event) return { active: false, event: null, quests: balancing.halloween.quests, progress: [], claims: [], wallet: { candy: 0, points: 0 } };
+    const [event, wallet] = await Promise.all([
+      this.getEvent(guildId),
+      this.pool.query(
+        "SELECT candy, points FROM event_wallets WHERE guild_id = $1 AND user_id = $2 AND event_id = $3",
+        [guildId, userId, balancing.halloween.eventId]
+      )
+    ]);
+    const savedWallet = wallet.rows[0] || { candy: 0, points: 0 };
+    if (!event) {
+      return {
+        active: false, event: null, quests: balancing.halloween.quests,
+        progress: [], claims: [], wallet: savedWallet
+      };
+    }
     const active = Boolean(event.enabled) && new Date(event.starts_at).getTime() <= Date.now() && new Date(event.ends_at).getTime() > Date.now();
-    const [progress, claims, wallet] = await Promise.all([
+    const [progress, claims] = await Promise.all([
       this.pool.query("SELECT quest_id, progress FROM event_quest_progress WHERE guild_id = $1 AND user_id = $2 AND event_id = $3", [guildId, userId, event.event_id]),
-      this.pool.query("SELECT quest_id FROM event_claims WHERE guild_id = $1 AND user_id = $2 AND event_id = $3", [guildId, userId, event.event_id]),
-      this.pool.query("SELECT candy, points FROM event_wallets WHERE guild_id = $1 AND user_id = $2 AND event_id = $3", [guildId, userId, event.event_id])
+      this.pool.query("SELECT quest_id FROM event_claims WHERE guild_id = $1 AND user_id = $2 AND event_id = $3", [guildId, userId, event.event_id])
     ]);
     return {
       active, event, quests: balancing.halloween.quests,
       progress: progress.rows,
       claims: claims.rows.map((row) => row.quest_id),
-      wallet: wallet.rows[0] || { candy: 0, points: 0 }
+      wallet: savedWallet
     };
   }
 
@@ -130,21 +141,38 @@ class HalloweenGame {
 
   async buyItem(guildId, userId, itemId) {
     const item = balancing.halloween.shop.find((entry) => entry.id === itemId);
-    if (!item) throw new DomainError("That item is not in the Halloween shop.", "EVENT_ITEM_INVALID");
+    if (!item) throw new DomainError("That item is not in the Candy shop.", "EVENT_ITEM_INVALID");
     return transaction(async (client) => {
-      const event = await activeEventTx(client, guildId);
-      if (!event) throw new DomainError("The Halloween event is not active in this server.", "EVENT_INACTIVE");
-      const row = await client.query("SELECT candy FROM event_wallets WHERE guild_id = $1 AND user_id = $2 AND event_id = $3 FOR UPDATE", [guildId, userId, event.event_id]);
-      const candy = row.rowCount ? Number(row.rows[0].candy) : 0;
-      if (candy < item.cost) throw new DomainError("You need " + item.cost + " Candy to buy this item.", "EVENT_NOT_ENOUGH_CANDY");
-      await client.query("UPDATE event_wallets SET candy = candy - $4, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2 AND event_id = $3", [guildId, userId, event.event_id, item.cost]);
       await client.query(
-        "INSERT INTO inventory (guild_id, user_id, item_id, quantity) VALUES ($1, $2, $3, 1) ON CONFLICT (guild_id, user_id, item_id) DO UPDATE SET quantity = inventory.quantity + 1, updated_at = NOW()",
+        "INSERT INTO event_wallets (guild_id, user_id, event_id, candy, points) VALUES ($1, $2, $3, 0, 0) ON CONFLICT DO NOTHING",
+        [guildId, userId, balancing.halloween.eventId]
+      );
+      const wallet = await client.query(
+        "SELECT candy FROM event_wallets WHERE guild_id = $1 AND user_id = $2 AND event_id = $3 FOR UPDATE",
+        [guildId, userId, balancing.halloween.eventId]
+      );
+      const candy = Number(wallet.rows[0]?.candy || 0);
+      if (candy < item.cost) throw new DomainError("You need " + item.cost + " Candy to buy this item.", "EVENT_NOT_ENOUGH_CANDY");
+
+      const existing = await client.query(
+        "SELECT quantity FROM inventory WHERE guild_id = $1 AND user_id = $2 AND item_id = $3 FOR UPDATE",
+        [guildId, userId, item.id]
+      );
+      if (item.unique && existing.rowCount && Number(existing.rows[0].quantity) > 0) {
+        throw new DomainError("You already own this unique collectible. Keep it for your rebirth progress.", "EVENT_ITEM_ALREADY_OWNED");
+      }
+
+      await client.query(
+        "UPDATE event_wallets SET candy = candy - $4, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2 AND event_id = $3",
+        [guildId, userId, balancing.halloween.eventId, item.cost]
+      );
+      await client.query(
+        "INSERT INTO inventory (guild_id, user_id, item_id, quantity) VALUES ($1, $2, $3, 1) " +
+        "ON CONFLICT (guild_id, user_id, item_id) DO UPDATE SET quantity = inventory.quantity + 1, updated_at = NOW()",
         [guildId, userId, item.id]
       );
       return { item, remainingCandy: candy - item.cost };
     });
-  }
-}
+  }}
 
 module.exports = { HalloweenGame };
