@@ -314,7 +314,7 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
   if (page === "home") {
     const cfg = await s.guildSettings.getAll(guildId);
     const ev = await s.halloween.getEvent(guildId);
-    return panel("FUKISHOKAI  /  ADMIN CONSOLE", "One private control centre for the server. The configured Admin Role has the same bot access as the server owner and bot owner.",
+    return panel("FUKISHOKAI  /  ADMIN CONSOLE", "One private control centre for the server. The server owner, bot owner and configured Admin Role can manage every control here.",
       [
         { name: "🔐 Bot access", value: "Server owner + OWNER_ID + the configured Admin Role. Discord Administrator alone does not grant bot control." },
         { name: "⚙️ Server setup", value: "Admin role: " + (cfg.adminRoleId ? "<@&" + cfg.adminRoleId + ">" : "Not configured") + "\nLog channel: " + (cfg.logChannelId ? "<#" + cfg.logChannelId + ">" : "Not set") + "\nHalloween reward role: " + (cfg.halloweenRoleId ? "<@&" + cfg.halloweenRoleId + ">" : "Not set") },
@@ -366,7 +366,7 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
       [], [row(aBtn(owner, "event-stop", "Yes, stop event", ButtonStyle.Danger), aBtn(owner, "event", "Cancel"))], "warning");
   }
   if (page === "player") {
-    if (!targetId) return panel("PLAYER MANAGEMENT", "Select a member to open their tools. Only the server owner or configured bot owner can make economy and progression changes.",
+    if (!targetId) return panel("PLAYER MANAGEMENT", "Select a member to open their tools. Trusted bot administrators can manage player balances and progression.",
       [], [row(new UserSelectMenuBuilder().setCustomId("admin:" + owner + ":player-target").setPlaceholder("Select a server member").setMinValues(1).setMaxValues(1)), row(aBtn(owner, "home", "Admin console"))]);
     const p = await getPlayer(s.pool, guildId, targetId);
     const job = balancing.jobs.find((x) => x.id === p.job_id);
@@ -384,7 +384,7 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
       ]);
   }
   if (page === "fairness") {
-    if (!targetId) return panel("LEADERBOARD FAIRNESS", "Select a member to change their ranking eligibility. This tool is owner-only.",
+    if (!targetId) return panel("LEADERBOARD FAIRNESS", "Select a member to change their ranking eligibility. This tool is available to trusted bot administrators.",
       [{ name: "What exclusion does", value: "Hides a member from Wealth, Level, Lifetime Earned and Weekly Activity leaderboards. Their balance and progress are not changed." }],
       [row(new UserSelectMenuBuilder().setCustomId("admin:" + owner + ":fairness-target").setPlaceholder("Select a member").setMinValues(1).setMaxValues(1)), row(aBtn(owner, "home", "Admin console"))]);
     const result = await s.pool.query("SELECT reason FROM leaderboard_exclusions WHERE guild_id = $1 AND user_id = $2", [guildId, targetId]);
@@ -458,7 +458,7 @@ async function handleSelection(i, s, scope, owner, action, parts) {
     if (!await isAdmin(i, s)) return i.reply({ content: "Your admin access has changed. Reopen the panel after checking permissions.", flags: MessageFlags.Ephemeral });
     if (action === "player-target") return i.update(await renderAdmin(i.guildId, owner, "player", s, value));
     if (action === "fairness-target") {
-      if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner or configured bot owner can change leaderboard eligibility.", flags: MessageFlags.Ephemeral });
+      if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner, bot owner, or configured Admin Role can change leaderboard eligibility.", flags: MessageFlags.Ephemeral });
       return i.update(await renderAdmin(i.guildId, owner, "fairness", s, value));
     }
     if (action === "clear-setting") {
@@ -495,7 +495,7 @@ async function handleSelection(i, s, scope, owner, action, parts) {
       return i.editReply(await renderAdmin(i.guildId, owner, "settings", s));
     }
     if (action === "career-select") {
-      if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner or configured bot owner can assign careers.", flags: MessageFlags.Ephemeral });
+      if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner, bot owner, or configured Admin Role can assign careers.", flags: MessageFlags.Ephemeral });
       return i.showModal(modal("admin:" + owner + ":career-modal:" + parts[3] + ":" + value, "Assign a career", [
         { id: "level", label: "Job level (1–30)", placeholder: "1", max: 2 },
         { id: "reason", label: "Audit reason", paragraph: true, max: 500 }
@@ -618,7 +618,7 @@ async function handleButton(i, s) {
       return i.update(await renderAdmin(i.guildId, owner, action === "refresh" ? "home" : action, s, target));
     }
     if (["grant-fc", "grant-xp", "remove-fc", "set-level"].includes(action)) {
-      if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner or configured bot owner can edit member currency and progression.", flags: MessageFlags.Ephemeral });
+      if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner, bot owner, or configured Admin Role can edit member currency and progression.", flags: MessageFlags.Ephemeral });
       const isLevel = action === "set-level";
       return i.showModal(modal("admin:" + owner + ":" + action + ":" + target, isLevel ? "Set player level" : action === "remove-fc" ? "Remove FS Coins" : action === "grant-xp" ? "Grant XP" : "Grant FS Coins", [
         { id: isLevel ? "level" : "amount", label: isLevel ? "New level (1–100)" : "Amount", placeholder: isLevel ? "10" : "1000", max: 12 },
@@ -626,19 +626,19 @@ async function handleButton(i, s) {
       ]));
     }
     if (action === "set-career") {
-      if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner or configured bot owner can assign careers.", flags: MessageFlags.Ephemeral });
+      if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner, bot owner, or configured Admin Role can assign careers.", flags: MessageFlags.Ephemeral });
       const opts = balancing.jobs.map((j) => ({ label: j.name, value: j.id, description: "Assign " + j.name }));
       const careerMenu = new StringSelectMenuBuilder().setCustomId("admin:" + owner + ":career-select:" + target).setPlaceholder("Choose a career").setMinValues(1).setMaxValues(1).addOptions(opts);
       return i.update(panel("ASSIGN CAREER", "Choose the career to assign to <@" + target + ">.", [], [row(careerMenu), row(aBtn(owner, "player", "Back to player tools", ButtonStyle.Secondary, null, target))]));
     }
     if (action === "exclude") {
-      if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner or configured bot owner can change leaderboard eligibility.", flags: MessageFlags.Ephemeral });
+      if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner, bot owner, or configured Admin Role can change leaderboard eligibility.", flags: MessageFlags.Ephemeral });
       return i.showModal(modal("admin:" + owner + ":exclude-modal:" + target, "Exclude from leaderboards", [
         { id: "reason", label: "Reason for exclusion", paragraph: true, max: 500 }
       ]));
     }
     if (action === "include") {
-      if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner or configured bot owner can change leaderboard eligibility.", flags: MessageFlags.Ephemeral });
+      if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner, bot owner, or configured Admin Role can change leaderboard eligibility.", flags: MessageFlags.Ephemeral });
       await i.deferUpdate();
       await s.economy.includeInLeaderboards(i.guildId, target);
       await safeAudit(i, s, "leaderboard_member_included", target, {});
