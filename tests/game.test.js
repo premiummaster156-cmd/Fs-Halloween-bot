@@ -160,7 +160,7 @@ test("slash command burst is rate-limited without granting Administrator access"
 
 test("members with a higher role than the bot are excluded from security monitoring", async () => {
   const { SecurityService } = require("../src/services/security");
-  const security = new SecurityService({}, {});
+  const security = new SecurityService({}, { get: async () => null });
   const makeGuild = (id, comparison) => ({
     id,
     ownerId: "guild-owner",
@@ -168,7 +168,10 @@ test("members with a higher role than the bot are excluded from security monitor
       me: { roles: { highest: { id: "bot-role" } } },
       fetch: async (userId) => ({
         id: userId,
-        roles: { highest: { comparePositionTo: () => comparison } }
+        roles: {
+          cache: { has: () => false },
+          highest: { comparePositionTo: () => comparison }
+        }
       })
     }
   });
