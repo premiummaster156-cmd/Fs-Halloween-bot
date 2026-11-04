@@ -36,10 +36,10 @@ async function main() {
     const context = isolate.createContextSync();
     context.global.setSync("__input", request.input || {}, { copy: true });
 
-    const prefix = "const module = { exports: {} }; const exports = module.exports;\\n";
+    const prefix = "const module = { exports: {} }; const exports = module.exports;\n";
 
     if (request.mode === "inspect") {
-      const script = isolate.compileScriptSync(prefix + request.source + "\\n; JSON.stringify(module.exports.data)");
+      const script = isolate.compileScriptSync(prefix + request.source + "\n; JSON.stringify(module.exports.data)");
       const dataJson = script.runSync(context, { timeout: 500, copy: true });
       const inspectScript = isolate.compileScriptSync("typeof module.exports.execute === 'function' ? 'ok' : 'missing'");
       const hasExecute = inspectScript.runSync(context, { timeout: 100, copy: true });
@@ -51,7 +51,7 @@ async function main() {
     }
 
     if (request.mode !== "run") throw new Error("Unknown command runner operation.");
-    const initScript = isolate.compileScriptSync(prefix + request.source + "\\n; true");
+    const initScript = isolate.compileScriptSync(prefix + request.source + "\n; true");
     initScript.runSync(context, { timeout: 500, copy: true });
     const inspectScript = isolate.compileScriptSync("typeof module.exports.execute === 'function' ? 'ok' : 'missing'");
     if (inspectScript.runSync(context, { timeout: 100, copy: true }) !== "ok") {
