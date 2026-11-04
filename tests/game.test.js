@@ -195,7 +195,7 @@ test("Candy-drop chances vary by earning action and equipped gear increases them
   assert.equal(calculateCandyDrop("bank_withdrawal", 0, 0, 0), null);
   assert.equal(calculateCandyDrop("job_work", 0, 0.19, 0)?.amount, 1);
   assert.equal(calculateCandyDrop("job_work", 0, 0.20, 0), null);
-  assert.equal(calculateCandyDrop("job_work", 0.10, 0.25, 0)?.chance, 0.30);
+  assert.ok(Math.abs(calculateCandyDrop("job_work", 0.10, 0.25, 0)?.chance - 0.30) < 1e-9);
   assert.equal(calculateCandyDrop("job_work", 0.10, 0.25, 0)?.amount, 1);
   assert.equal(calculateCandyDrop("heist_reward", 0, 0.25, 0.99)?.amount, 4);
   assert.equal(calculateCandyDrop("casino_payout", 0, 0.06, 0), null);
