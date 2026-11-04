@@ -169,7 +169,7 @@ class EconomyService {
         "SELECT quest_id FROM event_claims WHERE guild_id = $1 AND user_id = $2 " +
         "AND quest_id NOT LIKE 'weekly_messages:%' " +
         "ORDER BY claimed_at DESC LIMIT 1",
-        [guildId, userId, player.last_rebirth_at || null]
+        [guildId, userId]
       );
       if (!claim.rowCount) {
         throw new DomainError("Complete at least one event quest and claim its reward before your first rebirth.", "REBIRTH_EVENT_REWARD_REQUIRED");
