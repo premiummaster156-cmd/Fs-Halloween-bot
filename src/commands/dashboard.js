@@ -1069,4 +1069,4 @@ async function handleDashboardInteraction(i, s) {
     return handleSelection(i, s, p[0], p[1], p[2], p);
   }
 }
-module.exports = { openMenu, openAdmin, handleDashboardInteraction, isAdmin };
+module.exports = { openMenu, openAdmin, handleDashboardInteraction, isAdmin, buildHeistEmbed };
