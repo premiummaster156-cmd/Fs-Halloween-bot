@@ -148,6 +148,26 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS audit_logs_guild_time_idx ON audit_logs (guild_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS custom_commands (
+  id TEXT PRIMARY KEY,
+  guild_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL,
+  definition JSONB NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT FALSE,
+  deployed_at TIMESTAMPTZ,
+  created_by TEXT NOT NULL,
+  updated_by TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ,
+  UNIQUE (guild_id, name),
+  CHECK (jsonb_typeof(definition) = 'object')
+);
+CREATE INDEX IF NOT EXISTS custom_commands_guild_active_idx
+  ON custom_commands (guild_id, is_active, name)
+  WHERE deleted_at IS NULL;
+
 CREATE TABLE IF NOT EXISTS guild_settings (
   guild_id TEXT NOT NULL,
   setting_key TEXT NOT NULL,
