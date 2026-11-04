@@ -21,13 +21,6 @@ const { respond } = require("./ui");
 
 const MEMBER_COMMANDS_CHANNEL_ID = "1566508610459271478";
 
-function isBotOwnerOrGuildOwner(interaction) {
-  return Boolean(
-    (settings.ownerId && interaction.user.id === settings.ownerId) ||
-    (interaction.guild && interaction.guild.ownerId === interaction.user.id)
-  );
-}
-
 async function start() {
   if (!settings.discordToken) throw new Error("DISCORD_TOKEN is missing.");
   if (!settings.clientId) throw new Error("CLIENT_ID is missing.");
@@ -114,12 +107,12 @@ async function start() {
     if (!interaction.isChatInputCommand()) return;
     if (!interaction.inGuild()) return respond(interaction, { kind: "error", ephemeral: true, title: "Server Only", description: "Use this command inside Fukishokai." });
 
-    const ownerAccess = isBotOwnerOrGuildOwner(interaction);
+    const ownerAccess = await security.hasAdminAccess(interaction.guild, interaction.user.id);
     if (interaction.commandName === "admin" && !ownerAccess) {
       await security.recordUnauthorizedAdminAttempt(interaction);
       return respond(interaction, {
         kind: "error", ephemeral: true, title: "Owner access required",
-        description: "Only the server owner or configured bot owner can open the administration console."
+        description: "Only the server owner, configured bot owner, or Admin Role selected in /admin panel can open the administration console."
       });
     }
 
