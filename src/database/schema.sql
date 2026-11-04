@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS players (
   level INTEGER NOT NULL DEFAULT 1 CHECK (level >= 1),
   xp BIGINT NOT NULL DEFAULT 0 CHECK (xp >= 0),
   prestige INTEGER NOT NULL DEFAULT 0 CHECK (prestige >= 0),
+  last_rebirth_at TIMESTAMPTZ,
   job_id TEXT,
   job_level INTEGER NOT NULL DEFAULT 1 CHECK (job_level >= 1),
   job_xp BIGINT NOT NULL DEFAULT 0 CHECK (job_xp >= 0),
@@ -19,6 +20,7 @@ CREATE TABLE IF NOT EXISTS players (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (guild_id, user_id)
 );
+ALTER TABLE players ADD COLUMN IF NOT EXISTS last_rebirth_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS players_balance_idx ON players (guild_id, (wallet + bank) DESC);
 CREATE INDEX IF NOT EXISTS players_level_idx ON players (guild_id, level DESC, xp DESC);
 CREATE INDEX IF NOT EXISTS players_earned_idx ON players (guild_id, lifetime_earned DESC);
@@ -54,6 +56,7 @@ CREATE TABLE IF NOT EXISTS inventory (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (guild_id, user_id, item_id)
 );
+ALTER TABLE inventory ADD COLUMN IF NOT EXISTS upgrade_level INTEGER NOT NULL DEFAULT 0 CHECK (upgrade_level BETWEEN 0 AND 5);
 
 CREATE TABLE IF NOT EXISTS heists (
   id UUID PRIMARY KEY,
