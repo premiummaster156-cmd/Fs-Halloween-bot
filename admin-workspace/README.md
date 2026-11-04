@@ -6,6 +6,18 @@ Runtime JavaScript slash-command files are stored here as:
 
 The bot mirrors approved command files from PostgreSQL on startup and writes each Code Studio or AI workspace save to disk immediately. Mount persistent storage at this directory on hosts with ephemeral filesystems. PostgreSQL is the recovery copy.
 
+## Browser Code Studio setup
+
+To open the Monaco JavaScript editor from **/admin panel → Custom commands**, configure these environment values on the bot host:
+
+- `DISCORD_CLIENT_SECRET`: the OAuth2 client secret from the Discord Developer Portal.
+- `IDE_PUBLIC_URL`: the public HTTPS base URL for this bot's Code Studio.
+- `IDE_PORT`: optional; defaults to the host-provided `PORT`, or 3000.
+
+In the Discord Developer Portal, add the redirect URI `<IDE_PUBLIC_URL>/auth/callback` to the application's OAuth2 redirect URLs. The admin-panel link passes the current server ID into Code Studio, and sign-in is checked against that server's owner, the configured bot owner, or that server's Admin Role. The browser editor does not need a fixed `IDE_GUILD_ID`; that setting remains required only for the optional external AI workspace API.
+
+The host must expose the Code Studio HTTP port through the public URL. Do not share the OAuth client secret or the optional AI workspace API key.
+
 ## JavaScript command format
 
 Each file is a CommonJS JavaScript module. Its exported `data` describes the slash command, and `execute(interaction)` contains the command logic:
