@@ -980,6 +980,9 @@ async function handleButton(i, s) {
         { name: "Rebirth count", value: String(result.rebirths), inline: true },
         { name: "Next wealth requirement", value: result.nextWalletRequired.toLocaleString() + " FC", inline: true },
         { name: "Next level requirement", value: "Level " + result.nextLevelRequired, inline: true },
+        { name: "Next career requirement", value: "Apply for a job and reach job level " + result.nextJobLevelRequired, inline: true },
+        { name: "Next event quest requirement", value: result.nextQuestClaimsRequired + " normal event quest rewards claimed", inline: true },
+        { name: "Next work requirement", value: result.nextWorkShiftsRequired + " completed shifts in the next run", inline: true },
         { name: "Gear and upgrades", value: "Your inventory, equipped items and upgrade levels were preserved." }
       ], [row(btn(owner, "profile", "View profile"), btn(owner, "gear", "View gear")), navButton(owner)], "success"));
   }
