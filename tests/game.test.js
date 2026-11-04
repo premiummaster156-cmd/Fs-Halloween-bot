@@ -627,3 +627,60 @@ test("custom command templates render member and option data without enabling me
   assert.match(payload.embeds[0].data.description, /Fukishokai/);
   assert.equal(payload.embeds[0].data.fields[0].value, "member-2");
 });
+
+test("JavaScript Code Studio validates command metadata and runs code in a separate restricted runner", async () => {
+  const { inspectCommandSource, runInIsolatedProcess } = require("../src/services/custom-commands");
+  const source = [
+    "module.exports = {",
+    "  data: {",
+    "    name: 'hello-code-studio',",
+    "    description: 'Test a JavaScript command',",
+    "    visibility: 'public',",
+    "    options: [{ name: 'target', description: 'Text to include', type: 'string', required: false }]",
+    "  },",
+    "  async execute({ user, options }) {",
+    "    return { content: 'Hello ' + user.username + ' ' + (options.target || 'there') + '!' };",
+    "  }",
+    "};"
+  ].join("\n");
+
+  const metadata = await inspectCommandSource(source);
+  assert.equal(metadata.name, "hello-code-studio");
+  assert.equal(metadata.definition.options[0].name, "target");
+  assert.equal(metadata.definition.response.visibility, "public");
+
+  const result = await runInIsolatedProcess(source, "run", {
+    user: { username: "Brian" },
+    options: { target: "Fukishokai" }
+  });
+  assert.equal(result.result.content, "Hello Brian Fukishokai!");
+});
+
+test("custom JavaScript command source cannot access Node process, require, fetch or host secrets", async () => {
+  const { runInIsolatedProcess } = require("../src/services/custom-commands");
+  const source = [
+    "module.exports = {",
+    "  data: { name: 'sandbox-check', description: 'Check runtime isolation', options: [] },",
+    "  execute() {",
+    "    return { content: [typeof process, typeof require, typeof fetch, typeof globalThis.process].join('|') };",
+    "  }",
+    "};"
+  ].join("\n");
+  const result = await runInIsolatedProcess(source, "run", {});
+  assert.equal(result.result.content, "undefined|undefined|undefined|undefined");
+});
+
+test("custom JavaScript command inspection rejects missing metadata and execution timeouts", async () => {
+  const { inspectCommandSource, runInIsolatedProcess } = require("../src/services/custom-commands");
+  await assert.rejects(
+    inspectCommandSource("module.exports = { data: { name: 'bad-code', description: 'Missing execute' } };"),
+    /execute function/
+  );
+  const infinite = [
+    "module.exports = {",
+    "  data: { name: 'infinite-loop', description: 'Loop forever', options: [] },",
+    "  execute() { while (true) {} }",
+    "};"
+  ].join("\n");
+  await assert.rejects(runInIsolatedProcess(infinite, "run", {}), /time|runner/i);
+});
