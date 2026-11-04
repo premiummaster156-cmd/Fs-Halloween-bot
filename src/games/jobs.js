@@ -67,7 +67,7 @@ class JobsGame {
       const baseXpEarned = Math.max(1, Math.floor(job.xp * correct / total));
       const careerXpBonus = Math.min(0.75, (gear.xpBonus || 0) + (gear.workXpBonus || 0));
       const xpEarned = Math.max(1, Math.floor(baseXpEarned * getRebirthMultiplier(player.prestige) * (1 + careerXpBonus)));
-      await client.query("UPDATE players SET work_count = work_count + 1, job_xp = job_xp + $3, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [guildId, userId, xpEarned]);
+      await client.query("UPDATE players SET work_count = work_count + 1, rebirth_work_count = rebirth_work_count + 1, job_xp = job_xp + $3, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [guildId, userId, xpEarned]);
       const updated = await client.query("SELECT job_level, job_xp FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [guildId, userId]);
       let jobLevel = Number(updated.rows[0].job_level);
       let jobXp = Number(updated.rows[0].job_xp);
