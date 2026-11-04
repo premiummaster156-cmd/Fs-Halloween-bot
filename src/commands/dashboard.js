@@ -52,7 +52,7 @@ async function recordMemberAction(i, services, action, announcement, details = {
   const actorId = i.user.id;
   const displayName = i.member?.displayName || i.user.globalName || i.user.username;
   await audit(services.pool, i.guildId, actorId, action, actorId, details);
-  await safeSendLog(i, s, "Member activity: " + action + " · " + displayName + " (" + actorId + ")" +
+  await sendLog(i.client, i.guildId, "Member activity: " + action + " · " + displayName + " (" + actorId + ")" +
     (Object.keys(details).length ? " · " + JSON.stringify(details).slice(0, 700) : ""));
   try {
     let channel = i.channel;
