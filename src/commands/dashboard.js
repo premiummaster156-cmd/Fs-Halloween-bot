@@ -33,7 +33,6 @@ function btn(owner, action, label, style = ButtonStyle.Secondary, emoji, extra) 
 }
 function aBtn(owner, action, label, style = ButtonStyle.Secondary, emoji, extra) {
   const b = new ButtonBuilder().setCustomId(["admin", owner, action, extra].filter(Boolean).join(":")).setLabel(label).setStyle(style);
-  if (emoji) b.setEmoji(emoji);
   return b;
 }
 function row(...items) { return new ActionRowBuilder().addComponents(...items); }
