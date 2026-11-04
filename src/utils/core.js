@@ -32,7 +32,9 @@ function randomInt(minimum, maximum) {
   return crypto.randomInt(minimum, maximum + 1);
 }
 function chance(percent) {
-  return randomInt(1, 100) <= Math.max(0, Math.min(100, Math.floor(percent)));
+  // Basis-point precision supports transparent fractional odds such as 47.5%.
+  const basisPoints = Math.round(clamp(Number(percent) || 0, 0, 100) * 100);
+  return randomInt(1, 10000) <= basisPoints;
 }
 function uuid() { return crypto.randomUUID(); }
 function clamp(value, minimum, maximum) { return Math.min(maximum, Math.max(minimum, value)); }
