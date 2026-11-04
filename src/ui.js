@@ -6,11 +6,15 @@ function createEmbed(options = {}) {
   const thumbnail = options.thumbnail || options.iconUrl || brand.icons[options.icon] || brand.iconUrl;
   const title = options.title ? String(options.title).trim().slice(0, 256) : "";
   const description = options.description ? String(options.description).trim().slice(0, 4096) : "";
-  const footerText = String(options.footer || "FUKISHOKAI  •  Interactive game centre").slice(0, 2000);
+  const footerText = options.footer === false
+    ? ""
+    : String(options.footer ?? "FUKISHOKAI  •  Interactive game centre").slice(0, 2000);
   const embed = new EmbedBuilder()
     .setColor(options.color ?? brand.primary)
-    .setAuthor({ name: brand.name, iconURL: brand.iconUrl })
-    .setFooter({ text: footerText, iconURL: brand.iconUrl });
+    .setAuthor({ name: brand.name, iconURL: brand.iconUrl });
+  if (options.footer !== false) {
+    embed.setFooter({ text: footerText, iconURL: brand.iconUrl });
+  }
 
   if (title) embed.setTitle(title);
   if (description) embed.setDescription(description);
