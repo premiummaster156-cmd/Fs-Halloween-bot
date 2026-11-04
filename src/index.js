@@ -17,6 +17,7 @@ const { ActivityService } = require("./services/activity");
 const { InventoryService } = require("./services/inventory");
 const { GuildSettingsService } = require("./services/guild-settings");
 const { SecurityService } = require("./services/security");
+const { CustomCommandService } = require("./services/custom-commands");
 const { respond } = require("./ui");
 
 const MEMBER_COMMANDS_CHANNEL_ID = "1566508610459271478";
@@ -31,8 +32,9 @@ async function start() {
   economy.inventory = inventory;
   const guildSettings = new GuildSettingsService(pool);
   const security = new SecurityService(pool, guildSettings);
+  const customCommands = new CustomCommandService(pool);
   client.services = {
-    pool, balancing, economy, inventory, guildSettings, security,
+    pool, balancing, economy, inventory, guildSettings, security, customCommands,
     jobs: new JobsGame(pool, economy, inventory),
     crime: new CrimeGame(pool, economy, inventory),
     casino: new CasinoGame(pool, economy, inventory),
@@ -128,10 +130,17 @@ async function start() {
     }
 
     const command = client.commands.get(interaction.commandName);
-    if (!command) {
+    const customCommand = command ? null : await client.services.customCommands.getByName(interaction.guildId, interaction.commandName);
+    if (!command && !customCommand) {
       return respond(interaction, {
         kind: "error", ephemeral: true, title: "Command unavailable",
-        description: "This command is not available in the bot's current version. Ask an owner to redeploy the slash commands."
+        description: "This command is not available in the bot's current version. Ask an owner to check the command manager."
+      });
+    }
+    if (customCommand && !customCommand.is_active) {
+      return respond(interaction, {
+        kind: "warning", ephemeral: true, title: "Command not activated",
+        description: "This custom command has been deployed but is not active yet. An authorized administrator must activate it in the admin panel."
       });
     }
 
@@ -151,7 +160,9 @@ async function start() {
     }
 
     const startedAt = Date.now();
-    const privateReply = command.data.name === "admin" || command.data.name === "menu";
+    const privateReply = command
+      ? command.data.name === "admin" || command.data.name === "menu"
+      : customCommand.definition?.response?.visibility === "private";
     try {
       await interaction.deferReply(privateReply ? { flags: MessageFlags.Ephemeral } : {});
     } catch (error) {
@@ -160,7 +171,8 @@ async function start() {
     }
 
     try {
-      await command.execute(interaction, client.services);
+      if (command) await command.execute(interaction, client.services);
+      else await client.services.customCommands.execute(interaction, customCommand);
     } catch (error) {
       console.error("[command] " + interaction.commandName + " failed:", error.code || error.name, error.message);
       if (error.code === "COOLDOWN") {
