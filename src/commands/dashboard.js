@@ -230,6 +230,9 @@ async function renderMenu(guildId, owner, page, s) {
     const inv = await s.inventory.getInventory(guildId, owner);
     const effects = await s.inventory.getEffects(guildId, owner);
     const owned = inv.items.map((x) => {
+      if (x.item.type !== "equipment") {
+        return "🎃 **" + x.item.name + "** × " + x.quantity + " · Candy collectible · Rebirth milestone";
+      }
       const current = (x.equipped ? "🟢 " : "▫️ ") + "**" + x.item.name + "** × " + x.quantity +
         " · Upgrade " + x.upgradeLevel + "/" + balancing.itemUpgrades.maxLevel + (x.equipped ? " · Equipped" : "");
       if (x.upgradeLevel >= balancing.itemUpgrades.maxLevel) return current + " · MAX";
