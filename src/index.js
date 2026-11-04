@@ -28,6 +28,7 @@ async function start() {
   const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildModeration] });
   const economy = new EconomyService(pool);
   const inventory = new InventoryService(pool, economy);
+  economy.inventory = inventory;
   const guildSettings = new GuildSettingsService(pool);
   const security = new SecurityService(pool, guildSettings);
   client.services = {
