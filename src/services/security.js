@@ -12,6 +12,7 @@ class SecurityService {
     this.cooldownAttempts = new Map();
     this.commandAttempts = new Map();
     this.componentAttempts = new Map();
+    this.unauthorizedAttempts = new Map();
     this.destructiveAttempts = new Map();
     this.alertedAt = new Map();
   }
@@ -165,6 +166,23 @@ class SecurityService {
         guild: interaction.guild, userId: interaction.user.id, category: "repeated_cooldown_bypass",
         summary: "Repeated attempts were made while a gameplay cooldown was still active.",
         details: { attemptsInWindow: attempts.length, windowSeconds: 120, command: interaction.commandName || null, customId: interaction.customId || null }
+      });
+    }
+  }
+
+  async recordUnauthorizedControlAttempt(interaction, controlId) {
+    if (this.isOwner(interaction.user.id, interaction.guild?.ownerId)) return;
+    const key = interaction.guildId + ":" + interaction.user.id + ":control";
+    const attempts = this.pushWindow(this.unauthorizedAttempts, key, Date.now(), 300000);
+    await this.pool.query(
+      "INSERT INTO audit_logs (guild_id, actor_id, action, target_id, details) VALUES ($1, $2, 'unauthorized_dashboard_control', $2, $3::jsonb)",
+      [interaction.guildId, interaction.user.id, JSON.stringify({ countInWindow: attempts.length, controlId: String(controlId || "").slice(0, 100) })]
+    ).catch((error) => log("warn", "Could not store unauthorized dashboard attempt", { message: error.message }));
+    if (attempts.length >= 3 && attempts.length % 3 === 0) {
+      await this.createIncident(interaction.client, {
+        guild: interaction.guild, userId: interaction.user.id, category: "unauthorized_control_access",
+        summary: "A member repeatedly tried to use dashboard controls that do not belong to them.",
+        details: { attemptsInWindow: attempts.length, windowSeconds: 300 }
       });
     }
   }
