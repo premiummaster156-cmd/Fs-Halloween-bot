@@ -71,7 +71,7 @@ test("equipment effects are combined and capped", () => {
 });
 
 
-test("casino odds are transparent and have a consistent 5% theoretical house edge", () => {
+test("casino odds are transparent and match the published game returns", () => {
   const rules = balancing.casino;
   const games = rules.games;
   const coinFlipReturn = (games.coinflip.winningChance / 100) * (games.coinflip.multiplierHundredths / 100);
@@ -83,18 +83,23 @@ test("casino odds are transparent and have a consistent 5% theoretical house edg
     slotsReturn += (rolls / 1000) * (outcome.multiplierHundredths / 100);
     start = outcome.maxRoll + 1;
   }
-  assert.ok(Math.abs(coinFlipReturn - rules.targetReturnRate) < 0.000001);
-  assert.ok(Math.abs(diceReturn - rules.targetReturnRate) < 0.000001);
-  assert.ok(Math.abs(slotsReturn - rules.targetReturnRate) < 0.000001);
+  assert.ok(Math.abs(coinFlipReturn - games.coinflip.theoreticalReturnRate) < 0.000001);
+  assert.ok(Math.abs(diceReturn - games.dice.theoreticalReturnRate) < 0.000001);
+  assert.ok(Math.abs(slotsReturn - games.slots.theoreticalReturnRate) < 0.000001);
+  assert.equal(games.slots.theoreticalReturnRate, 0.90);
 });
 
-test("casino exposure is capped equally for every player", () => {
+test("casino keeps the original bet range, has a 15-second cooldown and no daily cap", () => {
   assert.equal(balancing.casino.minBet, 100);
   assert.equal(balancing.casino.maxBet, 1000);
-  assert.equal(balancing.casino.dailyWagerLimit, 5000);
-  assert.ok(balancing.casino.cooldownMs >= 30000);
-  assert.ok(balancing.casino.games.slots.outcomes[0].maxRoll === 9);
+  assert.equal(balancing.casino.cooldownMs, 15000);
+  assert.equal(balancing.casino.dailyWagerLimit, undefined);
+  assert.equal(balancing.casino.games.slots.outcomes[0].maxRoll, 4);
   assert.equal(balancing.casino.games.slots.outcomes[0].multiplierHundredths, 1000);
+  assert.equal(balancing.casino.games.slots.outcomes[1].maxRoll, 44);
+  assert.equal(balancing.casino.games.slots.outcomes[1].multiplierHundredths, 400);
+  assert.equal(balancing.casino.games.slots.outcomes[2].maxRoll, 244);
+  assert.equal(balancing.casino.games.slots.outcomes[2].multiplierHundredths, 345);
 });
 
 
