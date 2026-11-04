@@ -32,7 +32,7 @@ module.exports = {
     { id: "syndicate_ledger", name: "Syndicate Ledger", type: "equipment", slot: "badge", cost: 240000, minLevel: 32, description: "Elite equipment for higher income, XP and improved gambling luck.", effects: { moneyBonus: 0.15, xpBonus: 0.15, workPayBonus: 0.12, crimeRewardBonus: 0.08, casinoChance: 1.5, slotLuck: 12, heistChance: 3 } }
   ],
   itemUpgrades: { maxLevel: 5, effectPerLevel: 0.15, costBaseFactor: 0.65, costGrowthFactor: 1.7, levelRequirementPerUpgrade: 2 },
-  rebirth: { startingWallet: 1000, firstWalletRequirement: 15000, firstLevelRequirement: 10, walletRequirementGrowth: 2.5, levelRequirementGrowth: 5 },
+  rebirth: { startingWallet: 1000, firstWalletRequirement: 12000, firstLevelRequirement: 8, walletRequirementGrowth: 1.5, levelRequirementGrowth: 2, firstQuestClaimsRequirement: 1, questClaimsGrowth: 1, firstJobLevelRequirement: 1, jobLevelGrowthEvery: 2, firstWorkShiftsRequirement: 3, workShiftsGrowth: 2 },
   crimes: [
     { id: "pickpocket", name: "Pickpocket", minLevel: 1, baseChance: 67, rewardMin: 90, rewardMax: 220, fineMin: 35, fineMax: 100, cooldownMs: 12 * minute, xp: 12, difficulty: 1 },
     { id: "shoplift", name: "Shoplift", minLevel: 4, baseChance: 54, rewardMin: 260, rewardMax: 650, fineMin: 120, fineMax: 290, cooldownMs: 22 * minute, xp: 22, difficulty: 2 },
