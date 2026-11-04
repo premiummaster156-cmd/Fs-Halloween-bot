@@ -369,7 +369,7 @@ class CustomCommandService {
 
   async getByName(guildId, name) {
     const result = await this.pool.query(
-      "SELECT id, name, description, definition, is_active, deployed_at FROM custom_commands " +
+      "SELECT id, name, description, definition, source_code, is_active, deployed_at FROM custom_commands " +
       "WHERE guild_id = $1 AND name = $2 AND deleted_at IS NULL",
       [guildId, name]
     );
