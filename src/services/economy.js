@@ -34,6 +34,46 @@ async function getLeaderboard(pool, guildId, metric = "wealth", limit = 10) {
   return result.rows;
 }
 
+function getRebirthRequirements(player, claimedQuestCount = 0) {
+  const rebirths = Math.max(0, Number(player.prestige) || 0);
+  const wealth = Number(player.wallet || 0) + Number(player.bank || 0);
+  const walletRequired = Math.min(Number.MAX_SAFE_INTEGER,
+    Math.ceil(balancing.rebirth.firstWalletRequirement * Math.pow(balancing.rebirth.walletRequirementGrowth, rebirths)));
+  const levelRequired = Math.min(100,
+    balancing.rebirth.firstLevelRequirement + rebirths * balancing.rebirth.levelRequirementGrowth);
+  const questClaimsRequired = Math.min(
+    balancing.halloween.quests.length,
+    balancing.rebirth.firstQuestClaimsRequirement + rebirths * balancing.rebirth.questClaimsGrowth
+  );
+  const jobLevelRequired = Math.min(30,
+    balancing.rebirth.firstJobLevelRequirement + Math.floor(rebirths / balancing.rebirth.jobLevelGrowthEvery));
+  const workShiftsRequired = Math.min(Number.MAX_SAFE_INTEGER,
+    balancing.rebirth.firstWorkShiftsRequirement + rebirths * balancing.rebirth.workShiftsGrowth);
+  const currentJob = balancing.jobs.find((job) => job.id === player.job_id) || null;
+  const claimed = Math.max(0, Number(claimedQuestCount) || 0);
+  const currentJobLevel = Number(player.job_level || 1);
+  const workShiftsCompleted = Number(player.rebirth_work_count || 0);
+  const checks = {
+    wealth: wealth >= walletRequired,
+    level: Number(player.level || 1) >= levelRequired,
+    quests: claimed >= questClaimsRequired,
+    career: Boolean(currentJob),
+    careerLevel: Boolean(currentJob) && currentJobLevel >= jobLevelRequired,
+    workShifts: workShiftsCompleted >= workShiftsRequired
+  };
+  return {
+    rebirths, wealth, wallet: Number(player.wallet || 0), bank: Number(player.bank || 0),
+    level: Number(player.level || 1),
+    multiplier: getRebirthMultiplier(rebirths),
+    nextMultiplier: getRebirthMultiplier(rebirths + 1),
+    walletRequired, levelRequired,
+    questClaimsCount: claimed, questClaimsRequired,
+    currentJob, currentJobLevel, jobLevelRequired,
+    workShiftsCompleted, workShiftsRequired,
+    checks, eligible: Object.values(checks).every(Boolean)
+  };
+}
+
 class EconomyService {
   constructor(pool) { this.pool = pool; this.inventory = null; }
   transact(callback) { return transaction(callback); }
@@ -121,63 +161,67 @@ class EconomyService {
 
   async getRebirthStatus(guildId, userId) {
     const player = await getPlayer(this.pool, guildId, userId);
-    const rebirths = Number(player.prestige || 0);
-    const walletRequired = Math.min(Number.MAX_SAFE_INTEGER,
-      balancing.rebirth.firstWalletRequirement * Math.pow(balancing.rebirth.walletRequirementGrowth, rebirths));
-    const levelRequired = Math.min(100,
-      balancing.rebirth.firstLevelRequirement + rebirths * balancing.rebirth.levelRequirementGrowth);
-    const claim = await this.pool.query(
-      "SELECT event_id, quest_id, claimed_at FROM event_claims WHERE guild_id = $1 AND user_id = $2 " +
-      "AND quest_id NOT LIKE 'weekly_messages:%' " +
-      "ORDER BY claimed_at DESC LIMIT 1",
+    const claims = await this.pool.query(
+      "SELECT COUNT(*)::int AS claimed_count FROM event_claims WHERE guild_id = $1 AND user_id = $2 " +
+      "AND quest_id NOT LIKE 'weekly_messages:%'",
       [guildId, userId]
     );
-    const wealth = Number(player.wallet) + Number(player.bank);
-    return {
-      wallet: Number(player.wallet), bank: Number(player.bank), wealth,
-      level: Number(player.level), rebirths,
-      multiplier: getRebirthMultiplier(rebirths),
-      nextMultiplier: getRebirthMultiplier(rebirths + 1),
-      walletRequired, levelRequired,
-      questClaimed: claim.rowCount > 0,
-      claimedQuest: claim.rows[0] || null,
-      eligible: wealth >= walletRequired && Number(player.level) >= levelRequired && claim.rowCount > 0
-    };
+    return getRebirthRequirements(player, claims.rows[0]?.claimed_count || 0);
   }
 
   async rebirth(guildId, userId) {
     return transaction(async (client) => {
       await ensurePlayerTx(client, guildId, userId);
       const playerResult = await client.query(
-        "SELECT wallet, bank, level, prestige, last_rebirth_at FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE",
+        "SELECT wallet, bank, level, prestige, job_id, job_level, rebirth_work_count " +
+        "FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE",
         [guildId, userId]
       );
       const player = playerResult.rows[0];
-      const rebirths = Number(player.prestige || 0);
-      const walletRequired = Math.min(Number.MAX_SAFE_INTEGER,
-        balancing.rebirth.firstWalletRequirement * Math.pow(balancing.rebirth.walletRequirementGrowth, rebirths));
-      const levelRequired = Math.min(100,
-        balancing.rebirth.firstLevelRequirement + rebirths * balancing.rebirth.levelRequirementGrowth);
-      const wealth = Number(player.wallet) + Number(player.bank);
-      if (wealth < walletRequired) {
-        throw new DomainError("You need " + walletRequired.toLocaleString() + " FC in total wallet and bank savings to rebirth.", "REBIRTH_FUNDS_REQUIRED");
-      }
-      if (Number(player.level) < levelRequired) {
-        throw new DomainError("You need level " + levelRequired + " to rebirth.", "REBIRTH_LEVEL_REQUIRED");
-      }
-      const claim = await client.query(
-        "SELECT quest_id FROM event_claims WHERE guild_id = $1 AND user_id = $2 " +
-        "AND quest_id NOT LIKE 'weekly_messages:%' " +
-        "ORDER BY claimed_at DESC LIMIT 1",
+      const claims = await client.query(
+        "SELECT COUNT(*)::int AS claimed_count FROM event_claims WHERE guild_id = $1 AND user_id = $2 " +
+        "AND quest_id NOT LIKE 'weekly_messages:%'",
         [guildId, userId]
       );
-      if (!claim.rowCount) {
-        throw new DomainError("Complete at least one event quest and claim its reward before your first rebirth.", "REBIRTH_EVENT_REWARD_REQUIRED");
+      const requirements = getRebirthRequirements(player, claims.rows[0]?.claimed_count || 0);
+
+      if (!requirements.checks.wealth) {
+        throw new DomainError(
+          "You need " + requirements.walletRequired.toLocaleString() + " FC in combined wallet and bank savings to rebirth.",
+          "REBIRTH_FUNDS_REQUIRED"
+        );
       }
-      const newRebirths = rebirths + 1;
+      if (!requirements.checks.level) {
+        throw new DomainError("You need player level " + requirements.levelRequired + " to rebirth.", "REBIRTH_LEVEL_REQUIRED");
+      }
+      if (!requirements.checks.quests) {
+        throw new DomainError(
+          "You need " + requirements.questClaimsRequired + " claimed event quest rewards. You currently have " +
+          requirements.questClaimsCount + ".",
+          "REBIRTH_EVENT_REWARDS_REQUIRED"
+        );
+      }
+      if (!requirements.checks.career) {
+        throw new DomainError("Apply for a career before rebirthing. Your current run must include an active job.", "REBIRTH_JOB_REQUIRED");
+      }
+      if (!requirements.checks.careerLevel) {
+        throw new DomainError(
+          "Your career must reach job level " + requirements.jobLevelRequired + " before rebirthing.",
+          "REBIRTH_JOB_LEVEL_REQUIRED"
+        );
+      }
+      if (!requirements.checks.workShifts) {
+        throw new DomainError(
+          "Complete " + requirements.workShiftsRequired + " work shifts in this run. Progress: " +
+          requirements.workShiftsCompleted + "/" + requirements.workShiftsRequired + ".",
+          "REBIRTH_WORK_REQUIRED"
+        );
+      }
+
+      const newRebirths = requirements.rebirths + 1;
       const reset = await client.query(
         "UPDATE players SET wallet = $3, bank = 0, level = 1, xp = 0, job_id = NULL, job_level = 1, job_xp = 0, " +
-        "reputation = 0, prestige = $4, last_rebirth_at = NOW(), updated_at = NOW() " +
+        "rebirth_work_count = 0, reputation = 0, prestige = $4, last_rebirth_at = NOW(), updated_at = NOW() " +
         "WHERE guild_id = $1 AND user_id = $2 RETURNING wallet, level, prestige",
         [guildId, userId, balancing.rebirth.startingWallet, newRebirths]
       );
@@ -186,19 +230,27 @@ class EconomyService {
         "INSERT INTO economy_ledger (guild_id, user_id, delta, reason, reference, metadata) VALUES ($1, $2, $3, 'rebirth_reset', $4, $5::jsonb)",
         [guildId, userId, balancing.rebirth.startingWallet - Number(player.wallet), uuid(), JSON.stringify({
           previousWallet: Number(player.wallet), previousBank: Number(player.bank),
-          previousLevel: Number(player.level), rebirths: newRebirths
+          previousLevel: Number(player.level), previousJobId: player.job_id,
+          previousJobLevel: Number(player.job_level), rebirths: newRebirths,
+          workShiftsCompleted: requirements.workShiftsCompleted,
+          questClaimsCount: requirements.questClaimsCount
         })]
       );
       return {
         rebirths: newRebirths,
         multiplier: getRebirthMultiplier(newRebirths),
-        previousWealth: wealth,
+        previousWealth: requirements.wealth,
         wallet: Number(reset.rows[0].wallet),
         level: Number(reset.rows[0].level),
         nextWalletRequired: Math.min(Number.MAX_SAFE_INTEGER,
-          balancing.rebirth.firstWalletRequirement * Math.pow(balancing.rebirth.walletRequirementGrowth, newRebirths)),
+          Math.ceil(balancing.rebirth.firstWalletRequirement * Math.pow(balancing.rebirth.walletRequirementGrowth, newRebirths))),
         nextLevelRequired: Math.min(100,
-          balancing.rebirth.firstLevelRequirement + newRebirths * balancing.rebirth.levelRequirementGrowth)
+          balancing.rebirth.firstLevelRequirement + newRebirths * balancing.rebirth.levelRequirementGrowth),
+        nextQuestClaimsRequired: Math.min(balancing.halloween.quests.length,
+          balancing.rebirth.firstQuestClaimsRequirement + newRebirths * balancing.rebirth.questClaimsGrowth),
+        nextJobLevelRequired: Math.min(30,
+          balancing.rebirth.firstJobLevelRequirement + Math.floor(newRebirths / balancing.rebirth.jobLevelGrowthEvery)),
+        nextWorkShiftsRequired: balancing.rebirth.firstWorkShiftsRequirement + newRebirths * balancing.rebirth.workShiftsGrowth
       };
     });
   }
@@ -238,4 +290,4 @@ class EconomyService {
   }
 }
 
-module.exports = { EconomyService, ensurePlayerTx, getPlayer, getLeaderboard };
+module.exports = { EconomyService, ensurePlayerTx, getPlayer, getLeaderboard, getRebirthRequirements };
