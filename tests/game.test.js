@@ -69,3 +69,30 @@ test("equipment effects are combined and capped", () => {
   ]);
   assert.deepEqual(result, { crimeChance: 15, heistChance: 15, workPayBonus: 0.25, fineReduction: 0.35 });
 });
+
+
+test("casino odds are transparent and have a consistent 5% theoretical house edge", () => {
+  const rules = balancing.casino;
+  const games = rules.games;
+  const coinFlipReturn = (games.coinflip.winningChance / 100) * (games.coinflip.multiplierHundredths / 100);
+  const diceReturn = (2 / 6) * (games.dice.multiplierHundredths / 100);
+  let start = 0;
+  let slotsReturn = 0;
+  for (const outcome of games.slots.outcomes) {
+    const rolls = outcome.maxRoll - start + 1;
+    slotsReturn += (rolls / 1000) * (outcome.multiplierHundredths / 100);
+    start = outcome.maxRoll + 1;
+  }
+  assert.ok(Math.abs(coinFlipReturn - rules.targetReturnRate) < 0.000001);
+  assert.ok(Math.abs(diceReturn - rules.targetReturnRate) < 0.000001);
+  assert.ok(Math.abs(slotsReturn - rules.targetReturnRate) < 0.000001);
+});
+
+test("casino exposure is capped equally for every player", () => {
+  assert.equal(balancing.casino.minBet, 100);
+  assert.equal(balancing.casino.maxBet, 1000);
+  assert.equal(balancing.casino.dailyWagerLimit, 5000);
+  assert.ok(balancing.casino.cooldownMs >= 30000);
+  assert.ok(balancing.casino.games.slots.outcomes[0].maxRoll === 9);
+  assert.equal(balancing.casino.games.slots.outcomes[0].multiplierHundredths, 1000);
+});
