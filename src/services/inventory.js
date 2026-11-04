@@ -13,7 +13,7 @@ function combineEffects(items) {
   const result = {
     crimeChance: 0, heistChance: 0, workPayBonus: 0, workXpBonus: 0,
     moneyBonus: 0, xpBonus: 0, crimeRewardBonus: 0, fineReduction: 0,
-    casinoChance: 0, slotLuck: 0,
+    casinoChance: 0, slotLuck: 0, candyDropBonus: 0,
     workCooldownReduction: 0, crimeCooldownReduction: 0, heistCooldownReduction: 0,
     dailyCooldownReduction: 0, casinoCooldownReduction: 0
   };
@@ -25,7 +25,7 @@ function combineEffects(items) {
     const effects = item.effects || {};
     const upgradeLevel = Math.max(0, Math.min(balancing.itemUpgrades.maxLevel, Number(item.upgradeLevel ?? item.upgrade_level) || 0));
     const factor = 1 + upgradeLevel * balancing.itemUpgrades.effectPerLevel;
-    for (const key of ["crimeChance", "heistChance", "workPayBonus", "workXpBonus", "moneyBonus", "xpBonus", "crimeRewardBonus", "fineReduction", "casinoChance", "slotLuck"]) {
+    for (const key of ["crimeChance", "heistChance", "workPayBonus", "workXpBonus", "moneyBonus", "xpBonus", "crimeRewardBonus", "fineReduction", "casinoChance", "slotLuck", "candyDropBonus"]) {
       result[key] += Number(effects[key] || 0) * factor;
     }
     for (const key of Object.keys(cooldownRemainders)) {
@@ -43,6 +43,7 @@ function combineEffects(items) {
   result.fineReduction = Math.min(0.60, result.fineReduction);
   result.casinoChance = Math.min(5, result.casinoChance);
   result.slotLuck = Math.min(30, Math.floor(result.slotLuck));
+  result.candyDropBonus = Math.min(0.20, result.candyDropBonus);
   for (const key of Object.keys(cooldownRemainders)) {
     result[key] = Math.min(0.45, 1 - cooldownRemainders[key]);
   }
