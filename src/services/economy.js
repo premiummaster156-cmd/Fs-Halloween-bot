@@ -92,7 +92,7 @@ class EconomyService {
     return { duplicate: false, balance: next, delta: appliedAmount, baseDelta: amount };
   }
 
-  async addXpTx(client, guildId, userId, amount, roleIds = []) {
+  async addXpTx(client, guildId, userId, amount, roleIds = [], activityBonus = 0) {
     const booster = await client.query(
       "SELECT setting_value FROM guild_settings WHERE guild_id = $1 AND setting_key = 'xpBoosterRoleId'",
       [guildId]
@@ -103,7 +103,7 @@ class EconomyService {
     const multiplier = balancing.progression.xpMultiplier *
       (hasBooster ? balancing.progression.roleBoosterMultiplier : 1) *
       getRebirthMultiplier(result.rows[0]?.prestige || 0) *
-      (1 + (gear.xpBonus || 0));
+      (1 + Math.min(0.75, (gear.xpBonus || 0) + (Number(activityBonus) || 0)));
     const gained = Math.max(0, Math.floor(amount * multiplier));
     if (!result.rowCount) return { gained, level: 1, levelsGained: 0 };
     let level = Number(result.rows[0].level);
