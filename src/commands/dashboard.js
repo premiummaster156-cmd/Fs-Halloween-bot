@@ -504,7 +504,10 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
   if (page === "custom-command") {
     const command = await s.customCommands.get(guildId, targetId);
     if (!command) return renderAdmin(guildId, owner, "custom-commands", s);
-    const code = JSON.stringify(command.definition, null, 2);
+    const editButton = settings.idePublicUrl
+      ? new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel("Open in Code Studio")
+        .setURL(settings.idePublicUrl.replace(/\\/+$/, "") + "/ide?commandId=" + encodeURIComponent(command.id))
+      : aBtn(owner, "custom-command-edit", "Code Studio URL needed", ButtonStyle.Secondary, null, command.id).setDisabled(true);
     const status = command.is_active ? "🟢 Active" : command.deployed_at ? "🟡 Deployed · Not active" : "⚪ Draft · Needs deployment";
     const activateButton = aBtn(owner, command.is_active ? "custom-command-deactivate" : "custom-command-activate",
       command.is_active ? "Deactivate" : "Activate",
@@ -513,11 +516,11 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
     return panel("CUSTOM COMMAND  /  " + command.name,
       "**/" + command.name + "** · " + status + "\n" + command.description,
       [
-        { name: "Code preview", value: code.length > 900 ? code.slice(0, 900) + "\n… Open Edit code to view or change the full definition." : code },
+        { name: "JavaScript source", value: command.source_code ? command.source_code.length.toLocaleString() + " characters · Open Code Studio to edit the .js file." : "Legacy command definition · Open Code Studio to replace it with JavaScript." },
         { name: "Activation", value: command.is_active ? "This command is available to members." : command.deployed_at ? "Deployed. Activate it to let members use it." : "Save changes, deploy slash commands, then activate it." }
       ],
       [
-        row(activateButton, aBtn(owner, "custom-command-edit", "Edit code", ButtonStyle.Secondary, "✏️", command.id)),
+        row(activateButton, editButton),
         row(aBtn(owner, "custom-command-deploy", "Run npm run deploy-commands", ButtonStyle.Primary, "🚀"), aBtn(owner, "custom-command-delete", "Delete", ButtonStyle.Danger, "🗑️", command.id), aBtn(owner, "custom-commands", "Back"))
       ]);
   }
