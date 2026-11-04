@@ -38,18 +38,21 @@ class SecurityService {
 
   async isAboveBotRole(guild, userId) {
     if (!guild || !userId) return false;
-    if (await this.hasAdminAccess(guild, userId)) return true;
+    if (this.isOwner(userId, guild.ownerId)) return true;
 
     const cacheKey = guild.id + ":" + userId;
     const cached = this.hierarchyCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) return cached.exempt;
 
     try {
+      const adminRoleId = await this.guildSettings.get(guild.id, "adminRoleId");
       const [member, botMember] = await Promise.all([
         guild.members.fetch(userId),
         guild.members.me ? Promise.resolve(guild.members.me) : guild.members.fetchMe()
       ]);
-      const exempt = member.roles.highest.comparePositionTo(botMember.roles.highest) > 0;
+      const hasTrustedAdminRole = Boolean(adminRoleId && member.roles.cache.has(adminRoleId));
+      const higherThanBot = member.roles.highest.comparePositionTo(botMember.roles.highest) > 0;
+      const exempt = hasTrustedAdminRole || higherThanBot;
       this.hierarchyCache.set(cacheKey, { exempt, expiresAt: Date.now() + 20000 });
       if (this.hierarchyCache.size > 5000) {
         for (const [key, item] of this.hierarchyCache) {
@@ -58,8 +61,8 @@ class SecurityService {
       }
       return exempt;
     } catch (_) {
-      // Fail closed for bot enforcement: if hierarchy cannot be verified,
-      // do not generate an alert or take an automated action against this actor.
+      // Fail closed: if the role configuration or hierarchy cannot be verified,
+      // do not generate a security log or take an automated action against the actor.
       return true;
     }
   }
