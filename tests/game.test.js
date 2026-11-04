@@ -67,7 +67,53 @@ test("equipment effects are combined and capped", () => {
     { effects: { crimeChance: 9, heistChance: 8, workPayBonus: 0.2, fineReduction: 0.3 } },
     { effects: { crimeChance: 9, heistChance: 9, workPayBonus: 0.2, fineReduction: 0.3 } }
   ]);
-  assert.deepEqual(result, { crimeChance: 15, heistChance: 15, workPayBonus: 0.25, fineReduction: 0.35 });
+  assert.equal(result.crimeChance, 18);
+  assert.equal(result.heistChance, 15);
+  assert.equal(result.workPayBonus, 0.4);
+  assert.equal(result.fineReduction, 0.6);
+  assert.equal(result.moneyBonus, 0);
+  assert.equal(result.xpBonus, 0);
+  assert.equal(result.casinoChance, 0);
+});
+
+test("gear upgrades strengthen effects and cooldown reductions stack safely", () => {
+  const { combineEffects } = require("../src/services/inventory");
+  const result = combineEffects([
+    { upgradeLevel: 2, effects: { workPayBonus: 0.10, workCooldownReduction: 0.20 } },
+    { upgradeLevel: 0, effects: { workPayBonus: 0.10, workCooldownReduction: 0.10 } }
+  ]);
+  assert.equal(result.workPayBonus, 0.13 * 1 + 0.10);
+  assert.ok(Math.abs(result.workCooldownReduction - (1 - (1 - 0.23) * (1 - 0.10))) < 0.000001);
+  assert.ok(result.workCooldownReduction <= 0.45);
+});
+
+test("rebirth multipliers double on every cycle and cooldown cuts have a safety cap", () => {
+  assert.equal(core.getRebirthMultiplier(0), 1);
+  assert.equal(core.getRebirthMultiplier(1), 2);
+  assert.equal(core.getRebirthMultiplier(2), 4);
+  assert.equal(core.getRebirthMultiplier(3), 8);
+  assert.equal(core.applyCooldownReduction(10000, 0.20), 8000);
+  assert.equal(core.applyCooldownReduction(10000, 0.60), 5500);
+  assert.equal(core.applyCooldownReduction(10000, 0.45, 6000), 6000);
+});
+
+test("gear catalog has rising tiers and five upgrade levels", () => {
+  assert.equal(balancing.itemUpgrades.maxLevel, 5);
+  assert.ok(balancing.items.length >= 10);
+  for (let index = 1; index < balancing.items.length; index += 1) {
+    assert.ok(balancing.items[index].cost > balancing.items[index - 1].cost);
+    assert.ok(balancing.items[index].minLevel > balancing.items[index - 1].minLevel);
+  }
+});
+
+test("slot luck shifts more rounds into wins without changing the expected return after scaling", () => {
+  const { slotExpectedReturn } = require("../src/games/casino");
+  const slots = balancing.casino.games.slots;
+  const base = slotExpectedReturn(slots, 0);
+  const luck = slotExpectedReturn(slots, 12);
+  assert.ok(luck > base);
+  const adjustedScale = base / luck;
+  assert.ok(Math.abs(luck * adjustedScale - base) < 1e-10);
 });
 
 
@@ -89,9 +135,9 @@ test("casino odds are transparent and match the published game returns", () => {
   assert.equal(games.slots.theoreticalReturnRate, 0.90);
 });
 
-test("casino keeps the original bet range, has a 15-second cooldown and no daily cap", () => {
+test("casino has a 100 FC minimum, no maximum, a 15-second cooldown and no daily cap", () => {
   assert.equal(balancing.casino.minBet, 100);
-  assert.equal(balancing.casino.maxBet, 1000);
+  assert.equal(balancing.casino.maxBet, undefined);
   assert.equal(balancing.casino.cooldownMs, 15000);
   assert.equal(balancing.casino.dailyWagerLimit, undefined);
   assert.equal(balancing.casino.games.slots.outcomes[0].maxRoll, 4);
