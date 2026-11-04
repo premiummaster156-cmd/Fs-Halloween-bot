@@ -225,8 +225,14 @@ async function start() {
 
   client.on(Events.Error, (error) => console.error("[discord] Client error:", error.message));
   await client.login(settings.discordToken);
+  const { startIdeServer } = require("./web/ide-server");
+  const ideServer = await startIdeServer(client, client.services).catch((error) => {
+    console.error("[code-studio] Could not start:", error.message);
+    return null;
+  });
   const shutdown = async (signal) => {
     console.log("[bot] Shutting down after " + signal + ".");
+    if (ideServer) await new Promise((resolve) => ideServer.close(resolve));
     client.destroy();
     await pool.end();
     process.exit(0);
