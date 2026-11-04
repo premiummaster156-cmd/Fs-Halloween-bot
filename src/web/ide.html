@@ -154,7 +154,16 @@
     editor=monaco.editor.create($("editor"),{value:starter,language:"javascript",theme:"vs-dark",automaticLayout:true,minimap:{enabled:true},fontSize:13,fontFamily:"Consolas, 'Courier New', monospace",lineNumbers:"on",roundedSelection:false,scrollBeyondLastLine:false,wordWrap:"on",tabSize:2,insertSpaces:true,folding:true,bracketPairColorization:{enabled:true},guides:{indentation:true,bracketPairs:true},suggest:{showKeywords:true,showSnippets:true},quickSuggestions:true,formatOnPaste:true,formatOnType:true,padding:{top:16,bottom:12}});
     editor.onDidChangeModelContent(()=>{if(selected)setDirty(true);});
     editor.addCommand(monaco.KeyMod.CtrlCmd|monaco.KeyCode.KeyS,()=>save().catch(handleError));
-    await loadCommands();log("Code Studio connected · JavaScript editor ready.","ok");
+    await loadCommands();
+    const query = new URLSearchParams(window.location.search);
+    const requestedId = query.get("commandId");
+    if (requestedId) {
+      const requested = commands.find((item) => item.id === requestedId);
+      if (requested) choose(requested);
+    } else if (query.get("new") === "1") {
+      chooseNew();
+    }
+    log("Code Studio connected · JavaScript editor ready.","ok");
    });
   }catch(error){$("login-error").textContent=error.message;}
  }
