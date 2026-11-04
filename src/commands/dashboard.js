@@ -47,14 +47,27 @@ async function safeSendLog(i, services, content) {
   return sendLog(i.client, i.guildId, content);
 }
 
-async function recordMemberAction(i, services, action, announcement, details = {}, kind = "success") {
-  // Higher-ranked members and owners are outside the bot's logging/enforcement scope.
-  if (await services.security.isAboveBotRole(i.guild, i.user.id)) return;
+async function recordMemberAction(i, services, action, announcement, details = {}, kind = "success", publicResultEmbed = null) {
+  // Trusted owners and higher-ranked members are exempt from operational/security logs,
+  // but their completed gameplay remains visible like every other member's gameplay.
+  const exemptFromMonitoring = await services.security.isAboveBotRole(i.guild, i.user.id);
   const actorId = i.user.id;
   const displayName = i.member?.displayName || i.user.globalName || i.user.username;
-  await safeAudit(i, services, action, actorId, details);
-  await safeSendLog(i, services, "Member activity: " + action + " · " + displayName + " (" + actorId + ")" +
-    (Object.keys(details).length ? " · " + JSON.stringify(details).slice(0, 700) : ""));
+
+  if (!exemptFromMonitoring) {
+    try {
+      await safeAudit(i, services, action, actorId, details);
+    } catch (error) {
+      console.warn("[activity] Could not write member audit entry:", action, error.code || error.message);
+    }
+    try {
+      await safeSendLog(i, services, "Member activity: " + action + " · " + displayName + " (" + actorId + ")" +
+        (Object.keys(details).length ? " · " + JSON.stringify(details).slice(0, 700) : ""));
+    } catch (error) {
+      console.warn("[activity] Could not send member activity log:", action, error.code || error.message);
+    }
+  }
+
   try {
     let channel = i.channel;
     if ((!channel || !channel.isTextBased()) && i.channelId) {
@@ -62,7 +75,7 @@ async function recordMemberAction(i, services, action, announcement, details = {
     }
     if (channel && channel.isTextBased() && typeof channel.send === "function") {
       const colors = { success: settings.brand.success, warning: settings.brand.warning, info: settings.brand.primary };
-      const embed = createEmbed({
+      const embed = publicResultEmbed || createEmbed({
         title: "FUKISHOKAI  /  MEMBER ACTIVITY",
         description: "**" + displayName + "** " + announcement,
         color: colors[kind] || colors.info,
@@ -1058,22 +1071,20 @@ async function handleModal(i, s) {
     if (action === "casino-modal") {
       const amount = numberField(i, "amount", balancing.casino.minBet, null, "Wager");
       const r = await s.casino.play(i.guildId, owner, target, amount);
-      await recordMemberAction(i, s, "casino_round", "played **" + r.game.name + "** with a " + r.wager.toLocaleString() + " FC wager and a net result of " + (r.net > 0 ? "+" : "") + r.net.toLocaleString() + " FC.", { game: r.game.name, wager: r.wager, payout: r.payout, net: r.net }, r.won ? "success" : "warning");
       const resultPayload = panel(r.game.name + "  /  " + (r.won ? "WIN" : "LOSS"), r.outcome, [
         { name: "Wager", value: r.wager.toLocaleString() + " FC", inline: true },
         { name: "Payout", value: r.payout.toLocaleString() + " FC", inline: true },
         { name: "Net result", value: (r.net > 0 ? "+" : "") + r.net.toLocaleString() + " FC", inline: true },
         { name: "Fair-play rule", value: "Same published odds for everyone · " + r.cooldownMs / 1000 + "-second cooldown · " + Math.round(r.theoreticalReturnRate * 100) + "% long-run return" }
       ], [], r.won ? "success" : "warning");
-      // Keep the dashboard receipt private, but publish the actual game result to the channel.
-      const publicChannel = await getPublicTextChannel(i);
-      if (publicChannel) {
-        try {
-          await publicChannel.send({ embeds: resultPayload.embeds, allowedMentions: { parse: [] } });
-        } catch (publishError) {
-          console.warn("[casino] Public result could not be posted:", publishError.code || publishError.message);
-        }
-      }
+      await recordMemberAction(i, s, "casino_round",
+        "played **" + r.game.name + "** with a " + r.wager.toLocaleString() + " FC wager, received " +
+        r.payout.toLocaleString() + " FC, and finished with a net result of " + (r.net > 0 ? "+" : "") +
+        r.net.toLocaleString() + " FC.",
+        { game: r.game.name, wager: r.wager, payout: r.payout, net: r.net },
+        r.won ? "success" : "warning",
+        resultPayload.embeds[0]);
+      // The public result is posted by the activity publisher; this remains the private receipt.
       return i.editReply(resultPayload);
     }
     if (action === "heist-modal") {
