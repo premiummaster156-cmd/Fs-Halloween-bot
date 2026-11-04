@@ -39,6 +39,17 @@ CREATE TABLE IF NOT EXISTS economy_ledger (
   UNIQUE (guild_id, user_id, reference)
 );
 CREATE INDEX IF NOT EXISTS economy_ledger_user_time_idx ON economy_ledger (guild_id, user_id, created_at DESC);
+-- Backfill current-run work shifts for players from the previous counter rollout.
+UPDATE players p
+SET rebirth_work_count = (
+  SELECT COUNT(*)::bigint
+  FROM economy_ledger l
+  WHERE l.guild_id = p.guild_id
+    AND l.user_id = p.user_id
+    AND l.reason = 'job_work'
+    AND (p.last_rebirth_at IS NULL OR l.created_at > p.last_rebirth_at)
+)
+WHERE p.rebirth_work_count = 0 AND p.work_count > 0;
 
 CREATE TABLE IF NOT EXISTS cooldowns (
   guild_id TEXT NOT NULL,
