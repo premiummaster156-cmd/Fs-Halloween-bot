@@ -214,10 +214,15 @@ async function renderMenu(guildId, owner, page, s) {
   if (page === "gear") {
     const inv = await s.inventory.getInventory(guildId, owner);
     const effects = await s.inventory.getEffects(guildId, owner);
-    const owned = inv.items.map((x) =>
-      (x.equipped ? "🟢 " : "▫️ ") + "**" + x.item.name + "** × " + x.quantity +
-      " · Upgrade " + x.upgradeLevel + "/" + balancing.itemUpgrades.maxLevel + (x.equipped ? " · Equipped" : "")
-    );
+    const owned = inv.items.map((x) => {
+      const current = (x.equipped ? "🟢 " : "▫️ ") + "**" + x.item.name + "** × " + x.quantity +
+        " · Upgrade " + x.upgradeLevel + "/" + balancing.itemUpgrades.maxLevel + (x.equipped ? " · Equipped" : "");
+      if (x.upgradeLevel >= balancing.itemUpgrades.maxLevel) return current + " · MAX";
+      const nextLevel = x.upgradeLevel + 1;
+      const nextCost = Math.ceil(x.item.cost * (balancing.itemUpgrades.costBaseFactor + nextLevel * balancing.itemUpgrades.costPerLevelFactor));
+      const requiredLevel = x.item.minLevel + nextLevel * balancing.itemUpgrades.levelRequirementPerUpgrade;
+      return current + " · Next: " + nextCost.toLocaleString() + " FC / Lv " + requiredLevel;
+    });
     const equipped = inv.equipped.map((x) => {
       const ownedItem = inv.items.find((entry) => entry.item.id === x.item.id);
       return "**" + x.slot + ":** " + x.item.name + " · Upgrade " + (ownedItem?.upgradeLevel || 0) + "/" + balancing.itemUpgrades.maxLevel;
@@ -375,10 +380,11 @@ async function renderMenu(guildId, owner, page, s) {
       [
         { name: "1 · Start", value: "Choose a career. You need a career before you can work." },
         { name: "2 · Earn", value: "Claim Daily once per day and answer the three Work questions." },
-        { name: "3 · Save and upgrade", value: "Use your Bank for savings. Buy and equip items for activity bonuses." },
+        { name: "3 · Save and upgrade", value: "Use your Bank, buy gear, equip it and raise its upgrade level to strengthen its bonuses." },
         { name: "4 · Take risks", value: "Crime and Casino can lose FC. Check the risk and possible fine first." },
         { name: "5 · Team up", value: "Create a Heist, share its ID, invite members, then start when your crew is ready." },
-        { name: "6 · Halloween", value: "Complete quests, claim rewards, and follow the weekly activity mission." }
+        { name: "6 · Halloween", value: "Complete quests, claim rewards, and follow the weekly activity mission. A claimed event quest unlocks your first rebirth." },
+        { name: "7 · Rebirth", value: "Build up your FC wealth and level, then reset your run for a permanent doubling of FC and XP earnings. Gear and upgrades stay with you." }
       ], [nav]);
   }
   return renderMenu(guildId, owner, "home", s);
