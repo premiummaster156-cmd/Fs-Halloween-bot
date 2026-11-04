@@ -75,17 +75,19 @@ class CasinoGame {
 
       const basePayout = won ? casinoPayout(wager, multiplier) : 0;
       let payout = 0;
+      let candyDrop = null;
       if (basePayout > 0) {
         const earning = await this.economy.mutateTx(client, guildId, userId, basePayout, "casino_payout", reference + ":payout", {
           gameId, wager, multiplier, theoreticalReturnRate: game.theoreticalReturnRate ?? balancing.casino.targetReturnRate
         });
         payout = earning.delta;
+        candyDrop = earning.candyDrop || null;
       }
       await trackActionTx(client, guildId, userId, "casino_play", 1);
       if (payout > wager) await trackActionTx(client, guildId, userId, "wallet_earned", payout - wager);
 
       return {
-        game, gameId, wager, won, payout, net: payout - wager, outcome,
+        game, gameId, wager, won, payout, net: payout - wager, outcome, candyDrop,
         cooldownMs, effectiveChance, luckBonus,
         theoreticalReturnRate: game.theoreticalReturnRate ?? balancing.casino.targetReturnRate
       };
