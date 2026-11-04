@@ -275,29 +275,45 @@ async function renderMenu(guildId, owner, page, s) {
   }
   if (page === "rebirth" || page === "rebirth-confirm") {
     const status = await s.economy.getRebirthStatus(guildId, owner);
+    const checkRow = (passed, label, progress) => ({
+      name: (passed ? "✅ " : "▫️ ") + label,
+      value: progress,
+      inline: false
+    });
     const checks = [
-      { name: "FC requirement", value: status.wealth >= status.walletRequired ? "✅ " : "▫️ " + status.wealth.toLocaleString() + "/" + status.walletRequired.toLocaleString() + " FC total wealth" },
-      { name: "Level requirement", value: status.level >= status.levelRequired ? "✅ Level " + status.level : "▫️ Level " + status.level + "/" + status.levelRequired },
-      { name: "Claimed event quest", value: status.questClaimed ? "✅ Reward claimed" : "▫️ Complete an event quest and claim its reward" }
+      checkRow(status.checks.wealth, "Combined FC savings", status.wealth.toLocaleString() + "/" + status.walletRequired.toLocaleString() + " FC"),
+      checkRow(status.checks.level, "Player level", "Level " + status.level + "/" + status.levelRequired),
+      checkRow(status.checks.quests, "Event quest claims", status.questClaimsCount + "/" + status.questClaimsRequired + " normal quest rewards claimed"),
+      checkRow(status.checks.career, "Active career", status.currentJob ? status.currentJob.name : "No career applied — choose one in Careers"),
+      checkRow(status.checks.careerLevel, "Career level", (status.currentJob ? status.currentJob.name + " · " : "") + "Level " + status.currentJobLevel + "/" + status.jobLevelRequired),
+      checkRow(status.checks.workShifts, "Work shifts this run", status.workShiftsCompleted + "/" + status.workShiftsRequired + " completed shifts")
     ];
     if (page === "rebirth-confirm") {
       return panel("CONFIRM REBIRTH", "This is a permanent progression reset. Your next run receives a **" + status.nextMultiplier.toLocaleString() + "× FC and XP earning multiplier**.",
         [
           { name: "You will lose", value: "Wallet and bank balance (your new wallet will be 1,000 FC), player level and XP, current career and career level, and reputation." },
-          { name: "You will keep", value: "All owned gear, gear upgrades, equipped items, lifetime statistics, event claims, and your rebirth history." },
-          ...checks
+          { name: "You will keep", value: "Owned gear, gear upgrades, equipped items, lifetime statistics, event claims, and rebirth history." },
+          ...checks,
+          { name: "Eligibility", value: status.eligible ? "All requirements are complete. You can rebirth." : "Finish the requirements marked above before confirming." }
         ],
-        [row(btn(owner, "rebirth-confirm", "Confirm permanent reset", ButtonStyle.Danger), btn(owner, "rebirth", "Cancel", ButtonStyle.Secondary)), nav],
+        [row(btn(owner, "rebirth-confirm", "Confirm permanent reset", ButtonStyle.Danger).setDisabled(!status.eligible), btn(owner, "rebirth", "Cancel", ButtonStyle.Secondary)), nav],
         "warning");
     }
-    return panel("REBIRTH  /  PRESTIGE", "Rebirth resets your current run in exchange for a permanent multiplier. Each rebirth doubles the previous multiplier.",
+    return panel("REBIRTH  /  PRESTIGE", "Each rebirth doubles your permanent FC and XP earning multiplier. Requirements rise gradually, while money and player-level targets grow at a gentler pace.",
       [
         { name: "Current rebirths", value: String(status.rebirths), inline: true },
-        { name: "Current FC and XP bonus", value: status.multiplier.toLocaleString() + "×", inline: true },
-        { name: "Next FC and XP bonus", value: status.nextMultiplier.toLocaleString() + "×", inline: true },
-        { name: "Requirements", value: "FC wealth: " + status.walletRequired.toLocaleString() + " FC\nPlayer level: " + status.levelRequired + "\nAt least one event quest reward claimed before your first rebirth." },
-        { name: "Your progress", value: checks.map((x) => x.value).join("\n") },
-        { name: "Permanent reset details", value: "Wallet becomes 1,000 FC, bank becomes 0 and player level returns to 1. Career and reputation reset. Gear, upgrades and lifetime records stay." }
+        { name: "Current multiplier", value: status.multiplier.toLocaleString() + "×", inline: true },
+        { name: "Next multiplier", value: status.nextMultiplier.toLocaleString() + "×", inline: true },
+        { name: "Next run requirements", value:
+          "• Combined savings: " + status.walletRequired.toLocaleString() + " FC\n" +
+          "• Player level: " + status.levelRequired + "\n" +
+          "• Claimed event quests: " + status.questClaimsRequired + "\n" +
+          "• Active career, job level " + status.jobLevelRequired + "+\n" +
+          "• Work shifts this run: " + status.workShiftsRequired
+        },
+        { name: "Your progress", value: checks.map((x) => x.name + " — " + x.value).join("\n").slice(0, 1024) },
+        { name: "After rebirth", value: "Wallet becomes 1,000 FC, bank becomes 0 and player level returns to 1. Your current career and reputation reset. Gear, upgrades, lifetime records and claimed event rewards stay." },
+        { name: "Progression curve", value: "FC target grows by 1.5× per rebirth. Player-level target grows by 2 levels. Quest claims and required work shifts increase gradually." }
       ],
       [row(btn(owner, "rebirth-review", "Review rebirth", ButtonStyle.Danger)), nav]);
   }
