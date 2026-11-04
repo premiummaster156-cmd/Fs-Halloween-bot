@@ -168,7 +168,7 @@ let editor=null, csrf="", commands=[], selected=null, dirty=false;
    });
   }catch(error){$("login-error").textContent=error.message;}
  }
- $("login-btn").onclick=()=>{window.location.href="/auth/discord";};
+ $("login-btn").onclick=()=>{const guildId=new URLSearchParams(window.location.search).get("guildId");window.location.href="/auth/discord"+(guildId?"?guildId="+encodeURIComponent(guildId):"");};
  $("save-btn").onclick=()=>save().catch(handleError);$("test-btn").onclick=()=>test().catch(handleError);$("deploy-btn").onclick=()=>deploy().catch(handleError);$("activate-btn").onclick=()=>activate().catch(handleError);$("new-btn").onclick=chooseNew;$("refresh-btn").onclick=()=>loadCommands().catch(handleError);
  $("more-btn").onclick=async()=>{const action=prompt("Type: deactivate, delete, signout");if(action==="deactivate")await deactivate().catch(handleError);if(action==="delete")await remove().catch(handleError);if(action==="signout"){await api("/api/session",{method:"DELETE",body:"{}"});location.reload();}};
  $("collapse-panel").onclick=()=>$("bottom-panel").classList.toggle("collapsed");document.querySelectorAll(".panel-tab").forEach(tab=>tab.onclick=()=>setPanel(tab.dataset.panel));
