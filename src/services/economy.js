@@ -4,7 +4,7 @@ const balancing = require("../config/game-balancing");
 const { DomainError, uuid, randomInt, claimCooldownTx, levelXpRequired, getRebirthMultiplier, applyCooldownReduction } = require("../utils/core");
 
 const MULTIPLIED_EARNING_REASONS = new Set([
-  "daily_reward", "job_work", "crime_success", "heist_reward", "chat_activity_reward", "casino_payout"
+  "daily_reward", "job_work", "crime_success", "heist_reward", "chat_activity_reward"
 ]);
 
 async function ensurePlayerTx(client, guildId, userId) {
