@@ -43,13 +43,13 @@ function getCommandFilePath(guildId, name, root = WORKSPACE_ROOT) {
   return target;
 }
 
-async function writeCommandFile(guildId, name, sourceCode) {
+async function writeCommandFile(guildId, name, sourceCode, root = WORKSPACE_ROOT) {
   if (typeof sourceCode !== "string" || !sourceCode.trim() || sourceCode.length > 50000) {
     const error = new Error("JavaScript command files must contain 1–50,000 characters.");
     error.code = "CUSTOM_COMMAND_INVALID";
     throw error;
   }
-  const filePath = getCommandFilePath(guildId, name);
+  const filePath = getCommandFilePath(guildId, name, root);
   await fs.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
   const temporaryPath = filePath + "." + randomUUID() + ".tmp";
   try {
@@ -62,7 +62,7 @@ async function writeCommandFile(guildId, name, sourceCode) {
   return filePath;
 }
 
-async function readCommandFile(guildId, name) {
+async function readCommandFile(guildId, name, root = WORKSPACE_ROOT) {
   const filePath = getCommandFilePath(guildId, name);
   try {
     return await fs.readFile(filePath, "utf8");
@@ -72,14 +72,14 @@ async function readCommandFile(guildId, name) {
   }
 }
 
-async function deleteCommandFile(guildId, name) {
+async function deleteCommandFile(guildId, name, root = WORKSPACE_ROOT) {
   const filePath = getCommandFilePath(guildId, name);
   await fs.rm(filePath, { force: true });
   return filePath;
 }
 
-async function listCommandFiles(guildId) {
-  const directory = getGuildDirectory(guildId);
+async function listCommandFiles(guildId, root = WORKSPACE_ROOT) {
+  const directory = getGuildDirectory(guildId, root);
   let entries;
   try {
     entries = await fs.readdir(directory, { withFileTypes: true });
