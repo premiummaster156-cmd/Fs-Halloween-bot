@@ -351,7 +351,7 @@ class CustomCommandService {
 
   async list(guildId) {
     const result = await this.pool.query(
-      "SELECT id, name, description, definition, is_active, deployed_at, created_at, updated_at " +
+      "SELECT id, name, description, definition, source_code, is_active, deployed_at, created_at, updated_at " +
       "FROM custom_commands WHERE guild_id = $1 AND deleted_at IS NULL ORDER BY name ASC",
       [guildId]
     );
@@ -360,7 +360,7 @@ class CustomCommandService {
 
   async get(guildId, id) {
     const result = await this.pool.query(
-      "SELECT id, name, description, definition, is_active, deployed_at FROM custom_commands " +
+      "SELECT id, name, description, definition, source_code, is_active, deployed_at FROM custom_commands " +
       "WHERE guild_id = $1 AND id = $2 AND deleted_at IS NULL",
       [guildId, id]
     );
@@ -399,6 +399,29 @@ class CustomCommandService {
     return result.rows[0];
   }
 
+  async saveSource(guildId, actorId, input) {
+    const inspected = await inspectCommandSource(input.sourceCode);
+    const id = input.id || randomUUID();
+    if (input.id) {
+      const result = await this.pool.query(
+        "UPDATE custom_commands SET name = $3, description = $4, definition = $5::jsonb, source_code = $6, " +
+        "is_active = FALSE, deployed_at = NULL, updated_by = $7, updated_at = NOW() " +
+        "WHERE guild_id = $1 AND id = $2 AND deleted_at IS NULL " +
+        "RETURNING id, name, description, definition, source_code, is_active, deployed_at",
+        [guildId, id, inspected.name, inspected.description, JSON.stringify(inspected.definition), input.sourceCode, actorId]
+      );
+      if (!result.rowCount) fail("That custom command no longer exists.", "CUSTOM_COMMAND_NOT_FOUND");
+      return result.rows[0];
+    }
+    const result = await this.pool.query(
+      "INSERT INTO custom_commands (id, guild_id, name, description, definition, source_code, is_active, created_by, updated_by) " +
+      "VALUES ($1, $2, $3, $4, $5::jsonb, $6, FALSE, $7, $7) " +
+      "RETURNING id, name, description, definition, source_code, is_active, deployed_at",
+      [id, guildId, inspected.name, inspected.description, JSON.stringify(inspected.definition), input.sourceCode, actorId]
+    );
+    return result.rows[0];
+  }
+
   async activate(guildId, id, actorId) {
     const result = await this.pool.query(
       "UPDATE custom_commands SET is_active = TRUE, updated_by = $3, updated_at = NOW() " +
@@ -431,8 +454,21 @@ class CustomCommandService {
   }
 
   async execute(interaction, record) {
-    const definition = parseDefinition(record.definition);
+    const definition = record.definition && record.definition.response
+      ? record.definition
+      : parseDefinition(record.definition);
+    if (record.source_code) {
+      const input = customCommandInput(interaction, definition);
+      const result = await runInIsolatedProcess(record.source_code, "run", input);
+      return interaction.editReply(normalizeCustomReply(result.result));
+    }
     return interaction.editReply(buildReply(interaction, definition));
+  }
+
+  async previewSource(sourceCode, input) {
+    await inspectCommandSource(sourceCode);
+    const result = await runInIsolatedProcess(sourceCode, "run", input);
+    return normalizeCustomReply(result.result);
   }
 }
 
@@ -441,5 +477,8 @@ module.exports = {
   parseDefinition,
   validateCommandMeta,
   toApplicationCommand,
-  buildReply
+  buildReply,
+  inspectCommandSource,
+  runInIsolatedProcess,
+  normalizeCustomReply
 };
