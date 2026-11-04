@@ -86,6 +86,7 @@ class SecurityService {
     const guild = input.guild;
     if (!guild?.id) return null;
     const userId = input.userId || null;
+    if (userId && await this.isAboveBotRole(guild, userId)) return null;
     const dedupeKey = guild.id + ":" + (userId || "unknown") + ":" + input.category;
     const now = Date.now();
     if (now - (this.alertedAt.get(dedupeKey) || 0) < ALERT_DEDUPE_MS) return null;
@@ -315,14 +316,17 @@ class SecurityService {
     }
 
     const status = action === "ignore" ? "ignored" : action === "pause" ? "restricted_10m" : action === "block" ? "blocked_from_bot" : action === "timeout" ? "timed_out_10m" : "bot_access_restored";
+    const ownerIsAboveBot = await this.isAboveBotRole(interaction.guild, interaction.user.id);
     await this.pool.query(
       "UPDATE security_incidents SET status = $2, updated_by = $3, updated_at = NOW() WHERE id = $1",
-      [incidentId, status, interaction.user.id]
+      [incidentId, status, ownerIsAboveBot ? null : interaction.user.id]
     );
-    await this.pool.query(
-      "INSERT INTO audit_logs (guild_id, actor_id, action, target_id, details) VALUES ($1, $2, $3, $4, $5::jsonb)",
-      [guildId, interaction.user.id, "security_alert_" + status, targetId, JSON.stringify({ incidentId })]
-    ).catch((error) => log("warn", "Could not audit security action", { message: error.message }));
+    if (!ownerIsAboveBot) {
+      await this.pool.query(
+        "INSERT INTO audit_logs (guild_id, actor_id, action, target_id, details) VALUES ($1, $2, $3, $4, $5::jsonb)",
+        [guildId, interaction.user.id, "security_alert_" + status, targetId, JSON.stringify({ incidentId })]
+      ).catch((error) => log("warn", "Could not audit security action", { message: error.message }));
+    }
 
     const text = {
       ignored: "Alert #" + incidentId + " marked as reviewed. No action was taken.",
