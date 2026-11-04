@@ -181,9 +181,20 @@ async function renderMenu(guildId, owner, page, s) {
   }
   if (page === "casino") {
     const games = Object.entries(balancing.casino.games);
-    const rows = games.map(([id, g]) => row(btn(owner, "casino-" + id, g.name, ButtonStyle.Secondary, "🎲")));
+    const usage = await s.casino.getDailyUsage(guildId, owner);
+    const rows = games.map(([id, g]) => row(btn(owner, "casino-" + id, g.name, ButtonStyle.Secondary)));
     rows.push(nav);
-    return panel("CASINO  /  WAGER DESK", "Select a game to enter your wager. Only bet FC you are prepared to lose.", games.map(([, g]) => ({ name: g.name + " · Level " + g.minLevel + "+", value: g.description })), rows, "warning");
+    return panel("CASINO  /  FAIR PLAY TABLE",
+      "Choose a game. Every member has the same betting limits and published odds. Results are random; no level or role gives anyone better casino odds.\n\n**Fair-play rules:** " +
+      balancing.casino.cooldownMs / 1000 + "-second round cooldown · " +
+      balancing.casino.maxBet.toLocaleString() + " FC maximum per round · " +
+      balancing.casino.dailyWagerLimit.toLocaleString() + " FC total wagers per rolling 24 hours.",
+      [
+        { name: "Your remaining daily wagers", value: usage.remaining.toLocaleString() + " / " + usage.limit.toLocaleString() + " FC", inline: true },
+        { name: "Long-run theoretical return", value: Math.round(balancing.casino.targetReturnRate * 100) + "% across a very large number of rounds. This is an average, not a promise for an individual session.", inline: false },
+        ...games.map(([, g]) => ({ name: g.name + " · Level " + g.minLevel + "+", value: g.description }))
+      ],
+      rows, "warning");
   }
   if (page === "heists") {
     const options = balancing.heists.map((x) => ({ label: x.name, value: x.id, description: "Level " + x.minLevel + "+ · Crew " + x.minParticipants + "–" + x.maxParticipants + " · " + x.payoutMin.toLocaleString() + "–" + x.payoutMax.toLocaleString() + " FC" }));
@@ -646,7 +657,7 @@ async function handleButton(i, s) {
   if (action === "deposit" || action === "withdraw") return i.showModal(modal("dash:" + owner + ":bank-modal:" + action, action === "deposit" ? "Deposit into bank" : "Withdraw from bank", [{ id: "amount", label: "Amount in FC", placeholder: "1000", max: 12 }]));
   if (action.startsWith("casino-")) {
     const game = action.slice(7);
-    return i.showModal(modal("dash:" + owner + ":casino-modal:" + game, "Place a casino wager", [{ id: "amount", label: "Wager in FC", placeholder: String(balancing.casino.minBet), max: 12 }]));
+    return i.showModal(modal("dash:" + owner + ":casino-modal:" + game, "Place a casino wager", [{ id: "amount", label: "Wager in FC (100–1,000)", placeholder: String(balancing.casino.minBet), max: 12 }]));
   }
   if (action === "heist-join" || action === "heist-start" || action === "heist-status") {
     return i.showModal(modal("dash:" + owner + ":heist-modal:" + action, action === "heist-join" ? "Join a heist crew" : action === "heist-start" ? "Start your heist" : "Check a heist", [
@@ -709,7 +720,9 @@ async function handleModal(i, s) {
       return i.editReply(panel(r.game.name + "  /  " + (r.won ? "WIN" : "LOSS"), r.outcome, [
         { name: "Wager", value: r.wager.toLocaleString() + " FC", inline: true },
         { name: "Payout", value: r.payout.toLocaleString() + " FC", inline: true },
-        { name: "Net", value: (r.net > 0 ? "+" : "") + r.net.toLocaleString() + " FC", inline: true }
+        { name: "Net result", value: (r.net > 0 ? "+" : "") + r.net.toLocaleString() + " FC", inline: true },
+        { name: "Daily wager budget left", value: r.dailyWagerRemaining.toLocaleString() + " / " + r.dailyWagerLimit.toLocaleString() + " FC", inline: true },
+        { name: "Fair-play rule", value: "Same published odds for everyone · " + r.cooldownMs / 1000 + "-second cooldown" }
       ], [], r.won ? "success" : "warning"));
     }
     if (action === "heist-modal") {
