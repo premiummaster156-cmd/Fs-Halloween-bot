@@ -1,4 +1,7 @@
 const { randomUUID } = require("node:crypto");
+const { spawn } = require("node:child_process");
+const path = require("node:path");
+const os = require("node:os");
 const { EmbedBuilder, SlashCommandBuilder } = require("discord.js");
 
 const RESERVED_NAMES = new Set(["admin", "menu"]);
@@ -180,6 +183,166 @@ function buildReply(interaction, definition) {
   return payload;
 }
 
+
+
+function runInIsolatedProcess(source, mode, input = {}) {
+  return new Promise((resolve, reject) => {
+    const runner = path.join(__dirname, "custom-command-runner.js");
+    const child = spawn(process.execPath, ["--no-node-snapshot", runner], {
+      cwd: os.tmpdir(),
+      env: { PATH: process.env.PATH || "", SYSTEMROOT: process.env.SYSTEMROOT || "" },
+      stdio: ["pipe", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const finish = (error, result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (error) reject(error);
+      else resolve(result);
+    };
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      finish(new Error("The command runner exceeded its time limit."));
+    }, 4000);
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString("utf8");
+      if (stdout.length > 65536) {
+        child.kill("SIGKILL");
+        finish(new Error("Command output exceeded the size limit."));
+      }
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr = (stderr + chunk.toString("utf8")).slice(-4000);
+    });
+    child.on("error", (error) => finish(new Error("Could not start the isolated JavaScript runner: " + error.message)));
+    child.on("close", (code) => {
+      if (settled) return;
+      let result;
+      try { result = JSON.parse(stdout); }
+      catch (_) { return finish(new Error("The JavaScript runner returned an invalid result. " + stderr.slice(-500))); }
+      if (code !== 0 || !result.ok) return finish(new Error(result.error || "JavaScript command execution failed."));
+      finish(null, result);
+    });
+    child.stdin.end(JSON.stringify({ source, mode, input }));
+  });
+}
+
+function inspectCommandSource(source) {
+  if (typeof source !== "string" || source.trim().length < 1 || source.length > 50000) {
+    fail("JavaScript source must contain 1–50,000 characters.");
+  }
+  return runInIsolatedProcess(source, "inspect").then((result) => {
+    const data = result.data;
+    if (!data || typeof data !== "object" || Array.isArray(data)) fail("Your file must export a data object.");
+    const meta = validateCommandMeta(data.name, data.description);
+    const visibility = data.visibility === undefined ? "public" : data.visibility;
+    const definition = parseDefinition({
+      options: data.options === undefined ? [] : data.options,
+      response: { visibility, content: "This command uses its JavaScript execute function." }
+    });
+    return {
+      name: meta.name,
+      description: meta.description,
+      definition: { options: definition.options, response: { visibility } }
+    };
+  });
+}
+
+function customCommandInput(interaction, definition) {
+  const options = {};
+  for (const option of definition.options || []) {
+    const selected = selectedOption(interaction, option);
+    if (!selected) {
+      options[option.name] = null;
+    } else if (["user", "role", "channel", "mentionable"].includes(option.type)) {
+      options[option.name] = selected;
+    } else {
+      options[option.name] = selected.raw;
+    }
+  }
+  return {
+    user: {
+      id: interaction.user.id,
+      username: interaction.user.username,
+      displayName: interaction.member?.displayName || interaction.user.globalName || interaction.user.username,
+      mention: "<@" + interaction.user.id + ">"
+    },
+    guild: { id: interaction.guildId, name: interaction.guild?.name || "Server" },
+    channel: { id: interaction.channelId, name: interaction.channel?.name || "channel", mention: "<#" + interaction.channelId + ">" },
+    options
+  };
+}
+
+function normalizeCustomReply(result) {
+  if (!result || typeof result !== "object" || Array.isArray(result)) {
+    fail("Your execute function must return a response object.", "CUSTOM_COMMAND_OUTPUT_INVALID");
+  }
+  const allowed = new Set(["content", "embeds"]);
+  assertOnlyKeys(result, allowed, "response");
+  const payload = { allowedMentions: { parse: [] } };
+  if (result.content !== undefined) {
+    if (typeof result.content !== "string" || result.content.length > 2000) {
+      fail("Response content must be text under 2,000 characters.", "CUSTOM_COMMAND_OUTPUT_INVALID");
+    }
+    payload.content = result.content;
+  }
+  if (result.embeds !== undefined) {
+    if (!Array.isArray(result.embeds) || result.embeds.length > 10) {
+      fail("Return up to 10 embeds.", "CUSTOM_COMMAND_OUTPUT_INVALID");
+    }
+    payload.embeds = result.embeds.map((source) => {
+      if (!source || typeof source !== "object" || Array.isArray(source)) fail("Each embed must be an object.");
+      assertOnlyKeys(source, new Set(["title", "description", "color", "fields", "footer", "author", "url"]), "embed");
+      const embed = new EmbedBuilder().setTimestamp(new Date());
+      if (source.title !== undefined) embed.setTitle(validText(source.title, "Embed title", 1, 256));
+      if (source.description !== undefined) embed.setDescription(validText(source.description, "Embed description", 1, 4096));
+      if (source.url !== undefined) {
+        const url = validText(source.url, "Embed URL", 1, 2048);
+        if (!/^https:\/\//i.test(url)) fail("Embed URLs must use HTTPS.");
+        embed.setURL(url);
+      }
+      if (source.color !== undefined) {
+        const color = typeof source.color === "string" && /^#[0-9a-fA-F]{6}$/.test(source.color)
+          ? Number.parseInt(source.color.slice(1), 16) : source.color;
+        if (!Number.isInteger(color) || color < 0 || color > 0xFFFFFF) fail("Embed color must be a hex color or an integer.");
+        embed.setColor(color);
+      }
+      if (source.author !== undefined) {
+        if (!source.author || typeof source.author !== "object") fail("Embed author must be an object.");
+        assertOnlyKeys(source.author, new Set(["name", "url"]), "embed author");
+        const author = { name: validText(source.author.name, "Author name", 1, 256) };
+        if (source.author.url) {
+          if (!/^https:\/\//i.test(source.author.url)) fail("Author URLs must use HTTPS.");
+          author.url = source.author.url;
+        }
+        embed.setAuthor(author);
+      }
+      if (source.footer !== undefined) {
+        if (!source.footer || typeof source.footer !== "object") fail("Embed footer must be an object.");
+        assertOnlyKeys(source.footer, new Set(["text"]), "embed footer");
+        embed.setFooter({ text: validText(source.footer.text, "Footer", 1, 2048) });
+      }
+      if (source.fields !== undefined) {
+        if (!Array.isArray(source.fields) || source.fields.length > 25) fail("An embed can contain up to 25 fields.");
+        embed.addFields(source.fields.map((field) => {
+          if (!field || typeof field !== "object") fail("Each embed field must be an object.");
+          assertOnlyKeys(field, new Set(["name", "value", "inline"]), "embed field");
+          return {
+            name: validText(field.name, "Field name", 1, 256),
+            value: validText(field.value, "Field value", 1, 1024),
+            inline: field.inline === true
+          };
+        }));
+      }
+      return embed;
+    });
+  }
+  if (!payload.content && !payload.embeds?.length) fail("Return content or at least one embed.", "CUSTOM_COMMAND_OUTPUT_INVALID");
+  return payload;
+}
 
 class CustomCommandService {
   constructor(pool) {
