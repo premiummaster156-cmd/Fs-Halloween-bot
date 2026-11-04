@@ -294,40 +294,40 @@ async function renderMenu(guildId, owner, page, s) {
   }
   if (page === "rebirth" || page === "rebirth-confirm") {
     const status = await s.economy.getRebirthStatus(guildId, owner);
-    const check = (passed, label, current, required) =>
-      (passed ? "✅ " : "▫️ ") + "**" + label + ":** " + current + "/" + required;
+    const mark = (passed) => passed ? "✅" : "▫️";
     const lines = [
-      check(status.checks.wealth, "FC", status.wealth.toLocaleString(), status.walletRequired.toLocaleString()),
-      check(status.checks.level, "Level", status.level, status.levelRequired),
-      check(status.checks.quests, "Quests", status.questClaimsCount, status.questClaimsRequired),
-      check(status.checks.career, "Career", status.currentJob ? status.currentJob.name : "None", "Active"),
-      check(status.checks.careerLevel, "Job level", status.currentJobLevel, status.jobLevelRequired),
-      check(status.checks.workShifts, "Work shifts", status.workShiftsCompleted, status.workShiftsRequired)
+      mark(status.checks.wealth) + " **FC:** " + status.wealth.toLocaleString() + "/" + status.walletRequired.toLocaleString(),
+      mark(status.checks.level) + " **Level:** " + status.level + "/" + status.levelRequired +
+        " · **Job:** " + (status.currentJob ? status.currentJob.name : "None") + " (" + status.currentJobLevel + "/" + status.jobLevelRequired + ")",
+      mark(status.checks.quests) + " **Quests:** " + status.questClaimsCount + "/" + status.questClaimsRequired +
+        " · " + mark(status.checks.workShifts) + " **Shifts:** " + status.workShiftsCompleted + "/" + status.workShiftsRequired
     ];
     if (status.gearItemsRequired > 0) {
-      lines.push(check(status.checks.gearItems, "Gear", status.gearItemsCount, status.gearItemsRequired));
-      lines.push(check(status.checks.candyItems, "Candy items", status.candyItemsCount, status.candyItemsRequired));
-      lines.push(check(status.checks.candyBalance, "Candy", status.candyBalance, status.candyBalanceRequired));
+      lines.push(
+        mark(status.checks.gearItems) + " **Gear:** " + status.gearItemsCount + "/" + status.gearItemsRequired +
+        " · " + mark(status.checks.candyItems) + " **Candy items:** " + status.candyItemsCount + "/" + status.candyItemsRequired +
+        " · " + mark(status.checks.candyBalance) + " **Candy:** " + status.candyBalance + "/" + status.candyBalanceRequired
+      );
     }
     if (status.gearUpgradeLevelsRequired > 0) {
-      lines.push(check(status.checks.gearUpgrades, "Upgrades", status.gearUpgradeLevels, status.gearUpgradeLevelsRequired));
+      lines.push(mark(status.checks.gearUpgrades) + " **Upgrades:** " + status.gearUpgradeLevels + "/" + status.gearUpgradeLevelsRequired);
     }
 
     if (page === "rebirth-confirm") {
-      return panel("CONFIRM REBIRTH", "Get **" + status.nextMultiplier.toLocaleString() + "× FC/XP**. This reset cannot be undone.",
+      return panel("CONFIRM REBIRTH", "Your next multiplier will be **" + status.nextMultiplier.toLocaleString() + "× FC/XP**. This reset cannot be undone.",
         [
-          { name: "Resets", value: "Wallet → 1,000 FC · Bank → 0 · Level → 1 · Career resets." },
-          { name: "Keeps", value: "Gear, upgrades, Candy, collectibles, event claims and lifetime stats." }
+          { name: "Reset", value: "1,000 FC · Bank 0 · Level 1 · Career" },
+          { name: "Keep", value: "Gear · Upgrades · Candy · Collectibles · Event claims · Lifetime stats" }
         ],
-        [row(btn(owner, "rebirth-confirm", "Confirm rebirth", ButtonStyle.Danger).setDisabled(!status.eligible), btn(owner, "rebirth", "Back", ButtonStyle.Secondary)), nav],
+        [row(btn(owner, "rebirth-confirm", "Confirm", ButtonStyle.Danger).setDisabled(!status.eligible), btn(owner, "rebirth", "Cancel", ButtonStyle.Secondary)), nav],
         "warning");
     }
 
     return panel("REBIRTH  /  " + status.multiplier.toLocaleString() + "× → " + status.nextMultiplier.toLocaleString() + "×",
-      "Complete the checklist to double your permanent FC and XP multiplier.",
+      "Complete these requirements to double your FC and XP earnings.",
       [
         { name: "Requirements", value: lines.join("\n") },
-        { name: "After rebirth", value: "Start with 1,000 FC, level 1 and no career. Your gear, Candy and collectibles stay." }
+        { name: "On rebirth", value: "Reset: 1,000 FC · Level 1 · No career. Your gear and Candy stay." }
       ],
       [row(btn(owner, "rebirth-review", "Rebirth", ButtonStyle.Danger).setDisabled(!status.eligible), btn(owner, "event-shop", "Candy shop", ButtonStyle.Secondary)), nav]);
   }
