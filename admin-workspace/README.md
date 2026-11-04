@@ -72,7 +72,7 @@ Send JSON with the file name and the complete JavaScript source. The exported `d
 {
   "fileName": "hello.js",
   "publish": true,
-  "sourceCode": "const { SlashCommandBuilder } = require('discord.js');\\nmodule.exports = { data: new SlashCommandBuilder().setName('hello').setDescription('Say hello'), async execute(interaction) { await interaction.reply({ content: 'Hello!' }); } };"
+  "sourceCode": "const { SlashCommandBuilder } = require('discord.js');\nmodule.exports = { data: new SlashCommandBuilder().setName('hello').setDescription('Say hello'), async execute(interaction) { await interaction.reply({ content: 'Hello!' }); } };"
 }
 ```
 
