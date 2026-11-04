@@ -280,7 +280,15 @@ class SecurityService {
       blocked_from_bot: "<@" + targetId + "> is blocked from this bot until an owner removes the restriction. No server timeout was applied.",
       bot_access_restored: "Bot access restored for <@" + targetId + ">."
     };
-    return interaction.update({ content: text[status], embeds: interaction.message.embeds, components: [] });
+    const followUpControls = (action === "pause" || action === "block") && targetId
+      ? [new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guildId + ":" + targetId + ":unblock")
+            .setLabel("Restore bot access").setStyle(ButtonStyle.Success),
+          new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guildId + ":" + targetId + ":ignore")
+            .setLabel("Mark alert reviewed").setStyle(ButtonStyle.Secondary)
+        )]
+      : [];
+    return interaction.update({ content: text[status], embeds: interaction.message.embeds, components: followUpControls });
   }
 }
 
