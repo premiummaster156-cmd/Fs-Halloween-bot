@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require("discord.js");
+const { EmbedBuilder, MessageFlags } = require("discord.js");
 const settings = require("./config/settings");
 
 function createEmbed(options = {}) {
@@ -47,9 +47,9 @@ async function respond(interaction, options = {}) {
   const color = colors[options.kind] ? colors[options.kind]() : colors.info();
   const icon = options.icon || (options.kind === "error" || options.kind === "warning" ? "failed" : null);
   const embed = createEmbed({ ...options, icon, color });
-  const payload = { embeds: [embed], ephemeral: Boolean(options.ephemeral), components: options.components || [] };
+  const payload = { embeds: [embed], flags: options.ephemeral ? MessageFlags.Ephemeral : undefined, components: options.components || [] };
   if (interaction.deferred || interaction.replied) {
-    delete payload.ephemeral;
+    delete payload.flags;
     return interaction.editReply(payload);
   }
   return interaction.reply(payload);
