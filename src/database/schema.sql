@@ -161,9 +161,11 @@ CREATE TABLE IF NOT EXISTS custom_commands (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   deleted_at TIMESTAMPTZ,
-  UNIQUE (guild_id, name),
   CHECK (jsonb_typeof(definition) = 'object')
 );
+ALTER TABLE custom_commands DROP CONSTRAINT IF EXISTS custom_commands_guild_id_name_key;
+CREATE UNIQUE INDEX IF NOT EXISTS custom_commands_guild_name_active_idx
+  ON custom_commands (guild_id, name) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS custom_commands_guild_active_idx
   ON custom_commands (guild_id, is_active, name)
   WHERE deleted_at IS NULL;
