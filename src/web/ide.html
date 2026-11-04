@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111116">
+<title>Fukishōkai Code Studio</title>
+<style>
+:root{color-scheme:dark;--bg:#111116;--p:#191921;--p2:#22222c;--p3:#2d2d39;--line:#343440;--text:#eeeef4;--muted:#9696a5;--accent:#b46a86;--green:#68c79a;--red:#e08b94}
+*{box-sizing:border-box}html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button{color:inherit;border:1px solid var(--line);background:var(--p3);border-radius:6px;padding:7px 11px;cursor:pointer}button:hover{background:#383846}button:disabled{opacity:.4;cursor:not-allowed}.primary{background:#713c55;border-color:#955872}.good{background:#203b30;border-color:#39694f}.hidden{display:none!important}
+#app{height:100%;display:flex;flex-direction:column}.titlebar{height:46px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 12px;background:#17171e;border-bottom:1px solid var(--line);gap:12px}.brand{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;white-space:nowrap}.mark,.login-mark{display:grid;place-items:center;background:linear-gradient(145deg,#dda3b8,#71394f);color:#25111a;font-weight:900;border-radius:7px}.mark{width:22px;height:22px}.top-center{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.actions{display:flex;align-items:center;gap:5px}.actions button{font-size:11px;padding:6px 9px}.user-pill{font-size:11px;color:#c9c9d2;white-space:nowrap}
+.workspace{min-height:0;flex:1;display:flex}.activity{width:46px;flex:none;background:#15151c;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:8px}.activity button{width:34px;height:34px;padding:0;border:0;background:transparent;color:#9292a1;font-size:18px}.activity button.active{background:#30303a;color:#fff;border-left:2px solid #d89ab2}
+.explorer{width:220px;flex:none;background:#17171e;border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0}.explorer-head{height:42px;padding:0 12px;display:flex;align-items:center;justify-content:space-between;font-size:10px;letter-spacing:1px;font-weight:700;color:#b8b8c4}.folder-label{padding:7px 12px;color:#c8c8d1;font-size:11px}.folder-label span{color:#d6a0b4;margin-right:7px}.file-tree{overflow:auto;flex:1}.file-row{display:flex;align-items:center;gap:7px;padding:7px 8px 7px 27px;font-size:11px;color:#c6c6d0;cursor:pointer;border-left:2px solid transparent}.file-row:hover{background:#25252f}.file-row.active{background:#2b2a35;border-left-color:#d89ab2;color:#fff}.file-icon{color:#e1be78;font-size:10px}.file-status{margin-left:auto;color:#e4bd78}
+.editor-column{min-width:0;flex:1;display:flex;flex-direction:column}.tabbar{height:37px;flex:none;background:#191920;display:flex;align-items:stretch;border-bottom:1px solid var(--line)}.tab{min-width:140px;padding:0 13px;display:flex;align-items:center;gap:8px;border-right:1px solid var(--line);font-size:11px;color:#eee}.breadcrumb{height:27px;flex:none;padding:6px 14px;color:#888897;font-size:10px;background:#1c1c24}.breadcrumb b{color:#ddd;font-weight:500}.editor-wrap{min-height:0;flex:1;position:relative;background:#1e1e26}.editor-host{position:absolute;inset:0}.editor-toolbar{position:absolute;z-index:3;right:12px;top:7px;display:flex;gap:5px}.editor-toolbar button{font-size:10px;background:#292934dd;padding:4px 8px}
+.bottom-panel{height:190px;flex:none;background:#17171e;border-top:1px solid var(--line);display:flex;flex-direction:column;min-height:110px}.bottom-panel.collapsed{height:30px}.panel-tabs{height:30px;display:flex;align-items:center;gap:18px;padding:0 12px;border-bottom:1px solid var(--line);font-size:9px;font-weight:700;letter-spacing:.8px;color:#9292a0}.panel-tab{height:30px;display:flex;align-items:center;cursor:pointer;border-bottom:2px solid transparent}.panel-tab.active{color:#fff;border-color:#d89ab2}.panel-content{padding:9px 12px;overflow:auto;flex:1;font:11px/1.6 ui-monospace,Menlo,monospace;color:#c1c1ce;white-space:pre-wrap}.log-line{margin-bottom:3px}.log-line.ok{color:var(--green)}.log-line.error{color:var(--red)}.preview-embed{max-width:520px;border-left:3px solid var(--accent);border-radius:5px;background:#23232d;padding:12px;margin:4px 0}.preview-embed h3{margin:0 0 8px;font-size:14px}.preview-embed p{margin:0 0 9px;color:#cdccd7;white-space:pre-wrap}.preview-field{display:inline-block;vertical-align:top;margin:4px 12px 4px 0;max-width:45%}.preview-field b{display:block;font-size:10px}.preview-field span{font-size:10px;color:#c7c7d2}
+.statusbar{height:22px;flex:none;background:#693e55;display:flex;align-items:center;justify-content:space-between;padding:0 9px;font-size:9px}.statusbar>div{display:flex;gap:10px}
+#login{position:fixed;inset:0;z-index:20;background:radial-gradient(ellipse at 50% 20%,#392635,#111116 62%);display:grid;place-items:center;padding:18px}.login-card{width:min(420px,100%);border:1px solid #4a3b48;background:#1c1a22;border-radius:15px;padding:30px;box-shadow:0 20px 70px #0009}.login-mark{width:50px;height:50px;border-radius:13px;font-size:22px;margin-bottom:20px}.login-card h1{font-size:22px;margin:0 0 10px}.login-card p{color:#adadbb;font-size:13px;line-height:1.6}.login-card button{margin-top:12px;width:100%;padding:11px}.login-error{color:#e99ba4;font-size:12px;margin-top:10px}
+@media(max-width:800px){.top-center{display:none}.user-pill{display:none}.explorer{width:170px}.activity{width:39px}}
+@media(max-width:560px){.titlebar{height:auto;min-height:46px;flex-wrap:wrap;padding:6px}.brand{font-size:10px}.actions{margin-left:auto;gap:3px}.actions button{font-size:10px;padding:5px 6px}.explorer{width:125px}.activity{width:32px}.file-row{padding-left:8px;font-size:10px}.breadcrumb{padding-left:8px}.bottom-panel{height:155px}.statusbar{font-size:8px}.statusbar>div{gap:5px}.editor-toolbar{right:4px;top:4px}}
+@media(max-width:400px){.explorer{width:105px}.file-row{gap:4px}.editor-toolbar button[data-action="format"]{display:none}}
+</style></head><body>
+<div id="app" class="hidden">
+<header class="titlebar">
+ <div class="brand"><div class="mark">F</div><span>FUKISHŌKAI</span><span style="color:#888;font-weight:400">/ CODE STUDIO</span></div>
+ <div class="top-center" id="server-name">Connecting…</div>
+ <div class="actions"><span class="user-pill" id="user-name"></span><button id="save-btn" class="primary" title="Ctrl+S">Save</button><button id="test-btn">▶ Test</button><button id="deploy-btn">Deploy</button><button id="activate-btn" class="good" disabled>Activate</button><button id="more-btn">•••</button></div>
+</header>
+<main class="workspace">
+<nav class="activity"><button class="active" title="Explorer">▤</button><button title="Search" disabled>⌕</button><button title="Source control" disabled>⑂</button><button title="Extensions" disabled>▦</button></nav>
+<aside class="explorer">
+ <div class="explorer-head"><span>EXPLORER</span><div><button id="new-btn" title="New JavaScript command">＋</button><button id="refresh-btn" title="Refresh">↻</button></div></div>
+ <div class="folder-label"><span>▾</span>commands</div>
+ <div class="file-tree" id="file-tree"></div>
+ <div class="folder-label" style="color:#858592;font-size:9px;letter-spacing:1px">OUTLINE</div>
+ <div style="padding:0 12px 12px;font-size:10px;color:#777">Command exports</div>
+</aside>
+<section class="editor-column">
+ <div class="tabbar"><div class="tab"><span class="file-icon">JS</span><span id="tab-name">new-command.js</span><span id="dirty-dot" style="margin-left:auto;color:#e1bd78"></span></div></div>
+ <div class="breadcrumb">commands <span style="color:#555">›</span> <b id="crumb-name">new-command.js</b></div>
+ <div class="editor-wrap"><div id="editor" class="editor-host"></div><div class="editor-toolbar"><button data-action="format">Format</button><button data-action="undo">Undo</button></div></div>
+ <section id="bottom-panel" class="bottom-panel">
+  <div class="panel-tabs"><span class="panel-tab active" data-panel="terminal">TERMINAL</span><span class="panel-tab" data-panel="problems">PROBLEMS</span><span class="panel-tab" data-panel="preview">PREVIEW</span><span style="margin-left:auto;cursor:pointer" id="collapse-panel">⌄</span></div>
+  <div class="panel-content" id="terminal"></div><div class="panel-content hidden" id="problems"></div><div class="panel-content hidden" id="preview"></div>
+ </section>
+</section></main>
+<footer class="statusbar"><div><span>⑂ main</span><span id="status-sync">● Ready</span><span id="status-message">No file selected</span></div><div><span>JavaScript</span><span>UTF-8</span><span>Spaces: 2</span></div></footer>
+</div>
+<div id="login"><div class="login-card"><div class="login-mark">F</div><h1>Fukishōkai Code Studio</h1><p>A VS Code-style workspace for writing your server's custom slash commands. Sign in with an authorized Discord account.</p><button id="login-btn" class="primary">Continue with Discord</button><div id="login-error" class="login-error"></div></div></div>
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
+<script>
+(() => {
+ const $ = id => document.getElementById(id);
+ const starter = [
+ "module.exports = {",
+ "  data: {",
+ "    name: \\"welcome-member\\",",
+ "    description: \\"Send a welcome message\\",",
+ "    visibility: \\"public\\",",
+ "    options: [",
+ "      { name: \\"member\\", description: \\"Member to welcome\\", type: \\"user\\", required: false }",
+ "    ]",
+ "  },",
+ "",
+ "  async execute({ user, guild, channel, options }) {",
+ "    const target = options.member || user;",
+ "    return {",
+ "      embeds: [{",
+ "        title: \\"Welcome to \\" + guild.name,",
+ "        description: \\"Welcome, \\" + (target.globalName || target.username || target.name) + \\"!\\",",
+ "        color: \\"#B46A86\\",",
+ "        fields: [",
+ "          { name: \\"Welcomed by\\", value: user.mention, inline: true },",
+ "          { name: \\"Channel\\", value: channel.mention, inline: true }",
+ "        ],",
+ "        footer: { text: \\"Fukishōkai · Community\\" }",
+ "      }]",
+ "    };",
+ "  }",
+ "};"
+ ].join("\\n");
+ let editor=null, csrf="", commands=[], selected=null, dirty=false;
+ const api=async(url,options={})=>{
+  const headers={ "Content-Type":"application/json",...(options.headers||{}) };
+  if(options.method && options.method!=="GET") headers["X-CSRF-Token"]=csrf;
+  const response=await fetch(url,{credentials:"same-origin",...options,headers});
+  const body=await response.json().catch(()=>({}));
+  if(response.status===401){$("app").classList.add("hidden");$("login").classList.remove("hidden");}
+  if(!response.ok) throw new Error(body.error||("Request failed ("+response.status+")."));
+  return body;
+ };
+ function log(message,kind=""){const el=document.createElement("div");el.className="log-line "+kind;el.textContent=message;$("terminal").appendChild(el);$("terminal").scrollTop=$("terminal").scrollHeight;}
+ function setPanel(name){document.querySelectorAll(".panel-tab").forEach(x=>x.classList.toggle("active",x.dataset.panel===name));["terminal","problems","preview"].forEach(id=>$(id).classList.toggle("hidden",id!==name));$("bottom-panel").classList.remove("collapsed");}
+ function setDirty(value){dirty=value;$("status-sync").textContent=value?"● Unsaved changes":"● Saved";$("dirty-dot").textContent=value?"●":"";}
+ function drawFiles(){
+  const tree=$("file-tree");tree.innerHTML="";
+  if(!commands.length){const p=document.createElement("div");p.style.cssText="padding:8px 12px;color:#888;font-size:10px";p.textContent="No command files yet";tree.appendChild(p);return;}
+  commands.forEach(command=>{const row=document.createElement("div");row.className="file-row"+(selected&&selected.id===command.id?" active":"");row.onclick=()=>choose(command);const icon=document.createElement("span");icon.className="file-icon";icon.textContent="JS";const name=document.createElement("span");name.textContent=command.name+".js";const status=document.createElement("span");status.className="file-status";status.textContent=command.isActive?"●":command.deployedAt?"◐":"○";row.append(icon,name,status);row.title=command.description;tree.appendChild(row);});
+ }
+ function setFileName(name){$("tab-name").textContent=name+".js";$("crumb-name").textContent=name+".js";}
+ function choose(command){
+  if(dirty&&!confirm("Discard unsaved changes and open another file?"))return;
+  selected={...command};editor.setValue(command.sourceCode||starter);setDirty(false);setFileName(selected.name);drawFiles();
+  $("status-message").textContent=selected.isActive?"Active command":selected.deployedAt?"Deployed · not active":"Draft";
+  $("activate-btn").disabled=!selected.deployedAt||selected.isActive;$("activate-btn").textContent=selected.isActive?"Active":"Activate";setPanel("terminal");log("Opened commands/"+selected.name+".js","ok");
+ }
+ function chooseNew(){
+  if(dirty&&!confirm("Discard unsaved changes and create a new file?"))return;
+  selected={id:null,name:"new-command",description:"New custom slash command",sourceCode:starter,isActive:false,deployedAt:null};
+  editor.setValue(starter);setDirty(true);setFileName(selected.name);drawFiles();$("activate-btn").disabled=true;$("status-message").textContent="New JavaScript command";setPanel("terminal");log("Created a new JavaScript command file.");
+ }
+ async function loadCommands(){
+  const result=await api("/api/commands");commands=result.commands||[];drawFiles();
+  if(selected&&selected.id){const refreshed=commands.find(x=>x.id===selected.id);selected=refreshed?{...refreshed}:null;}
+  if(selected){$("activate-btn").disabled=!selected.deployedAt||selected.isActive;$("activate-btn").textContent=selected.isActive?"Active":"Activate";}
+  else if(commands.length)choose(commands[0]);else chooseNew();
+ }
+ async function save(){
+  if(!selected)throw new Error("Create or open a command file first.");
+  const result=await api("/api/commands",{method:"POST",body:JSON.stringify({id:selected.id||null,sourceCode:editor.getValue()})});
+  selected={...result.command};commands=[selected,...commands.filter(x=>x.id!==selected.id)].sort((a,b)=>a.name.localeCompare(b.name));
+  setDirty(false);setFileName(selected.name);drawFiles();$("activate-btn").disabled=true;$("status-message").textContent="Saved · Needs deployment";log("Saved /"+selected.name+" · deploy before activation.","ok");return selected;
+ }
+ async function test(){
+  if(!selected)throw new Error("Select a command first.");if(dirty||!selected.id)await save();
+  const result=await api("/api/commands/"+selected.id+"/test",{method:"POST",body:JSON.stringify({options:{}})});
+  renderPreview(result.preview);setPanel("preview");log("Test completed for /"+selected.name+".","ok");
+ }
+ function renderPreview(payload){
+  const host=$("preview");host.innerHTML="";
+  if(payload.content){const text=document.createElement("div");text.textContent=payload.content;host.appendChild(text);}
+  (payload.embeds||[]).forEach(embed=>{const card=document.createElement("div");card.className="preview-embed";
+   if(embed.title){const h=document.createElement("h3");h.textContent=embed.title;card.appendChild(h);}
+   if(embed.description){const p=document.createElement("p");p.textContent=embed.description;card.appendChild(p);}
+   (embed.fields||[]).forEach(field=>{const box=document.createElement("div");box.className="preview-field";const b=document.createElement("b");b.textContent=field.name;const s=document.createElement("span");s.textContent=field.value;box.append(b,s);card.appendChild(box);});
+   host.appendChild(card);
+  });
+  if(!payload.content&&!(payload.embeds||[]).length)host.textContent="The command returned an empty response.";
+ }
+ async function deploy(){
+  if(!selected)throw new Error("Select a command first.");if(dirty||!selected.id)await save();
+  const result=await api("/api/commands/"+selected.id+"/deploy",{method:"POST",body:"{}"});
+  log("$ npm run deploy-commands","ok");String(result.output||"Slash commands registered.").split("\\n").filter(Boolean).forEach(x=>log(x));
+  await loadCommands();setPanel("terminal");$("status-message").textContent="Deployed · ready to activate";
+ }
+ async function activate(){if(!selected||!selected.id)throw new Error("Save a command first.");await api("/api/commands/"+selected.id+"/activate",{method:"POST",body:"{}"});log("Activated /"+selected.name+". Members can now use it.","ok");await loadCommands();}
+ async function deactivate(){if(!selected||!selected.id)return;await api("/api/commands/"+selected.id+"/deactivate",{method:"POST",body:"{}"});log("Deactivated /"+selected.name+".","ok");await loadCommands();}
+ async function remove(){if(!selected||!selected.id)return;if(!confirm("Delete /"+selected.name+" and remove it from Discord?"))return;await api("/api/commands/"+selected.id,{method:"DELETE"});log("Deleted /"+selected.name+".","ok");selected=null;await loadCommands();}
+ function handleError(error){setPanel("problems");$("problems").textContent=error.message||String(error);log("ERROR: "+(error.message||String(error)),"error");}
+ async function init(){
+  try{
+   const session=await api("/api/session");if(!session.authenticated)return;
+   csrf=session.csrf;$("user-name").textContent=session.user.globalName||session.user.username;$("server-name").textContent=session.guildName+" · Custom command workspace";
+   $("login").classList.add("hidden");$("app").classList.remove("hidden");
+   require.config({paths:{vs:"https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs"}});
+   window.MonacoEnvironment={getWorkerUrl:function(){const worker="self.MonacoEnvironment={baseUrl:'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/'};importScripts('https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/base/worker/workerMain.js');";return "data:text/javascript;charset=utf-8,"+encodeURIComponent(worker);}};
+   require(["vs/editor/editor.main"],async function(){
+    editor=monaco.editor.create($("editor"),{value:starter,language:"javascript",theme:"vs-dark",automaticLayout:true,minimap:{enabled:true},fontSize:13,fontFamily:"Consolas, 'Courier New', monospace",lineNumbers:"on",roundedSelection:false,scrollBeyondLastLine:false,wordWrap:"on",tabSize:2,insertSpaces:true,folding:true,bracketPairColorization:{enabled:true},guides:{indentation:true,bracketPairs:true},suggest:{showKeywords:true,showSnippets:true},quickSuggestions:true,formatOnPaste:true,formatOnType:true,padding:{top:16,bottom:12}});
+    editor.onDidChangeModelContent(()=>{if(selected)setDirty(true);});
+    editor.addCommand(monaco.KeyMod.CtrlCmd|monaco.KeyCode.KeyS,()=>save().catch(handleError));
+    await loadCommands();log("Code Studio connected · JavaScript editor ready.","ok");
+   });
+  }catch(error){$("login-error").textContent=error.message;}
+ }
+ $("login-btn").onclick=()=>{window.location.href="/auth/discord";};
+ $("save-btn").onclick=()=>save().catch(handleError);$("test-btn").onclick=()=>test().catch(handleError);$("deploy-btn").onclick=()=>deploy().catch(handleError);$("activate-btn").onclick=()=>activate().catch(handleError);$("new-btn").onclick=chooseNew;$("refresh-btn").onclick=()=>loadCommands().catch(handleError);
+ $("more-btn").onclick=async()=>{const action=prompt("Type: deactivate, delete, signout");if(action==="deactivate")await deactivate().catch(handleError);if(action==="delete")await remove().catch(handleError);if(action==="signout"){await api("/api/session",{method:"DELETE",body:"{}"});location.reload();}};
+ $("collapse-panel").onclick=()=>$("bottom-panel").classList.toggle("collapsed");document.querySelectorAll(".panel-tab").forEach(tab=>tab.onclick=()=>setPanel(tab.dataset.panel));
+ document.querySelector('[data-action="format"]').onclick=()=>editor.getAction("editor.action.formatDocument").run();document.querySelector('[data-action="undo"]').onclick=()=>editor.trigger("keyboard","undo",null);
+ init();
+})();
+</script></body></html>
