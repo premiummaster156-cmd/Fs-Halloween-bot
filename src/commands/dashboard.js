@@ -219,7 +219,7 @@ async function renderMenu(guildId, owner, page, s) {
         " · Upgrade " + x.upgradeLevel + "/" + balancing.itemUpgrades.maxLevel + (x.equipped ? " · Equipped" : "");
       if (x.upgradeLevel >= balancing.itemUpgrades.maxLevel) return current + " · MAX";
       const nextLevel = x.upgradeLevel + 1;
-      const nextCost = Math.ceil(x.item.cost * (balancing.itemUpgrades.costBaseFactor + nextLevel * balancing.itemUpgrades.costPerLevelFactor));
+      const nextCost = getUpgradeCost(x.item, nextLevel);
       const requiredLevel = x.item.minLevel + nextLevel * balancing.itemUpgrades.levelRequirementPerUpgrade;
       return current + " · Next: " + nextCost.toLocaleString() + " FC / Lv " + requiredLevel;
     });
