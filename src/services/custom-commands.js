@@ -158,21 +158,21 @@ function interpolate(text, interaction, definition) {
     if (key === "server") return interaction.guild?.name || "the server";
     if (key === "channel") return "<#" + interaction.channelId + ">";
     const selected = values.get(optionName);
-    return selected ? String(selected[property || "raw"] ?? selected.raw ?? "") : "";
+    return selected ? String(selected[property || "raw"] ?? selected.raw ?? "—") : "—";
   });
 }
 
 function buildReply(interaction, definition) {
   const response = definition.response;
   const payload = { allowedMentions: { parse: [] } };
-  if (response.content) payload.content = interpolate(response.content, interaction, definition);
+  if (response.content) payload.content = interpolate(response.content, interaction, definition).slice(0, 2000);
   if (response.title || response.description || response.fields?.length) {
     const embed = new EmbedBuilder().setColor(response.color || "#8B1E3F").setTimestamp(new Date());
-    if (response.title) embed.setTitle(interpolate(response.title, interaction, definition));
-    if (response.description) embed.setDescription(interpolate(response.description, interaction, definition));
+    if (response.title) embed.setTitle(interpolate(response.title, interaction, definition).slice(0, 256));
+    if (response.description) embed.setDescription(interpolate(response.description, interaction, definition).slice(0, 4096));
     if (response.fields?.length) embed.addFields(response.fields.map((field) => ({
-      name: interpolate(field.name, interaction, definition),
-      value: interpolate(field.value, interaction, definition),
+      name: (interpolate(field.name, interaction, definition).slice(0, 256) || "Details"),
+      value: (interpolate(field.value, interaction, definition).slice(0, 1024) || "—"),
       inline: field.inline
     })));
     payload.embeds = [embed];
