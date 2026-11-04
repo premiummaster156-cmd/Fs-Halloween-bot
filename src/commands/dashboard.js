@@ -585,20 +585,39 @@ async function handleSelection(i, s, scope, owner, action, parts) {
   if (action === "heist-create") {
     await i.deferUpdate();
     const r = await s.heists.create(i.guildId, owner, value);
-    await recordMemberAction(i, s, "heist_created", "created a crew for **" + r.mission.name + "**.", { heistId: r.id, missionId: r.mission.id });
-    return i.editReply(panel("CREW CREATED  /  RECRUITING", "**" + r.mission.name + "** is ready for members to join. Share the ID below with your crew.", [
+    const board = await publishNewHeistBoard(i, s, r.id).catch((error) => {
+      console.warn("[heists] Public crew board could not be created:", error.code || error.message);
+      return { posted: false, note: "The public crew board could not be posted. Check that the bot can send messages in this channel." };
+    });
+    await safeAudit(i, s, "heist_created", owner, { missionId: r.mission.id });
+    await safeSendLog(i, s, "A new heist crew was created for " + r.mission.name + ".");
+    const roster = board.snapshot ? getHeistCrewLines(board.snapshot.crew).join("\n") : "<@" + owner + "> — Planner";
+    return i.editReply(panel("CREW CREATED  /  RECRUITING", "**" + r.mission.name + "** is ready. The public crew board " +
+      (board.posted ? "has been posted in <#" + board.channel.id + "> and will update as members join." : "could not be posted. " + board.note), [
       { name: "HEIST ID", value: "||" + r.id + "||" },
-      { name: "Crew size", value: r.mission.minParticipants + "–" + r.mission.maxParticipants + " members" }
+      { name: "Current crew", value: roster },
+      { name: "Crew size", value: "Minimum " + r.mission.minParticipants + " · Maximum " + r.mission.maxParticipants }
     ], [row(new ButtonBuilder().setCustomId("dash:" + owner + ":copy:" + r.id).setLabel("Show copyable ID").setStyle(ButtonStyle.Primary)), row(btn(owner, "heists", "Heist menu")), navButton(owner)], "success"));
   }
   if (action === "heist-join-role") {
     await i.deferUpdate();
     const heistId = parts[3];
     const r = await s.heists.join(i.guildId, owner, heistId, value);
-    await recordMemberAction(i, s, "heist_joined", "joined a **" + r.mission.name + "** crew as **" + r.role.label + "**.", { heistId, roleId: value });
-    return i.editReply(panel("YOU JOINED THE CREW", "You joined **" + r.mission.name + "** as **" + r.role.label + "**.", [
-      { name: "Crew size", value: r.count + "/" + r.maximum }
-    ], [row(btn(owner, "heists", "Heist menu")), navButton(owner)], "success"));
+    const board = await refreshHeistBoard(i, s, heistId).catch((error) => {
+      console.warn("[heists] Crew board update failed:", error.code || error.message);
+      return { posted: false, snapshot: null };
+    });
+    const snapshot = board.snapshot || await s.heists.status(i.guildId, heistId);
+    await announceHeistJoin(i, snapshot, owner, r.role.label);
+    await safeAudit(i, s, "heist_joined", owner, { heistId, role: r.role.label, leaderId: r.leaderId });
+    await safeSendLog(i, s, "A member joined " + r.mission.name + " as " + r.role.label + ".");
+    return i.editReply(panel("YOU JOINED THE CREW", "You joined **" + r.mission.name + "** as **" + r.role.label + "**. The leader's public crew board has been updated.",
+      [
+        { name: "Current crew", value: getHeistCrewLines(snapshot.crew).join("\n").slice(0, 1000) },
+        { name: "Crew size", value: r.count + "/" + r.maximum, inline: true },
+        { name: "Leader", value: "<@" + r.leaderId + ">", inline: true },
+        ...(board.posted ? [{ name: "Crew board", value: "Updated in <#" + board.channel.id + ">." }] : [])
+      ], [row(btn(owner, "heists", "Heist menu")), navButton(owner)], "success"));
   }
 }
 
@@ -950,18 +969,33 @@ async function handleModal(i, s) {
       }
       if (target === "heist-start") {
         const r = await s.heists.start(i.guildId, owner, id, new Map([[owner, memberRoleIds(i)]]));
-        await recordMemberAction(i, s, "heist_completed", r.succeeded
-          ? "completed **" + r.mission.name + "** with the crew and shared a total payout of " + r.totalPayout.toLocaleString() + " FC."
-          : "attempted **" + r.mission.name + "** with the crew, but the operation failed.",
-          { heistId: id, missionId: r.mission.id, succeeded: r.succeeded, totalPayout: r.totalPayout, successChance: r.successChance }, r.succeeded ? "success" : "warning");
+        const board = await refreshHeistBoard(i, s, id).catch((error) => {
+          console.warn("[heists] Final crew board update failed:", error.code || error.message);
+          return { posted: false, snapshot: null };
+        });
+        const snapshot = board.snapshot || await s.heists.status(i.guildId, id);
+        await announceHeistResult(i, snapshot);
+        await safeAudit(i, s, "heist_completed", owner, {
+          heistId: id, missionId: r.mission.id, succeeded: r.succeeded,
+          totalPayout: r.totalPayout, successChance: r.successChance
+        });
+        await safeSendLog(i, s, "A heist mission finished with status " + (r.succeeded ? "success" : "failed") + ".");
         return i.editReply(panel(r.succeeded ? "HEIST SUCCESSFUL" : "HEIST FAILED",
-          r.succeeded ? "Your crew completed **" + r.mission.name + "** and secured **" + r.totalPayout.toLocaleString() + " FC**." : "The operation failed. The crew paid the mission penalty.",
-          [{ name: "Success chance", value: r.successChance + "%", inline: true }, { name: "Roll", value: String(r.roll), inline: true }, { name: "Payout", value: r.totalPayout.toLocaleString() + " FC", inline: true }], [], r.succeeded ? "success" : "warning"));
+          r.succeeded ? "Your crew completed **" + r.mission.name + "** and secured **" + r.totalPayout.toLocaleString() + " FC** in total. The result is now visible in the channel."
+            : "Your crew's attempt at **" + r.mission.name + "** was unsuccessful. The final result is visible in the channel.",
+          [
+            { name: "Crew", value: getHeistCrewLines(snapshot.crew).join("\n").slice(0, 1000) },
+            { name: "Success chance", value: r.successChance + "%", inline: true },
+            { name: "Final roll", value: String(r.roll), inline: true },
+            { name: "Team payout", value: r.totalPayout.toLocaleString() + " FC", inline: true },
+            ...(board.posted ? [{ name: "Public result", value: "Posted in <#" + board.channel.id + ">." }] : [])
+          ], [row(btn(owner, "heists", "Heist menu")), navButton(owner)], r.succeeded ? "success" : "warning"));
       }
       const r = await s.heists.status(i.guildId, id);
-      const mission = balancing.heists.find((m) => m.id === r.heist.mission_id);
-      return i.editReply(panel("HEIST STATUS", "**" + (mission ? mission.name : r.heist.mission_id) + "**\nStatus: " + r.heist.status.toUpperCase() + " · Crew: " + r.heist.crew_count,
-        [{ name: "Crew members", value: r.crew.map((x) => "<@" + x.user_id + "> · " + ((balancing.heistRoles[x.role_id] || {}).label || x.role_id)).join("\n").slice(0, 1000) }]));
+      return i.editReply({
+        embeds: [buildHeistEmbed(r)],
+        components: [row(btn(owner, "heists", "Heist menu")), navButton(owner)]
+      });
     }
   }
   if (scope === "admin") {
