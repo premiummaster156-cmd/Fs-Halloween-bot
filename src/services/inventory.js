@@ -180,10 +180,10 @@ class InventoryService {
     const equippedIds = new Set(equipped.rows.map((row) => row.item_id));
     return {
       items: owned.rows.map((row) => {
-        const item = balancing.items.find((entry) => entry.id === row.item_id);
+        const item = balancing.items.find((entry) => entry.id === row.item_id) || balancing.halloween.shop.find((entry) => entry.id === row.item_id);
         return { item: item || { id: row.item_id, name: row.item_id }, quantity: Number(row.quantity), upgradeLevel: Number(row.upgrade_level || 0), equipped: equippedIds.has(row.item_id) };
       }),
-      equipped: equipped.rows.map((row) => ({ slot: row.slot, item: balancing.items.find((entry) => entry.id === row.item_id) || { id: row.item_id, name: row.item_id } }))
+      equipped: equipped.rows.map((row) => ({ slot: row.slot, item: balancing.items.find((entry) => entry.id === row.item_id) || balancing.halloween.shop.find((entry) => entry.id === row.item_id) || { id: row.item_id, name: row.item_id } }))
     };
   }
 
