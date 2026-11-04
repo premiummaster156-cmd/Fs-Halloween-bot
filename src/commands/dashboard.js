@@ -8,6 +8,7 @@ const settings = require("../config/settings");
 const balancing = require("../config/game-balancing");
 const { createEmbed } = require("../ui");
 const { getPlayer, getLeaderboard } = require("../services/economy");
+const { getUpgradeCost } = require("../services/inventory");
 const { levelXpRequired, uuid } = require("../utils/core");
 const { makeWorkChallenge } = require("../games/work-challenge");
 const { audit, sendLog } = require("../utils/logging");
@@ -225,7 +226,16 @@ async function renderMenu(guildId, owner, page, s) {
     const equip = inv.items.filter((x) => x.item.type === "equipment" && !x.equipped).map((x) => ({ label: x.item.name, value: x.item.id, description: "Equip in " + x.item.slot }));
     const unequip = inv.equipped.map((x) => ({ label: x.slot, value: x.slot, description: x.item.name }));
     const upgrade = inv.items.filter((x) => x.item.type === "equipment" && x.upgradeLevel < balancing.itemUpgrades.maxLevel)
-      .map((x) => ({ label: x.item.name, value: x.item.id, description: "Upgrade " + x.upgradeLevel + "/" + balancing.itemUpgrades.maxLevel }));
+      .map((x) => {
+        const nextLevel = x.upgradeLevel + 1;
+        const cost = getUpgradeCost(x.item, nextLevel);
+        const requiredLevel = x.item.minLevel + nextLevel * balancing.itemUpgrades.levelRequirementPerUpgrade;
+        return {
+          label: x.item.name,
+          value: x.item.id,
+          description: "Level " + nextLevel + "/" + balancing.itemUpgrades.maxLevel + " · " + cost.toLocaleString() + " FC · Player level " + requiredLevel + "+" 
+        };
+      });
     if (equip.length) controls.push(menu(owner, "equip", "Choose gear to equip", equip));
     if (unequip.length) controls.push(menu(owner, "unequip", "Choose a slot to clear", unequip));
     if (upgrade.length) controls.push(menu(owner, "upgrade-item", "Choose gear to upgrade", upgrade));
