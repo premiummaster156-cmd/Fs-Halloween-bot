@@ -1,6 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { isBrowserIdeEnabled, isIdeServerEnabled } = require("../src/web/ide-server");
+const { isBrowserIdeEnabled, isIdeServerEnabled, authoriseMember } = require("../src/web/ide-server");
+const settings = require("../src/config/settings");
+const { randomUUID } = require("node:crypto");
 
 test("AI workspace API can start without browser OAuth configuration", () => {
   const config = {
@@ -49,4 +51,47 @@ test("browser Code Studio can serve multiple servers without a fixed IDE_GUILD_I
   };
   assert.equal(isBrowserIdeEnabled(config), true);
   assert.equal(isIdeServerEnabled(config), true);
+});
+
+test("Code Studio checks the trusted Admin Role in the exact server selected by the admin-panel link", async () => {
+  const userId = "workspace-admin-" + randomUUID();
+  const guilds = new Map();
+  const roleByGuild = {
+    "123456789012345671": "trusted-role-a",
+    "123456789012345672": "trusted-role-b"
+  };
+  for (const guildId of Object.keys(roleByGuild)) {
+    guilds.set(guildId, {
+      id: guildId,
+      name: "Server " + guildId,
+      ownerId: "owner-" + guildId,
+      members: {
+        fetch: async () => ({
+          roles: { cache: { has: (roleId) => guildId.endsWith("671") && roleId === roleByGuild[guildId] } }
+        })
+      }
+    });
+  }
+  const client = {
+    guilds: {
+      cache: { get: (guildId) => guilds.get(guildId) },
+      fetch: async (guildId) => guilds.get(guildId)
+    }
+  };
+  const services = {
+    guildSettings: {
+      get: async (guildId, key) => key === "adminRoleId" ? roleByGuild[guildId] : null
+    }
+  };
+
+  const access = await authoriseMember(client, services, userId, "123456789012345671");
+  assert.equal(access.guild.id, "123456789012345671");
+  await assert.rejects(
+    authoriseMember(client, services, userId, "123456789012345672"),
+    /limited to this server/
+  );
+  await assert.rejects(
+    authoriseMember(client, services, userId, "../other"),
+    /server ID/
+  );
 });
