@@ -294,8 +294,8 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
     const ev = await s.halloween.getEvent(guildId);
     return panel("FUKISHOKAI  /  ADMIN CONSOLE", "One private control centre for the server. Select a category below. Player currency and progression edits remain owner-only.",
       [
-        { name: "🛡️ Permission model", value: "Server admins: settings and event operations.\nServer owner / configured bot owner: player currency, XP, levels, careers and leaderboard eligibility." },
-        { name: "⚙️ Server setup", value: "Admin role: " + (cfg.adminRoleId ? "<@&" + cfg.adminRoleId + ">" : "Not set") + "\nLog channel: " + (cfg.logChannelId ? "<#" + cfg.logChannelId + ">" : "Not set") },
+        { name: "🔐 Bot access", value: "Server owner + OWNER_ID only. Discord Administrator, Manage Server and admin roles do not grant bot control." },
+        { name: "⚙️ Server setup", value: "Log channel: " + (cfg.logChannelId ? "<#" + cfg.logChannelId + ">" : "Not set") + "\nHalloween reward role: " + (cfg.halloweenRoleId ? "<@&" + cfg.halloweenRoleId + ">" : "Not set") },
         { name: "🎃 Halloween", value: ev ? (ev.enabled ? "Enabled" : "Disabled") + " · Ends <t:" + Math.floor(new Date(ev.ends_at).getTime() / 1000) + ":R>" : "Not configured" }
       ], [
         row(aBtn(owner, "settings", "Server settings", ButtonStyle.Primary, "⚙️"), aBtn(owner, "event", "Event controls", ButtonStyle.Secondary, "🎃")),
@@ -308,12 +308,10 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
     return panel("SERVER SETTINGS", "Select an item below to configure it. Changes are saved immediately and written to the audit history.", [
       { name: "Halloween reward role", value: cfg.halloweenRoleId ? "<@&" + cfg.halloweenRoleId + ">" : "Not set" },
       { name: "2× XP role", value: cfg.xpBoosterRoleId ? "<@&" + cfg.xpBoosterRoleId + ">" : "Not set" },
-      { name: "Additional admin role", value: cfg.adminRoleId ? "<@&" + cfg.adminRoleId + ">" : "Not set" },
       { name: "Admin log channel", value: cfg.logChannelId ? "<#" + cfg.logChannelId + ">" : "Not set" }
     ], [
       row(new RoleSelectMenuBuilder().setCustomId("admin:" + owner + ":setting-reward").setPlaceholder("Set Halloween reward role").setMinValues(1).setMaxValues(1).setDefaultRoles(cfg.halloweenRoleId ? [cfg.halloweenRoleId] : [])),
       row(new RoleSelectMenuBuilder().setCustomId("admin:" + owner + ":setting-xp").setPlaceholder("Set 2× XP role").setMinValues(1).setMaxValues(1).setDefaultRoles(cfg.xpBoosterRoleId ? [cfg.xpBoosterRoleId] : [])),
-      row(new RoleSelectMenuBuilder().setCustomId("admin:" + owner + ":setting-admin").setPlaceholder("Set additional admin role").setMinValues(1).setMaxValues(1).setDefaultRoles(cfg.adminRoleId ? [cfg.adminRoleId] : [])),
       row(new ChannelSelectMenuBuilder().setCustomId("admin:" + owner + ":setting-log").setPlaceholder("Set admin log channel").setChannelTypes(ChannelType.GuildText).setMinValues(1).setMaxValues(1).setDefaultChannels(cfg.logChannelId ? [cfg.logChannelId] : [])),
       row(aBtn(owner, "clear-settings", "Clear a setting", ButtonStyle.Danger, "🧹"), aBtn(owner, "home", "Admin console"))
     ]);
@@ -323,7 +321,6 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
       [row(new StringSelectMenuBuilder().setCustomId("admin:" + owner + ":clear-setting").setPlaceholder("Choose a setting to clear").setMinValues(1).setMaxValues(1).addOptions(
         { label: "Halloween reward role", value: "halloweenRoleId" },
         { label: "2× XP role", value: "xpBoosterRoleId" },
-        { label: "Additional admin role", value: "adminRoleId" },
         { label: "Admin log channel", value: "logChannelId" }
       )), row(aBtn(owner, "settings", "Back to settings"))], "warning");
   }
@@ -440,7 +437,7 @@ async function handleSelection(i, s, scope, owner, action, parts) {
       return i.update(await renderAdmin(i.guildId, owner, "fairness", s, value));
     }
     if (action === "clear-setting") {
-      const allowed = ["halloweenRoleId", "xpBoosterRoleId", "adminRoleId", "logChannelId"];
+      const allowed = ["halloweenRoleId", "xpBoosterRoleId", "logChannelId"];
       if (!allowed.includes(value)) throw new Error("Unknown server setting.");
       await i.deferUpdate();
       await s.guildSettings.clear(i.guildId, value);
@@ -453,7 +450,6 @@ async function handleSelection(i, s, scope, owner, action, parts) {
       const map = {
         "setting-reward": ["halloweenRoleId", "Halloween reward role"],
         "setting-xp": ["xpBoosterRoleId", "2x XP role"],
-        "setting-admin": ["adminRoleId", "Additional admin role"],
         "setting-log": ["logChannelId", "Admin log channel"]
       };
       const setting = map[action];
