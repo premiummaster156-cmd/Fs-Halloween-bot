@@ -453,4 +453,4 @@ async function startIdeServer(client, services) {
   return server;
 }
 
-module.exports = { startIdeServer, createIdeServer, isBrowserIdeEnabled, isIdeServerEnabled };
+module.exports = { startIdeServer, createIdeServer, isBrowserIdeEnabled, isIdeServerEnabled, authoriseMember };
