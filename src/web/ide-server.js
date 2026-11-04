@@ -162,6 +162,13 @@ function toPreviewPayload(payload) {
   };
 }
 
+function isBrowserIdeEnabled(config = settings) {
+  return Boolean(config.discordClientSecret && config.idePublicUrl && config.ideGuildId);
+}
+
+function isIdeServerEnabled(config = settings) {
+  return Boolean(config.ideGuildId && (config.adminWorkspaceApiKey || isBrowserIdeEnabled(config)));
+}
 
 function createIdeServer(client, services) {
   const htmlPath = path.join(__dirname, "ide.html");
@@ -169,6 +176,9 @@ function createIdeServer(client, services) {
     const url = new URL(req.url, "http://localhost");
     try {
       if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/ide")) {
+        if (!isBrowserIdeEnabled()) {
+          return json(res, 503, { error: "Browser Code Studio requires Discord OAuth configuration. The AI workspace API can still run independently." });
+        }
         res.writeHead(200, {
           "Content-Type": "text/html; charset=utf-8",
           "Cache-Control": "no-store",
@@ -178,6 +188,10 @@ function createIdeServer(client, services) {
           "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data: https://cdn.jsdelivr.net; connect-src 'self' https://cdn.jsdelivr.net; worker-src blob: data:"
         });
         return res.end(fs.readFileSync(htmlPath));
+      }
+
+      if (url.pathname.startsWith("/auth/") && !isBrowserIdeEnabled()) {
+        return json(res, 503, { error: "Browser Code Studio sign-in is not enabled on this host." });
       }
 
       if (req.method === "GET" && url.pathname === "/auth/discord") {
@@ -419,8 +433,8 @@ function createIdeServer(client, services) {
 }
 
 async function startIdeServer(client, services) {
-  if (!settings.discordClientSecret || !settings.idePublicUrl || !settings.ideGuildId) {
-    console.log("[code-studio] Disabled until DISCORD_CLIENT_SECRET, IDE_PUBLIC_URL and IDE_GUILD_ID are configured.");
+  if (!isIdeServerEnabled(settings)) {
+    console.log("[code-studio] Disabled until IDE_GUILD_ID and either ADMIN_WORKSPACE_API_KEY or full browser IDE OAuth settings are configured.");
     return null;
   }
   const server = createIdeServer(client, services);
@@ -432,4 +446,4 @@ async function startIdeServer(client, services) {
   return server;
 }
 
-module.exports = { startIdeServer, createIdeServer };
+module.exports = { startIdeServer, createIdeServer, isBrowserIdeEnabled, isIdeServerEnabled };
