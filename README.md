@@ -47,6 +47,8 @@ The bot now has two user-facing slash-command entry points:
 
 Actions that require typed values open a short form. Members no longer need separate slash commands for routine game actions. The older command names are removed when the slash commands are redeployed.
 
+Casino games remain available with transparent odds and equal limits: 100–1,000 FC per round, a 30-second cooldown, and 5,000 FC in total wagers per rolling 24 hours. Coin Flip, High Dice and Slots each target a 95% theoretical return over a very large number of rounds; this is a statistical average, not a guaranteed individual result.
+
 ### First steps
 
 1. Run **/menu** and open **Careers**. Choose a career you qualify for.
