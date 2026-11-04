@@ -4,6 +4,10 @@ const numberOr = (value, fallback) => Number.isFinite(Number(value)) ? Number(va
 module.exports = {
   discordToken: process.env.DISCORD_TOKEN || "",
   clientId: process.env.CLIENT_ID || "",
+  discordClientSecret: process.env.DISCORD_CLIENT_SECRET || "",
+  idePublicUrl: (process.env.IDE_PUBLIC_URL || "").replace(/\\/$/, ""),
+  ideGuildId: process.env.IDE_GUILD_ID || process.env.GUILD_ID || "",
+  idePort: Math.max(1, Math.floor(numberOr(process.env.IDE_PORT || process.env.PORT, 3000))),
   guildId: process.env.GUILD_ID || "",
   databaseUrl: process.env.DATABASE_URL || "",
   ownerId: process.env.OWNER_ID || "",
