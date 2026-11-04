@@ -212,7 +212,7 @@ async function renderMenu(guildId, owner, page, s) {
     controls.push(row(btn(owner, "weekly", "Weekly mission"), btn(owner, "event-shop", "Seasonal shop"), btn(owner, "event-refresh", "Refresh", ButtonStyle.Primary)));
     controls.push(nav);
     return panel("HALLOWEEN  /  SEASONAL EVENT", (r.active ? "🟢 Event active" : "⚪ Event inactive") + " · Ends <t:" + Math.floor(new Date(r.event.ends_at).getTime() / 1000) + ":R>\n\n**Candy:** " + Number(r.wallet.candy || 0).toLocaleString() + " · **Event points:** " + Number(r.wallet.points || 0).toLocaleString() + "\n**Final reward:** " + r.claims.length + "/" + balancing.halloween.finalRoleQuestCount + " quests claimed.",
-      [{ name: "Quest tracker", value: lines.join("\n\n").slice(0, 3900) }], controls);
+      r.quests.map((q) => { const current = Math.min(q.goal, progress.get(q.id) || 0); const status = claims.has(q.id) ? " · CLAIMED" : current >= q.goal ? " · READY TO CLAIM" : ""; return { name: q.name + " · " + current + "/" + q.goal + status, value: q.description + " · Reward: " + q.candy + " Candy / " + q.points + " points" }; }), controls);
   }
   if (page === "weekly") {
     const w = await s.activity.getWeekly(guildId, owner);
@@ -372,7 +372,7 @@ async function showWork(i, owner, session) {
     .setCustomId("dash:" + owner + ":work-answer:" + session.id + ":" + session.index + ":" + x.letter)
     .setLabel(x.letter + " · " + x.value).setStyle(ButtonStyle.Secondary));
   const embed = createEmbed({
-    title: "WORK SHIFT  /  QUESTION " + (session.index + 1) + " OF 3,
+    title: "WORK SHIFT  /  QUESTION " + (session.index + 1) + " OF 3",
     description: q.question + "\n\nChoose the correct answer below. This screen expires after 60 seconds.",
     color: settings.brand.primary, icon: "task",
     fields: [
@@ -465,7 +465,7 @@ async function handleSelection(i, s, scope, owner, action, parts) {
       const rewardRole = configured || r.roleId;
       let note = "";
       if (r.eligibleForRole && rewardRole) {
-        const assigned = await rewardRoleAssign(i, rewardRole, "Completed the Halloween quest requirement");
+        const assigned = await rewardRole(i, rewardRole, "Completed the Halloween quest requirement");
         if (!assigned.assigned) note = "\n\n**Reward role not assigned:** " + assigned.issue;
       }
       await audit(s.pool, i.guildId, owner, "halloween_quest_claimed", owner, { questId: r.quest.id, candy: r.quest.candy, points: r.quest.points });
@@ -533,7 +533,8 @@ async function handleButton(i, s) {
     if (action === "set-career") {
       if (!isOwner(i)) return i.reply({ content: "Only the server owner or configured bot owner can assign careers.", flags: MessageFlags.Ephemeral });
       const opts = balancing.jobs.map((j) => ({ label: j.name, value: j.id, description: "Assign " + j.name }));
-      return i.update(panel("ASSIGN CAREER", "Choose the career to assign to <@" + target + ">.", [], [menu(owner, "career-select", "Choose a career", opts), row(aBtn(owner, "player", "Back to player tools", ButtonStyle.Secondary, null, target))]));
+      const careerMenu = new StringSelectMenuBuilder().setCustomId("admin:" + owner + ":career-select:" + target).setPlaceholder("Choose a career").setMinValues(1).setMaxValues(1).addOptions(opts);
+      return i.update(panel("ASSIGN CAREER", "Choose the career to assign to <@" + target + ">.", [], [row(careerMenu), row(aBtn(owner, "player", "Back to player tools", ButtonStyle.Secondary, null, target))]));
     }
     if (action === "exclude") {
       if (!isOwner(i)) return i.reply({ content: "Only the server owner or configured bot owner can change leaderboard eligibility.", flags: MessageFlags.Ephemeral });
