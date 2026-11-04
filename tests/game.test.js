@@ -97,6 +97,14 @@ test("rebirth multipliers double on every cycle and cooldown cuts have a safety 
   assert.equal(core.applyCooldownReduction(10000, 0.45, 6000), 6000);
 });
 
+test("rebirth starts at the required balance and uses the configured progression curve", () => {
+  assert.equal(balancing.rebirth.startingWallet, 1000);
+  assert.equal(balancing.rebirth.firstWalletRequirement, 15000);
+  assert.equal(balancing.rebirth.firstLevelRequirement, 10);
+  assert.equal(balancing.rebirth.walletRequirementGrowth, 2.5);
+  assert.equal(balancing.rebirth.levelRequirementGrowth, 5);
+});
+
 test("gear catalog has rising tiers and five upgrade levels", () => {
   assert.equal(balancing.itemUpgrades.maxLevel, 5);
   assert.ok(balancing.items.length >= 10);
