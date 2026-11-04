@@ -38,6 +38,16 @@ function chance(percent) {
 }
 function uuid() { return crypto.randomUUID(); }
 function clamp(value, minimum, maximum) { return Math.min(maximum, Math.max(minimum, value)); }
+function getRebirthMultiplier(rebirths) {
+  const count = Math.max(0, Math.floor(Number(rebirths) || 0));
+  return Math.pow(2, Math.min(count, 52));
+}
+function applyCooldownReduction(baseMs, reduction, floorMs = 1000) {
+  const base = Math.max(0, Math.floor(Number(baseMs) || 0));
+  const floor = Math.max(0, Math.floor(Number(floorMs) || 0));
+  const safeReduction = clamp(Number(reduction) || 0, 0, 0.45);
+  return Math.max(floor, Math.floor(base * (1 - safeReduction)));
+}
 function levelXpRequired(level) {
   const safeLevel = Math.max(1, Math.floor(level));
   return 50 + (safeLevel * 10);
@@ -97,5 +107,5 @@ async function claimCooldownTx(client, guildId, userId, key, durationMs, now = n
 module.exports = {
   DomainError, CooldownError, formatDuration, randomInt, chance, uuid, clamp,
   levelXpRequired, calculateWorkPay, calculateCrimeChance, calculateHeistChance,
-  splitReward, casinoPayout, claimCooldownTx
+  splitReward, casinoPayout, claimCooldownTx, getRebirthMultiplier, applyCooldownReduction
 };
