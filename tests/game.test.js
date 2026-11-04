@@ -109,12 +109,58 @@ test("rebirth multipliers double on every cycle and cooldown cuts have a safety 
   assert.equal(core.applyCooldownReduction(10000, 0.45, 6000), 6000);
 });
 
-test("rebirth starts at the required balance and uses the configured progression curve", () => {
+test("rebirth requirements use an easier FC and level curve with additional progression checks", () => {
   assert.equal(balancing.rebirth.startingWallet, 1000);
-  assert.equal(balancing.rebirth.firstWalletRequirement, 15000);
-  assert.equal(balancing.rebirth.firstLevelRequirement, 10);
-  assert.equal(balancing.rebirth.walletRequirementGrowth, 2.5);
-  assert.equal(balancing.rebirth.levelRequirementGrowth, 5);
+  assert.equal(balancing.rebirth.firstWalletRequirement, 12000);
+  assert.equal(balancing.rebirth.firstLevelRequirement, 8);
+  assert.equal(balancing.rebirth.walletRequirementGrowth, 1.5);
+  assert.equal(balancing.rebirth.levelRequirementGrowth, 2);
+  assert.equal(balancing.rebirth.firstQuestClaimsRequirement, 1);
+  assert.equal(balancing.rebirth.questClaimsGrowth, 1);
+  assert.equal(balancing.rebirth.firstJobLevelRequirement, 1);
+  assert.equal(balancing.rebirth.jobLevelGrowthEvery, 2);
+  assert.equal(balancing.rebirth.firstWorkShiftsRequirement, 3);
+  assert.equal(balancing.rebirth.workShiftsGrowth, 2);
+});
+
+test("rebirth requirements scale event claims, career level and completed work shifts", () => {
+  const { getRebirthRequirements } = require("../src/services/economy");
+  const makePlayer = (prestige, overrides = {}) => ({
+    wallet: 500000, bank: 0, level: 50, prestige,
+    job_id: "street_runner", job_level: 30, rebirth_work_count: 30,
+    ...overrides
+  });
+
+  const first = getRebirthRequirements(makePlayer(0), 1);
+  assert.equal(first.walletRequired, 12000);
+  assert.equal(first.levelRequired, 8);
+  assert.equal(first.questClaimsRequired, 1);
+  assert.equal(first.jobLevelRequired, 1);
+  assert.equal(first.workShiftsRequired, 3);
+  assert.equal(first.eligible, true);
+
+  const at16x = getRebirthRequirements(makePlayer(4), 1);
+  assert.equal(at16x.multiplier, 16);
+  assert.equal(at16x.walletRequired, 60750);
+  assert.equal(at16x.levelRequired, 16);
+  assert.equal(at16x.questClaimsRequired, 5);
+  assert.equal(at16x.jobLevelRequired, 3);
+  assert.equal(at16x.workShiftsRequired, 11);
+  assert.equal(at16x.eligible, false);
+
+  const readyAt16x = getRebirthRequirements(
+    makePlayer(4, { wallet: 60750, level: 16, job_level: 3, rebirth_work_count: 11 }),
+    5
+  );
+  assert.equal(readyAt16x.eligible, true);
+
+  const notEnoughCareer = getRebirthRequirements(makePlayer(4, { job_level: 2 }), 5);
+  assert.equal(notEnoughCareer.checks.careerLevel, false);
+  assert.equal(notEnoughCareer.eligible, false);
+
+  const noJob = getRebirthRequirements(makePlayer(0, { job_id: null }), 1);
+  assert.equal(noJob.checks.career, false);
+  assert.equal(noJob.eligible, false);
 });
 
 test("gear catalog has rising tiers and five upgrade levels", () => {
