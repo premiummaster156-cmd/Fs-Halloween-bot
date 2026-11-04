@@ -34,6 +34,13 @@ async function getLeaderboard(pool, guildId, metric = "wealth", limit = 10) {
   return result.rows;
 }
 
+function calculateCandyDrop(reason, gearBonus = 0, chanceRoll = Math.random(), amountRoll = Math.random()) {
+  const rule = balancing.candyDrops[reason];
+  if (!rule || chanceRoll >= Math.min(0.5, rule.chance + Math.max(0, Math.min(0.2, Number(gearBonus) || 0)))) return null;
+  const amount = rule.min + Math.floor(amountRoll * (rule.max - rule.min + 1));
+  return { amount, chance: Math.min(0.5, rule.chance + Math.max(0, Number(gearBonus) || 0)) };
+}
+
 function getRebirthRequirements(player, claimedQuestCount = 0, inventoryRows = [], candyBalance = 0) {
   const rebirths = Math.max(0, Number(player.prestige) || 0);
   const wealth = Number(player.wallet || 0) + Number(player.bank || 0);
