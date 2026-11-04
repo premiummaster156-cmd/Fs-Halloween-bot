@@ -40,29 +40,26 @@ The existing `.env` in this project already has values configured for the requir
 
 ## Commands
 
-- Start with **/guide** for a walkthrough of the economy, careers, risky games, heists, and Halloween event.
-- **Money and progress:** /balance, /bank, /daily, /work, /job, /profile, /leaderboard, /transfer
-- **Equipment:** /shop, /inventory, /equip, /unequip
-- **Games:** /crime, /casino, /heist
-- **Halloween:** /event, including the weekly message mission
-- **Server administration:** /admin panel, /admin grant, /admin remove, /admin set-level, /admin set-job, /admin leaderboard-exclude, /admin leaderboard-include, /admin event-start, /admin event-stop. Player economy/progression edits are restricted to the server owner or configured bot owner.
+The bot now has two user-facing slash-command entry points:
+
+- **/menu** — open the private player hub. Buttons and menus guide members through profile, rewards, careers, banking, transfers, gear, games, heists, Halloween and leaderboards.
+- **/admin panel** — open the private administration console. Server settings, event controls, player tools, leaderboard fairness and audit history are managed inside the panel.
+
+Actions that require typed values open a short form. Members no longer need separate slash commands for routine game actions. The older command names are removed when the slash commands are redeployed.
 
 ### First steps
 
-1. Run **/guide** or **/job view** to understand the available systems.
-2. Choose a starting career with **/job apply**. You need a career before **/work** will pay you.
-3. Use **/daily** and answer the three **/work** multiple-choice questions to earn Fuk Coins and XP. Chat also earns up to 2 XP per counted message, with a daily XP cap. Work has a 10-minute cooldown; check **/profile** to track progress.
-4. Read the **/guide** topic for any system before spending FC or joining a heist.
-
-## Design
-
-Slash commands are the main interface; the bot does not request Message Content intent. Every embed uses a shared Fukishokai renderer and the custom clan emoji. Game balance lives in src/config/game-balancing.js. Gameplay modules call the same transactional economy and event services instead of maintaining disconnected wallets or unrelated currencies.
-
-The game modules are designed around mechanics, balance, persistence, and tests rather than artificial line counts or duplicated code. The code can be expanded with new missions, job branches, items, quests, and systems while keeping shared rules consistent.
+1. Run **/menu** and open **Careers**. Choose a career you qualify for.
+2. Open **Earn** and claim Daily or start a Work shift. Work uses three multiple-choice questions; each correct answer increases the reward.
+3. Use **Profile** to track your level, career and wealth. Use **Bank** to protect savings and **Gear** to manage equipment.
+4. Open **Games** to review crime and casino risks, or **Heists** to create a crew and invite members.
+5. Open **Halloween** to track quests, claim completed rewards, check the weekly activity mission and browse seasonal items.
 
 ## Operations
 
-Set `OWNER_ID` and/or `ADMIN_ROLE_IDS` in `.env` to control access to admin commands. Set `HALLOWEEN_ROLE_ID` if the event should assign a particular role. Back up the database before the event ends. Run `npm test` before deploying balance changes.
+Set `OWNER_ID` and/or `ADMIN_ROLE_IDS` in `.env` to control access to the admin console. Configure the additional admin role, log channel, Halloween reward role and 2× XP role in **/admin panel**. The Halloween reward must be a normal assignable server role, not `@everyone` or an integration-managed role. Back up the database before the event ends. Run `npm test` before deploying changes.
+
+After updating the bot code, run `npm run deploy-commands` so Discord replaces the older slash-command list with `/menu` and `/admin panel`.
 
 
 ## Leaderboard fairness controls
