@@ -9,7 +9,7 @@ module.exports = {
     maxWallet: 2000000000
   },
   progression: { xpMultiplier: 3, roleBoosterMultiplier: 2 },
-  chat: { countCooldownMs: 15000, rewardMin: 1, rewardMax: 3, dailyRewardCap: 250, xpPerMessage: 2, dailyXpCap: 100 },
+  chat: { rewardMin: 1, rewardMax: 3, dailyRewardCap: 250, xpPerMessage: 2, dailyXpCap: 100 },
   jobs: [
     { id: "street_runner", name: "Street Runner", tier: 1, minLevel: 1, minWallet: 0, payMin: 120, payMax: 210, cooldownMs: 10 * minute, xp: 24, description: "Take small deliveries and learn the city." },
     { id: "delivery_rider", name: "Delivery Rider", tier: 2, minLevel: 3, minWallet: 2500, payMin: 220, payMax: 380, cooldownMs: 10 * minute, xp: 30, description: "Complete risky deliveries on a tight schedule." },
