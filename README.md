@@ -86,7 +86,7 @@ Open **/admin panel** to manage the server from one private interface:
 
 - **Server settings:** Halloween reward role, 2× XP role, log channel, and clear-setting controls.
 - **Event controls:** start/restart or stop the Halloween event. Stopping requires confirmation.
-- **Player management:** select a member, inspect their player details, and open Grant FC, Grant XP, Remove FC, Set level or Assign career forms.
+- **Player management:** select a member, inspect their player details, and open Grant FC, Grant XP, Remove FC, Set level, Assign career or Set rebirth forms. Setting rebirth changes only the rebirth count and earning multiplier; the member's other progress stays unchanged.
 - **Leaderboard fairness:** select a member and exclude or restore them from competitive rankings.
 - **Audit history:** review the ten most recent administrative changes.
 - **Security:** owner-controlled bot-access restrictions are applied from alerts in the log channel.
