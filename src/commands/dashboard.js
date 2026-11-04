@@ -1029,7 +1029,11 @@ async function handleButton(i, s) {
         { name: "Next career requirement", value: "Apply for a job and reach job level " + result.nextJobLevelRequired, inline: true },
         { name: "Next event quest requirement", value: result.nextQuestClaimsRequired + " normal event quest rewards claimed", inline: true },
         { name: "Next work requirement", value: result.nextWorkShiftsRequired + " completed shifts in the next run", inline: true },
-        { name: "Gear and upgrades", value: "Your inventory, equipped items and upgrade levels were preserved." }
+        ...(result.nextGearItemsRequired > 0 ? [{ name: "Next gear requirement", value: result.nextGearItemsRequired + " different equipment items", inline: true }] : []),
+        ...(result.nextCandyItemsRequired > 0 ? [{ name: "Next Candy collectible requirement", value: result.nextCandyItemsRequired + " unique Candy-shop items", inline: true }] : []),
+        ...(result.nextCandyBalanceRequired > 0 ? [{ name: "Next Candy reserve", value: result.nextCandyBalanceRequired + " unspent Candy", inline: true }] : []),
+        ...(result.nextGearUpgradeLevelsRequired > 0 ? [{ name: "Next gear upgrade requirement", value: result.nextGearUpgradeLevelsRequired + " combined upgrade levels", inline: true }] : []),
+        { name: "Gear and upgrades", value: "Your inventory, equipped items, upgrade levels, Candy and Candy-shop collectibles were preserved." }
       ], [row(btn(owner, "profile", "View profile"), btn(owner, "gear", "View gear")), navButton(owner)], "success"));
   }
   if (action === "daily") {
