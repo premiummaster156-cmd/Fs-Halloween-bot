@@ -96,3 +96,61 @@ test("casino exposure is capped equally for every player", () => {
   assert.ok(balancing.casino.games.slots.outcomes[0].maxRoll === 9);
   assert.equal(balancing.casino.games.slots.outcomes[0].multiplierHundredths, 1000);
 });
+
+
+test("only the server owner or configured bot owner qualifies for bot control", () => {
+  const { SecurityService } = require("../src/services/security");
+  const security = new SecurityService({}, {});
+  assert.equal(security.isOwner("guild-owner", "guild-owner"), true);
+  assert.equal(security.isOwner("regular-admin", "guild-owner"), false);
+  assert.equal(security.isOwner("ordinary-member", "guild-owner"), false);
+});
+
+test("repeated cooldown blocks create a security alert but do not auto-punish", async () => {
+  const { SecurityService } = require("../src/services/security");
+  const writes = [];
+  const pool = {
+    query: async (...args) => { writes.push(args); return { rowCount: 1, rows: [] }; }
+  };
+  const security = new SecurityService(pool, {});
+  const incidents = [];
+  security.createIncident = async (_client, details) => { incidents.push(details); };
+  const interaction = {
+    user: { id: "member-1" },
+    guild: { id: "guild-1", ownerId: "guild-owner" },
+    guildId: "guild-1",
+    client: {},
+    commandName: "menu",
+    customId: "dash:member-1:daily"
+  };
+  for (let index = 0; index < 4; index += 1) {
+    await security.recordCooldownAttempt(interaction, { remainingMs: 5000 });
+  }
+  assert.equal(incidents.length, 0);
+  await security.recordCooldownAttempt(interaction, { remainingMs: 5000 });
+  assert.equal(incidents.length, 1);
+  assert.equal(incidents[0].category, "repeated_cooldown_bypass");
+  assert.equal(writes.length, 5);
+});
+
+test("slash command burst is rate-limited without granting Administrator access", async () => {
+  const { SecurityService } = require("../src/services/security");
+  const security = new SecurityService({}, {});
+  const incidents = [];
+  security.createIncident = (_client, details) => { incidents.push(details); return Promise.resolve(); };
+  const interaction = {
+    user: { id: "regular-admin" },
+    guild: { id: "guild-1", ownerId: "guild-owner" },
+    guildId: "guild-1",
+    client: {},
+    commandName: "menu",
+    memberPermissions: { has: () => true }
+  };
+  for (let index = 0; index < 8; index += 1) {
+    assert.equal((await security.checkCommandRate(interaction)).allowed, true);
+  }
+  assert.equal((await security.checkCommandRate(interaction)).allowed, false);
+  assert.equal(security.isOwner(interaction.user.id, interaction.guild.ownerId), false);
+  assert.equal(incidents.length, 1);
+  assert.equal(incidents[0].category, "command_spam");
+});
