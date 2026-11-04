@@ -902,18 +902,25 @@ async function announceHeistJoin(i, snapshot, joiningUserId, roleLabel) {
   });
 }
 
-async function announceHeistResult(i, snapshot) {
+async function announceHeistResult(i, snapshot, crewRewards = []) {
   const channel = snapshot.heist.announcement_channel_id
     ? await getPublicTextChannel(i, snapshot.heist.announcement_channel_id)
     : await getPublicTextChannel(i);
   if (!channel) return;
   const embed = buildHeistEmbed(snapshot);
+  const candyLines = crewRewards
+    .filter((member) => member.candyDrop)
+    .map((member) => "<@" + member.userId + "> found +" + member.candyDrop.amount + " Candy");
+  if (candyLines.length && typeof embed.addFields === "function") {
+    embed.addFields({ name: "🍬 Candy discoveries", value: candyLines.join("\n").slice(0, 1000) });
+  }
   await sendHeistEmbed(
     channel,
     embed,
     "HEIST RESULT · " + (snapshot.heist.status === "success" ? "SUCCESS" : "FAILED") +
       "\nCrew: " + getHeistCrewLines(snapshot.crew).join(" | ") +
-      "\nTeam payout: " + Number(snapshot.heist.total_payout).toLocaleString() + " FC"
+      "\nTeam payout: " + Number(snapshot.heist.total_payout).toLocaleString() + " FC" +
+      (candyLines.length ? "\nCandy discoveries: " + candyLines.join(" · ") : "")
   ).catch(() => null);
 }
 
@@ -1154,7 +1161,7 @@ async function handleModal(i, s) {
           return { posted: false, snapshot: null };
         });
         const snapshot = board.snapshot || await s.heists.status(i.guildId, id);
-        await announceHeistResult(i, snapshot);
+        await announceHeistResult(i, snapshot, r.crew);
         await safeAudit(i, s, "heist_completed", owner, {
           heistId: id, missionId: r.mission.id, succeeded: r.succeeded,
           totalPayout: r.totalPayout, successChance: r.successChance
