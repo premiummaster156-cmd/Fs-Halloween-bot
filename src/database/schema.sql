@@ -189,3 +189,35 @@ CREATE TABLE IF NOT EXISTS leaderboard_exclusions (
 );
 CREATE INDEX IF NOT EXISTS leaderboard_exclusions_guild_idx
   ON leaderboard_exclusions (guild_id, user_id);
+
+
+-- Security incidents are auditable and can be reviewed from the log-channel alert.
+CREATE TABLE IF NOT EXISTS security_incidents (
+  id BIGSERIAL PRIMARY KEY,
+  guild_id TEXT NOT NULL,
+  user_id TEXT,
+  category TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  details JSONB NOT NULL DEFAULT '{}'::jsonb,
+  status TEXT NOT NULL DEFAULT 'open',
+  updated_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS security_incidents_guild_time_idx
+  ON security_incidents (guild_id, created_at DESC);
+
+-- Restrictions apply only to this bot, not to the member's Discord server permissions.
+-- expires_at NULL means the bot restriction remains until an owner removes it.
+CREATE TABLE IF NOT EXISTS bot_user_restrictions (
+  guild_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  expires_at TIMESTAMPTZ,
+  reason TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (guild_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS bot_user_restrictions_expiry_idx
+  ON bot_user_restrictions (expires_at);
