@@ -22,9 +22,23 @@ class SecurityService {
     return Boolean(userId && (userId === guildOwnerId || (settings.ownerId && userId === settings.ownerId)));
   }
 
-  async isAboveBotRole(guild, userId) {
+  async hasAdminAccess(guild, userId) {
     if (!guild || !userId) return false;
     if (this.isOwner(userId, guild.ownerId)) return true;
+    try {
+      const adminRoleId = await this.guildSettings.get(guild.id, "adminRoleId");
+      if (!adminRoleId) return false;
+      const member = await guild.members.fetch(userId);
+      return member.roles.cache.has(adminRoleId);
+    } catch (_) {
+      // Fail closed: inability to verify the configured admin role never grants admin access.
+      return false;
+    }
+  }
+
+  async isAboveBotRole(guild, userId) {
+    if (!guild || !userId) return false;
+    if (await this.hasAdminAccess(guild, userId)) return true;
 
     const cacheKey = guild.id + ":" + userId;
     const cached = this.hierarchyCache.get(cacheKey);
@@ -48,6 +62,10 @@ class SecurityService {
       // do not generate an alert or take an automated action against this actor.
       return true;
     }
+  }
+
+  clearHierarchyCache() {
+    this.hierarchyCache.clear();
   }
 
   pushWindow(map, key, now, windowMs) {
@@ -271,8 +289,8 @@ class SecurityService {
     const incidentId = parts[1], guildId = parts[2];
     const targetId = parts[3] === "unknown" ? null : parts[3];
     const action = parts[4];
-    if (interaction.guildId !== guildId || !this.isOwner(interaction.user.id, interaction.guild?.ownerId)) {
-      return interaction.reply({ content: "Only the server owner or configured bot owner can manage security alerts.", flags: MessageFlags.Ephemeral });
+    if (interaction.guildId !== guildId || !await this.hasAdminAccess(interaction.guild, interaction.user.id)) {
+      return interaction.reply({ content: "Only the server owner, bot owner, or configured Admin Role can manage security alerts.", flags: MessageFlags.Ephemeral });
     }
     const incident = await this.pool.query(
       "SELECT id, user_id FROM security_incidents WHERE id = $1 AND guild_id = $2",
