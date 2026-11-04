@@ -1323,21 +1323,6 @@ async function handleModal(i, s) {
       await safeSendLog(i, s, "FS Coins " + (delta > 0 ? "granted to " : "removed from ") + "<@" + target + "> by <@" + owner + ">: " + amount.toLocaleString() + ". Reason: " + reason);
       return i.editReply(panel(delta > 0 ? "FS COINS GRANTED" : "FS COINS REMOVED", (delta > 0 ? "Granted " : "Removed ") + "**" + amount.toLocaleString() + " FC** " + (delta > 0 ? "for " : "from ") + "<@" + target + ">.", [{ name: "Audit reason", value: reason }], [], "success"));
     }
-    if (action === "custom-command-create" || action === "custom-command-update") {
-      const name = i.fields.getTextInputValue("name").trim();
-      const description = i.fields.getTextInputValue("description").trim();
-      const code = i.fields.getTextInputValue("code");
-      const saved = await s.customCommands.save(i.guildId, owner, {
-        id: action === "custom-command-update" ? target : null,
-        name, description, code
-      });
-      await safeAudit(i, s, action === "custom-command-create" ? "custom_command_created" : "custom_command_updated", saved.id, {
-        name: saved.name, reason
-      });
-      await safeSendLog(i, s, "Custom slash command /" + saved.name + " was " +
-        (action === "custom-command-create" ? "created" : "updated") + " by <@" + owner + ">. It is inactive until redeployed and activated.");
-      return i.editReply(await renderAdmin(i.guildId, owner, "custom-command", s, saved.id));
-    }
     if (action === "set-level") {
       const level = numberField(i, "level", 1, 100, "Level");
       await s.economy.transact(async (c) => {
