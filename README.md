@@ -62,8 +62,14 @@ Set `OWNER_ID` and/or `ADMIN_ROLE_IDS` in `.env` to control access to the admin 
 After updating the bot code, run `npm run deploy-commands` so Discord replaces the older slash-command list with `/menu` and `/admin panel`.
 
 
-## Leaderboard fairness controls
+## Administration controls
 
-The server owner or configured bot owner can use `/admin leaderboard-exclude` to hide a member from Wealth, Level, Lifetime Earned, and Weekly Activity leaderboards. `/admin leaderboard-include` restores eligibility. Exclusion does not change the member's balance or progression and is stored in PostgreSQL.
+Open **/admin panel** to manage the server from one private interface:
 
-The server owner and configured bot owner can use `/admin grant` to grant FS Coins or XP to themselves or any member, `/admin set-level` to set a player's level, and `/admin set-job` to assign a career and job level. `/admin remove` removes FS Coins. These player-editing commands are owner-only (the configured admin role cannot use them), and every change is recorded in the audit log with a reason.
+- **Server settings:** admin role, Halloween reward role, 2× XP role, admin log channel, and clear-setting controls.
+- **Event controls:** start/restart or stop the Halloween event. Stopping requires confirmation.
+- **Player management:** select a member, inspect their player details, and open Grant FC, Grant XP, Remove FC, Set level or Assign career forms.
+- **Leaderboard fairness:** select a member and exclude or restore them from competitive rankings.
+- **Audit history:** review the ten most recent administrative changes.
+
+Access to settings and event controls is granted to administrators, Manage Server users and configured admin roles. Currency, XP, level, career and leaderboard eligibility edits are restricted to the server owner or configured bot owner. Player edits require an audit reason and are recorded in PostgreSQL.
