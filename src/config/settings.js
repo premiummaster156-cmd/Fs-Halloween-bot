@@ -5,7 +5,7 @@ module.exports = {
   discordToken: process.env.DISCORD_TOKEN || "",
   clientId: process.env.CLIENT_ID || "",
   discordClientSecret: process.env.DISCORD_CLIENT_SECRET || "",
-  idePublicUrl: (process.env.IDE_PUBLIC_URL || "").replace(/\\/$/, ""),
+  idePublicUrl: process.env.IDE_PUBLIC_URL || "",
   ideGuildId: process.env.IDE_GUILD_ID || process.env.GUILD_ID || "",
   idePort: Math.max(1, Math.floor(numberOr(process.env.IDE_PORT || process.env.PORT, 3000))),
   guildId: process.env.GUILD_ID || "",
