@@ -562,3 +562,68 @@ test("trusted and higher-ranked members still receive public gameplay announceme
   assert.match(sent[0].embeds[0].data.description, /10,000 FC wager/);
   assert.deepEqual(sent[0].allowedMentions, { parse: [] });
 });
+
+test("custom slash command code validates a safe JSON definition and builds Discord options", () => {
+  const { parseDefinition, toApplicationCommand } = require("../src/services/custom-commands");
+  const record = {
+    name: "welcome-member",
+    description: "Send a welcome message",
+    definition: {
+      options: [
+        { name: "member", description: "Member to welcome", type: "user", required: true },
+        { name: "style", description: "Welcome style", type: "string", required: false,
+          choices: [{ name: "Friendly", value: "friendly" }, { name: "Formal", value: "formal" }] }
+      ],
+      response: {
+        visibility: "public",
+        title: "Welcome",
+        description: "Hello {option.member.username}!"
+      }
+    }
+  };
+  assert.equal(parseDefinition(record.definition).options.length, 2);
+  const command = toApplicationCommand(record);
+  assert.equal(command.name, "welcome-member");
+  assert.equal(command.description, "Send a welcome message");
+  assert.equal(command.options.length, 2);
+  assert.equal(command.options[0].type, 6);
+  assert.equal(command.options[1].type, 3);
+});
+
+test("custom slash command definitions reject raw JavaScript, shell and unknown properties", () => {
+  const { parseDefinition, validateCommandMeta } = require("../src/services/custom-commands");
+  assert.throws(() => parseDefinition({ code: "require('child_process').exec('npm run deploy-commands')" }), /Unsupported command property/);
+  assert.throws(() => parseDefinition({ options: [], response: { visibility: "public", content: "Hello", execute: "process.exit(1)" } }), /Unsupported response property/);
+  assert.throws(() => validateCommandMeta("admin", "Replace an admin command"), /reserved/);
+  assert.throws(() => validateCommandMeta("UpperCase", "Invalid command name"), /lowercase/);
+});
+
+test("custom command templates render member and option data without enabling mention pings", () => {
+  const { parseDefinition, buildReply } = require("../src/services/custom-commands");
+  const definition = parseDefinition({
+    options: [{ name: "member", description: "Member to welcome", type: "user", required: true }],
+    response: {
+      visibility: "public",
+      title: "Welcome {option.member.username}",
+      description: "{user} welcomed {option.member.mention} to {server} in {channel}.",
+      fields: [{ name: "Member ID", value: "{option.member.id}", inline: true }]
+    }
+  });
+  const interaction = {
+    user: { id: "actor-1", username: "Owner" },
+    member: { displayName: "Owner" },
+    guild: { name: "Fukishokai" },
+    channelId: "channel-1",
+    options: {
+      get: (name) => name === "member"
+        ? { user: { id: "member-2", username: "MemberTwo", globalName: "Member Two" } }
+        : null
+    }
+  };
+  const payload = buildReply(interaction, definition);
+  assert.equal(payload.allowedMentions.parse.length, 0);
+  assert.equal(payload.embeds[0].data.title, "Welcome MemberTwo");
+  assert.match(payload.embeds[0].data.description, /<@actor-1> welcomed <@member-2>/);
+  assert.match(payload.embeds[0].data.description, /Fukishokai/);
+  assert.equal(payload.embeds[0].data.fields[0].value, "member-2");
+});
