@@ -98,7 +98,7 @@ async function getDiscordUser(accessToken) {
 }
 async function authoriseMember(client, services, userId, requestedGuildId) {
   const guildId = String(requestedGuildId || settings.ideGuildId || "");
-  if (!/^\\d{1,25}$/.test(guildId)) throw new Error("Open Code Studio from the server's admin panel so it knows which server to manage.");
+  if (!/^\d{1,25}$/.test(guildId)) throw new Error("Open Code Studio from the server's admin panel so it knows which server to manage.");
   const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId);
   const isServerOwner = userId === guild.ownerId;
   const isBotOwner = Boolean(settings.ownerId && userId === settings.ownerId);
@@ -197,7 +197,7 @@ function createIdeServer(client, services) {
 
       if (req.method === "GET" && url.pathname === "/auth/discord") {
         const targetGuildId = String(url.searchParams.get("guildId") || settings.ideGuildId || "");
-        if (!/^\\d{1,25}$/.test(targetGuildId)) {
+        if (!/^\d{1,25}$/.test(targetGuildId)) {
           return json(res, 400, { error: "Open Code Studio from a server's admin panel to select the server first." });
         }
         const state = crypto.randomBytes(24).toString("hex");
