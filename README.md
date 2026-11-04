@@ -47,7 +47,7 @@ The bot now has two user-facing slash-command entry points:
 
 Actions that require typed values open a short form. Members no longer need separate slash commands for routine game actions. The older command names are removed when the slash commands are redeployed.
 
-Casino games have a 100 FC minimum bet and no maximum bet; wagers are limited only by the player's available wallet balance. There is a 15-second cooldown and no daily wager cap. Coin Flip and High Dice retain their existing odds. Slots keeps its existing prize multipliers while the jackpot chance is reduced to 0.5%; the other prize-tier chances remain unchanged. Theoretical long-run return is 95% for Coin Flip and High Dice and 90% for Slots.
+Casino games have a 100 FC minimum bet and no maximum bet; wagers are limited only by the player's available wallet balance. The base cooldown is 15 seconds and there is no daily wager cap. Equipped casino gear can increase the frequency of winning results and shorten the cooldown, while adjusting winning payouts to keep the published long-run return fair. Coin Flip and High Dice have a base theoretical return of 95%, and Slots has a base return of 90%.
 
 Equipment bonuses apply only while the item is equipped. Gear can improve work salary and XP, general FC and XP rewards, crime and heist outcomes, casino win chances, and cooldowns. Each item can be upgraded five times; upgrades cost progressively more FC and require higher player levels. Casino gear improves the chance of hitting a win, while the payout is adjusted to preserve each game's published long-run return. Rebirth requires 15,000 FC in combined wallet and bank wealth, level 10, and at least one event quest reward claimed. Each rebirth resets the wallet to 1,000 FC and the player to level 1, but doubles FC and XP earning permanently (2×, then 4×, 8× and so on). The wallet requirement doubles and the level requirement increases by five after each rebirth; owned gear and upgrades are kept.
 
@@ -57,7 +57,9 @@ Equipment bonuses apply only while the item is equipped. Gear can improve work s
 2. Open **Earn** and claim Daily or start a Work shift. Work uses three multiple-choice questions; each correct answer increases the reward.
 3. Use **Profile** to track your level, career and wealth. Use **Bank** to protect savings and **Gear** to manage equipment.
 4. Open **Games** to review crime and casino risks, or **Heists** to create a crew. The bot posts a public crew board that updates with each member and chosen role, then publishes the final mission result when the leader starts it.
-5. Open **Halloween** to track quests, claim completed rewards, check the weekly activity mission and browse seasonal items.
+5. Use **Gear** to equip items and upgrade each one up to five times. More expensive equipment has stronger bonuses; upgrades improve its effects. Gear can improve salary, FC and XP income, operation success, casino hit frequency, fines and cooldowns.
+6. Open **Rebirth** when you meet its requirements. The first rebirth requires 15,000 FC in combined wallet and bank wealth, level 10, and at least one normal event quest reward claimed. Rebirth resets wallet to 1,000 FC, bank to zero and player level to 1. Gear, gear upgrades, event claims and lifetime records stay. Every rebirth doubles eligible FC and XP earnings: 2× after the first, 4× after the second, 8× after the third, and so on. Later rebirths require twice the previous wealth and five more levels.
+7. Open **Halloween** to track quests, claim completed rewards, check the weekly activity mission and browse seasonal items.
 
 ## Operations
 
