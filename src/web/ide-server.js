@@ -96,9 +96,9 @@ async function getDiscordUser(accessToken) {
   if (!response.ok) throw new Error("Discord did not return your user profile.");
   return response.json();
 }
-async function authoriseMember(client, services, userId) {
-  const guildId = settings.ideGuildId;
-  if (!guildId) throw new Error("IDE_GUILD_ID is not configured.");
+async function authoriseMember(client, services, userId, requestedGuildId) {
+  const guildId = String(requestedGuildId || settings.ideGuildId || "");
+  if (!/^\\d{1,25}$/.test(guildId)) throw new Error("Open Code Studio from the server's admin panel so it knows which server to manage.");
   const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId);
   const isServerOwner = userId === guild.ownerId;
   const isBotOwner = Boolean(settings.ownerId && userId === settings.ownerId);
@@ -106,7 +106,7 @@ async function authoriseMember(client, services, userId) {
   const trustedRoleId = await services.guildSettings.get(guildId, "adminRoleId");
   const hasTrustedRole = Boolean(member && trustedRoleId && member.roles.cache.has(trustedRoleId));
   if (!isServerOwner && !isBotOwner && !hasTrustedRole) {
-    throw new Error("Code Studio is limited to the server owner, bot owner and configured Admin Role.");
+    throw new Error("Code Studio is limited to this server's owner, bot owner and configured Admin Role.");
   }
   return { guild, member, trustedRoleId };
 }
@@ -117,12 +117,13 @@ async function requireSession(req, client, services) {
     if (id) sessions.delete(id);
     return null;
   }
-  const access = await authoriseMember(client, services, session.user.id).catch(() => null);
+  const access = await authoriseMember(client, services, session.user.id, session.guildId).catch(() => null);
   if (!access) {
     sessions.delete(id);
     return null;
   }
   session.expiresAt = Date.now() + SESSION_MS;
+  session.guildId = access.guild.id;
   session.guildName = access.guild.name;
   session.sessionId = id;
   session.guild = access.guild;
@@ -143,7 +144,7 @@ function verifyMutation(req, session) {
   if (origin && origin !== baseUrl()) return false;
   return Boolean(req.headers["x-csrf-token"] && req.headers["x-csrf-token"] === session.csrf);
 }
-function safeCommandRecord(record) {
+function safeCommandRecord(record, guildId = settings.ideGuildId) {
   return {
     id: record.id,
     name: record.name,
@@ -152,7 +153,7 @@ function safeCommandRecord(record) {
     isActive: Boolean(record.is_active),
     deployedAt: record.deployed_at,
     updatedAt: record.updated_at || null,
-    workspacePath: "admin-workspace/" + settings.ideGuildId + "/" + record.name + ".js"
+    workspacePath: "admin-workspace/" + guildId + "/" + record.name + ".js"
   };
 }
 function toPreviewPayload(payload) {
@@ -163,11 +164,11 @@ function toPreviewPayload(payload) {
 }
 
 function isBrowserIdeEnabled(config = settings) {
-  return Boolean(config.discordClientSecret && config.idePublicUrl && config.ideGuildId);
+  return Boolean(config.discordClientSecret && config.idePublicUrl);
 }
 
 function isIdeServerEnabled(config = settings) {
-  return Boolean(config.ideGuildId && (config.adminWorkspaceApiKey || isBrowserIdeEnabled(config)));
+  return Boolean((config.adminWorkspaceApiKey && config.ideGuildId) || isBrowserIdeEnabled(config));
 }
 
 function createIdeServer(client, services) {
@@ -195,8 +196,12 @@ function createIdeServer(client, services) {
       }
 
       if (req.method === "GET" && url.pathname === "/auth/discord") {
+        const targetGuildId = String(url.searchParams.get("guildId") || settings.ideGuildId || "");
+        if (!/^\\d{1,25}$/.test(targetGuildId)) {
+          return json(res, 400, { error: "Open Code Studio from a server's admin panel to select the server first." });
+        }
         const state = crypto.randomBytes(24).toString("hex");
-        oauthStates.set(state, Date.now());
+        oauthStates.set(state, { createdAt: Date.now(), guildId: targetGuildId });
         const params = new URLSearchParams({
           client_id: settings.clientId,
           response_type: "code",
@@ -210,9 +215,9 @@ function createIdeServer(client, services) {
       if (req.method === "GET" && url.pathname === "/auth/callback") {
         const state = url.searchParams.get("state") || "";
         const storedState = cookie(req, "fuk_ide_state");
-        const stateTime = oauthStates.get(state);
+        const stateData = oauthStates.get(state);
         oauthStates.delete(state);
-        if (!state || state !== storedState || !stateTime || Date.now() - stateTime > 600_000) {
+        if (!state || state !== storedState || !stateData || Date.now() - stateData.createdAt > 600_000) {
           return json(res, 400, { error: "Sign-in expired. Please try again." });
         }
         if (url.searchParams.get("iss") && url.searchParams.get("iss") !== "https://discord.com") {
@@ -222,10 +227,11 @@ function createIdeServer(client, services) {
         if (!code) return json(res, 400, { error: "Discord did not return a sign-in code." });
         const token = await exchangeOAuthCode(code);
         const user = await getDiscordUser(token.access_token);
-        const access = await authoriseMember(client, services, user.id);
+        const access = await authoriseMember(client, services, user.id, stateData.guildId);
         const sessionId = crypto.randomBytes(32).toString("hex");
         sessions.set(sessionId, {
           user: { id: user.id, username: user.username, globalName: user.global_name || user.username, avatar: user.avatar || null },
+          guildId: access.guild.id,
           guildName: access.guild.name,
           csrf: crypto.randomBytes(24).toString("hex"),
           expiresAt: Date.now() + SESSION_MS,
@@ -243,6 +249,7 @@ function createIdeServer(client, services) {
         return json(res, 200, {
           authenticated: true,
           user: session.user,
+          guildId: session.guildId,
           guildName: session.guildName,
           csrf: session.csrf
         });
@@ -268,7 +275,7 @@ function createIdeServer(client, services) {
           crypto.timingSafeEqual(actualKey, expectedKey);
         if (!authorized) return json(res, 401, { error: "Workspace API key is missing or invalid." });
 
-        const guildId = settings.ideGuildId;
+        const guildId = session.guildId;
         const filesPath = "/api/ai/workspace/files";
         const fileRoute = url.pathname.match(/^\/api\/ai\/workspace\/files\/([a-z0-9_-]{1,32}\.js)$/i);
         const actorId = "ai_workspace_agent";
@@ -345,8 +352,8 @@ function createIdeServer(client, services) {
       if (!rateLimit(session, "normal")) return json(res, 429, { error: "Please slow down and try again shortly." });
 
       if (req.method === "GET" && url.pathname === "/api/commands") {
-        const records = await services.customCommands.list(settings.ideGuildId);
-        return json(res, 200, { commands: records.map(safeCommandRecord) });
+        const records = await services.customCommands.list(session.guildId);
+        return json(res, 200, { commands: records.map((record) => safeCommandRecord(record, session.guildId)) });
       }
 
       if ((req.method === "POST" || req.method === "DELETE") && !verifyMutation(req, session)) {
@@ -355,20 +362,20 @@ function createIdeServer(client, services) {
 
       if (req.method === "POST" && url.pathname === "/api/commands") {
         const body = await readBody(req);
-        const saved = await services.customCommands.saveSource(settings.ideGuildId, session.user.id, {
+        const saved = await services.customCommands.saveSource(session.guildId, session.user.id, {
           id: typeof body.id === "string" ? body.id : null,
           sourceCode: body.sourceCode
         });
-        await audit(services.pool, settings.ideGuildId, session.user.id, body.id ? "custom_command_source_updated" : "custom_command_source_created", saved.id, { name: saved.name });
-        await sendLog(client, settings.ideGuildId, "JavaScript command /" + saved.name + " saved by <@" + session.user.id + ">. It is inactive until deployed and activated.");
-        return json(res, 200, { command: safeCommandRecord(saved) });
+        await audit(services.pool, session.guildId, session.user.id, body.id ? "custom_command_source_updated" : "custom_command_source_created", saved.id, { name: saved.name });
+        await sendLog(client, session.guildId, "JavaScript command /" + saved.name + " saved by <@" + session.user.id + ">. It is inactive until deployed and activated.");
+        return json(res, 200, { command: safeCommandRecord(saved, session.guildId) });
       }
 
       const route = url.pathname.match(/^\/api\/commands\/([a-f0-9-]+)(?:\/(test|deploy|activate|deactivate))?$/i);
       if (route) {
         const id = route[1];
         const action = route[2] || "";
-        const record = await services.customCommands.get(settings.ideGuildId, id);
+        const record = await services.customCommands.get(session.guildId, id);
         if (!record) return json(res, 404, { error: "That command no longer exists." });
 
         if (req.method === "POST" && action === "test") {
@@ -380,7 +387,7 @@ function createIdeServer(client, services) {
               displayName: session.user.globalName,
               mention: "<@" + session.user.id + ">"
             },
-            guild: { id: settings.ideGuildId, name: session.guildName },
+            guild: { id: session.guildId, name: session.guildName },
             channel: { id: "preview-channel", name: "code-preview", mention: "#code-preview" },
             options: body.options && typeof body.options === "object" ? body.options : {}
           };
@@ -393,30 +400,30 @@ function createIdeServer(client, services) {
             return json(res, 429, { error: "Please wait before deploying again." });
           }
           session.lastDeployAt = Date.now();
-          const deployment = await services.customCommands.deployGuild(settings.ideGuildId);
+          const deployment = await services.customCommands.deployGuild(session.guildId);
           const output = "Registered " + deployment.registeredCount + " slash commands (" + deployment.customCount + " custom) without restarting the bot.";
-          await audit(services.pool, settings.ideGuildId, session.user.id, "custom_commands_deployed", id, { name: record.name, ...output });
-          await sendLog(client, settings.ideGuildId, "Custom slash commands deployed by <@" + session.user.id + ">.");
+          await audit(services.pool, session.guildId, session.user.id, "custom_commands_deployed", id, { name: record.name, ...output });
+          await sendLog(client, session.guildId, "Custom slash commands deployed by <@" + session.user.id + ">.");
           return json(res, 200, { ok: true, output });
         }
 
         if (req.method === "POST" && action === "activate") {
-          const result = await services.customCommands.activate(settings.ideGuildId, id, session.user.id);
-          await audit(services.pool, settings.ideGuildId, session.user.id, "custom_command_activated", id, { name: result.name });
-          await sendLog(client, settings.ideGuildId, "Custom command /" + result.name + " activated by <@" + session.user.id + ">.");
+          const result = await services.customCommands.activate(session.guildId, id, session.user.id);
+          await audit(services.pool, session.guildId, session.user.id, "custom_command_activated", id, { name: result.name });
+          await sendLog(client, session.guildId, "Custom command /" + result.name + " activated by <@" + session.user.id + ">.");
           return json(res, 200, { ok: true, command: result });
         }
         if (req.method === "POST" && action === "deactivate") {
-          const result = await services.customCommands.deactivate(settings.ideGuildId, id, session.user.id);
-          await audit(services.pool, settings.ideGuildId, session.user.id, "custom_command_deactivated", id, { name: result.name });
-          await sendLog(client, settings.ideGuildId, "Custom command /" + result.name + " deactivated by <@" + session.user.id + ">.");
+          const result = await services.customCommands.deactivate(session.guildId, id, session.user.id);
+          await audit(services.pool, session.guildId, session.user.id, "custom_command_deactivated", id, { name: result.name });
+          await sendLog(client, session.guildId, "Custom command /" + result.name + " deactivated by <@" + session.user.id + ">.");
           return json(res, 200, { ok: true, command: result });
         }
         if (req.method === "DELETE" && !action) {
-          const removed = await services.customCommands.remove(settings.ideGuildId, id, session.user.id);
-          const deployment = await services.customCommands.deployGuild(settings.ideGuildId);
-          await audit(services.pool, settings.ideGuildId, session.user.id, "custom_command_deleted", id, { name: removed.name, ...deployment });
-          await sendLog(client, settings.ideGuildId, "Custom command /" + removed.name + " deleted by <@" + session.user.id + ">.");
+          const removed = await services.customCommands.remove(session.guildId, id, session.user.id);
+          const deployment = await services.customCommands.deployGuild(session.guildId);
+          await audit(services.pool, session.guildId, session.user.id, "custom_command_deleted", id, { name: removed.name, ...deployment });
+          await sendLog(client, session.guildId, "Custom command /" + removed.name + " deleted by <@" + session.user.id + ">.");
           return json(res, 200, { ok: true });
         }
       }
@@ -434,7 +441,7 @@ function createIdeServer(client, services) {
 
 async function startIdeServer(client, services) {
   if (!isIdeServerEnabled(settings)) {
-    console.log("[code-studio] Disabled until IDE_GUILD_ID and either ADMIN_WORKSPACE_API_KEY or full browser IDE OAuth settings are configured.");
+    console.log("[code-studio] Disabled until IDE_PUBLIC_URL + Discord OAuth are configured for browser Code Studio, or IDE_GUILD_ID + ADMIN_WORKSPACE_API_KEY are configured for the AI workspace API.");
     return null;
   }
   const server = createIdeServer(client, services);
