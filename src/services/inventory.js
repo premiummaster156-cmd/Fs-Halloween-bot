@@ -3,6 +3,12 @@ const { transaction } = require("../database/pool");
 const { ensurePlayerTx } = require("./economy");
 const { DomainError, uuid } = require("../utils/core");
 
+function getUpgradeCost(item, nextLevel) {
+  const level = Math.max(1, Math.floor(Number(nextLevel) || 1));
+  return Math.ceil(Number(item.cost) * balancing.itemUpgrades.costBaseFactor *
+    Math.pow(balancing.itemUpgrades.costGrowthFactor, level - 1));
+}
+
 function combineEffects(items) {
   const result = {
     crimeChance: 0, heistChance: 0, workPayBonus: 0, workXpBonus: 0,
@@ -66,6 +72,13 @@ class InventoryService {
       if (Number(player.level) < item.minLevel) {
         throw new DomainError("You need level " + item.minLevel + " to buy " + item.name + ".", "ITEM_LEVEL_REQUIRED");
       }
+      const alreadyOwned = await client.query(
+        "SELECT quantity FROM inventory WHERE guild_id = $1 AND user_id = $2 AND item_id = $3 FOR UPDATE",
+        [guildId, userId, item.id]
+      );
+      if (alreadyOwned.rowCount && Number(alreadyOwned.rows[0].quantity) > 0) {
+        throw new DomainError("You already own this equipment. Upgrade your existing piece instead.", "ITEM_ALREADY_OWNED");
+      }
       if (Number(player.wallet) < item.cost) {
         throw new DomainError("You need " + item.cost.toLocaleString() + " FC in your wallet.", "ITEM_NOT_ENOUGH_MONEY");
       }
@@ -128,8 +141,7 @@ class InventoryService {
       if (Number(playerResult.rows[0].level) < requiredLevel) {
         throw new DomainError("You need level " + requiredLevel + " to upgrade " + item.name + " to level " + nextLevel + ".", "ITEM_UPGRADE_LEVEL_REQUIRED");
       }
-      const costFactor = balancing.itemUpgrades.costBaseFactor + nextLevel * balancing.itemUpgrades.costPerLevelFactor;
-      const cost = Math.ceil(item.cost * costFactor);
+      const cost = getUpgradeCost(item, nextLevel);
       if (Number(playerResult.rows[0].wallet) < cost) {
         throw new DomainError("You need " + cost.toLocaleString() + " FC in your wallet for this upgrade.", "ITEM_UPGRADE_FUNDS_REQUIRED");
       }
@@ -198,4 +210,4 @@ class InventoryService {
   }
 }
 
-module.exports = { InventoryService, combineEffects };
+module.exports = { InventoryService, combineEffects, getUpgradeCost };
