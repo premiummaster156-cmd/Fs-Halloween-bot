@@ -43,7 +43,7 @@ The existing `.env` in this project already has values configured for the requir
 The bot now has two user-facing slash-command entry points:
 
 - **/menu** — open the private player hub. Buttons and menus guide members through profile, rewards, careers, banking, transfers, gear, games, heists, Halloween and leaderboards.
-- **/admin panel** — open the private administration console. Server settings, event controls, player tools, leaderboard fairness and audit history are managed inside the panel.
+- **/admin panel** — open the private administration console. Server settings, event controls, player tools, leaderboard fairness, custom slash commands and audit history are managed inside the panel.
 
 Actions that require typed values open a short form. Members no longer need separate slash commands for routine game actions. The older command names are removed when the slash commands are redeployed.
 
@@ -77,7 +77,7 @@ Fukishokai's staff moderation framework is separate from this economy game bot. 
 
 Security alerts mention the server owner and configured bot owner. Their buttons can ignore an alert, pause a member's access to this bot for 10 minutes, block bot access until an owner restores it, or restore bot access. A separate **Timeout 10m** action is available for a detected target; it only runs after an owner clicks it and only when Discord allows the bot to moderate that member. No timeout, kick or ban is applied automatically. Bot-access restrictions affect this bot only, not the member's Discord permissions.
 
-After updating the bot code, run `npm run deploy-commands` so Discord replaces the old slash-command registrations with `/menu` and `/admin panel`. The database schema is applied automatically at bot startup. Back up the database before the event ends and run `npm test` before deploying changes.
+After updating the bot code, run `npm run deploy-commands` to register the built-in commands and saved custom commands for the configured server. Custom commands created in the admin panel are guild-specific. The same deployment script is available as a button inside **/admin panel → Custom commands**. The database schema is applied automatically at bot startup. Back up the database before the event ends and run `npm test` before deploying changes.
 
 
 ## Administration controls
@@ -88,7 +88,8 @@ Open **/admin panel** to manage the server from one private interface:
 - **Event controls:** start/restart or stop the Halloween event. Stopping requires confirmation.
 - **Player management:** select a member, inspect their player details, and open Grant FC, Grant XP, Remove FC, Set level, Assign career or Set rebirth forms. Setting rebirth changes only the rebirth count and earning multiplier; the member's other progress stays unchanged.
 - **Leaderboard fairness:** select a member and exclude or restore them from competitive rankings.
+- **Custom slash commands:** create or edit a command using a validated JSON definition, deploy it with the **Run npm run deploy-commands** button, then activate it. Commands can accept string, number, boolean, user, channel, role or mentionable options and return public/private text or embeds. They support member, username, server, channel and option placeholders.
 - **Audit history:** review the ten most recent administrative changes.
 - **Security:** owner-controlled bot-access restrictions are applied from alerts in the log channel.
 
-All admin actions are owner-only, require audit reasons for player edits, and are recorded in PostgreSQL.
+All admin actions are restricted to the server owner, configured bot owner and configured Admin Role, and are recorded in PostgreSQL. Custom-command definitions use a constrained JSON response format, not executable JavaScript. They cannot run shell commands, SQL, arbitrary network requests or read host secrets. Saving an edit deactivates that command until the new definition is deployed and activated again.
