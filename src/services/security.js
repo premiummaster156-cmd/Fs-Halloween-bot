@@ -127,9 +127,35 @@ class SecurityService {
 
     const owners = Array.from(new Set([guild.ownerId, settings.ownerId].filter(Boolean)));
     const mention = owners.map((id) => "<@" + id + ">").join(" ");
-    const details = Object.entries(input.details || {}).map(([key, value]) =>
-      key + ": " + (typeof value === "string" ? value : JSON.stringify(value))
-    ).join("\n").slice(0, 1300);
+    const detailLabels = {
+      count: "Attempts observed",
+      attemptsInWindow: "Attempts observed",
+      countInWindow: "Actions observed",
+      windowSeconds: "Time window",
+      command: "Command used",
+      actionType: "Server activity",
+      auditReason: "Audit-log reason"
+    };
+    const actionLabels = {
+      channel_create: "Channel created",
+      channel_delete: "Channel deleted",
+      role_create: "Role created",
+      role_delete: "Role deleted",
+      member_ban: "Member banned"
+    };
+    const details = Object.entries(input.details || {})
+      .filter(([key]) => key !== "customId" && key !== "latestTargetId")
+      .map(([key, value]) => {
+        const label = detailLabels[key];
+        if (!label) return null;
+        let displayValue = typeof value === "string" ? value : JSON.stringify(value);
+        if (key === "actionType") displayValue = actionLabels[displayValue] || "Server change";
+        if (key === "command" && displayValue && !displayValue.startsWith("/")) displayValue = "/" + displayValue;
+        return label + ": " + String(displayValue).slice(0, 300);
+      })
+      .filter(Boolean)
+      .join("\n")
+      .slice(0, 1100);
 
     const components = [];
     if (userId) {
@@ -154,9 +180,17 @@ class SecurityService {
         log("warn", "Security incident created without a usable log channel", { guildId: guild.id, incidentId });
         return incidentId;
       }
+      const categoryLabels = {
+        command_spam: "Repeated command use",
+        component_spam: "Rapid dashboard use",
+        repeated_cooldown_bypass: "Repeated cooldown attempts",
+        unauthorized_admin_access: "Unauthorized admin access",
+        unauthorized_control_access: "Unauthorized dashboard access",
+        rapid_destructive_actions: "Rapid server changes"
+      };
       await channel.send({
         content: (mention ? mention + "\n" : "") + "**SECURITY ALERT · #" + incidentId + "**\n" +
-          input.summary + "\nCategory: " + input.category.replace(/_/g, " ") + "\nMember: " +
+          input.summary + "\nActivity type: " + (categoryLabels[input.category] || "Security review") + "\nMember: " +
           (userId ? "<@" + userId + "> (" + userId + ")" : "Unknown") +
           (details ? "\n" + details : "") +
           "\n\nNo punishment has been applied automatically. Review and choose an action below.",
@@ -218,7 +252,7 @@ class SecurityService {
       await this.createIncident(interaction.client, {
         guild: interaction.guild, userId: interaction.user.id, category: "repeated_cooldown_bypass",
         summary: "Repeated attempts were made while a gameplay cooldown was still active.",
-        details: { attemptsInWindow: attempts.length, windowSeconds: 120, command: interaction.commandName || null, customId: interaction.customId || null }
+        details: { attemptsInWindow: attempts.length, windowSeconds: 120, command: interaction.commandName || null }
       });
     }
   }
