@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { inspectCommandSource, runInIsolatedProcess } = require("../src/services/custom-commands");
+const { inspectCommandSource, runInIsolatedProcess, toApplicationCommand } = require("../src/services/custom-commands");
 
 const commandSource = String.raw`const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 
@@ -65,4 +65,36 @@ test("custom JavaScript cannot access Node process or arbitrary modules", async 
   assert.match(execution.result.content, /process=undefined/);
   assert.match(execution.result.content, /fetch=undefined/);
   assert.match(execution.result.content, /arbitraryRequireBlocked=true/);
+});
+
+
+test("JavaScript command metadata can be registered as a Discord slash command", async () => {
+  const metadata = await inspectCommandSource(commandSource);
+  const registered = toApplicationCommand({
+    name: metadata.name,
+    description: metadata.description,
+    definition: metadata.definition,
+    source_code: commandSource
+  });
+
+  assert.equal(registered.name, "workspace_hello");
+  assert.equal(registered.description, "Send a hello message");
+  assert.equal(registered.options.length, 1);
+  assert.equal(registered.options[0].name, "name");
+  assert.equal(registered.options[0].type, 3);
+});
+
+test("legacy JSON commands still require a valid response definition", () => {
+  assert.throws(() => toApplicationCommand({
+    name: "legacy_hello",
+    description: "Legacy hello",
+    definition: { options: [], response: { visibility: "public" } }
+  }), /Add response content/);
+
+  const registered = toApplicationCommand({
+    name: "legacy_hello",
+    description: "Legacy hello",
+    definition: { options: [], response: { visibility: "public", content: "Hello" } }
+  });
+  assert.equal(registered.name, "legacy_hello");
 });
