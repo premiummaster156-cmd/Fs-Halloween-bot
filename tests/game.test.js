@@ -420,3 +420,40 @@ test("public heist board clearly distinguishes successful and failed results", (
   assert.match(won.data.description, /2,500 FC/);
   assert.match(lost.data.title, /MISSION FAILED/);
 });
+
+test("trusted and higher-ranked members still receive public gameplay announcements without operational logs", async () => {
+  const { recordMemberAction } = require("../src/commands/dashboard");
+  const sent = [];
+  const channel = {
+    isTextBased: () => true,
+    send: async (payload) => { sent.push(payload); return { id: "public-message" }; }
+  };
+  const interaction = {
+    guild: { id: "guild-1", ownerId: "guild-owner" },
+    user: { id: "trusted-admin" },
+    member: { displayName: "Trusted Admin" },
+    channel,
+    channelId: "game-channel",
+    client: {}
+  };
+  const services = {
+    security: {
+      isAboveBotRole: async () => true
+    },
+    pool: {}
+  };
+
+  await recordMemberAction(
+    interaction, services, "casino_round",
+    "played Slots with a 10,000 FC wager and received a 9,000 FC payout.",
+    { game: "Slots", wager: 10000, payout: 9000, net: -1000 },
+    "warning"
+  );
+
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].embeds.length, 1);
+  assert.match(sent[0].embeds[0].data.title, /MEMBER ACTIVITY/);
+  assert.match(sent[0].embeds[0].data.description, /Trusted Admin/);
+  assert.match(sent[0].embeds[0].data.description, /10,000 FC wager/);
+  assert.deepEqual(sent[0].allowedMentions, { parse: [] });
+});
