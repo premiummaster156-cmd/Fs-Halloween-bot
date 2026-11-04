@@ -87,6 +87,18 @@ test("gear upgrades strengthen effects and cooldown reductions stack safely", ()
   assert.ok(result.workCooldownReduction <= 0.45);
 });
 
+test("upgrade prices rise with each item upgrade tier", () => {
+  const { getUpgradeCost } = require("../src/services/inventory");
+  const item = balancing.items[0];
+  const first = getUpgradeCost(item, 1);
+  const second = getUpgradeCost(item, 2);
+  const fifth = getUpgradeCost(item, 5);
+  assert.equal(first, Math.ceil(item.cost * balancing.itemUpgrades.costBaseFactor));
+  assert.equal(second, Math.ceil(item.cost * balancing.itemUpgrades.costBaseFactor * balancing.itemUpgrades.costGrowthFactor));
+  assert.ok(second > first);
+  assert.ok(fifth > second);
+});
+
 test("rebirth multipliers double on every cycle and cooldown cuts have a safety cap", () => {
   assert.equal(core.getRebirthMultiplier(0), 1);
   assert.equal(core.getRebirthMultiplier(1), 2);
