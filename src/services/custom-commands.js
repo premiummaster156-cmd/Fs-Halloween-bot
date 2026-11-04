@@ -180,3 +180,103 @@ function buildReply(interaction, definition) {
   return payload;
 }
 
+
+class CustomCommandService {
+  constructor(pool) {
+    this.pool = pool;
+  }
+
+  async list(guildId) {
+    const result = await this.pool.query(
+      "SELECT id, name, description, definition, is_active, deployed_at, created_at, updated_at " +
+      "FROM custom_commands WHERE guild_id = $1 AND deleted_at IS NULL ORDER BY name ASC",
+      [guildId]
+    );
+    return result.rows;
+  }
+
+  async get(guildId, id) {
+    const result = await this.pool.query(
+      "SELECT id, name, description, definition, is_active, deployed_at FROM custom_commands " +
+      "WHERE guild_id = $1 AND id = $2 AND deleted_at IS NULL",
+      [guildId, id]
+    );
+    return result.rows[0] || null;
+  }
+
+  async getByName(guildId, name) {
+    const result = await this.pool.query(
+      "SELECT id, name, description, definition, is_active, deployed_at FROM custom_commands " +
+      "WHERE guild_id = $1 AND name = $2 AND deleted_at IS NULL",
+      [guildId, name]
+    );
+    return result.rows[0] || null;
+  }
+
+  async save(guildId, actorId, input) {
+    const meta = validateCommandMeta(input.name, input.description);
+    const definition = parseDefinition(input.code);
+    const id = input.id || randomUUID();
+    if (input.id) {
+      const result = await this.pool.query(
+        "UPDATE custom_commands SET name = $3, description = $4, definition = $5::jsonb, is_active = FALSE, " +
+        "deployed_at = NULL, updated_by = $6, updated_at = NOW() " +
+        "WHERE guild_id = $1 AND id = $2 AND deleted_at IS NULL RETURNING id, name, description, definition, is_active, deployed_at",
+        [guildId, id, meta.name, meta.description, JSON.stringify(definition), actorId]
+      );
+      if (!result.rowCount) fail("That custom command no longer exists.", "CUSTOM_COMMAND_NOT_FOUND");
+      return result.rows[0];
+    }
+    const result = await this.pool.query(
+      "INSERT INTO custom_commands (id, guild_id, name, description, definition, is_active, created_by, updated_by) " +
+      "VALUES ($1, $2, $3, $4, $5::jsonb, FALSE, $6, $6) " +
+      "RETURNING id, name, description, definition, is_active, deployed_at",
+      [id, guildId, meta.name, meta.description, JSON.stringify(definition), actorId]
+    );
+    return result.rows[0];
+  }
+
+  async activate(guildId, id, actorId) {
+    const result = await this.pool.query(
+      "UPDATE custom_commands SET is_active = TRUE, updated_by = $3, updated_at = NOW() " +
+      "WHERE guild_id = $1 AND id = $2 AND deleted_at IS NULL AND deployed_at IS NOT NULL " +
+      "RETURNING id, name, is_active",
+      [guildId, id, actorId]
+    );
+    if (!result.rowCount) fail("Deploy slash commands first, then activate this command.", "CUSTOM_COMMAND_NOT_DEPLOYED");
+    return result.rows[0];
+  }
+
+  async deactivate(guildId, id, actorId) {
+    const result = await this.pool.query(
+      "UPDATE custom_commands SET is_active = FALSE, updated_by = $3, updated_at = NOW() " +
+      "WHERE guild_id = $1 AND id = $2 AND deleted_at IS NULL RETURNING id, name",
+      [guildId, id, actorId]
+    );
+    if (!result.rowCount) fail("That custom command no longer exists.", "CUSTOM_COMMAND_NOT_FOUND");
+    return result.rows[0];
+  }
+
+  async remove(guildId, id, actorId) {
+    const result = await this.pool.query(
+      "UPDATE custom_commands SET is_active = FALSE, deleted_at = NOW(), updated_by = $3, updated_at = NOW() " +
+      "WHERE guild_id = $1 AND id = $2 AND deleted_at IS NULL RETURNING id, name",
+      [guildId, id, actorId]
+    );
+    if (!result.rowCount) fail("That custom command no longer exists.", "CUSTOM_COMMAND_NOT_FOUND");
+    return result.rows[0];
+  }
+
+  async execute(interaction, record) {
+    const definition = parseDefinition(record.definition);
+    return interaction.editReply(buildReply(interaction, definition));
+  }
+}
+
+module.exports = {
+  CustomCommandService,
+  parseDefinition,
+  validateCommandMeta,
+  toApplicationCommand,
+  buildReply
+};
