@@ -59,7 +59,7 @@ Casino games remain available with transparent odds and equal limits: 100–1,00
 
 ## Operations
 
-Set **OWNER_ID** in `.env` to the bot owner's Discord user ID. The server owner and this configured bot owner are the only people who can open or operate **/admin panel**. Discord Administrator, Manage Server, and other admin roles do not grant bot-control access. `ADMIN_ROLE_IDS` is no longer used for bot access.
+Set **OWNER_ID** in `.env` to the bot owner's Discord user ID. The server owner, configured bot owner, and members holding the Admin Role selected in **/admin panel → Server settings** can open and operate the full administration console. Discord Administrator, Manage Server, and other admin roles do not grant bot-control access. `ADMIN_ROLE_IDS` is no longer used for bot access.
 
 Configure the log channel, Halloween reward role and 2× XP role in **/admin panel → Server settings**. The Halloween reward role must be a normal assignable server role, not `@everyone` or an integration-managed role.
 
