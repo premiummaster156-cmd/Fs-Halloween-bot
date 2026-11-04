@@ -38,7 +38,6 @@ module.exports = {
     // Same bet range for everyone. No daily wager cap.
     cooldownMs: 15 * 1000,
     minBet: 100,
-    maxBet: 1000,
     targetReturnRate: 0.95,
     games: {
       coinflip: {
