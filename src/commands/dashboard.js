@@ -494,7 +494,7 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
     ));
     components.push(row(aBtn(owner, "home", "Admin console")));
     return panel("CUSTOM SLASH COMMANDS", "Create commands using the safe JSON command editor. Save a draft, deploy slash commands, then activate it. Custom commands can send text or embeds with member and option placeholders. They cannot execute JavaScript or host commands.",
-      [{ name: "Saved commands", value: lines.slice(0, 3900) },
+      [{ name: "Saved commands", value: lines.slice(0, 1000) },
        { name: "Workflow", value: "1. Create or edit code\n2. Run npm run deploy-commands\n3. Select the command and press Activate" },
        { name: "Placeholders", value: "{user} · {username} · {server} · {channel} · {option.name} · {option.name.username} · {option.name.mention}" }],
       components);
@@ -511,7 +511,7 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
     return panel("CUSTOM COMMAND  /  " + command.name,
       "**/" + command.name + "** · " + status + "\n" + command.description,
       [
-        { name: "Command code (JSON)", value: code.slice(0, 3900) },
+        { name: "Code preview", value: code.length > 900 ? code.slice(0, 900) + "\n… Open Edit code to view or change the full definition." : code },
         { name: "Activation", value: command.is_active ? "This command is available to members." : command.deployed_at ? "Deployed. Activate it to let members use it." : "Save changes, deploy slash commands, then activate it." }
       ],
       [
