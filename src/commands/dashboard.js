@@ -38,6 +38,8 @@ function menu(owner, action, placeholder, options) {
   return row(new StringSelectMenuBuilder().setCustomId(["dash", owner, action].join(":")).setPlaceholder(placeholder).setMinValues(1).setMaxValues(1).addOptions(options.slice(0, 25)));
 }
 async function recordMemberAction(i, services, action, announcement, details = {}, kind = "success") {
+  // Higher-ranked members and owners are outside the bot's logging/enforcement scope.
+  if (await services.security.isAboveBotRole(i.guild, i.user.id)) return;
   const actorId = i.user.id;
   const displayName = i.member?.displayName || i.user.globalName || i.user.username;
   await audit(services.pool, i.guildId, actorId, action, actorId, details);
