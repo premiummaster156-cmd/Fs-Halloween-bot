@@ -596,7 +596,8 @@ async function handleSelection(i, s, scope, owner, action, parts) {
       (board.posted ? "has been posted in <#" + board.channel.id + "> and will update as members join." : "could not be posted. " + board.note), [
       { name: "HEIST ID", value: "||" + r.id + "||" },
       { name: "Current crew", value: roster },
-      { name: "Crew size", value: "Minimum " + r.mission.minParticipants + " · Maximum " + r.mission.maxParticipants }
+      { name: "Crew size", value: "Minimum " + r.mission.minParticipants + " · Maximum " + r.mission.maxParticipants },
+      ...(board.posted ? [{ name: "Live crew board", value: "[Open the crew board](" + board.message.url + ")" }] : [])
     ], [row(new ButtonBuilder().setCustomId("dash:" + owner + ":copy:" + r.id).setLabel("Show copyable ID").setStyle(ButtonStyle.Primary)), row(btn(owner, "heists", "Heist menu")), navButton(owner)], "success"));
   }
   if (action === "heist-join-role") {
@@ -616,7 +617,7 @@ async function handleSelection(i, s, scope, owner, action, parts) {
         { name: "Current crew", value: getHeistCrewLines(snapshot.crew).join("\n").slice(0, 1000) },
         { name: "Crew size", value: r.count + "/" + r.maximum, inline: true },
         { name: "Leader", value: "<@" + r.leaderId + ">", inline: true },
-        ...(board.posted ? [{ name: "Crew board", value: "Updated in <#" + board.channel.id + ">." }] : [])
+        ...(board.posted ? [{ name: "Crew board", value: "[Open the updated crew board](" + board.message.url + ")" }] : [])
       ], [row(btn(owner, "heists", "Heist menu")), navButton(owner)], "success"));
   }
 }
