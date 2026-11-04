@@ -310,19 +310,6 @@ class SecurityService {
     } else if (action === "unblock") {
       if (!targetId) return interaction.reply({ content: "This alert has no valid target to unblock.", flags: MessageFlags.Ephemeral });
       await this.pool.query("DELETE FROM bot_user_restrictions WHERE guild_id = $1 AND user_id = $2", [guildId, targetId]);
-    } else if (action === "timeout") {
-      if (!targetId || incident.rows[0].user_id !== targetId) {
-        return interaction.reply({ content: "This alert has no valid target to timeout.", flags: MessageFlags.Ephemeral });
-      }
-      const member = await interaction.guild.members.fetch(targetId);
-      const botMember = interaction.guild.members.me || await interaction.guild.members.fetchMe();
-      if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers) || !member.moderatable) {
-        return interaction.reply({
-          content: "Discord did not allow the bot to timeout this member. Check Moderate Members permission and role hierarchy.",
-          flags: MessageFlags.Ephemeral
-        });
-      }
-      await member.timeout(10 * 60 * 1000, "Owner-approved response to security incident #" + incidentId);
     } else if (action !== "ignore") {
       return interaction.reply({ content: "Unknown security action.", flags: MessageFlags.Ephemeral });
     }
