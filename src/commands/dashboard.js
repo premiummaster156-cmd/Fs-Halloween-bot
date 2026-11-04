@@ -267,7 +267,7 @@ async function renderMenu(guildId, owner, page, s) {
         { name: "Current rebirths", value: String(status.rebirths), inline: true },
         { name: "Current FC and XP bonus", value: status.multiplier.toLocaleString() + "×", inline: true },
         { name: "Next FC and XP bonus", value: status.nextMultiplier.toLocaleString() + "×", inline: true },
-        { name: "Requirements", value: "FC wealth: " + status.walletRequired.toLocaleString() + " FC\nPlayer level: " + status.levelRequired + "\nAt least one event quest reward claimed since your previous rebirth." },
+        { name: "Requirements", value: "FC wealth: " + status.walletRequired.toLocaleString() + " FC\nPlayer level: " + status.levelRequired + "\nAt least one event quest reward claimed before your first rebirth." },
         { name: "Your progress", value: checks.map((x) => x.value).join("\n") },
         { name: "Permanent reset details", value: "Wallet becomes 1,000 FC, bank becomes 0 and player level returns to 1. Career and reputation reset. Gear, upgrades and lifetime records stay." }
       ],
