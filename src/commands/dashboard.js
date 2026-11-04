@@ -652,6 +652,7 @@ async function handleSelection(i, s, scope, owner, action, parts) {
   if (scope === "admin") {
     if (!await isAdmin(i, s)) return i.reply({ content: "Your admin access has changed. Reopen the panel after checking permissions.", flags: MessageFlags.Ephemeral });
     if (action === "player-target") return i.update(await renderAdmin(i.guildId, owner, "player", s, value));
+    if (action === "custom-command-select") return i.update(await renderAdmin(i.guildId, owner, "custom-command", s, value));
     if (action === "fairness-target") {
       if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner, bot owner, or configured Admin Role can change leaderboard eligibility.", flags: MessageFlags.Ephemeral });
       return i.update(await renderAdmin(i.guildId, owner, "fairness", s, value));
@@ -994,6 +995,71 @@ async function handleButton(i, s) {
     const target = p[3];
     if (action === "fairness" && !await isAdmin(i, s)) {
       return i.reply({ content: "Only the server owner or configured bot owner can manage leaderboard eligibility.", flags: MessageFlags.Ephemeral });
+    } 
+    if (action === "custom-commands") {
+      return i.update(await renderAdmin(i.guildId, owner, "custom-commands", s));
+    }
+    if (action === "custom-command-create") {
+      const example = JSON.stringify({
+        options: [{ name: "member", description: "Member to greet", type: "user", required: false }],
+        response: { visibility: "public", title: "Welcome", description: "Hello {option.member.username}!" }
+      }, null, 2);
+      return i.showModal(modal("admin:" + owner + ":custom-command-create", "Create custom command", [
+        { id: "name", label: "Slash command name", placeholder: "welcome", max: 32 },
+        { id: "description", label: "Command description", placeholder: "Send a welcome message", max: 100 },
+        { id: "code", label: "Command code (JSON)", paragraph: true, max: 4000, value: example },
+        { id: "reason", label: "Audit reason", paragraph: true, max: 500 }
+      ]));
+    }
+    if (action === "custom-command-edit") {
+      const command = await s.customCommands.get(i.guildId, target);
+      if (!command) return i.reply({ content: "That custom command no longer exists.", flags: MessageFlags.Ephemeral });
+      return i.showModal(modal("admin:" + owner + ":custom-command-update:" + target, "Edit custom command", [
+        { id: "name", label: "Slash command name", placeholder: "welcome", max: 32, value: command.name },
+        { id: "description", label: "Command description", placeholder: "Send a welcome message", max: 100, value: command.description },
+        { id: "code", label: "Command code (JSON)", paragraph: true, max: 4000, value: JSON.stringify(command.definition, null, 2) },
+        { id: "reason", label: "Audit reason", paragraph: true, max: 500 }
+      ]));
+    }
+    if (action === "custom-command-deploy") {
+      await i.deferUpdate();
+      try {
+        const executable = process.platform === "win32" ? "npm.cmd" : "npm";
+        await execFileAsync(executable, ["run", "deploy-commands"], {
+          cwd: process.cwd(),
+          env: { ...process.env, DEPLOY_GUILD_ID: i.guildId },
+          timeout: 90000,
+          maxBuffer: 1024 * 1024,
+          shell: process.platform === "win32"
+        });
+        await safeAudit(i, s, "custom_commands_deployed", null, { guildId: i.guildId });
+        await safeSendLog(i, s, "Custom slash commands were deployed by <@" + owner + ">.");
+        const page = target ? "custom-command" : "custom-commands";
+        const payload = await renderAdmin(i.guildId, owner, page, s, target);
+        if (payload.embeds?.[0]) payload.embeds[0].addFields({ name: "Deployment", value: "Slash commands registered successfully. Select a command and press Activate." });
+        return i.editReply(payload);
+      } catch (error) {
+        console.error("[custom-commands] Deployment failed:", error.code || error.name, error.message);
+        return i.editReply(panel("DEPLOYMENT FAILED", "The slash commands could not be deployed. Check the host logs and deployment configuration, then try again.",
+          [{ name: "Next step", value: "Confirm the bot is online, the database is reachable and the deployment script is present on the host." }],
+          [row(aBtn(owner, "custom-commands", "Back to custom commands"), aBtn(owner, "home", "Admin console"))], "error"));
+      }
+    }
+    if (action === "custom-command-activate" || action === "custom-command-deactivate") {
+      await i.deferUpdate();
+      const result = action === "custom-command-activate"
+        ? await s.customCommands.activate(i.guildId, target, owner)
+        : await s.customCommands.deactivate(i.guildId, target, owner);
+      await safeAudit(i, s, action === "custom-command-activate" ? "custom_command_activated" : "custom_command_deactivated", target, { name: result.name });
+      await safeSendLog(i, s, "Custom command /" + result.name + " " + (action === "custom-command-activate" ? "activated" : "deactivated") + " by <@" + owner + ">.");
+      return i.editReply(await renderAdmin(i.guildId, owner, "custom-command", s, target));
+    }
+    if (action === "custom-command-delete") {
+      await i.deferUpdate();
+      const removed = await s.customCommands.remove(i.guildId, target, owner);
+      await safeAudit(i, s, "custom_command_deleted", target, { name: removed.name });
+      await safeSendLog(i, s, "Custom command /" + removed.name + " was removed by <@" + owner + ">. Redeploy commands to remove it from Discord.");
+      return i.editReply(await renderAdmin(i.guildId, owner, "custom-commands", s));
     }
     if (action === "home" || action === "refresh" || action === "settings" || action === "clear-settings" || action === "event" || action === "player" || action === "fairness" || action === "logs" || action === "event-stop-confirm") {
       return i.update(await renderAdmin(i.guildId, owner, action === "refresh" ? "home" : action, s, target));
@@ -1278,6 +1344,21 @@ async function handleModal(i, s) {
       await safeAudit(i, s, action === "grant-fc" ? "admin_grant_coins" : "economy_remove", target, { amount: delta, reason });
       await safeSendLog(i, s, "FS Coins " + (delta > 0 ? "granted to " : "removed from ") + "<@" + target + "> by <@" + owner + ">: " + amount.toLocaleString() + ". Reason: " + reason);
       return i.editReply(panel(delta > 0 ? "FS COINS GRANTED" : "FS COINS REMOVED", (delta > 0 ? "Granted " : "Removed ") + "**" + amount.toLocaleString() + " FC** " + (delta > 0 ? "for " : "from ") + "<@" + target + ">.", [{ name: "Audit reason", value: reason }], [], "success"));
+    }
+    if (action === "custom-command-create" || action === "custom-command-update") {
+      const name = i.fields.getTextInputValue("name").trim();
+      const description = i.fields.getTextInputValue("description").trim();
+      const code = i.fields.getTextInputValue("code");
+      const saved = await s.customCommands.save(i.guildId, owner, {
+        id: action === "custom-command-update" ? target : null,
+        name, description, code
+      });
+      await safeAudit(i, s, action === "custom-command-create" ? "custom_command_created" : "custom_command_updated", saved.id, {
+        name: saved.name, reason
+      });
+      await safeSendLog(i, s, "Custom slash command /" + saved.name + " was " +
+        (action === "custom-command-create" ? "created" : "updated") + " by <@" + owner + ">. It is inactive until redeployed and activated.");
+      return i.editReply(await renderAdmin(i.guildId, owner, "custom-command", s, saved.id));
     }
     if (action === "set-level") {
       const level = numberField(i, "level", 1, 100, "Level");
