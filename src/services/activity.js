@@ -39,10 +39,9 @@ class ActivityService {
       const counted = await client.query(
         "INSERT INTO weekly_activity (guild_id, user_id, week_start, messages, last_counted_at) VALUES ($1, $2, $3, 1, NOW()) " +
         "ON CONFLICT (guild_id, user_id, week_start) DO UPDATE SET messages = weekly_activity.messages + 1, last_counted_at = NOW(), updated_at = NOW() " +
-        "WHERE weekly_activity.last_counted_at <= NOW() - ($4::double precision * INTERVAL '1 millisecond') RETURNING messages",
-        [guildId, userId, weekStart, balancing.chat.countCooldownMs]
+        "RETURNING messages",
+        [guildId, userId, weekStart]
       );
-      if (!counted.rowCount) return { counted: false, reason: "rate_limited" };
 
       await ensurePlayerTx(client, guildId, userId);
       await client.query(
