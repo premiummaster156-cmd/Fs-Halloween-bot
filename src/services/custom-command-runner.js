@@ -29,7 +29,7 @@ function sandboxPrefix() {
   return [
     "const module = { exports: {} };",
     "const exports = module.exports;",
-    "class EmbedBuilder {",
+    "class SandboxEmbedBuilder {",
     "  constructor(data = {}) { this.data = { ...data }; }",
     "  setTitle(value) { this.data.title = value; return this; }",
     "  setDescription(value) { this.data.description = value; return this; }",
@@ -43,7 +43,7 @@ function sandboxPrefix() {
     "  addFields(...values) { this.data.fields = (this.data.fields || []).concat(values.flat()); return this; }",
     "  toJSON() { return this.data; }",
     "}",
-    "class SlashOptionBuilder {",
+    "class SandboxSlashOptionBuilder {",
     "  constructor(type) { this.data = { type, required: false }; }",
     "  setName(value) { this.data.name = value; return this; }",
     "  setDescription(value) { this.data.description = value; return this; }",
@@ -55,7 +55,7 @@ function sandboxPrefix() {
     "  setMaxValue(value) { this.data.maxValue = value; return this; }",
     "  toJSON() { return this.data; }",
     "}",
-    "class SlashCommandBuilder {",
+    "class SandboxSlashCommandBuilder {",
     "  constructor() { this.data = { options: [] }; this.visibility = 'public'; }",
     "  setName(value) { this.data.name = value; return this; }",
     "  setDescription(value) { this.data.description = value; return this; }",
@@ -68,12 +68,12 @@ function sandboxPrefix() {
     "  addChannelOption(fn) { return this.__addOption('channel', fn); }",
     "  addRoleOption(fn) { return this.__addOption('role', fn); }",
     "  addMentionableOption(fn) { return this.__addOption('mentionable', fn); }",
-    "  __addOption(type, fn) { const option = new SlashOptionBuilder(type); const configured = fn(option) || option; this.data.options.push(configured.toJSON()); return this; }",
+    "  __addOption(type, fn) { const option = new SandboxSlashOptionBuilder(type); const configured = fn(option) || option; this.data.options.push(configured.toJSON()); return this; }",
     "  toJSON() { return { ...this.data, options: this.data.options.map((option) => ({ ...option })), visibility: this.visibility }; }",
     "}",
     "const require = (specifier) => {",
     "  if (specifier !== 'discord.js') throw new Error('Only the restricted discord.js builder shim is available in custom commands.');",
-    "  return Object.freeze({ EmbedBuilder, SlashCommandBuilder });",
+    "  return Object.freeze({ EmbedBuilder: SandboxEmbedBuilder, SlashCommandBuilder: SandboxSlashCommandBuilder });",
     "};",
     "const __readOption = (name) => { const options = __input && __input.options || {}; return Object.prototype.hasOwnProperty.call(options, name) ? options[name] : null; };",
     "const __send = (method, payload) => {",
@@ -138,7 +138,7 @@ async function main() {
       const output = script.runSync(context, { timeout: 500, copy: true });
       const inspected = typeof output === "string" ? JSON.parse(output) : null;
       if (!inspected || !inspected.data || typeof inspected.data !== "object" || inspected.hasExecute !== true) {
-        throw new Error("Export { data: new SlashCommandBuilder()..., async execute(interaction) { ... } } from your command file.");
+        throw new Error("Your command file must export data metadata and an execute function, for example async execute(interaction).");
       }
       if (inspected.visibility) inspected.data.visibility = inspected.visibility;
       write({ ok: true, data: inspected.data });

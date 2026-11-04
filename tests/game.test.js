@@ -638,8 +638,9 @@ test("JavaScript Code Studio validates command metadata and runs code in a separ
     "    visibility: 'public',",
     "    options: [{ name: 'target', description: 'Text to include', type: 'string', required: false }]",
     "  },",
-    "  async execute({ user, options }) {",
-    "    return { content: 'Hello ' + user.username + ' ' + (options.target || 'there') + '!' };",
+    "  async execute(interaction) {",
+    "    const target = interaction.options.getString('target') || 'there';",
+    "    return { content: 'Hello ' + interaction.user.username + ' ' + target + '!' };",
     "  }",
     "};"
   ].join("\n");
@@ -656,18 +657,20 @@ test("JavaScript Code Studio validates command metadata and runs code in a separ
   assert.equal(result.result.content, "Hello Brian Fukishokai!");
 });
 
-test("custom JavaScript command source cannot access Node process, require, fetch or host secrets", async () => {
+test("custom JavaScript command source cannot access Node process, arbitrary modules, fetch or host secrets", async () => {
   const { runInIsolatedProcess } = require("../src/services/custom-commands");
   const source = [
     "module.exports = {",
     "  data: { name: 'sandbox-check', description: 'Check runtime isolation', options: [] },",
     "  execute() {",
-    "    return { content: [typeof process, typeof require, typeof fetch, typeof globalThis.process].join('|') };",
+    "    let blocked = false;",
+    "    try { require('node:fs'); } catch (_) { blocked = true; }",
+    "    return { content: [typeof process, typeof fetch, typeof globalThis.process, String(blocked)].join('|') };",
     "  }",
     "};"
   ].join("\n");
   const result = await runInIsolatedProcess(source, "run", {});
-  assert.equal(result.result.content, "undefined|undefined|undefined|undefined");
+  assert.equal(result.result.content, "undefined|undefined|undefined|true");
 });
 
 test("custom JavaScript command inspection rejects missing metadata and execution timeouts", async () => {
