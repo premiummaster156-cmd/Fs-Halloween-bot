@@ -8,18 +8,6 @@ class CasinoGame {
   constructor(pool, economy) { this.pool = pool; this.economy = economy; }
   list() { return Object.entries(balancing.casino.games).map(([id, game]) => ({ id, ...game })); }
 
-  async getDailyUsage(guildId, userId) {
-    const result = await this.pool.query(
-      "SELECT COALESCE(SUM(-delta), 0)::bigint AS wagered FROM economy_ledger " +
-      "WHERE guild_id = $1 AND user_id = $2 AND reason = 'casino_bet' " +
-      "AND created_at >= NOW() - INTERVAL '24 hours'",
-      [guildId, userId]
-    );
-    const wagered = Number(result.rows[0]?.wagered || 0);
-    const limit = balancing.casino.dailyWagerLimit;
-    return { wagered, limit, remaining: Math.max(0, limit - wagered) };
-  }
-
   async play(guildId, userId, gameId, bet) {
     const game = balancing.casino.games[gameId];
     const wager = Math.floor(Number(bet));
@@ -39,30 +27,6 @@ class CasinoGame {
       );
       if (Number(player.rows[0].level) < game.minLevel) {
         throw new DomainError("You need level " + game.minLevel + " to play " + game.name + ".", "CASINO_LEVEL_REQUIRED");
-      }
-
-      // Locking the player row above serializes this member's wagers, preventing
-      // simultaneous button/modal submissions from exceeding the rolling limit.
-      const usageResult = await client.query(
-        "SELECT COALESCE(SUM(-delta), 0)::bigint AS wagered FROM economy_ledger " +
-        "WHERE guild_id = $1 AND user_id = $2 AND reason = 'casino_bet' " +
-        "AND created_at >= NOW() - INTERVAL '24 hours'",
-        [guildId, userId]
-      );
-      const wagered = Number(usageResult.rows[0].wagered || 0);
-      const remaining = Math.max(0, balancing.casino.dailyWagerLimit - wagered);
-      if (remaining <= 0) {
-        throw new DomainError(
-          "You've reached your " + balancing.casino.dailyWagerLimit.toLocaleString() +
-          " FC casino wager limit for the last 24 hours. Your limit will recover as earlier wagers pass the 24-hour window.",
-          "CASINO_DAILY_LIMIT"
-        );
-      }
-      if (wager > remaining) {
-        throw new DomainError(
-          "You have " + remaining.toLocaleString() + " FC of casino wagers left in your rolling 24-hour limit. Lower your bet to continue.",
-          "CASINO_DAILY_LIMIT"
-        );
       }
 
       await claimCooldownTx(client, guildId, userId, "casino", balancing.casino.cooldownMs);
@@ -92,19 +56,16 @@ class CasinoGame {
       const payout = won ? casinoPayout(wager, multiplier) : 0;
       if (payout > 0) {
         await this.economy.mutateTx(client, guildId, userId, payout, "casino_payout", reference + ":payout", {
-          gameId, wager, multiplier, theoreticalReturnRate: balancing.casino.targetReturnRate
+          gameId, wager, multiplier, theoreticalReturnRate: game.theoreticalReturnRate ?? balancing.casino.targetReturnRate
         });
       }
       await trackActionTx(client, guildId, userId, "casino_play", 1);
       if (payout > wager) await trackActionTx(client, guildId, userId, "wallet_earned", payout - wager);
 
-      const totalWagered = wagered + wager;
       return {
         game, gameId, wager, won, payout, net: payout - wager, outcome,
-        dailyWagered: totalWagered,
-        dailyWagerLimit: balancing.casino.dailyWagerLimit,
-        dailyWagerRemaining: Math.max(0, balancing.casino.dailyWagerLimit - totalWagered),
-        cooldownMs: balancing.casino.cooldownMs
+        cooldownMs: balancing.casino.cooldownMs,
+        theoreticalReturnRate: game.theoreticalReturnRate ?? balancing.casino.targetReturnRate
       };
     });
   }
