@@ -235,7 +235,7 @@ function createIdeServer(client, services) {
 
       if (req.method === "GET" && url.pathname === "/api/session") {
         const session = await requireSession(req, client, services);
-        if (!session) return json(res, 401, { authenticated: false });
+        if (!session) return json(res, 200, { authenticated: false });
         return json(res, 200, {
           authenticated: true,
           user: session.user,
