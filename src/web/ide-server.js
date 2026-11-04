@@ -2,6 +2,9 @@ const http = require("node:http");
 const crypto = require("node:crypto");
 const path = require("node:path");
 const fs = require("node:fs");
+const { execFile } = require("node:child_process");
+const { promisify } = require("node:util");
+const execFileAsync = promisify(execFile);
 const settings = require("../config/settings");
 const workspace = require("../services/admin-workspace");
 const { inspectCommandSource } = require("../services/custom-commands");
@@ -400,11 +403,22 @@ function createIdeServer(client, services) {
             return json(res, 429, { error: "Please wait before deploying again." });
           }
           session.lastDeployAt = Date.now();
-          const deployment = await services.customCommands.deployGuild(session.guildId);
-          const output = "Registered " + deployment.registeredCount + " slash commands (" + deployment.customCount + " custom) without restarting the bot.";
-          await audit(services.pool, session.guildId, session.user.id, "custom_commands_deployed", id, { name: record.name, ...output });
+          const executable = process.platform === "win32" ? "npm.cmd" : "npm";
+          const { stdout, stderr } = await execFileAsync(executable, ["run", "deploy-commands"], {
+            cwd: process.cwd(),
+            env: { ...process.env, DEPLOY_GUILD_ID: session.guildId },
+            timeout: 90000,
+            maxBuffer: 1024 * 1024,
+            shell: process.platform === "win32"
+          });
+          const output = (stdout || "").trim() || "Slash commands registered successfully.";
+          await audit(services.pool, session.guildId, session.user.id, "custom_commands_deployed", id, {
+            name: record.name,
+            command: "npm run deploy-commands",
+            result: "success"
+          });
           await sendLog(client, session.guildId, "Custom slash commands deployed by <@" + session.user.id + ">.");
-          return json(res, 200, { ok: true, output });
+          return json(res, 200, { ok: true, output, warnings: (stderr || "").trim() });
         }
 
         if (req.method === "POST" && action === "activate") {
@@ -430,6 +444,9 @@ function createIdeServer(client, services) {
       return json(res, 404, { error: "Route not found." });
     } catch (error) {
       console.error("[code-studio] Request failed:", error.code || error.name, error.message);
+      if (url.pathname.includes("/deploy") && (error.code === "ETIMEDOUT" || error.killed)) {
+        return json(res, 504, { error: "Slash-command deployment timed out. Check the host logs and try again." });
+      }
       const status = error.code === "CUSTOM_COMMAND_INVALID" ? 400
         : error.code === "CUSTOM_COMMAND_NOT_FOUND" ? 404
         : error.code === "CUSTOM_COMMAND_NOT_DEPLOYED" ? 409 : 500;
