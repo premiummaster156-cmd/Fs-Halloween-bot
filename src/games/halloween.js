@@ -173,6 +173,7 @@ class HalloweenGame {
       );
       return { item, remainingCandy: candy - item.cost };
     });
-  }}
+  }
+}
 
 module.exports = { HalloweenGame };
