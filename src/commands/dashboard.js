@@ -285,8 +285,17 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
       row(new RoleSelectMenuBuilder().setCustomId("admin:" + owner + ":setting-xp").setPlaceholder("Set 2× XP role").setMinValues(1).setMaxValues(1).setDefaultRoles(cfg.xpBoosterRoleId ? [cfg.xpBoosterRoleId] : [])),
       row(new RoleSelectMenuBuilder().setCustomId("admin:" + owner + ":setting-admin").setPlaceholder("Set additional admin role").setMinValues(1).setMaxValues(1).setDefaultRoles(cfg.adminRoleId ? [cfg.adminRoleId] : [])),
       row(new ChannelSelectMenuBuilder().setCustomId("admin:" + owner + ":setting-log").setPlaceholder("Set admin log channel").setChannelTypes(ChannelType.GuildText).setMinValues(1).setMaxValues(1).setDefaultChannels(cfg.logChannelId ? [cfg.logChannelId] : [])),
-      row(aBtn(owner, "home", "Back to admin console"))
+      row(aBtn(owner, "clear-settings", "Clear a setting", ButtonStyle.Danger, "🧹"), aBtn(owner, "home", "Admin console"))
     ]);
+  }
+  if (page === "clear-settings") {
+    return panel("CLEAR SERVER SETTING", "Choose one setting to remove. This does not delete player data or rewards.", [],
+      [row(new StringSelectMenuBuilder().setCustomId("admin:" + owner + ":clear-setting").setPlaceholder("Choose a setting to clear").setMinValues(1).setMaxValues(1).addOptions(
+        { label: "Halloween reward role", value: "halloweenRoleId" },
+        { label: "2× XP role", value: "xpBoosterRoleId" },
+        { label: "Additional admin role", value: "adminRoleId" },
+        { label: "Admin log channel", value: "logChannelId" }
+      )), row(aBtn(owner, "settings", "Back to settings"))], "warning");
   }
   if (page === "event") {
     const ev = await s.halloween.getEvent(guildId);
@@ -354,17 +363,22 @@ async function openAdmin(i, s) {
 }
 async function rewardRole(i, roleId, reason) {
   if (!roleId) return { assigned: false, issue: "No Halloween reward role is configured." };
-  const role = await i.guild.roles.fetch(roleId);
-  if (!role) return { assigned: false, issue: "The reward role no longer exists." };
-  if (role.id === i.guildId || role.managed) return { assigned: false, issue: "The selected role is managed by Discord or is @everyone. Select a normal server role." };
-  const member = await i.guild.members.fetch(i.user.id);
-  const bot = i.guild.members.me || await i.guild.members.fetchMe();
-  if (member.id === i.guild.ownerId) return { assigned: false, issue: "Discord does not allow the bot to assign roles to the server owner." };
-  if (!bot.permissions.has(PermissionFlagsBits.ManageRoles)) return { assigned: false, issue: "The bot needs Manage Roles permission." };
-  if (bot.roles.highest.comparePositionTo(role) <= 0) return { assigned: false, issue: "Move the reward role below the bot's highest role." };
-  if (member.roles.cache.has(role.id)) return { assigned: true, alreadyHadRole: true };
-  await member.roles.add(role, reason);
-  return { assigned: true, alreadyHadRole: false };
+  try {
+    const role = await i.guild.roles.fetch(roleId);
+    if (!role) return { assigned: false, issue: "The reward role no longer exists." };
+    if (role.id === i.guildId || role.managed) return { assigned: false, issue: "The selected role is managed by Discord or is @everyone. Select a normal server role." };
+    const member = await i.guild.members.fetch(i.user.id);
+    const bot = i.guild.members.me || await i.guild.members.fetchMe();
+    if (member.id === i.guild.ownerId) return { assigned: false, issue: "Discord does not allow the bot to assign roles to the server owner." };
+    if (!bot.permissions.has(PermissionFlagsBits.ManageRoles)) return { assigned: false, issue: "The bot needs Manage Roles permission." };
+    if (bot.roles.highest.comparePositionTo(role) <= 0) return { assigned: false, issue: "Move the reward role below the bot's highest role." };
+    if (member.roles.cache.has(role.id)) return { assigned: true, alreadyHadRole: true };
+    await member.roles.add(role, reason);
+    return { assigned: true, alreadyHadRole: false };
+  } catch (error) {
+    console.error("[event] Reward role assignment failed:", error.code || error.name, error.message);
+    return { assigned: false, issue: "Discord rejected the role assignment. Check the bot permission and role hierarchy." };
+  }
 }
 async function showWork(i, owner, session) {
   const q = session.challenge.questions[session.index];
@@ -394,6 +408,15 @@ async function handleSelection(i, s, scope, owner, action, parts) {
     if (action === "fairness-target") {
       if (!isOwner(i)) return i.reply({ content: "Only the server owner or configured bot owner can change leaderboard eligibility.", flags: MessageFlags.Ephemeral });
       return i.update(await renderAdmin(i.guildId, owner, "fairness", s, value));
+    }
+    if (action === "clear-setting") {
+      const allowed = ["halloweenRoleId", "xpBoosterRoleId", "adminRoleId", "logChannelId"];
+      if (!allowed.includes(value)) throw new Error("Unknown server setting.");
+      await i.deferUpdate();
+      await s.guildSettings.clear(i.guildId, value);
+      await audit(s.pool, i.guildId, owner, "server_setting_cleared", null, { setting: value });
+      await sendLog(i.client, i.guildId, value + " cleared by <@" + owner + ">.");
+      return i.editReply(await renderAdmin(i.guildId, owner, "settings", s));
     }
     if (action.startsWith("setting-")) {
       await i.deferUpdate();
@@ -519,7 +542,10 @@ async function handleButton(i, s) {
   if (scope === "admin" && !await isAdmin(i, s.guildSettings)) return i.reply({ content: "You no longer have permission to use this control.", flags: MessageFlags.Ephemeral });
   if (scope === "admin") {
     const target = p[3];
-    if (action === "home" || action === "refresh" || action === "settings" || action === "event" || action === "player" || action === "fairness" || action === "logs" || action === "event-stop-confirm") {
+    if (action === "fairness" && !isOwner(i)) {
+      return i.reply({ content: "Only the server owner or configured bot owner can manage leaderboard eligibility.", flags: MessageFlags.Ephemeral });
+    }
+    if (action === "home" || action === "refresh" || action === "settings" || action === "clear-settings" || action === "event" || action === "player" || action === "fairness" || action === "logs" || action === "event-stop-confirm") {
       return i.update(await renderAdmin(i.guildId, owner, action === "refresh" ? "home" : action, s, target));
     }
     if (["grant-fc", "grant-xp", "remove-fc", "set-level"].includes(action)) {
@@ -569,8 +595,22 @@ async function handleButton(i, s) {
 
   if (scope !== "dash") return;
   if (action === "copy") return i.reply({ content: "Heist ID: " + p[3], flags: MessageFlags.Ephemeral });
-  const pages = ["home", "profile", "earn", "career", "bank", "transfer", "gear", "shop", "games", "crime", "casino", "heists", "event", "weekly", "event-shop", "rankings", "help"];
-  if (pages.includes(action)) return i.update(await renderMenu(i.guildId, owner, action === "refresh" ? "home" : action, s));
+  if (action === "event") {
+    await i.deferUpdate();
+    const status = await s.halloween.status(i.guildId, owner);
+    const configuredRole = await s.guildSettings.get(i.guildId, "halloweenRoleId");
+    const roleId = configuredRole || (status.event && status.event.role_id);
+    let roleNotice = "";
+    if (status.event && status.claims.length >= balancing.halloween.finalRoleQuestCount && roleId) {
+      const assignment = await rewardRole(i, roleId, "Completed the Halloween final reward requirement");
+      if (!assignment.assigned) roleNotice = assignment.issue;
+    }
+    const payload = await renderMenu(i.guildId, owner, "event", s);
+    if (roleNotice && payload.embeds[0]) payload.embeds[0].addFields({ name: "Final reward role", value: roleNotice });
+    return i.editReply(payload);
+  }
+  const pages = ["home", "profile", "earn", "career", "bank", "transfer", "gear", "shop", "games", "crime", "casino", "heists", "weekly", "event-shop", "rankings", "help"];
+  if (pages.includes(action)) return i.update(await renderMenu(i.guildId, owner, action, s));
   if (action === "refresh") return i.update(await renderMenu(i.guildId, owner, "home", s));
   if (action === "daily") {
     await i.deferUpdate();
