@@ -21,9 +21,9 @@ function memberRoleIds(i) {
   const roles = i.member?.roles;
   return roles?.cache ? Array.from(roles.cache.keys()) : Array.isArray(roles) ? roles : [];
 }
-async function isAdmin(i) {
-  // Discord Administrator / Manage Server roles do not grant control of the bot.
-  return isOwner(i);
+async function isAdmin(i, services) {
+  // The configured Admin Role is a trusted bot-operator role, alongside the two owners.
+  return services.security.hasAdminAccess(i.guild, i.user.id);
 }
 function btn(owner, action, label, style = ButtonStyle.Secondary, emoji, extra) {
   const b = new ButtonBuilder().setCustomId(["dash", owner, action, extra].filter(Boolean).join(":")).setLabel(label).setStyle(style);
@@ -51,8 +51,8 @@ async function recordMemberAction(i, services, action, announcement, details = {
   if (await services.security.isAboveBotRole(i.guild, i.user.id)) return;
   const actorId = i.user.id;
   const displayName = i.member?.displayName || i.user.globalName || i.user.username;
-  await audit(services.pool, i.guildId, actorId, action, actorId, details);
-  await sendLog(i.client, i.guildId, "Member activity: " + action + " · " + displayName + " (" + actorId + ")" +
+  await safeAudit(i, services, action, actorId, details);
+  await safeSendLog(i, services, "Member activity: " + action + " · " + displayName + " (" + actorId + ")" +
     (Object.keys(details).length ? " · " + JSON.stringify(details).slice(0, 700) : ""));
   try {
     let channel = i.channel;
@@ -314,10 +314,10 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
   if (page === "home") {
     const cfg = await s.guildSettings.getAll(guildId);
     const ev = await s.halloween.getEvent(guildId);
-    return panel("FUKISHOKAI  /  ADMIN CONSOLE", "One private control centre for the server. Select a category below. Player currency and progression edits remain owner-only.",
+    return panel("FUKISHOKAI  /  ADMIN CONSOLE", "One private control centre for the server. The configured Admin Role has the same bot access as the server owner and bot owner.",
       [
-        { name: "🔐 Bot access", value: "Server owner + OWNER_ID only. Discord Administrator, Manage Server and admin roles do not grant bot control." },
-        { name: "⚙️ Server setup", value: "Log channel: " + (cfg.logChannelId ? "<#" + cfg.logChannelId + ">" : "Not set") + "\nHalloween reward role: " + (cfg.halloweenRoleId ? "<@&" + cfg.halloweenRoleId + ">" : "Not set") },
+        { name: "🔐 Bot access", value: "Server owner + OWNER_ID + the configured Admin Role. Discord Administrator alone does not grant bot control." },
+        { name: "⚙️ Server setup", value: "Admin role: " + (cfg.adminRoleId ? "<@&" + cfg.adminRoleId + ">" : "Not configured") + "\nLog channel: " + (cfg.logChannelId ? "<#" + cfg.logChannelId + ">" : "Not set") + "\nHalloween reward role: " + (cfg.halloweenRoleId ? "<@&" + cfg.halloweenRoleId + ">" : "Not set") },
         { name: "🎃 Halloween", value: ev ? (ev.enabled ? "Enabled" : "Disabled") + " · Ends <t:" + Math.floor(new Date(ev.ends_at).getTime() / 1000) + ":R>" : "Not configured" }
       ], [
         row(aBtn(owner, "settings", "Server settings", ButtonStyle.Primary, "⚙️"), aBtn(owner, "event", "Event controls", ButtonStyle.Secondary, "🎃")),
@@ -330,8 +330,10 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
     return panel("SERVER SETTINGS", "Select an item below to configure it. Changes are saved immediately and written to the audit history.", [
       { name: "Halloween reward role", value: cfg.halloweenRoleId ? "<@&" + cfg.halloweenRoleId + ">" : "Not set" },
       { name: "2× XP role", value: cfg.xpBoosterRoleId ? "<@&" + cfg.xpBoosterRoleId + ">" : "Not set" },
+      { name: "Admin role", value: cfg.adminRoleId ? "<@&" + cfg.adminRoleId + ">" : "Not configured" },
       { name: "Admin log channel", value: cfg.logChannelId ? "<#" + cfg.logChannelId + ">" : "Not set" }
     ], [
+      row(new RoleSelectMenuBuilder().setCustomId("admin:" + owner + ":setting-admin").setPlaceholder("Set trusted Admin Role").setMinValues(1).setMaxValues(1).setDefaultRoles(cfg.adminRoleId ? [cfg.adminRoleId] : [])),
       row(new RoleSelectMenuBuilder().setCustomId("admin:" + owner + ":setting-reward").setPlaceholder("Set Halloween reward role").setMinValues(1).setMaxValues(1).setDefaultRoles(cfg.halloweenRoleId ? [cfg.halloweenRoleId] : [])),
       row(new RoleSelectMenuBuilder().setCustomId("admin:" + owner + ":setting-xp").setPlaceholder("Set 2× XP role").setMinValues(1).setMaxValues(1).setDefaultRoles(cfg.xpBoosterRoleId ? [cfg.xpBoosterRoleId] : [])),
       row(new ChannelSelectMenuBuilder().setCustomId("admin:" + owner + ":setting-log").setPlaceholder("Set admin log channel").setChannelTypes(ChannelType.GuildText).setMinValues(1).setMaxValues(1).setDefaultChannels(cfg.logChannelId ? [cfg.logChannelId] : [])),
@@ -343,6 +345,7 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
       [row(new StringSelectMenuBuilder().setCustomId("admin:" + owner + ":clear-setting").setPlaceholder("Choose a setting to clear").setMinValues(1).setMaxValues(1).addOptions(
         { label: "Halloween reward role", value: "halloweenRoleId" },
         { label: "2× XP role", value: "xpBoosterRoleId" },
+        { label: "Admin role", value: "adminRoleId" },
         { label: "Admin log channel", value: "logChannelId" }
       )), row(aBtn(owner, "settings", "Back to settings"))], "warning");
   }
@@ -407,7 +410,7 @@ async function openMenu(i, s) {
   return i.editReply(payload);
 }
 async function openAdmin(i, s) {
-  if (!await isAdmin(i)) return i.editReply(panel("ACCESS DENIED", "Only the server owner or configured bot owner can open the administration console.", [], [], "error"));
+  if (!await isAdmin(i, s)) return i.editReply(panel("ACCESS DENIED", "Only the server owner, bot owner, or configured Admin Role can open the administration console.", [], [], "error"));
   return i.editReply(await renderAdmin(i.guildId, i.user.id, "home", s));
 }
 async function rewardRole(i, roleId, reason) {
@@ -452,17 +455,18 @@ async function showWork(i, owner, session) {
 async function handleSelection(i, s, scope, owner, action, parts) {
   const value = i.values[0];
   if (scope === "admin") {
-    if (!await isAdmin(i, s.guildSettings)) return i.reply({ content: "Your admin access has changed. Reopen the panel after checking permissions.", flags: MessageFlags.Ephemeral });
+    if (!await isAdmin(i, s)) return i.reply({ content: "Your admin access has changed. Reopen the panel after checking permissions.", flags: MessageFlags.Ephemeral });
     if (action === "player-target") return i.update(await renderAdmin(i.guildId, owner, "player", s, value));
     if (action === "fairness-target") {
-      if (!isOwner(i)) return i.reply({ content: "Only the server owner or configured bot owner can change leaderboard eligibility.", flags: MessageFlags.Ephemeral });
+      if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner or configured bot owner can change leaderboard eligibility.", flags: MessageFlags.Ephemeral });
       return i.update(await renderAdmin(i.guildId, owner, "fairness", s, value));
     }
     if (action === "clear-setting") {
-      const allowed = ["halloweenRoleId", "xpBoosterRoleId", "logChannelId"];
+      const allowed = ["halloweenRoleId", "xpBoosterRoleId", "adminRoleId", "logChannelId"];
       if (!allowed.includes(value)) throw new Error("Unknown server setting.");
       await i.deferUpdate();
       await s.guildSettings.clear(i.guildId, value);
+      if (value === "adminRoleId") s.security.clearHierarchyCache();
       await safeAudit(i, s, "server_setting_cleared", null, { setting: value });
       await safeSendLog(i, s, value + " cleared by <@" + owner + ">.");
       return i.editReply(await renderAdmin(i.guildId, owner, "settings", s));
@@ -472,23 +476,26 @@ async function handleSelection(i, s, scope, owner, action, parts) {
       const map = {
         "setting-reward": ["halloweenRoleId", "Halloween reward role"],
         "setting-xp": ["xpBoosterRoleId", "2x XP role"],
+        "setting-admin": ["adminRoleId", "Trusted Admin Role"],
         "setting-log": ["logChannelId", "Admin log channel"]
       };
       const setting = map[action];
       if (!setting) throw new Error("Unknown server setting.");
-      if (setting[0] === "halloweenRoleId") {
+      if (setting[0] === "halloweenRoleId" || setting[0] === "adminRoleId") {
         const role = await i.guild.roles.fetch(value);
         if (!role || role.id === i.guildId || role.managed) {
-          return i.followUp({ content: "That role cannot be assigned by the bot. Choose a normal server role, not @everyone or an integration-managed role.", flags: MessageFlags.Ephemeral });
+          const label = setting[0] === "adminRoleId" ? "trusted Admin Role" : "Halloween reward";
+          return i.followUp({ content: "That role cannot be used as the " + label + " role. Choose a normal server role, not @everyone or an integration-managed role.", flags: MessageFlags.Ephemeral });
         }
       }
       await s.guildSettings.set(i.guildId, setting[0], value, owner);
+      if (setting[0] === "adminRoleId") s.security.clearHierarchyCache();
       await safeAudit(i, s, "server_setting_updated", null, { setting: setting[0], value });
       await safeSendLog(i, s, setting[1] + " updated by <@" + owner + ">.");
       return i.editReply(await renderAdmin(i.guildId, owner, "settings", s));
     }
     if (action === "career-select") {
-      if (!isOwner(i)) return i.reply({ content: "Only the server owner or configured bot owner can assign careers.", flags: MessageFlags.Ephemeral });
+      if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner or configured bot owner can assign careers.", flags: MessageFlags.Ephemeral });
       return i.showModal(modal("admin:" + owner + ":career-modal:" + parts[3] + ":" + value, "Assign a career", [
         { id: "level", label: "Job level (1–30)", placeholder: "1", max: 2 },
         { id: "reason", label: "Audit reason", paragraph: true, max: 500 }
@@ -601,17 +608,17 @@ async function handleButton(i, s) {
     await s.security.recordUnauthorizedControlAttempt(i, i.customId).catch(() => {});
     return i.reply({ content: "This private dashboard belongs to another member. Run /menu to open your own.", flags: MessageFlags.Ephemeral });
   }
-  if (scope === "admin" && !await isAdmin(i, s.guildSettings)) return i.reply({ content: "You no longer have permission to use this control.", flags: MessageFlags.Ephemeral });
+  if (scope === "admin" && !await isAdmin(i, s)) return i.reply({ content: "You no longer have permission to use this control.", flags: MessageFlags.Ephemeral });
   if (scope === "admin") {
     const target = p[3];
-    if (action === "fairness" && !isOwner(i)) {
+    if (action === "fairness" && !await isAdmin(i, s)) {
       return i.reply({ content: "Only the server owner or configured bot owner can manage leaderboard eligibility.", flags: MessageFlags.Ephemeral });
     }
     if (action === "home" || action === "refresh" || action === "settings" || action === "clear-settings" || action === "event" || action === "player" || action === "fairness" || action === "logs" || action === "event-stop-confirm") {
       return i.update(await renderAdmin(i.guildId, owner, action === "refresh" ? "home" : action, s, target));
     }
     if (["grant-fc", "grant-xp", "remove-fc", "set-level"].includes(action)) {
-      if (!isOwner(i)) return i.reply({ content: "Only the server owner or configured bot owner can edit member currency and progression.", flags: MessageFlags.Ephemeral });
+      if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner or configured bot owner can edit member currency and progression.", flags: MessageFlags.Ephemeral });
       const isLevel = action === "set-level";
       return i.showModal(modal("admin:" + owner + ":" + action + ":" + target, isLevel ? "Set player level" : action === "remove-fc" ? "Remove FS Coins" : action === "grant-xp" ? "Grant XP" : "Grant FS Coins", [
         { id: isLevel ? "level" : "amount", label: isLevel ? "New level (1–100)" : "Amount", placeholder: isLevel ? "10" : "1000", max: 12 },
@@ -619,19 +626,19 @@ async function handleButton(i, s) {
       ]));
     }
     if (action === "set-career") {
-      if (!isOwner(i)) return i.reply({ content: "Only the server owner or configured bot owner can assign careers.", flags: MessageFlags.Ephemeral });
+      if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner or configured bot owner can assign careers.", flags: MessageFlags.Ephemeral });
       const opts = balancing.jobs.map((j) => ({ label: j.name, value: j.id, description: "Assign " + j.name }));
       const careerMenu = new StringSelectMenuBuilder().setCustomId("admin:" + owner + ":career-select:" + target).setPlaceholder("Choose a career").setMinValues(1).setMaxValues(1).addOptions(opts);
       return i.update(panel("ASSIGN CAREER", "Choose the career to assign to <@" + target + ">.", [], [row(careerMenu), row(aBtn(owner, "player", "Back to player tools", ButtonStyle.Secondary, null, target))]));
     }
     if (action === "exclude") {
-      if (!isOwner(i)) return i.reply({ content: "Only the server owner or configured bot owner can change leaderboard eligibility.", flags: MessageFlags.Ephemeral });
+      if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner or configured bot owner can change leaderboard eligibility.", flags: MessageFlags.Ephemeral });
       return i.showModal(modal("admin:" + owner + ":exclude-modal:" + target, "Exclude from leaderboards", [
         { id: "reason", label: "Reason for exclusion", paragraph: true, max: 500 }
       ]));
     }
     if (action === "include") {
-      if (!isOwner(i)) return i.reply({ content: "Only the server owner or configured bot owner can change leaderboard eligibility.", flags: MessageFlags.Ephemeral });
+      if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner or configured bot owner can change leaderboard eligibility.", flags: MessageFlags.Ephemeral });
       await i.deferUpdate();
       await s.economy.includeInLeaderboards(i.guildId, target);
       await safeAudit(i, s, "leaderboard_member_included", target, {});
@@ -811,7 +818,7 @@ async function handleModal(i, s) {
     }
   }
   if (scope === "admin") {
-    if (!await isAdmin(i, s.guildSettings) || !isOwner(i)) throw new Error("This action is restricted to the server owner or configured bot owner.");
+    if (!await isAdmin(i, s)) throw new Error("This action is restricted to the server owner, bot owner, or configured Admin Role.");
     const reason = i.fields.getTextInputValue("reason")?.trim() || "";
     if (!reason) throw new Error("An audit reason is required.");
     if (["grant-fc", "grant-xp", "remove-fc"].includes(action)) {
