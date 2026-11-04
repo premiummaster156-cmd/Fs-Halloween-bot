@@ -137,7 +137,7 @@ let editor=null, csrf="", commands=[], selected=null, dirty=false;
  async function deploy(){
   if(!selected)throw new Error("Select a command first.");if(dirty||!selected.id)await save();
   const result=await api("/api/commands/"+selected.id+"/deploy",{method:"POST",body:"{}"});
-  log("$ npm run deploy-commands","ok");String(result.output||"Slash commands registered.").split("\\n").filter(Boolean).forEach(x=>log(x));
+  log("$ npm run deploy-commands","ok");String(result.output||"Slash commands registered.").split(/\r?\n/).filter(Boolean).forEach(x=>log(x));
   await loadCommands();setPanel("terminal");$("status-message").textContent="Deployed · ready to activate";
  }
  async function activate(){if(!selected||!selected.id)throw new Error("Save a command first.");await api("/api/commands/"+selected.id+"/activate",{method:"POST",body:"{}"});log("Activated /"+selected.name+". Members can now use it.","ok");await loadCommands();}
