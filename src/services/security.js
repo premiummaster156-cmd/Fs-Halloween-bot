@@ -123,11 +123,11 @@ class SecurityService {
     const attempts = this.pushWindow(this.commandAttempts, key, now, 10000);
     if (attempts.length <= 8) return { allowed: true };
     if (attempts.length === 9 || attempts.length % 5 === 0) {
-      await this.createIncident(interaction.client, {
+      this.createIncident(interaction.client, {
         guild: interaction.guild, userId: interaction.user.id, category: "command_spam",
         summary: "Repeated slash-command requests were rate-limited.",
         details: { count: attempts.length, windowSeconds: 10, command: interaction.commandName }
-      });
+      }).catch((error) => log("warn", "Could not create command-spam incident", { message: error.message }));
     }
     return { allowed: false, retryAfterMs: Math.max(1000, 10000 - (now - attempts[0])) };
   }
@@ -139,11 +139,11 @@ class SecurityService {
     const attempts = this.pushWindow(this.componentAttempts, key, now, 10000);
     if (attempts.length <= 24) return { allowed: true };
     if (attempts.length === 25 || attempts.length % 8 === 0) {
-      await this.createIncident(interaction.client, {
+      this.createIncident(interaction.client, {
         guild: interaction.guild, userId: interaction.user.id, category: "component_spam",
         summary: "Repeated dashboard interactions were rate-limited.",
         details: { count: attempts.length, windowSeconds: 10 }
-      });
+      }).catch((error) => log("warn", "Could not create component-spam incident", { message: error.message }));
     }
     return { allowed: false, retryAfterMs: Math.max(1000, 10000 - (now - attempts[0])) };
   }
@@ -179,11 +179,11 @@ class SecurityService {
       [interaction.guildId, interaction.user.id, JSON.stringify({ countInWindow: attempts.length, controlId: String(controlId || "").slice(0, 100) })]
     ).catch((error) => log("warn", "Could not store unauthorized dashboard attempt", { message: error.message }));
     if (attempts.length >= 3 && attempts.length % 3 === 0) {
-      await this.createIncident(interaction.client, {
+      this.createIncident(interaction.client, {
         guild: interaction.guild, userId: interaction.user.id, category: "unauthorized_control_access",
         summary: "A member repeatedly tried to use dashboard controls that do not belong to them.",
         details: { attemptsInWindow: attempts.length, windowSeconds: 300 }
-      });
+      }).catch((error) => log("warn", "Could not create unauthorized-control incident", { message: error.message }));
     }
   }
 
@@ -196,11 +196,11 @@ class SecurityService {
       [interaction.guildId, interaction.user.id, JSON.stringify({ countInWindow: attempts.length })]
     ).catch((error) => log("warn", "Could not store unauthorized admin attempt", { message: error.message }));
     if (attempts.length >= 3 && attempts.length % 3 === 0) {
-      await this.createIncident(interaction.client, {
+      this.createIncident(interaction.client, {
         guild: interaction.guild, userId: interaction.user.id, category: "unauthorized_admin_access",
         summary: "A member repeatedly tried to access the owner-only administration console.",
         details: { attemptsInWindow: attempts.length, windowSeconds: 300 }
-      });
+      }).catch((error) => log("warn", "Could not create unauthorized-admin incident", { message: error.message }));
     }
   }
 
