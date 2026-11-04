@@ -73,11 +73,13 @@ class CasinoGame {
           (luckBonus ? " Your gear shifted the roll by " + luckBonus + "." : "");
       }
 
-      const payout = won ? casinoPayout(wager, multiplier) : 0;
-      if (payout > 0) {
-        await this.economy.mutateTx(client, guildId, userId, payout, "casino_payout", reference + ":payout", {
+      const basePayout = won ? casinoPayout(wager, multiplier) : 0;
+      let payout = 0;
+      if (basePayout > 0) {
+        const earning = await this.economy.mutateTx(client, guildId, userId, basePayout, "casino_payout", reference + ":payout", {
           gameId, wager, multiplier, theoreticalReturnRate: game.theoreticalReturnRate ?? balancing.casino.targetReturnRate
         });
+        payout = earning.delta;
       }
       await trackActionTx(client, guildId, userId, "casino_play", 1);
       if (payout > wager) await trackActionTx(client, guildId, userId, "wallet_earned", payout - wager);
