@@ -12,7 +12,7 @@ async function deploy() {
 
   if (guildId) {
     const custom = await pool.query(
-      "SELECT id, name, description, definition FROM custom_commands WHERE guild_id = $1 AND deleted_at IS NULL ORDER BY name ASC",
+      "SELECT id, name, description, definition, source_code FROM custom_commands WHERE guild_id = $1 AND deleted_at IS NULL ORDER BY name ASC",
       [guildId]
     );
     const names = new Set(commands.map((command) => command.name));
