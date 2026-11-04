@@ -112,7 +112,13 @@ function modal(customId, title, fields) {
 }
 function numberField(i, id, min, max, label) {
   const value = Number(i.fields.getTextInputValue(id));
-  if (!Number.isSafeInteger(value) || value < min || value > max) throw new Error(label + " must be a whole number from " + min.toLocaleString() + " to " + max.toLocaleString() + ".");
+  const hasMaximum = max !== null && max !== undefined;
+  if (!Number.isSafeInteger(value) || value < min || (hasMaximum && value > max)) {
+    const range = hasMaximum
+      ? "from " + min.toLocaleString() + " to " + max.toLocaleString()
+      : "at least " + min.toLocaleString();
+    throw new Error(label + " must be a whole number " + range + ".");
+  }
   return value;
 }
 async function renderMenu(guildId, owner, page, s) {
@@ -227,9 +233,9 @@ async function renderMenu(guildId, owner, page, s) {
     const rows = games.map(([id, g]) => row(btn(owner, "casino-" + id, g.name, ButtonStyle.Secondary)));
     rows.push(nav);
     return panel("CASINO  /  GAME TABLE",
-      "Choose a game. Every player has the same published odds. Bets stay between " +
-      balancing.casino.minBet.toLocaleString() + " and " + balancing.casino.maxBet.toLocaleString() +
-      " FC, with a " + balancing.casino.cooldownMs / 1000 + "-second cooldown between rounds. There is no daily wager cap.",
+      "Choose a game. Every player has the same published odds. The minimum bet is " +
+      balancing.casino.minBet.toLocaleString() +
+      " FC, with no maximum bet. There is a " + balancing.casino.cooldownMs / 1000 + "-second cooldown between rounds and no daily wager cap.",
       games.map(([, g]) => ({
         name: g.name + " · Level " + g.minLevel + "+",
         value: g.description + "\nTheoretical long-run return: " + Math.round(g.theoreticalReturnRate * 100) + "%"
@@ -887,7 +893,7 @@ async function handleButton(i, s) {
   if (action === "deposit" || action === "withdraw") return i.showModal(modal("dash:" + owner + ":bank-modal:" + action, action === "deposit" ? "Deposit into bank" : "Withdraw from bank", [{ id: "amount", label: "Amount in FC", placeholder: "1000", max: 12 }]));
   if (action.startsWith("casino-")) {
     const game = action.slice(7);
-    return i.showModal(modal("dash:" + owner + ":casino-modal:" + game, "Place a casino wager", [{ id: "amount", label: "Wager in FC (100–1,000)", placeholder: String(balancing.casino.minBet), max: 12 }]));
+    return i.showModal(modal("dash:" + owner + ":casino-modal:" + game, "Place a casino wager", [{ id: "amount", label: "Wager in FC (minimum 100)", placeholder: String(balancing.casino.minBet), max: 16 }]));
   }
   if (action === "heist-join" || action === "heist-start" || action === "heist-status") {
     return i.showModal(modal("dash:" + owner + ":heist-modal:" + action, action === "heist-join" ? "Join a heist crew" : action === "heist-start" ? "Start your heist" : "Check a heist", [
@@ -951,7 +957,7 @@ async function handleModal(i, s) {
       return i.editReply(panel("TRANSFER COMPLETE", "Sent **" + amount.toLocaleString() + " FC** to <@" + target + ">.", [], [], "success"));
     }
     if (action === "casino-modal") {
-      const amount = numberField(i, "amount", balancing.casino.minBet, balancing.casino.maxBet, "Wager");
+      const amount = numberField(i, "amount", balancing.casino.minBet, null, "Wager");
       const r = await s.casino.play(i.guildId, owner, target, amount);
       await recordMemberAction(i, s, "casino_round", "played **" + r.game.name + "** with a " + r.wager.toLocaleString() + " FC wager and a net result of " + (r.net > 0 ? "+" : "") + r.net.toLocaleString() + " FC.", { game: r.game.name, wager: r.wager, payout: r.payout, net: r.net }, r.won ? "success" : "warning");
       return i.editReply(panel(r.game.name + "  /  " + (r.won ? "WIN" : "LOSS"), r.outcome, [
