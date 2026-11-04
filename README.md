@@ -49,6 +49,8 @@ Actions that require typed values open a short form. Members no longer need sepa
 
 Casino games have a 100 FC minimum bet and no maximum bet; wagers are limited only by the player's available wallet balance. There is a 15-second cooldown and no daily wager cap. Coin Flip and High Dice retain their existing odds. Slots keeps its existing prize multipliers while the jackpot chance is reduced to 0.5%; the other prize-tier chances remain unchanged. Theoretical long-run return is 95% for Coin Flip and High Dice and 90% for Slots.
 
+Equipment bonuses apply only while the item is equipped. Gear can improve work salary and XP, general FC and XP rewards, crime and heist outcomes, casino win chances, and cooldowns. Each item can be upgraded five times; upgrades cost progressively more FC and require higher player levels. Casino gear improves the chance of hitting a win, while the payout is adjusted to preserve each game's published long-run return. Rebirth requires 15,000 FC in combined wallet and bank wealth, level 10, and at least one event quest reward claimed. Each rebirth resets the wallet to 1,000 FC and the player to level 1, but doubles FC and XP earning permanently (2×, then 4×, 8× and so on). The wallet requirement doubles and the level requirement increases by five after each rebirth; owned gear and upgrades are kept.
+
 ### First steps
 
 1. Run **/menu** and open **Careers**. Choose a career you qualify for.
