@@ -99,6 +99,28 @@ function bar(value, max, width = 12) {
   const fill = Math.round(n / goal * width);
   return "▰".repeat(fill) + "▱".repeat(width - fill) + "  " + Math.floor(n).toLocaleString() + "/" + goal.toLocaleString();
 }
+function formatItemEffects(effects = {}) {
+  const lines = [];
+  const percent = (value) => Math.round(Number(value || 0) * 100);
+  if (effects.moneyBonus) lines.push("FC income +" + percent(effects.moneyBonus) + "%");
+  if (effects.xpBonus) lines.push("XP +" + percent(effects.xpBonus) + "%");
+  if (effects.workPayBonus) lines.push("Work salary +" + percent(effects.workPayBonus) + "%");
+  if (effects.workXpBonus) lines.push("Work XP +" + percent(effects.workXpBonus) + "%");
+  if (effects.crimeRewardBonus) lines.push("Crime rewards +" + percent(effects.crimeRewardBonus) + "%");
+  if (effects.crimeChance) lines.push("Crime success +" + effects.crimeChance + " points");
+  if (effects.heistChance) lines.push("Heist success +" + effects.heistChance + " points");
+  if (effects.casinoChance) lines.push("Casino win chance +" + effects.casinoChance + " points");
+  if (effects.slotLuck) lines.push("Slots luck +" + effects.slotLuck + " roll shift");
+  if (effects.fineReduction) lines.push("Fines -" + percent(effects.fineReduction) + "%");
+  for (const [key, label] of [
+    ["workCooldownReduction", "Work cooldown"],
+    ["crimeCooldownReduction", "Crime cooldown"],
+    ["heistCooldownReduction", "Heist cooldown"],
+    ["dailyCooldownReduction", "Daily cooldown"],
+    ["casinoCooldownReduction", "Casino cooldown"]
+  ]) if (effects[key]) lines.push(label + " -" + percent(effects[key]) + "%");
+  return lines.length ? lines.join(" · ") : "No active bonuses";
+}
 function back(owner) { return row(btn(owner, "home", "Dashboard", ButtonStyle.Secondary, "⌂")); }
 function modal(customId, title, fields) {
   const m = new ModalBuilder().setCustomId(customId).setTitle(title);
@@ -139,7 +161,7 @@ async function renderMenu(guildId, owner, page, s) {
       [
         row(btn(owner, "profile", "Profile", ButtonStyle.Primary, "👤"), btn(owner, "earn", "Earn", ButtonStyle.Success, "💰"), btn(owner, "career", "Careers", ButtonStyle.Secondary, "💼"), btn(owner, "gear", "Gear", ButtonStyle.Secondary, "🎒"), btn(owner, "games", "Games", ButtonStyle.Secondary, "🎮")),
         row(btn(owner, "heists", "Heists", ButtonStyle.Secondary, "🕵️"), btn(owner, "event", "Halloween", ButtonStyle.Secondary, "🎃"), btn(owner, "bank", "Bank", ButtonStyle.Secondary, "🏦"), btn(owner, "transfer", "Transfer", ButtonStyle.Secondary, "↗️"), btn(owner, "rankings", "Rankings", ButtonStyle.Secondary, "🏆")),
-        row(btn(owner, "help", "How to play", ButtonStyle.Secondary, "📖"), btn(owner, "refresh", "Refresh", ButtonStyle.Secondary, "🔄"))
+        row(btn(owner, "rebirth", "Rebirth", ButtonStyle.Primary, "♻️"), btn(owner, "help", "How to play", ButtonStyle.Secondary, "📖"), btn(owner, "refresh", "Refresh", ButtonStyle.Secondary, "🔄"))
       ], "info", "FUKISHOKAI  •  Private player dashboard");
   }
   if (page === "profile") {
@@ -152,7 +174,8 @@ async function renderMenu(guildId, owner, page, s) {
       { name: "📈 Lifetime earned", value: Number(p.lifetime_earned).toLocaleString() + " FC", inline: true },
       { name: "🎭 Successful crimes", value: Number(p.crime_successes).toLocaleString(), inline: true },
       { name: "🕵️ Heists completed", value: Number(p.heists_completed).toLocaleString(), inline: true },
-      { name: "⭐ Reputation", value: String(p.reputation), inline: true }
+      { name: "⭐ Reputation", value: String(p.reputation), inline: true },
+      { name: "♻️ Rebirths", value: Number(p.prestige || 0) + " · " + Math.pow(2, Math.min(Number(p.prestige || 0), 52)).toLocaleString() + "× FC / XP", inline: true }
     ], [nav]);
   }
   if (page === "earn") {
@@ -190,27 +213,65 @@ async function renderMenu(guildId, owner, page, s) {
   if (page === "gear") {
     const inv = await s.inventory.getInventory(guildId, owner);
     const effects = await s.inventory.getEffects(guildId, owner);
-    const owned = inv.items.map((x) => (x.equipped ? "🟢 " : "▫️ ") + "**" + x.item.name + "** × " + x.quantity + (x.equipped ? " · Equipped" : ""));
-    const equipped = inv.equipped.map((x) => "**" + x.slot + ":** " + x.item.name);
+    const owned = inv.items.map((x) =>
+      (x.equipped ? "🟢 " : "▫️ ") + "**" + x.item.name + "** × " + x.quantity +
+      " · Upgrade " + x.upgradeLevel + "/" + balancing.itemUpgrades.maxLevel + (x.equipped ? " · Equipped" : "")
+    );
+    const equipped = inv.equipped.map((x) => {
+      const ownedItem = inv.items.find((entry) => entry.item.id === x.item.id);
+      return "**" + x.slot + ":** " + x.item.name + " · Upgrade " + (ownedItem?.upgradeLevel || 0) + "/" + balancing.itemUpgrades.maxLevel;
+    });
     const controls = [];
     const equip = inv.items.filter((x) => x.item.type === "equipment" && !x.equipped).map((x) => ({ label: x.item.name, value: x.item.id, description: "Equip in " + x.item.slot }));
     const unequip = inv.equipped.map((x) => ({ label: x.slot, value: x.slot, description: x.item.name }));
+    const upgrade = inv.items.filter((x) => x.item.type === "equipment" && x.upgradeLevel < balancing.itemUpgrades.maxLevel)
+      .map((x) => ({ label: x.item.name, value: x.item.id, description: "Upgrade " + x.upgradeLevel + "/" + balancing.itemUpgrades.maxLevel }));
     if (equip.length) controls.push(menu(owner, "equip", "Choose gear to equip", equip));
     if (unequip.length) controls.push(menu(owner, "unequip", "Choose a slot to clear", unequip));
+    if (upgrade.length) controls.push(menu(owner, "upgrade-item", "Choose gear to upgrade", upgrade));
     controls.push(row(btn(owner, "shop", "Equipment shop", ButtonStyle.Primary, "🛒")));
     controls.push(nav);
-    return panel("GEAR  /  INVENTORY", "Equipment adds bonuses to risky operations and work. You can equip one item in each slot.", [
-      { name: "🎒 Owned items", value: owned.length ? owned.join("\n").slice(0, 1000) : "Your inventory is empty. Visit the shop to browse equipment." },
-      { name: "🧩 Equipped gear", value: equipped.length ? equipped.join("\n") : "No equipment is currently active." },
-      { name: "⚙️ Active bonuses", value: "Crime chance +" + effects.crimeChance + "% · Heist chance +" + effects.heistChance + "%\nWork pay +" + Math.round(effects.workPayBonus * 100) + "% · Fine reduction " + Math.round(effects.fineReduction * 100) + "%" }
-    ], controls);
+    return panel("GEAR  /  INVENTORY", "Equip one item per slot. Owned gear can be upgraded up to level " + balancing.itemUpgrades.maxLevel + "; each upgrade strengthens its bonuses.",
+      [
+        { name: "🎒 Owned items", value: owned.length ? owned.join("\n").slice(0, 1100) : "Your inventory is empty. Visit the shop to browse equipment." },
+        { name: "🧩 Equipped gear", value: equipped.length ? equipped.join("\n") : "No equipment is currently active." },
+        { name: "⚙️ Active bonuses", value: formatItemEffects(effects).slice(0, 1000) }
+      ], controls);
   }
   if (page === "shop") {
     const options = balancing.items.map((x) => ({ label: x.name, value: x.id, description: x.cost.toLocaleString() + " FC · Level " + x.minLevel + "+ · " + x.slot }));
-    const list = balancing.items.map((x) => "**" + x.name + "** · " + x.cost.toLocaleString() + " FC\nLevel " + x.minLevel + "+ · " + x.slot + "\n" + x.description);
-    return panel("EQUIPMENT SHOP", "Choose an item below to purchase it with FC. After buying, return to Gear to equip it.", [
-      { name: "Available equipment", value: list.join("\n\n").slice(0, 3900) }
-    ], [menu(owner, "shop-buy", "Select equipment to purchase", options), nav]);
+    const list = balancing.items.map((x) => "**" + x.name + "** · " + x.cost.toLocaleString() + " FC\nLevel " + x.minLevel + "+ · " + x.slot + "\n" + x.description + "\n*Bonuses:* " + formatItemEffects(x.effects));
+    return panel("EQUIPMENT SHOP", "Higher-tier equipment costs more and requires a higher level. Buy it, equip it, then upgrade it from Gear.",
+      [{ name: "Available equipment", value: list.join("\n\n").slice(0, 3900) }],
+      [menu(owner, "shop-buy", "Select equipment to purchase", options), nav]);
+  }
+  if (page === "rebirth" || page === "rebirth-confirm") {
+    const status = await s.economy.getRebirthStatus(guildId, owner);
+    const checks = [
+      { name: "FC requirement", value: status.wealth >= status.walletRequired ? "✅ " : "▫️ " + status.wealth.toLocaleString() + "/" + status.walletRequired.toLocaleString() + " FC total wealth" },
+      { name: "Level requirement", value: status.level >= status.levelRequired ? "✅ Level " + status.level : "▫️ Level " + status.level + "/" + status.levelRequired },
+      { name: "Claimed event quest", value: status.questClaimed ? "✅ Reward claimed" : "▫️ Complete an event quest and claim its reward" }
+    ];
+    if (page === "rebirth-confirm") {
+      return panel("CONFIRM REBIRTH", "This is a permanent progression reset. Your next run receives a **" + status.nextMultiplier.toLocaleString() + "× FC and XP earning multiplier**.",
+        [
+          { name: "You will lose", value: "Wallet and bank balance (your new wallet will be 1,000 FC), player level and XP, current career and career level, and reputation." },
+          { name: "You will keep", value: "All owned gear, gear upgrades, equipped items, lifetime statistics, event claims, and your rebirth history." },
+          ...checks
+        ],
+        [row(btn(owner, "rebirth-confirm", "Confirm permanent reset", ButtonStyle.Danger), btn(owner, "rebirth", "Cancel", ButtonStyle.Secondary)), nav],
+        "warning");
+    }
+    return panel("REBIRTH  /  PRESTIGE", "Rebirth resets your current run in exchange for a permanent multiplier. Each rebirth doubles the previous multiplier.",
+      [
+        { name: "Current rebirths", value: String(status.rebirths), inline: true },
+        { name: "Current FC and XP bonus", value: status.multiplier.toLocaleString() + "×", inline: true },
+        { name: "Next FC and XP bonus", value: status.nextMultiplier.toLocaleString() + "×", inline: true },
+        { name: "Requirements", value: "FC wealth: " + status.walletRequired.toLocaleString() + " FC\nPlayer level: " + status.levelRequired + "\nAt least one event quest reward claimed since your previous rebirth." },
+        { name: "Your progress", value: checks.map((x) => x.value).join("\n") },
+        { name: "Permanent reset details", value: "Wallet becomes 1,000 FC, bank becomes 0 and player level returns to 1. Career and reputation reset. Gear, upgrades and lifetime records stay." }
+      ],
+      [row(btn(owner, "rebirth-review", "Review rebirth", ButtonStyle.Danger)), nav]);
   }
   if (page === "games") {
     return panel("OPERATIONS  /  GAME ROOM", "These activities involve risk. Read the possible costs and requirements before starting.",
