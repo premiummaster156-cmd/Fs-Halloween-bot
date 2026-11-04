@@ -14,7 +14,7 @@ test("AI workspace API can start without browser OAuth configuration", () => {
   assert.equal(isIdeServerEnabled(config), true);
 });
 
-test("browser Code Studio still requires all OAuth and guild settings", () => {
+test("browser Code Studio needs OAuth settings but selects its guild from the admin-panel link", () => {
   const config = {
     ideGuildId: "123456789012345678",
     adminWorkspaceApiKey: "",
@@ -39,4 +39,14 @@ test("workspace server stays disabled without a guild and a supported feature", 
     discordClientSecret: "",
     idePublicUrl: ""
   }), false);
+});
+test("browser Code Studio can serve multiple servers without a fixed IDE_GUILD_ID", () => {
+  const config = {
+    ideGuildId: "",
+    adminWorkspaceApiKey: "",
+    discordClientSecret: "discord-client-secret",
+    idePublicUrl: "https://studio.example.com"
+  };
+  assert.equal(isBrowserIdeEnabled(config), true);
+  assert.equal(isIdeServerEnabled(config), true);
 });
