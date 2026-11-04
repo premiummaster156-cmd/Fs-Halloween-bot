@@ -12,9 +12,9 @@ class CasinoGame {
     const game = balancing.casino.games[gameId];
     const wager = Math.floor(Number(bet));
     if (!game) throw new DomainError("Choose Coin Flip, High Dice, or Slots.", "CASINO_GAME_INVALID");
-    if (!Number.isSafeInteger(wager) || wager < balancing.casino.minBet || wager > balancing.casino.maxBet) {
+    if (!Number.isSafeInteger(wager) || wager < balancing.casino.minBet) {
       throw new DomainError(
-        "Bet must be between " + balancing.casino.minBet.toLocaleString() + " and " + balancing.casino.maxBet.toLocaleString() + " FC per round.",
+        "Bet must be at least " + balancing.casino.minBet.toLocaleString() + " FC per round.",
         "CASINO_BET_INVALID"
       );
     }
