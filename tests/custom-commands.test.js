@@ -98,3 +98,58 @@ test("legacy JSON commands still require a valid response definition", () => {
   });
   assert.equal(registered.name, "legacy_hello");
 });
+
+test("editing a workspace JavaScript file is picked up by the next command invocation without a bot restart", async () => {
+  const { CustomCommandService } = require("../src/services/custom-commands");
+  const workspace = require("../src/services/admin-workspace");
+  const originalRead = workspace.readCommandFile;
+  let activeSource = String.raw`module.exports = {
+  data: { name: "live_reload", description: "Test live command reload" },
+  async execute(interaction) {
+    await interaction.reply({ content: "version one" });
+  }
+};`;
+  workspace.readCommandFile = async () => activeSource;
+  const service = new CustomCommandService({});
+  const record = {
+    name: "live_reload",
+    source_code: activeSource,
+    definition: { options: [], response: { visibility: "public" } }
+  };
+  const createInteraction = () => {
+    const replies = [];
+    return {
+      replies,
+      id: "interaction-id",
+      commandName: "live_reload",
+      user: { id: "user-1", username: "Tester", globalName: "Tester" },
+      member: { displayName: "Tester" },
+      guildId: "guild-1",
+      guild: { name: "Fukishokai", ownerId: "owner-1" },
+      channelId: "channel-1",
+      channel: { name: "game" },
+      client: { user: { id: "bot-1", username: "Bot", tag: "Bot#0001" } },
+      options: { get: () => null },
+      editReply: async (payload) => replies.push(payload),
+      followUp: async (payload) => replies.push(payload)
+    };
+  };
+
+  try {
+    const first = createInteraction();
+    await service.execute(first, record);
+    assert.equal(first.replies[0].content, "version one");
+
+    activeSource = String.raw`module.exports = {
+  data: { name: "live_reload", description: "Test live command reload" },
+  async execute(interaction) {
+    await interaction.reply({ content: "version two - edited" });
+  }
+};`;
+    const second = createInteraction();
+    await service.execute(second, record);
+    assert.equal(second.replies[0].content, "version two - edited");
+  } finally {
+    workspace.readCommandFile = originalRead;
+  }
+});
