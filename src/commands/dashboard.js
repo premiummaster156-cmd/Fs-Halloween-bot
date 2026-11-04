@@ -9,7 +9,7 @@ const balancing = require("../config/game-balancing");
 const { createEmbed } = require("../ui");
 const { getPlayer, getLeaderboard } = require("../services/economy");
 const { getUpgradeCost } = require("../services/inventory");
-const { levelXpRequired, uuid } = require("../utils/core");
+const { levelXpRequired, uuid, getRebirthMultiplier } = require("../utils/core");
 const { makeWorkChallenge } = require("../games/work-challenge");
 const { audit, sendLog } = require("../utils/logging");
 
@@ -294,65 +294,42 @@ async function renderMenu(guildId, owner, page, s) {
   }
   if (page === "rebirth" || page === "rebirth-confirm") {
     const status = await s.economy.getRebirthStatus(guildId, owner);
-    const checkRow = (passed, label, progress) => ({
-      name: (passed ? "✅ " : "▫️ ") + label,
-      value: progress,
-      inline: false
-    });
-    const checks = [
-      checkRow(status.checks.wealth, "Combined FC savings", status.wealth.toLocaleString() + "/" + status.walletRequired.toLocaleString() + " FC"),
-      checkRow(status.checks.level, "Player level", "Level " + status.level + "/" + status.levelRequired),
-      checkRow(status.checks.quests, "Event quest claims", status.questClaimsCount + "/" + status.questClaimsRequired + " normal quest rewards claimed"),
-      checkRow(status.checks.career, "Active career", status.currentJob ? status.currentJob.name : "No career applied — choose one in Careers"),
-      checkRow(status.checks.careerLevel, "Career level", (status.currentJob ? status.currentJob.name + " · " : "") + "Level " + status.currentJobLevel + "/" + status.jobLevelRequired),
-      checkRow(status.checks.workShifts, "Work shifts this run", status.workShiftsCompleted + "/" + status.workShiftsRequired + " completed shifts")
+    const check = (passed, label, current, required) =>
+      (passed ? "✅ " : "▫️ ") + "**" + label + ":** " + current + "/" + required;
+    const lines = [
+      check(status.checks.wealth, "FC", status.wealth.toLocaleString(), status.walletRequired.toLocaleString()),
+      check(status.checks.level, "Level", status.level, status.levelRequired),
+      check(status.checks.quests, "Quests", status.questClaimsCount, status.questClaimsRequired),
+      check(status.checks.career, "Career", status.currentJob ? status.currentJob.name : "None", "Active"),
+      check(status.checks.careerLevel, "Job level", status.currentJobLevel, status.jobLevelRequired),
+      check(status.checks.workShifts, "Work shifts", status.workShiftsCompleted, status.workShiftsRequired)
     ];
     if (status.gearItemsRequired > 0) {
-      checks.push(checkRow(status.checks.gearItems, "Different gear items owned", status.gearItemsCount + "/" + status.gearItemsRequired + " equipment pieces"));
-      checks.push(checkRow(status.checks.candyItems, "Candy-shop collectibles owned", status.candyItemsCount + "/" + status.candyItemsRequired + " unique collectibles"));
-      checks.push(checkRow(status.checks.candyBalance, "Unspent Candy reserve", status.candyBalance.toLocaleString() + "/" + status.candyBalanceRequired + " Candy"));
+      lines.push(check(status.checks.gearItems, "Gear", status.gearItemsCount, status.gearItemsRequired));
+      lines.push(check(status.checks.candyItems, "Candy items", status.candyItemsCount, status.candyItemsRequired));
+      lines.push(check(status.checks.candyBalance, "Candy", status.candyBalance, status.candyBalanceRequired));
     }
     if (status.gearUpgradeLevelsRequired > 0) {
-      checks.push(checkRow(status.checks.gearUpgrades, "Combined gear upgrade levels", status.gearUpgradeLevels + "/" + status.gearUpgradeLevelsRequired + " upgrade levels"));
+      lines.push(check(status.checks.gearUpgrades, "Upgrades", status.gearUpgradeLevels, status.gearUpgradeLevelsRequired));
     }
+
     if (page === "rebirth-confirm") {
-      return panel("CONFIRM REBIRTH", "This is a permanent progression reset. Your next run receives a **" + status.nextMultiplier.toLocaleString() + "× FC and XP earning multiplier**.",
+      return panel("CONFIRM REBIRTH", "Get **" + status.nextMultiplier.toLocaleString() + "× FC/XP**. This reset cannot be undone.",
         [
-          { name: "You will lose", value: "Wallet and bank balance (your new wallet will be 1,000 FC), player level and XP, current career and career level, and reputation." },
-          { name: "You will keep", value: "Owned gear, gear upgrades, equipped items, lifetime statistics, event claims, Candy balance and Candy-shop collectibles." },
-          ...checks,
-          { name: "Eligibility", value: status.eligible ? "All requirements are complete. You can rebirth." : "Finish the requirements marked above before confirming." }
+          { name: "Resets", value: "Wallet → 1,000 FC · Bank → 0 · Level → 1 · Career resets." },
+          { name: "Keeps", value: "Gear, upgrades, Candy, collectibles, event claims and lifetime stats." }
         ],
-        [row(btn(owner, "rebirth-confirm", "Confirm permanent reset", ButtonStyle.Danger).setDisabled(!status.eligible), btn(owner, "rebirth", "Cancel", ButtonStyle.Secondary)), nav],
+        [row(btn(owner, "rebirth-confirm", "Confirm rebirth", ButtonStyle.Danger).setDisabled(!status.eligible), btn(owner, "rebirth", "Back", ButtonStyle.Secondary)), nav],
         "warning");
     }
-    const requirementLines = [
-      "• Combined savings: " + status.walletRequired.toLocaleString() + " FC",
-      "• Player level: " + status.levelRequired,
-      "• Claimed event quests: " + status.questClaimsRequired,
-      "• Active career, job level " + status.jobLevelRequired + "+",
-      "• Work shifts this run: " + status.workShiftsRequired
-    ];
-    if (status.gearItemsRequired > 0) {
-      requirementLines.push(
-        "• Different gear items: " + status.gearItemsRequired,
-        "• Unique Candy-shop collectibles: " + status.candyItemsRequired,
-        "• Unspent Candy reserve: " + status.candyBalanceRequired
-      );
-    }
-    if (status.gearUpgradeLevelsRequired > 0) requirementLines.push("• Combined gear upgrade levels: " + status.gearUpgradeLevelsRequired);
-    return panel("REBIRTH  /  PRESTIGE", "Each rebirth doubles your permanent FC and XP earning multiplier. Equipment and Candy milestones begin only after the first three rebirths.",
+
+    return panel("REBIRTH  /  " + status.multiplier.toLocaleString() + "× → " + status.nextMultiplier.toLocaleString() + "×",
+      "Complete the checklist to double your permanent FC and XP multiplier.",
       [
-        { name: "Current rebirths", value: String(status.rebirths), inline: true },
-        { name: "Current multiplier", value: status.multiplier.toLocaleString() + "×", inline: true },
-        { name: "Next multiplier", value: status.nextMultiplier.toLocaleString() + "×", inline: true },
-        { name: "Next run requirements", value: requirementLines.join("\n") },
-        { name: "Your progress", value: checks.map((x) => x.name + " — " + x.value).join("\n").slice(0, 1024) },
-        { name: "Your Candy balance", value: status.candyBalance.toLocaleString() + " Candy · Drops come from earning FC, and equipped gear improves the chance." },
-        { name: "After rebirth", value: "Wallet becomes 1,000 FC, bank becomes 0 and player level returns to 1. Your current career and reputation reset. Gear, upgrades, Candy, collectibles, lifetime records and claimed event rewards stay." },
-        { name: "Progression curve", value: "FC target grows by 1.5× and player level by 2 per rebirth. Quest claims and work shifts rise gradually. Gear, Candy and upgrade requirements begin when preparing for rebirth four." }
+        { name: "Requirements", value: lines.join("\n") },
+        { name: "After rebirth", value: "Start with 1,000 FC, level 1 and no career. Your gear, Candy and collectibles stay." }
       ],
-      [row(btn(owner, "rebirth-review", "Review rebirth", ButtonStyle.Danger), btn(owner, "event-shop", "Candy shop", ButtonStyle.Secondary)), nav]);
+      [row(btn(owner, "rebirth-review", "Rebirth", ButtonStyle.Danger).setDisabled(!status.eligible), btn(owner, "event-shop", "Candy shop", ButtonStyle.Secondary)), nav]);
   }
   if (page === "games") {
     return panel("OPERATIONS  /  GAME ROOM", "These activities involve risk. Read the possible costs and requirements before starting.",
@@ -539,10 +516,11 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
         { name: "Wallet", value: Number(p.wallet).toLocaleString() + " FC", inline: true },
         { name: "Bank", value: Number(p.bank).toLocaleString() + " FC", inline: true },
         { name: "Level", value: p.level + " · " + Number(p.xp).toLocaleString() + " XP", inline: true },
-        { name: "Career", value: job ? job.name + " · Level " + p.job_level : "Unemployed", inline: true }
+        { name: "Career", value: job ? job.name + " · Level " + p.job_level : "Unemployed", inline: true },
+        { name: "Rebirths", value: (Number(p.prestige) || 0) + " · " + getRebirthMultiplier(Number(p.prestige) || 0).toLocaleString() + "× FC/XP", inline: true }
       ], [
         row(aBtn(owner, "grant-fc", "Grant FC", ButtonStyle.Success, "➕", targetId), aBtn(owner, "grant-xp", "Grant XP", ButtonStyle.Success, "⭐", targetId), aBtn(owner, "remove-fc", "Remove FC", ButtonStyle.Danger, "➖", targetId)),
-        row(aBtn(owner, "set-level", "Set level", ButtonStyle.Secondary, "🎚️", targetId), aBtn(owner, "set-career", "Assign career", ButtonStyle.Secondary, "💼", targetId)),
+        row(aBtn(owner, "set-level", "Set level", ButtonStyle.Secondary, "🎚️", targetId), aBtn(owner, "set-career", "Assign career", ButtonStyle.Secondary, "💼", targetId), aBtn(owner, "set-rebirth", "Set rebirth", ButtonStyle.Secondary, null, targetId)),
         row(new UserSelectMenuBuilder().setCustomId("admin:" + owner + ":player-target").setPlaceholder("Choose another member").setMinValues(1).setMaxValues(1)),
         row(aBtn(owner, "player", "Member search"), aBtn(owner, "home", "Admin console"))
       ]);
@@ -981,6 +959,12 @@ async function handleButton(i, s) {
       const careerMenu = new StringSelectMenuBuilder().setCustomId("admin:" + owner + ":career-select:" + target).setPlaceholder("Choose a career").setMinValues(1).setMaxValues(1).addOptions(opts);
       return i.update(panel("ASSIGN CAREER", "Choose the career to assign to <@" + target + ">.", [], [row(careerMenu), row(aBtn(owner, "player", "Back to player tools", ButtonStyle.Secondary, null, target))]));
     }
+    if (action === "set-rebirth") {
+      return i.showModal(modal("admin:" + owner + ":set-rebirth:" + target, "Set rebirth count", [
+        { id: "rebirths", label: "New rebirth count (0–20)", placeholder: "4", max: 2 },
+        { id: "reason", label: "Audit reason", paragraph: true, max: 500 }
+      ]));
+    }
     if (action === "exclude") {
       if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner, bot owner, or configured Admin Role can change leaderboard eligibility.", flags: MessageFlags.Ephemeral });
       return i.showModal(modal("admin:" + owner + ":exclude-modal:" + target, "Exclude from leaderboards", [
@@ -1249,6 +1233,20 @@ async function handleModal(i, s) {
       await safeAudit(i, s, "admin_set_level", target, { level, reason });
       await safeSendLog(i, s, "Player level set to " + level + " for <@" + target + "> by <@" + owner + ">. Reason: " + reason);
       return i.editReply(panel("PLAYER LEVEL UPDATED", "Set <@" + target + ">'s player level to **" + level + "**. Current-level XP was reset to zero.", [{ name: "Audit reason", value: reason }], [], "success"));
+    }
+    if (action === "set-rebirth") {
+      const rebirths = numberField(i, "rebirths", 0, 20, "Rebirth count");
+      await s.economy.transact(async (c) => {
+        await s.economy.ensurePlayerTx(c, i.guildId, target);
+        await c.query(
+          "UPDATE players SET prestige = $3, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2",
+          [i.guildId, target, rebirths]
+        );
+      });
+      const multiplier = getRebirthMultiplier(rebirths);
+      await safeAudit(i, s, "admin_set_rebirth", target, { rebirths, multiplier, reason });
+      await safeSendLog(i, s, "Rebirth count set to " + rebirths + " (" + multiplier + "× FC/XP) for <@" + target + "> by <@" + owner + ">. Reason: " + reason);
+      return i.editReply(panel("REBIRTH COUNT UPDATED", "Set <@" + target + ">'s rebirth count to **" + rebirths + "**. Their permanent earning multiplier is now **" + multiplier.toLocaleString() + "× FC/XP**. All other player progress was left unchanged.", [{ name: "Audit reason", value: reason }], [], "success"));
     }
     if (action === "career-modal") {
       const career = p[4];
