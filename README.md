@@ -61,7 +61,7 @@ Casino games remain available with transparent odds and equal limits: 100–1,00
 
 Set **OWNER_ID** in `.env` to the bot owner's Discord user ID. The server owner, configured bot owner, and members holding the Admin Role selected in **/admin panel → Server settings** can open and operate the full administration console. Discord Administrator, Manage Server, and other admin roles do not grant bot-control access. `ADMIN_ROLE_IDS` is no longer used for bot access.
 
-Configure the log channel, Halloween reward role and 2× XP role in **/admin panel → Server settings**. The Halloween reward role must be a normal assignable server role, not `@everyone` or an integration-managed role.
+Configure the trusted Admin Role, log channel, Halloween reward role and 2× XP role in **/admin panel → Server settings**. The Admin Role must be a normal server role, not @everyone or an integration-managed role. The Halloween reward role must be a normal assignable server role, not `@everyone` or an integration-managed role.
 
 Members open **/menu** in the configured game channel. The dashboard itself stays private; successful gameplay and economy actions are announced in that same channel. Navigation, refreshes and ordinary cooldown messages are not posted publicly.
 
