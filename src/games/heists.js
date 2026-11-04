@@ -76,12 +76,14 @@ class HeistsGame {
       const succeeded = roll <= successChance;
       const reference = uuid();
       let totalPayout = 0;
+      const candyDropsByUser = new Map();
       if (succeeded) {
         const baseTotalPayout = randomInt(mission.payoutMin, mission.payoutMax);
         const shares = splitReward(baseTotalPayout, crew.map((member) => member.user_id));
         for (const share of shares) {
           const earning = await this.economy.mutateTx(client, guildId, share.userId, share.amount, "heist_reward", reference + ":" + share.userId, { heistId, missionId: mission.id });
           totalPayout += earning.delta;
+          if (earning.candyDrop) candyDropsByUser.set(share.userId, earning.candyDrop);
           await client.query("UPDATE players SET heists_completed = heists_completed + 1, reputation = LEAST(100, reputation + 2) WHERE guild_id = $1 AND user_id = $2", [guildId, share.userId]);
           await this.economy.addXpTx(client, guildId, share.userId, 40 + mission.difficulty * 20, roleIdsByUser.get(share.userId) || []);
           await trackActionTx(client, guildId, share.userId, "heist_success", 1);
@@ -96,7 +98,7 @@ class HeistsGame {
         }
       }
       await client.query("UPDATE heists SET status = $3, success_chance = $4, roll = $5, total_payout = $6, started_at = NOW(), completed_at = NOW() WHERE id = $1 AND guild_id = $2", [heistId, guildId, succeeded ? "success" : "failed", successChance, roll, totalPayout]);
-      return { mission, succeeded, successChance, roll, totalPayout, crew: crew.map((member) => ({ userId: member.user_id, role: member.role_id })) };
+      return { mission, succeeded, successChance, roll, totalPayout, crew: crew.map((member) => ({ userId: member.user_id, role: member.role_id, candyDrop: candyDropsByUser.get(member.user_id) || null })) };
     });
   }
 
