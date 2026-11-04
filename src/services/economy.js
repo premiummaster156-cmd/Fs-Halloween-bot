@@ -372,7 +372,7 @@ class EconomyService {
       const events = require("./events");
       await events.trackActionTx(client, guildId, userId, "daily", 1);
       await events.trackActionTx(client, guildId, userId, "wallet_earned", earning.delta);
-      return { amount: earning.delta, cooldownMs, progression };
+      return { amount: earning.delta, cooldownMs, progression, candyDrop: earning.candyDrop || null };
     });
   }
 }
