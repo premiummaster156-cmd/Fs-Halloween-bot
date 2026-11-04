@@ -47,14 +47,14 @@ The bot now has two user-facing slash-command entry points:
 
 Actions that require typed values open a short form. Members no longer need separate slash commands for routine game actions. The older command names are removed when the slash commands are redeployed.
 
-Casino games remain available with transparent odds and equal limits: 100–1,000 FC per round, a 30-second cooldown, and 5,000 FC in total wagers per rolling 24 hours. Coin Flip, High Dice and Slots each target a 95% theoretical return over a very large number of rounds; this is a statistical average, not a guaranteed individual result.
+Casino games remain available with the original 100–1,000 FC bet range, a 15-second cooldown and no daily wager cap. Coin Flip and High Dice retain their existing odds. Slots keeps its existing prize multipliers while the jackpot chance is reduced to 0.5%; the other prize-tier chances remain unchanged. Theoretical long-run return is 95% for Coin Flip and High Dice and 90% for Slots.
 
 ### First steps
 
 1. Run **/menu** and open **Careers**. Choose a career you qualify for.
 2. Open **Earn** and claim Daily or start a Work shift. Work uses three multiple-choice questions; each correct answer increases the reward.
 3. Use **Profile** to track your level, career and wealth. Use **Bank** to protect savings and **Gear** to manage equipment.
-4. Open **Games** to review crime and casino risks, or **Heists** to create a crew and invite members.
+4. Open **Games** to review crime and casino risks, or **Heists** to create a crew. The bot posts a public crew board that updates with each member and chosen role, then publishes the final mission result when the leader starts it.
 5. Open **Halloween** to track quests, claim completed rewards, check the weekly activity mission and browse seasonal items.
 
 ## Operations
