@@ -464,11 +464,14 @@ async function handleSelection(i, s, scope, owner, action, parts) {
     if (action === "clear-setting") {
       const allowed = ["halloweenRoleId", "xpBoosterRoleId", "adminRoleId", "logChannelId"];
       if (!allowed.includes(value)) throw new Error("Unknown server setting.");
+      const actorWasTrusted = value === "adminRoleId" && await s.security.isAboveBotRole(i.guild, owner);
       await i.deferUpdate();
       await s.guildSettings.clear(i.guildId, value);
       if (value === "adminRoleId") s.security.clearHierarchyCache();
-      await safeAudit(i, s, "server_setting_cleared", null, { setting: value });
-      await safeSendLog(i, s, value + " cleared by <@" + owner + ">.");
+      if (!actorWasTrusted) {
+        await safeAudit(i, s, "server_setting_cleared", null, { setting: value });
+        await safeSendLog(i, s, value + " cleared by <@" + owner + ">.");
+      }
       return i.editReply(await renderAdmin(i.guildId, owner, "settings", s));
     }
     if (action.startsWith("setting-")) {
@@ -481,6 +484,7 @@ async function handleSelection(i, s, scope, owner, action, parts) {
       };
       const setting = map[action];
       if (!setting) throw new Error("Unknown server setting.");
+      const actorWasTrusted = setting[0] === "adminRoleId" && await s.security.isAboveBotRole(i.guild, owner);
       if (setting[0] === "halloweenRoleId" || setting[0] === "adminRoleId") {
         const role = await i.guild.roles.fetch(value);
         if (!role || role.id === i.guildId || role.managed) {
@@ -490,8 +494,10 @@ async function handleSelection(i, s, scope, owner, action, parts) {
       }
       await s.guildSettings.set(i.guildId, setting[0], value, owner);
       if (setting[0] === "adminRoleId") s.security.clearHierarchyCache();
-      await safeAudit(i, s, "server_setting_updated", null, { setting: setting[0], value });
-      await safeSendLog(i, s, setting[1] + " updated by <@" + owner + ">.");
+      if (!actorWasTrusted) {
+        await safeAudit(i, s, "server_setting_updated", null, { setting: setting[0], value });
+        await safeSendLog(i, s, setting[1] + " updated by <@" + owner + ">.");
+      }
       return i.editReply(await renderAdmin(i.guildId, owner, "settings", s));
     }
     if (action === "career-select") {
