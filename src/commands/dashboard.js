@@ -162,7 +162,7 @@ async function renderMenu(guildId, owner, page, s) {
       [
         { name: "🎁 Daily reward", value: "A quick FC and XP reward. Your player level increases the FC amount." },
         { name: "🧠 Work shift", value: career ? "Answer three questions based on your " + career.name + " role. Each correct answer adds to your pay and XP." : "No career selected. Open Careers first, then return here." },
-        { name: "💬 Chat activity", value: "Eligible messages can earn FC and XP while daily caps remain." }
+        { name: "💬 Chat activity", value: "Every message from a human member counts toward weekly activity, including rapid or spam messages. Chat FC and XP rewards still have daily caps." }
       ], [row(btn(owner, "daily", "Claim Daily", ButtonStyle.Success, "🎁"), btn(owner, "work", "Start Work Shift", ButtonStyle.Primary, "🧠")), nav]);
   }
   if (page === "career") {
@@ -253,7 +253,7 @@ async function renderMenu(guildId, owner, page, s) {
     const r = await s.halloween.status(guildId, owner);
     const weekly = await s.activity.getWeekly(guildId, owner);
     if (!r.event) return panel("HALLOWEEN EVENT", "The seasonal event has not been configured by an administrator yet.", [
-      { name: "Weekly activity", value: bar(weekly.messages, weekly.goal) + "\nYour eligible message count is tracked while the event is prepared." }
+      { name: "Weekly activity", value: bar(weekly.messages, weekly.goal) + "\nAll human-member messages count toward your weekly total, without a counting cooldown." }
     ], [row(btn(owner, "weekly", "Weekly mission", ButtonStyle.Primary)), nav]);
     const progress = new Map(r.progress.map((x) => [x.quest_id, Number(x.progress)]));
     const claims = new Set(r.claims);
@@ -274,7 +274,7 @@ async function renderMenu(guildId, owner, page, s) {
     const ev = await s.halloween.getEvent(guildId);
     const active = ev && ev.enabled && new Date(ev.starts_at).getTime() <= Date.now() && new Date(ev.ends_at).getTime() > Date.now();
     const canClaim = w.messages >= w.goal && active;
-    return panel("WEEKLY ACTIVITY MISSION", "Chat naturally in the server. One eligible message is counted per member per cooldown window.", [
+    return panel("WEEKLY ACTIVITY MISSION", "Every message from a human member counts toward your weekly total, including rapid or spam messages. Bot and webhook messages are ignored. Chat FC and XP rewards still have daily caps.", [
       { name: "Your progress", value: bar(w.messages, w.goal) },
       { name: "Reward", value: balancing.halloween.weeklyMessageCandyReward + " Candy · " + balancing.halloween.weeklyMessagePointsReward + " event points", inline: true },
       { name: "Week begins", value: w.weekStart, inline: true },
@@ -293,7 +293,7 @@ async function renderMenu(guildId, owner, page, s) {
         { name: "💰 Wealth", value: "Wallet plus bank balance." },
         { name: "⭐ Level", value: "Highest player level." },
         { name: "📈 Lifetime earned", value: "Total FC earned over time." },
-        { name: "💬 Weekly activity", value: "Eligible messages counted this week." }
+        { name: "💬 Weekly activity", value: "All human-member messages counted this week, with no count cooldown." }
       ], [menu(owner, "ranking-type", "Choose a ranking", [
         { label: "Wealth", value: "wealth" }, { label: "Level", value: "level" },
         { label: "Lifetime earned", value: "earned" }, { label: "Weekly activity", value: "activity" }
@@ -911,8 +911,8 @@ async function handleButton(i, s) {
       const assigned = await rewardRole(i, reward, "Completed the weekly Halloween activity mission");
       if (!assigned.assigned) note = "\n\n**Reward role not assigned:** " + assigned.issue;
     }
-    await recordMemberAction(i, s, "halloween_weekly_claimed", "claimed the weekly activity reward for " + r.messages.toLocaleString() + " eligible messages and received " + r.candy + " Candy.", { messages: r.messages, candy: r.candy, points: r.points });
-    return i.editReply(panel("WEEKLY REWARD CLAIMED", "You reached " + r.messages.toLocaleString() + " eligible messages and received **" + r.candy + " Candy** plus **" + r.points + " event points**." + note,
+    await recordMemberAction(i, s, "halloween_weekly_claimed", "claimed the weekly activity reward after sending " + r.messages.toLocaleString() + " messages and received " + r.candy + " Candy.", { messages: r.messages, candy: r.candy, points: r.points });
+    return i.editReply(panel("WEEKLY REWARD CLAIMED", "You reached " + r.messages.toLocaleString() + " messages and received **" + r.candy + " Candy** plus **" + r.points + " event points**." + note,
       [{ name: "Final reward progress", value: r.claimedCount + "/" + balancing.halloween.finalRoleQuestCount + " claims" }],
       [row(btn(owner, "event", "Back to Halloween")), navButton(owner)], "success"));
   }
