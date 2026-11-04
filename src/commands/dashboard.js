@@ -1059,12 +1059,18 @@ async function handleModal(i, s) {
       const amount = numberField(i, "amount", balancing.casino.minBet, null, "Wager");
       const r = await s.casino.play(i.guildId, owner, target, amount);
       await recordMemberAction(i, s, "casino_round", "played **" + r.game.name + "** with a " + r.wager.toLocaleString() + " FC wager and a net result of " + (r.net > 0 ? "+" : "") + r.net.toLocaleString() + " FC.", { game: r.game.name, wager: r.wager, payout: r.payout, net: r.net }, r.won ? "success" : "warning");
-      return i.editReply(panel(r.game.name + "  /  " + (r.won ? "WIN" : "LOSS"), r.outcome, [
+      const resultPayload = panel(r.game.name + "  /  " + (r.won ? "WIN" : "LOSS"), r.outcome, [
         { name: "Wager", value: r.wager.toLocaleString() + " FC", inline: true },
         { name: "Payout", value: r.payout.toLocaleString() + " FC", inline: true },
         { name: "Net result", value: (r.net > 0 ? "+" : "") + r.net.toLocaleString() + " FC", inline: true },
         { name: "Fair-play rule", value: "Same published odds for everyone · " + r.cooldownMs / 1000 + "-second cooldown · " + Math.round(r.theoreticalReturnRate * 100) + "% long-run return" }
-      ], [], r.won ? "success" : "warning"));
+      ], [], r.won ? "success" : "warning");
+      // Keep the dashboard receipt private, but publish the actual game result to the channel.
+      const publicChannel = await getPublicTextChannel(i);
+      if (publicChannel) {
+        await publicChannel.send({ embeds: resultPayload.embeds, allowedMentions: { parse: [] } });
+      }
+      return i.editReply(resultPayload);
     }
     if (action === "heist-modal") {
       const id = i.fields.getTextInputValue("heist").trim();
