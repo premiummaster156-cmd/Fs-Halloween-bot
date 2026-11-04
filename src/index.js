@@ -1,5 +1,5 @@
 require("dotenv").config();
-const { Client, GatewayIntentBits, Events, MessageFlags, PermissionFlagsBits } = require("discord.js");
+const { Client, GatewayIntentBits, Events, MessageFlags, AuditLogEvent } = require("discord.js");
 const { DomainError } = require("./utils/core");
 const settings = require("./config/settings");
 const balancing = require("./config/game-balancing");
@@ -16,27 +16,15 @@ const { HalloweenGame } = require("./games/halloween");
 const { ActivityService } = require("./services/activity");
 const { InventoryService } = require("./services/inventory");
 const { GuildSettingsService } = require("./services/guild-settings");
+const { SecurityService } = require("./services/security");
 const { respond } = require("./ui");
 
 const MEMBER_COMMANDS_CHANNEL_ID = "1566508610459271478";
 
-async function isPrivilegedCommandUser(interaction, guildSettings) {
-  if (
-    (settings.ownerId && interaction.user.id === settings.ownerId) ||
-    (interaction.guild && interaction.guild.ownerId === interaction.user.id) ||
-    (interaction.memberPermissions && (
-      interaction.memberPermissions.has(PermissionFlagsBits.Administrator) ||
-      interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild)
-    ))
-  ) return true;
-
-  const roleIds = interaction.member && interaction.member.roles && interaction.member.roles.cache
-    ? Array.from(interaction.member.roles.cache.keys())
-    : [];
-  const configuredAdminRoleId = await guildSettings.get(interaction.guildId, "adminRoleId");
+function isBotOwnerOrGuildOwner(interaction) {
   return Boolean(
-    (configuredAdminRoleId && roleIds.includes(configuredAdminRoleId)) ||
-    settings.adminRoleIds.some((id) => roleIds.includes(id))
+    (settings.ownerId && interaction.user.id === settings.ownerId) ||
+    (interaction.guild && interaction.guild.ownerId === interaction.user.id)
   );
 }
 
@@ -44,12 +32,13 @@ async function start() {
   if (!settings.discordToken) throw new Error("DISCORD_TOKEN is missing.");
   if (!settings.clientId) throw new Error("CLIENT_ID is missing.");
   await migrate();
-  const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
+  const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildModeration] });
   const economy = new EconomyService(pool);
   const inventory = new InventoryService(pool, economy);
   const guildSettings = new GuildSettingsService(pool);
+  const security = new SecurityService(pool, guildSettings);
   client.services = {
-    pool, balancing, economy, inventory, guildSettings,
+    pool, balancing, economy, inventory, guildSettings, security,
     jobs: new JobsGame(pool, economy, inventory),
     crime: new CrimeGame(pool, economy, inventory),
     casino: new CasinoGame(pool, economy),
@@ -64,15 +53,50 @@ async function start() {
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
+    if (interaction.isButton() && interaction.customId.startsWith("security:")) {
+      try {
+        await security.handleAlertInteraction(interaction);
+      } catch (error) {
+        console.error("[security] Alert action failed:", error.code || error.name, error.message);
+        try {
+          await interaction.reply({ content: "That security action could not be completed. Check the bot's permissions and try again.", flags: MessageFlags.Ephemeral });
+        } catch (_) {}
+      }
+      return;
+    }
+
     const isDashboardInteraction =
       (interaction.isButton() || interaction.isAnySelectMenu() || interaction.isModalSubmit()) &&
       (interaction.customId.startsWith("dash:") || interaction.customId.startsWith("admin:"));
 
     if (isDashboardInteraction) {
       try {
+        const access = await security.checkAccess(interaction);
+        if (!access.allowed) {
+          return interaction.reply({
+            content: access.expiresAt
+              ? "Bot access is temporarily paused until <t:" + Math.floor(new Date(access.expiresAt).getTime() / 1000) + ":R>. Contact a server owner if you think this is a mistake."
+              : "Bot access has been restricted by a server owner. Contact the server owner if you think this is a mistake.",
+            flags: MessageFlags.Ephemeral
+          });
+        }
+        const rate = await security.checkComponentRate(interaction);
+        if (!rate.allowed) {
+          return interaction.reply({ content: "You're clicking through the dashboard very quickly. Please pause for a moment and try again.", flags: MessageFlags.Ephemeral });
+        }
         await handleDashboardInteraction(interaction, client.services);
       } catch (error) {
         console.error("[dashboard] Interaction failed:", error.code || error.name, error.message);
+        if (error.code === "COOLDOWN") {
+          await security.recordCooldownAttempt(interaction, error).catch((loggingError) =>
+            console.error("[security] Could not record cooldown attempt:", loggingError.message)
+          );
+        } else {
+          await require("./utils/logging").audit(pool, interaction.guildId, interaction.user.id, "member_interaction_failed", interaction.user.id, {
+            code: error.code || error.name,
+            customId: interaction.customId || null
+          });
+        }
         try {
           await respond(interaction, {
             kind: error.code === "COOLDOWN" ? "warning" : "error",
@@ -89,30 +113,46 @@ async function start() {
 
     if (!interaction.isChatInputCommand()) return;
     if (!interaction.inGuild()) return respond(interaction, { kind: "error", ephemeral: true, title: "Server Only", description: "Use this command inside Fukishokai." });
-    const command = client.commands.get(interaction.commandName);
-    if (!command) {
+
+    const ownerAccess = isBotOwnerOrGuildOwner(interaction);
+    if (interaction.commandName === "admin" && !ownerAccess) {
+      await security.recordUnauthorizedAdminAttempt(interaction);
       return respond(interaction, {
-        kind: "error",
-        ephemeral: true,
-        title: "Command Unavailable",
-        description: "This command is not available in the bot's current version. Ask an administrator to redeploy the slash commands."
+        kind: "error", ephemeral: true, title: "Owner access required",
+        description: "Only the server owner or configured bot owner can open the administration console."
       });
     }
 
-    let privilegedUser = false;
-    try {
-      privilegedUser = await isPrivilegedCommandUser(interaction, client.services.guildSettings);
-    } catch (error) {
-      console.error("[commands] Could not check channel access:", error.code || error.name, error.message);
-      return respond(interaction, { kind: "error", ephemeral: true, title: "Access Check Failed", description: "Please try again shortly." });
+    const access = await security.checkAccess(interaction);
+    if (!access.allowed) {
+      return respond(interaction, {
+        kind: "error", ephemeral: true, title: "Bot access restricted",
+        description: access.expiresAt
+          ? "Bot access is paused until <t:" + Math.floor(new Date(access.expiresAt).getTime() / 1000) + ":R>."
+          : "Bot access has been restricted by a server owner."
+      });
     }
 
-    if (!privilegedUser && interaction.channelId !== MEMBER_COMMANDS_CHANNEL_ID) {
+    const command = client.commands.get(interaction.commandName);
+    if (!command) {
       return respond(interaction, {
-        kind: "error",
-        ephemeral: true,
-        title: "Use the Commands Channel",
-        description: "Open member commands in <#" + MEMBER_COMMANDS_CHANNEL_ID + ">. This notice is private."
+        kind: "error", ephemeral: true, title: "Command unavailable",
+        description: "This command is not available in the bot's current version. Ask an owner to redeploy the slash commands."
+      });
+    }
+
+    const rate = await security.checkCommandRate(interaction);
+    if (!rate.allowed) {
+      return respond(interaction, {
+        kind: "warning", ephemeral: true, title: "Slow down a little",
+        description: "The bot is rate-limiting repeated command requests. Please wait a few seconds."
+      });
+    }
+
+    if (!ownerAccess && interaction.channelId !== MEMBER_COMMANDS_CHANNEL_ID) {
+      return respond(interaction, {
+        kind: "error", ephemeral: true, title: "Use the game channel",
+        description: "Open /menu in <#" + MEMBER_COMMANDS_CHANNEL_ID + ">. This notice is private."
       });
     }
 
@@ -129,6 +169,16 @@ async function start() {
       await command.execute(interaction, client.services);
     } catch (error) {
       console.error("[command] " + interaction.commandName + " failed:", error.code || error.name, error.message);
+      if (error.code === "COOLDOWN") {
+        await security.recordCooldownAttempt(interaction, error).catch((loggingError) =>
+          console.error("[security] Could not record cooldown attempt:", loggingError.message)
+        );
+      } else {
+        await require("./utils/logging").audit(pool, interaction.guildId, interaction.user.id, "command_failed", interaction.user.id, {
+          command: interaction.commandName,
+          code: error.code || error.name
+        });
+      }
       try {
         await respond(interaction, {
           kind: error.code === "COOLDOWN" ? "warning" : "error",
@@ -151,6 +201,20 @@ async function start() {
     client.services.activity.trackMessage(message, roleIds).catch((error) => {
       console.error("[activity] Message tracking failed:", error.message);
     });
+  });
+
+  // Lightweight anti-nuke watch. Attribution depends on the bot having View Audit Log.
+  client.on("channelDelete", (channel) => {
+    client.services.security.recordDestructiveChange(client, channel.guild, channel.id, "channel_delete", AuditLogEvent.ChannelDelete)
+      .catch((error) => console.error("[security] Channel-delete monitor failed:", error.message));
+  });
+  client.on("roleDelete", (role) => {
+    client.services.security.recordDestructiveChange(client, role.guild, role.id, "role_delete", AuditLogEvent.RoleDelete)
+      .catch((error) => console.error("[security] Role-delete monitor failed:", error.message));
+  });
+  client.on("guildBanAdd", (ban) => {
+    client.services.security.recordDestructiveChange(client, ban.guild, ban.user.id, "member_ban", AuditLogEvent.MemberBanAdd)
+      .catch((error) => console.error("[security] Ban monitor failed:", error.message));
   });
 
   client.on(Events.Error, (error) => console.error("[discord] Client error:", error.message));
