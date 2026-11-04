@@ -63,7 +63,7 @@ async function writeCommandFile(guildId, name, sourceCode, root = WORKSPACE_ROOT
 }
 
 async function readCommandFile(guildId, name, root = WORKSPACE_ROOT) {
-  const filePath = getCommandFilePath(guildId, name);
+  const filePath = getCommandFilePath(guildId, name, root);
   try {
     return await fs.readFile(filePath, "utf8");
   } catch (error) {
@@ -73,7 +73,7 @@ async function readCommandFile(guildId, name, root = WORKSPACE_ROOT) {
 }
 
 async function deleteCommandFile(guildId, name, root = WORKSPACE_ROOT) {
-  const filePath = getCommandFilePath(guildId, name);
+  const filePath = getCommandFilePath(guildId, name, root);
   await fs.rm(filePath, { force: true });
   return filePath;
 }
