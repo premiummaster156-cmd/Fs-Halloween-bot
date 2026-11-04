@@ -221,3 +221,8 @@ CREATE TABLE IF NOT EXISTS bot_user_restrictions (
 );
 CREATE INDEX IF NOT EXISTS bot_user_restrictions_expiry_idx
   ON bot_user_restrictions (expires_at);
+
+
+-- Persistent public crew board for visible heist recruiting and final results.
+ALTER TABLE heists ADD COLUMN IF NOT EXISTS announcement_channel_id TEXT;
+ALTER TABLE heists ADD COLUMN IF NOT EXISTS announcement_message_id TEXT;
