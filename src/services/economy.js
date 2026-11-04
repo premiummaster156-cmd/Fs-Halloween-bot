@@ -4,7 +4,7 @@ const balancing = require("../config/game-balancing");
 const { DomainError, uuid, randomInt, claimCooldownTx, levelXpRequired, getRebirthMultiplier, applyCooldownReduction } = require("../utils/core");
 
 const MULTIPLIED_EARNING_REASONS = new Set([
-  "daily_reward", "job_work", "crime_success", "heist_reward", "chat_activity_reward"
+  "daily_reward", "job_work", "crime_success", "heist_reward", "chat_activity_reward", "casino_payout"
 ]);
 
 async function ensurePlayerTx(client, guildId, userId) {
@@ -114,6 +114,7 @@ class EconomyService {
       level += 1;
       levelsGained += 1;
     }
+    if (level >= 100) xp = 0;
     await client.query("UPDATE players SET level = $3, xp = $4, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [guildId, userId, level, xp]);
     return { gained, multiplier, level, levelsGained, xp, nextLevelXp: levelXpRequired(level) };
   }
