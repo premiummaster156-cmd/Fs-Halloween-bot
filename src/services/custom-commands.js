@@ -2,7 +2,9 @@ const { randomUUID } = require("node:crypto");
 const { spawn } = require("node:child_process");
 const path = require("node:path");
 const os = require("node:os");
-const { EmbedBuilder, SlashCommandBuilder } = require("discord.js");
+const { EmbedBuilder, SlashCommandBuilder, REST, Routes } = require("discord.js");
+const settings = require("../config/settings");
+const workspace = require("./admin-workspace");
 
 const RESERVED_NAMES = new Set(["admin", "menu"]);
 const OPTION_TYPES = new Set(["string", "integer", "number", "boolean", "user", "channel", "role", "mentionable"]);
@@ -401,25 +403,91 @@ class CustomCommandService {
 
   async saveSource(guildId, actorId, input) {
     const inspected = await inspectCommandSource(input.sourceCode);
-    const id = input.id || randomUUID();
-    if (input.id) {
-      const result = await this.pool.query(
-        "UPDATE custom_commands SET name = $3, description = $4, definition = $5::jsonb, source_code = $6, " +
-        "is_active = FALSE, deployed_at = NULL, updated_by = $7, updated_at = NOW() " +
-        "WHERE guild_id = $1 AND id = $2 AND deleted_at IS NULL " +
-        "RETURNING id, name, description, definition, source_code, is_active, deployed_at",
-        [guildId, id, inspected.name, inspected.description, JSON.stringify(inspected.definition), input.sourceCode, actorId]
-      );
-      if (!result.rowCount) fail("That custom command no longer exists.", "CUSTOM_COMMAND_NOT_FOUND");
+    const existing = input.id
+      ? await this.get(guildId, input.id)
+      : await this.getByName(guildId, inspected.name);
+    if (input.id && !existing) fail("That custom command no longer exists.", "CUSTOM_COMMAND_NOT_FOUND");
+    const id = existing?.id || input.id || randomUUID();
+    const previousSource = existing
+      ? await workspace.readCommandFile(guildId, existing.name).catch(() => null)
+      : null;
+
+    await workspace.writeCommandFile(guildId, inspected.name, input.sourceCode);
+    try {
+      let result;
+      if (existing) {
+        result = await this.pool.query(
+          "UPDATE custom_commands SET name = $3, description = $4, definition = $5::jsonb, source_code = $6, " +
+          "is_active = FALSE, deployed_at = NULL, updated_by = $7, updated_at = NOW() " +
+          "WHERE guild_id = $1 AND id = $2 AND deleted_at IS NULL " +
+          "RETURNING id, name, description, definition, source_code, is_active, deployed_at",
+          [guildId, id, inspected.name, inspected.description, JSON.stringify(inspected.definition), input.sourceCode, actorId]
+        );
+        if (!result.rowCount) fail("That custom command no longer exists.", "CUSTOM_COMMAND_NOT_FOUND");
+      } else {
+        result = await this.pool.query(
+          "INSERT INTO custom_commands (id, guild_id, name, description, definition, source_code, is_active, created_by, updated_by) " +
+          "VALUES ($1, $2, $3, $4, $5::jsonb, $6, FALSE, $7, $7) " +
+          "RETURNING id, name, description, definition, source_code, is_active, deployed_at",
+          [id, guildId, inspected.name, inspected.description, JSON.stringify(inspected.definition), input.sourceCode, actorId]
+        );
+      }
+      if (existing && existing.name !== inspected.name) {
+        await workspace.deleteCommandFile(guildId, existing.name).catch(() => {});
+      }
       return result.rows[0];
+    } catch (error) {
+      if (previousSource !== null) {
+        await workspace.writeCommandFile(guildId, existing.name, previousSource).catch(() => {});
+      } else if (!existing) {
+        await workspace.deleteCommandFile(guildId, inspected.name).catch(() => {});
+      }
+      throw error;
     }
+  }
+
+  async restoreWorkspaceFiles() {
     const result = await this.pool.query(
-      "INSERT INTO custom_commands (id, guild_id, name, description, definition, source_code, is_active, created_by, updated_by) " +
-      "VALUES ($1, $2, $3, $4, $5::jsonb, $6, FALSE, $7, $7) " +
-      "RETURNING id, name, description, definition, source_code, is_active, deployed_at",
-      [id, guildId, inspected.name, inspected.description, JSON.stringify(inspected.definition), input.sourceCode, actorId]
+      "SELECT guild_id, name, source_code FROM custom_commands " +
+      "WHERE source_code IS NOT NULL AND deleted_at IS NULL"
     );
-    return result.rows[0];
+    for (const row of result.rows) {
+      await workspace.writeCommandFile(row.guild_id, row.name, row.source_code);
+    }
+    return result.rowCount;
+  }
+
+  async deployGuild(guildId) {
+    if (!settings.discordToken || !settings.clientId) {
+      fail("DISCORD_TOKEN and CLIENT_ID are required to register slash commands.", "CUSTOM_COMMAND_DEPLOY_CONFIG");
+    }
+    if (!/^\\d{1,25}$/.test(String(guildId || ""))) fail("A valid server ID is required.");
+    const builtIn = Array.from(require("../commands").loadCommands().values())
+      .map((command) => command.data.toJSON());
+    const rows = await this.list(guildId);
+    const names = new Set(builtIn.map((command) => command.name));
+    const commands = builtIn.slice();
+    for (const record of rows) {
+      const command = toApplicationCommand(record);
+      if (names.has(command.name)) fail("Custom command name conflicts with an existing command: /" + command.name);
+      names.add(command.name);
+      commands.push(command);
+    }
+    const rest = new REST({ version: "10" }).setToken(settings.discordToken);
+    await rest.put(Routes.applicationGuildCommands(settings.clientId, guildId), { body: commands });
+    await this.pool.query(
+      "UPDATE custom_commands SET deployed_at = NOW(), updated_at = NOW() " +
+      "WHERE guild_id = $1 AND deleted_at IS NULL",
+      [guildId]
+    );
+    return { registeredCount: commands.length, customCount: rows.length };
+  }
+
+  async publishSource(guildId, actorId, input) {
+    const saved = await this.saveSource(guildId, actorId, input);
+    const deployment = await this.deployGuild(guildId);
+    const activated = await this.activate(guildId, saved.id, actorId);
+    return { ...saved, is_active: true, deployed_at: new Date().toISOString(), deployment, activated };
   }
 
   async activate(guildId, id, actorId) {
@@ -450,6 +518,7 @@ class CustomCommandService {
       [guildId, id, actorId]
     );
     if (!result.rowCount) fail("That custom command no longer exists.", "CUSTOM_COMMAND_NOT_FOUND");
+    await workspace.deleteCommandFile(guildId, result.rows[0].name).catch(() => {});
     return result.rows[0];
   }
 
@@ -458,8 +527,10 @@ class CustomCommandService {
       ? record.definition
       : parseDefinition(record.definition);
     if (record.source_code) {
+      const sourceCode = await workspace.readCommandFile(interaction.guildId, record.name)
+        .catch(() => record.source_code);
       const input = customCommandInput(interaction, definition);
-      const result = await runInIsolatedProcess(record.source_code, "run", input);
+      const result = await runInIsolatedProcess(sourceCode || record.source_code, "run", input);
       return interaction.editReply(normalizeCustomReply(result.result));
     }
     return interaction.editReply(buildReply(interaction, definition));
