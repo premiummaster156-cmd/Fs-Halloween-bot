@@ -109,7 +109,34 @@ function parseDefinition(source) {
 
 function toApplicationCommand(record) {
   const meta = validateCommandMeta(record.name, record.description);
-  const definition = parseDefinition(record.definition);
+  let definition;
+  if (record.source_code) {
+    let sourceDefinition = record.definition;
+    if (typeof sourceDefinition === "string") {
+      try { sourceDefinition = JSON.parse(sourceDefinition); }
+      catch (_) { fail("Stored JavaScript command metadata is invalid."); }
+    }
+    if (!sourceDefinition || typeof sourceDefinition !== "object" || Array.isArray(sourceDefinition)) {
+      fail("Stored JavaScript command metadata is invalid.");
+    }
+    const response = sourceDefinition.response;
+    if (response !== undefined && (!response || typeof response !== "object" || Array.isArray(response))) {
+      fail("Stored JavaScript command response metadata is invalid.");
+    }
+    const responseMetadata = response || {};
+    const hasResponseBody = Boolean(
+      responseMetadata.content || responseMetadata.title || responseMetadata.description ||
+      (Array.isArray(responseMetadata.fields) && responseMetadata.fields.length)
+    );
+    definition = parseDefinition({
+      options: sourceDefinition.options || [],
+      response: hasResponseBody
+        ? responseMetadata
+        : { ...responseMetadata, content: "This command responds through its JavaScript execute function." }
+    });
+  } else {
+    definition = parseDefinition(record.definition);
+  }
   const builder = new SlashCommandBuilder().setName(meta.name).setDescription(meta.description);
   const methods = {
     string: "addStringOption", integer: "addIntegerOption", number: "addNumberOption",
