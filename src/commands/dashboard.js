@@ -224,19 +224,16 @@ async function renderMenu(guildId, owner, page, s) {
   }
   if (page === "casino") {
     const games = Object.entries(balancing.casino.games);
-    const usage = await s.casino.getDailyUsage(guildId, owner);
     const rows = games.map(([id, g]) => row(btn(owner, "casino-" + id, g.name, ButtonStyle.Secondary)));
     rows.push(nav);
-    return panel("CASINO  /  FAIR PLAY TABLE",
-      "Choose a game. Every member has the same betting limits and published odds. Results are random; no level or role gives anyone better casino odds.\n\n**Fair-play rules:** " +
-      balancing.casino.cooldownMs / 1000 + "-second round cooldown · " +
-      balancing.casino.maxBet.toLocaleString() + " FC maximum per round · " +
-      balancing.casino.dailyWagerLimit.toLocaleString() + " FC total wagers per rolling 24 hours.",
-      [
-        { name: "Your remaining daily wagers", value: usage.remaining.toLocaleString() + " / " + usage.limit.toLocaleString() + " FC", inline: true },
-        { name: "Long-run theoretical return", value: Math.round(balancing.casino.targetReturnRate * 100) + "% across a very large number of rounds. This is an average, not a promise for an individual session.", inline: false },
-        ...games.map(([, g]) => ({ name: g.name + " · Level " + g.minLevel + "+", value: g.description }))
-      ],
+    return panel("CASINO  /  GAME TABLE",
+      "Choose a game. Every player has the same published odds. Bets stay between " +
+      balancing.casino.minBet.toLocaleString() + " and " + balancing.casino.maxBet.toLocaleString() +
+      " FC, with a " + balancing.casino.cooldownMs / 1000 + "-second cooldown between rounds. There is no daily wager cap.",
+      games.map(([, g]) => ({
+        name: g.name + " · Level " + g.minLevel + "+",
+        value: g.description + "\nTheoretical long-run return: " + Math.round(g.theoreticalReturnRate * 100) + "%"
+      })),
       rows, "warning");
   }
   if (page === "heists") {
@@ -791,13 +788,12 @@ async function handleModal(i, s) {
     if (action === "casino-modal") {
       const amount = numberField(i, "amount", balancing.casino.minBet, balancing.casino.maxBet, "Wager");
       const r = await s.casino.play(i.guildId, owner, target, amount);
-      await recordMemberAction(i, s, "casino_round", "played **" + r.game.name + "** with a " + r.wager.toLocaleString() + " FC wager and a net result of " + (r.net > 0 ? "+" : "") + r.net.toLocaleString() + " FC.", { gameId: r.gameId, wager: r.wager, payout: r.payout, net: r.net, dailyWagerRemaining: r.dailyWagerRemaining }, r.won ? "success" : "warning");
+      await recordMemberAction(i, s, "casino_round", "played **" + r.game.name + "** with a " + r.wager.toLocaleString() + " FC wager and a net result of " + (r.net > 0 ? "+" : "") + r.net.toLocaleString() + " FC.", { game: r.game.name, wager: r.wager, payout: r.payout, net: r.net }, r.won ? "success" : "warning");
       return i.editReply(panel(r.game.name + "  /  " + (r.won ? "WIN" : "LOSS"), r.outcome, [
         { name: "Wager", value: r.wager.toLocaleString() + " FC", inline: true },
         { name: "Payout", value: r.payout.toLocaleString() + " FC", inline: true },
         { name: "Net result", value: (r.net > 0 ? "+" : "") + r.net.toLocaleString() + " FC", inline: true },
-        { name: "Daily wager budget left", value: r.dailyWagerRemaining.toLocaleString() + " / " + r.dailyWagerLimit.toLocaleString() + " FC", inline: true },
-        { name: "Fair-play rule", value: "Same published odds for everyone · " + r.cooldownMs / 1000 + "-second cooldown" }
+        { name: "Fair-play rule", value: "Same published odds for everyone · " + r.cooldownMs / 1000 + "-second cooldown · " + Math.round(r.theoreticalReturnRate * 100) + "% long-run return" }
       ], [], r.won ? "success" : "warning"));
     }
     if (action === "heist-modal") {
