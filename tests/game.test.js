@@ -263,3 +263,43 @@ test("configured Admin Role grants admin access and monitoring exemption", async
   assert.equal(await security.hasAdminAccess(guild, "trusted-admin"), true);
   assert.equal(await security.isAboveBotRole(guild, "trusted-admin"), true);
 });
+
+
+test("configured Admin Role skips cooldown audit and command throttling", async () => {
+  const { SecurityService } = require("../src/services/security");
+  const writes = [];
+  const security = new SecurityService(
+    { query: async (...args) => { writes.push(args); return { rowCount: 1, rows: [] }; } },
+    { get: async () => "trusted-admin-role" }
+  );
+  const guild = {
+    id: "guild-admin",
+    ownerId: "guild-owner",
+    members: {
+      me: { roles: { highest: { id: "bot-role" } } },
+      fetch: async (userId) => ({
+        id: userId,
+        roles: {
+          cache: { has: (roleId) => roleId === "trusted-admin-role" },
+          highest: { comparePositionTo: () => -1 }
+        }
+      })
+    }
+  };
+  const interaction = {
+    user: { id: "trusted-admin" },
+    guild,
+    guildId: guild.id,
+    client: {},
+    commandName: "admin",
+    customId: "admin:trusted-admin:home"
+  };
+  assert.equal((await security.checkAccess(interaction)).allowed, true);
+  for (let n = 0; n < 20; n += 1) {
+    assert.equal((await security.checkCommandRate(interaction)).allowed, true);
+    assert.equal((await security.checkComponentRate(interaction)).allowed, true);
+  }
+  await security.recordCooldownAttempt(interaction, { remainingMs: 5000 });
+  await security.recordUnauthorizedAdminAttempt(interaction);
+  assert.equal(writes.length, 0);
+});
