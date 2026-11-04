@@ -161,6 +161,7 @@ async function renderMenu(guildId, owner, page, s) {
   const nav = back(owner);
   if (page === "home") {
     const p = await getPlayer(s.pool, guildId, owner);
+    const seasonal = await s.halloween.status(guildId, owner);
     const career = balancing.jobs.find((j) => j.id === p.job_id);
     const wealth = Number(p.wallet) + Number(p.bank);
     return panel("FUKISHOKAI  /  PLAYER HUB", "Welcome to your game centre. Pick a section below. Every screen explains the next step and shows the requirements before you commit.",
@@ -168,6 +169,7 @@ async function renderMenu(guildId, owner, page, s) {
         { name: "💎 Total wealth", value: wealth.toLocaleString() + " FC", inline: true },
         { name: "👛 Wallet", value: Number(p.wallet).toLocaleString() + " FC", inline: true },
         { name: "🏦 Bank", value: Number(p.bank).toLocaleString() + " FC", inline: true },
+        { name: "🍬 Candy", value: Number(seasonal.wallet.candy || 0).toLocaleString(), inline: true },
         { name: "⭐ Player level", value: "Level " + p.level + "\n" + bar(p.xp, levelXpRequired(Number(p.level)), 10), inline: false },
         { name: "💼 Career", value: career ? career.name + "  ·  Job level " + p.job_level : "Not selected — open Careers to choose one.", inline: true },
         { name: "🎯 Suggested next step", value: career ? "Claim Daily, complete a Work shift, upgrade your gear or join a crew." : "Start by choosing a career. You need one before you can work." }
@@ -379,7 +381,7 @@ async function renderMenu(guildId, owner, page, s) {
       [
         { name: "🍬 Candy balance", value: Number(r.wallet.candy || 0).toLocaleString() + " Candy", inline: true },
         { name: "Weekly activity", value: bar(weekly.messages, weekly.goal) + "\nAll human-member messages count toward your weekly total, without a counting cooldown." },
-        { name: "Candy drops", value: "Earn FC through Daily, Work, Crime, Heists, Casino wins or chat rewards. Equipped gear improves your chance of finding Candy." }
+        { name: "Candy drops", value: "Daily 12% · Work 20% · Crime 14% · Heists 26% · Casino payouts 6% · Chat FC rewards 2.5%. Equipped gear adds up to 20 percentage points; upgrades strengthen the bonus." }
       ], [row(btn(owner, "event-shop", "Candy shop", ButtonStyle.Primary), btn(owner, "weekly", "Weekly mission", ButtonStyle.Secondary)), nav]);
     const progress = new Map(r.progress.map((x) => [x.quest_id, Number(x.progress)]));
     const claims = new Set(r.claims);
@@ -393,7 +395,10 @@ async function renderMenu(guildId, owner, page, s) {
     controls.push(row(btn(owner, "weekly", "Weekly mission"), btn(owner, "event-shop", "Seasonal shop"), btn(owner, "event-refresh", "Refresh", ButtonStyle.Primary)));
     controls.push(nav);
     return panel("HALLOWEEN  /  SEASONAL EVENT", (r.active ? "🟢 Event active" : "⚪ Event inactive") + " · Ends <t:" + Math.floor(new Date(r.event.ends_at).getTime() / 1000) + ":R>\n\n**Candy:** " + Number(r.wallet.candy || 0).toLocaleString() + " · **Event points:** " + Number(r.wallet.points || 0).toLocaleString() + "\n**Final reward:** " + r.claims.length + "/" + balancing.halloween.finalRoleQuestCount + " quests claimed.",
-      r.quests.map((q) => { const current = Math.min(q.goal, progress.get(q.id) || 0); const status = claims.has(q.id) ? " · CLAIMED" : current >= q.goal ? " · READY TO CLAIM" : ""; return { name: q.name + " · " + current + "/" + q.goal + status, value: q.description + " · Reward: " + q.candy + " Candy / " + q.points + " points" }; }), controls);
+      [
+        ...r.quests.map((q) => { const current = Math.min(q.goal, progress.get(q.id) || 0); const status = claims.has(q.id) ? " · CLAIMED" : current >= q.goal ? " · READY TO CLAIM" : ""; return { name: q.name + " · " + current + "/" + q.goal + status, value: q.description + " · Reward: " + q.candy + " Candy / " + q.points + " points" }; }),
+        { name: "Candy drop chances", value: "Daily 12% · Work 20% · Crime 14% · Heists 26% · Casino payouts 6% · Chat FC rewards 2.5%. Equipped gear adds up to 20 percentage points; upgrades improve the bonus." }
+      ], controls);
   }
   if (page === "weekly") {
     const w = await s.activity.getWeekly(guildId, owner);
@@ -416,10 +421,13 @@ async function renderMenu(guildId, owner, page, s) {
       .map((x) => ({ label: x.name, value: x.id, description: x.cost + " Candy · " + x.description.slice(0, 65) }));
     return panel("HALLOWEEN  /  CANDY COLLECTIBLES",
       "Your balance: **" + Number(status.wallet.candy || 0).toLocaleString() + " Candy**. Collectibles are unique, stay in your inventory permanently and count toward later rebirth milestones. The shop stays open after the event schedule ends.",
-      balancing.halloween.shop.map((x) => ({
-        name: x.name + " · " + x.cost + " Candy" + (ownedIds.has(x.id) ? " · OWNED" : ""),
-        value: x.description
-      })),
+      [
+        ...balancing.halloween.shop.map((x) => ({
+          name: x.name + " · " + x.cost + " Candy" + (ownedIds.has(x.id) ? " · OWNED" : ""),
+          value: x.description
+        })),
+        { name: "How to find Candy", value: "Candy drops randomly when you earn FC. The chance depends on the activity, and equipped/upgraded gear can improve it. Drops remain available after the seasonal event dates." }
+      ],
       [...(options.length ? [menu(owner, "event-buy", "Choose a collectible", options)] : []), nav]);
   }
   if (page === "rankings") {
