@@ -1068,7 +1068,11 @@ async function handleModal(i, s) {
       // Keep the dashboard receipt private, but publish the actual game result to the channel.
       const publicChannel = await getPublicTextChannel(i);
       if (publicChannel) {
-        await publicChannel.send({ embeds: resultPayload.embeds, allowedMentions: { parse: [] } });
+        try {
+          await publicChannel.send({ embeds: resultPayload.embeds, allowedMentions: { parse: [] } });
+        } catch (publishError) {
+          console.warn("[casino] Public result could not be posted:", publishError.code || publishError.message);
+        }
       }
       return i.editReply(resultPayload);
     }
