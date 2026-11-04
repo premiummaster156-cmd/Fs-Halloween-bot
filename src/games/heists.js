@@ -38,7 +38,7 @@ class HeistsGame {
       const player = await client.query("SELECT level FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [guildId, userId]);
       if (Number(player.rows[0].level) < mission.minLevel) throw new DomainError("You need level " + mission.minLevel + " to join this mission.", "HEIST_LEVEL_REQUIRED");
       await client.query("INSERT INTO heist_participants (heist_id, guild_id, user_id, role_id) VALUES ($1, $2, $3, $4)", [heistId, guildId, userId, roleId]);
-      return { mission, role, count: current.rowCount + 1, maximum: mission.maxParticipants };
+      return { mission, role, leaderId: heist.leader_id, count: current.rowCount + 1, maximum: mission.maxParticipants };
     });
   }
 
@@ -93,6 +93,13 @@ class HeistsGame {
       await client.query("UPDATE heists SET status = $3, success_chance = $4, roll = $5, total_payout = $6, started_at = NOW(), completed_at = NOW() WHERE id = $1 AND guild_id = $2", [heistId, guildId, succeeded ? "success" : "failed", successChance, roll, totalPayout]);
       return { mission, succeeded, successChance, roll, totalPayout, crew: crew.map((member) => ({ userId: member.user_id, role: member.role_id })) };
     });
+  }
+
+  async setAnnouncement(guildId, heistId, channelId, messageId) {
+    await this.pool.query(
+      "UPDATE heists SET announcement_channel_id = $3, announcement_message_id = $4 WHERE guild_id = $1 AND id = $2",
+      [guildId, heistId, channelId, messageId]
+    );
   }
 
   async status(guildId, heistId) {
