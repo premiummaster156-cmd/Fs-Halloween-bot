@@ -10,8 +10,6 @@ const MULTIPLIED_EARNING_REASONS = new Set([
   "heist_reward",
   "chat_activity_reward",
   "achievement_reward",
-  "guild_boss_attack",
-  "guild_boss_clear"
 ]);
 
 async function ensurePlayerTx(client, guildId, userId) {

@@ -376,83 +376,6 @@ const leaderboardCommand = {
   }
 };
 
-const bossCommand = {
-  data: new SlashCommandBuilder()
-    .setName("boss")
-    .setDescription("Join the server's optional weekly cooperative boss fight.")
-    .addSubcommand((subcommand) => subcommand.setName("status").setDescription("See the boss's remaining health and your contribution."))
-    .addSubcommand((subcommand) => subcommand.setName("attack").setDescription("Attack the boss and earn a small FC and XP reward."))
-    .addSubcommand((subcommand) => subcommand.setName("leaderboard").setDescription("See who has dealt the most damage this week."))
-    .addSubcommand((subcommand) => subcommand.setName("claim").setDescription("Claim rewards from weekly bosses your server defeated.")),
-  async execute(interaction, services) {
-    const action = interaction.options.getSubcommand();
-    if (action === "status") {
-      const status = await services.guildBoss.status(interaction.guildId, interaction.user.id);
-      const boss = status.boss;
-      const hp = Number(boss.hp);
-      const maxHp = Number(boss.max_hp);
-      const leaders = status.leaders.map((row, index) =>
-        "**" + (index + 1) + ".** <@" + row.userId + "> · " + row.damage.toLocaleString() + " damage"
-      );
-      return interaction.editReply(embed(
-        "🛡️ WEEKLY BOSS  /  " + boss.boss_name.toUpperCase(),
-        boss.description + "\n\n**Health:** " + hp.toLocaleString() + " / " + maxHp.toLocaleString() +
-          "\n" + bar(maxHp - hp, maxHp) + " defeated" +
-          "\n**Week starts:** " + status.periodStart +
-          (boss.status === "defeated" ? "\n\n✅ **Boss defeated!** Use /boss claim if you contributed." : "\n\nUse **/boss attack** to help your server."),
-        [
-          { name: "Your damage", value: status.contribution.damage.toLocaleString(), inline: true },
-          { name: "Your attacks", value: status.contribution.attacks.toLocaleString(), inline: true },
-          { name: "Top contributors", value: leaders.length ? leaders.join("\n") : "No one has attacked yet.", inline: false }
-        ],
-        boss.status === "defeated" ? 0x32865B : 0x851E2A
-      ));
-    }
-
-    if (action === "attack") {
-      const result = await services.guildBoss.attack(interaction.guildId, interaction.user.id);
-      return interaction.editReply(embed(
-        result.defeated ? "🏆 THE BOSS HAS FALLEN" : "⚔️ BOSS HIT LANDED",
-        "You dealt **" + result.damage.toLocaleString() + " damage** to **" + result.bossName + "**.\n\n" +
-          "**Boss health:** " + result.hp.toLocaleString() + " / " + result.maxHp.toLocaleString() +
-          (result.defeated ? "\n\nYour server defeated the weekly boss! Contributors can claim a clear reward with **/boss claim**." : ""),
-        [
-          { name: "Attack reward", value: "+" + result.rewardFc.toLocaleString() + " FC", inline: true },
-          { name: "XP earned", value: "+" + result.rewardXp + " XP", inline: true }
-        ],
-        result.defeated ? 0x32865B : 0x851E2A
-      ));
-    }
-
-    if (action === "leaderboard") {
-      const rows = await services.guildBoss.leaderboard(interaction.guildId, 10);
-      const lines = rows.map((row, index) =>
-        "**" + (index + 1) + ".** <@" + row.userId + "> · " +
-        row.damage.toLocaleString() + " damage · " + row.attacks + " attacks"
-      );
-      return interaction.editReply(embed(
-        "⚔️ WEEKLY BOSS CONTRIBUTIONS",
-        lines.length ? lines.join("\n") : "No one has attacked this week's boss yet. Reach level 3 and join in."
-      ));
-    }
-
-    const result = await services.guildBoss.claimRewards(interaction.guildId, interaction.user.id);
-    const history = result.claimed.map((item) =>
-      "**" + item.bossName + "** · #" + item.rank + " · +" +
-      item.fc.toLocaleString() + " FC · +" + item.xp + " XP"
-    );
-    return interaction.editReply(embed(
-      "🎁 BOSS CLEAR REWARDS CLAIMED",
-      "You claimed **" + result.claimed.length + "** boss-clear reward(s).\n\n" + history.join("\n"),
-      [
-        { name: "Total FC", value: "+" + result.totalFc.toLocaleString(), inline: true },
-        { name: "Total XP", value: "+" + result.totalXp.toLocaleString(), inline: true }
-      ],
-      0x32865B
-    ));
-  }
-};
-
 const achievementsCommand = {
   data: new SlashCommandBuilder()
     .setName("achievements")
@@ -507,24 +430,6 @@ const achievementsCommand = {
   }
 };
 
-const guideCommand = {
-  data: new SlashCommandBuilder()
-    .setName("guide")
-    .setDescription("See the main Fukishokai commands and what each one does."),
-  async execute(interaction) {
-    return interaction.editReply(embed(
-      "📖 FUKISHOKAI  /  QUICK GUIDE",
-      "Start with **/profile** to see your progress. Commands are shortcuts to the same game systems in /menu.",
-      [
-        { name: "💰 Earn and progress", value: "**/daily** — claim your daily FC and XP.\n**/job careers** — compare careers.\n**/job apply** — choose a career.\n**/work** — answer three questions for shift pay." },
-        { name: "🎮 Take part", value: "**/crime** — choose an operation and see its success chance.\n**/casino** — play Coin Flip, High Dice or Slots.\n**/play** — launch multiplayer party games." },
-        { name: "🛡️ Weekly team goal", value: "**/boss status** — check the shared boss.\n**/boss attack** — deal damage (level 3+, once every 8 hours).\n**/boss leaderboard** — see contributors.\n**/boss claim** — collect rewards after a clear." },
-        { name: "🏆 Check your standing", value: "**/profile** — view a member's progress.\n**/leaderboard** — compare wealth, levels, lifetime earnings or Party Points.\n**/achievements view** — track permanent milestones and rewards.\n**/menu** — open the full interactive dashboard." }
-      ]
-    ));
-  }
-};
-
 module.exports = {
   dailyCommand,
   profileCommand,
@@ -533,7 +438,5 @@ module.exports = {
   crimeCommand,
   casinoCommand,
   leaderboardCommand,
-  bossCommand,
-  guideCommand,
   achievementsCommand
 };
