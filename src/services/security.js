@@ -36,7 +36,7 @@ class SecurityService {
     }
   }
 
-  async isAboveBotRole(guild, userId) {
+  async getHierarchyExemptionStatus(guild, userId) {
     if (!guild || !userId) return false;
     if (this.isOwner(userId, guild.ownerId)) return true;
 
@@ -61,10 +61,15 @@ class SecurityService {
       }
       return exempt;
     } catch (_) {
-      // Fail closed: if the role configuration or hierarchy cannot be verified,
-      // do not generate a security log or take an automated action against the actor.
-      return true;
+      // Unknown hierarchy is not treated as proof of an exemption.
+      return null;
     }
+  }
+
+  async isAboveBotRole(guild, userId) {
+    // For monitoring and enforcement, an unknown hierarchy is treated as exempt:
+    // never punish or operationally escalate someone when their rank cannot be verified.
+    return (await this.getHierarchyExemptionStatus(guild, userId)) !== false;
   }
 
   clearHierarchyCache() {
@@ -98,9 +103,20 @@ class SecurityService {
   }
 
   async checkAccess(interaction) {
-    if (await this.isAboveBotRole(interaction.guild, interaction.user.id)) return { allowed: true };
+    const hierarchy = await this.getHierarchyExemptionStatus(interaction.guild, interaction.user.id);
+    if (hierarchy === true) return { allowed: true };
+
     const restriction = await this.getRestriction(interaction.guildId, interaction.user.id);
-    return restriction ? { allowed: false, reason: restriction.reason, expiresAt: restriction.expires_at } : { allowed: true };
+    if (!restriction) return { allowed: true };
+
+    // Do not let a failed role lookup silently bypass a bot restriction.
+    // Unverifiable members are denied only while an active bot restriction exists.
+    return {
+      allowed: false,
+      reason: restriction.reason,
+      expiresAt: restriction.expires_at,
+      verificationFailed: hierarchy === null
+    };
   }
 
   async createIncident(client, input) {

@@ -278,7 +278,11 @@ function createIdeServer(client, services) {
           crypto.timingSafeEqual(actualKey, expectedKey);
         if (!authorized) return json(res, 401, { error: "Workspace API key is missing or invalid." });
 
-        const guildId = session.guildId;
+        // The bearer-key integration is server-scoped; it does not use a browser OAuth session.
+        const guildId = String(settings.ideGuildId || "");
+        if (!/^[0-9]{1,25}$/.test(guildId)) {
+          return json(res, 503, { error: "Configure IDE_GUILD_ID (or GUILD_ID) to scope the AI workspace API to one server." });
+        }
         const filesPath = "/api/ai/workspace/files";
         const fileRoute = url.pathname.match(/^\/api\/ai\/workspace\/files\/([a-z0-9_-]{1,32}\.js)$/i);
         const actorId = "ai_workspace_agent";
