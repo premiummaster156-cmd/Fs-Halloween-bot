@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require("discord.js");
 const { openMenu, openAdmin } = require("./dashboard");
-const { leaderboardCommand } = require("./gameplay");
+const { leaderboardCommand, profileCommand } = require("./gameplay");
 
 const commands = [
   {
@@ -19,6 +19,7 @@ const commands = [
       return openAdmin(interaction, services);
     }
   },
+  profileCommand,
   leaderboardCommand
 ];
 
