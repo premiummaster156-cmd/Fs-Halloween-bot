@@ -770,3 +770,44 @@ test("custom JavaScript command inspection rejects missing metadata and executio
   ].join("\n");
   await assert.rejects(runInIsolatedProcess(infinite, "run", {}), /time|runner/i);
 });
+
+
+test("an active bot restriction cannot be bypassed when Discord role hierarchy lookup fails", async () => {
+  const { SecurityService } = require("../src/services/security");
+  const security = new SecurityService({
+    query: async (sql) => {
+      if (String(sql).includes("SELECT expires_at, reason")) {
+        return {
+          rowCount: 1,
+          rows: [{ expires_at: new Date(Date.now() + 60000), reason: "Owner-approved bot restriction" }]
+        };
+      }
+      return { rowCount: 1, rows: [] };
+    }
+  }, {
+    get: async () => null
+  });
+
+  const guild = {
+    id: "guild-1",
+    ownerId: "guild-owner",
+    members: {
+      me: { roles: { highest: { id: "bot-role" } } },
+      fetch: async () => { throw new Error("Discord member lookup temporarily unavailable"); }
+    }
+  };
+  const interaction = {
+    guild,
+    guildId: guild.id,
+    user: { id: "restricted-member" }
+  };
+
+  const access = await security.checkAccess(interaction);
+  assert.equal(access.allowed, false);
+  assert.equal(access.reason, "Owner-approved bot restriction");
+  assert.equal(access.verificationFailed, true);
+
+  // The monitoring path still treats unknown hierarchy conservatively and
+  // will not create incidents or apply actions when a member's rank is unknown.
+  assert.equal(await security.isAboveBotRole(guild, "restricted-member"), true);
+});
