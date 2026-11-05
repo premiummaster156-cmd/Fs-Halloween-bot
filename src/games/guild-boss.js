@@ -32,7 +32,8 @@ function bossForPeriod(periodStart) {
 
 function calculateBossDamage(level, roll = 170) {
   const safeLevel = Math.max(1, Math.min(40, Math.floor(Number(level) || 1)));
-  const safeRoll = Math.max(140, Math.min(200, Math.floor(Number(roll) || 170)));
+  const numericRoll = Number.isFinite(Number(roll)) ? Math.floor(Number(roll)) : 170;
+  const safeRoll = Math.max(140, Math.min(200, numericRoll));
   return safeRoll + safeLevel * 4;
 }
 
