@@ -99,6 +99,32 @@ test("upgrade prices rise with each item upgrade tier", () => {
   assert.ok(fifth > second);
 });
 
+test("the 10x FC multiplier applies to normal rewards but not casino payouts", async () => {
+  const { EconomyService } = require("../src/services/economy");
+  const service = new EconomyService({});
+  const client = {
+    query: async (sql) => {
+      if (sql.includes("SELECT wallet, prestige FROM players")) {
+        return { rowCount: 1, rows: [{ wallet: 100, prestige: 0 }] };
+      }
+      if (sql.includes("SELECT id FROM economy_ledger")) {
+        return { rowCount: 0, rows: [] };
+      }
+      return { rowCount: 1, rows: [] };
+    }
+  };
+  const originalRandom = Math.random;
+  Math.random = () => 0.999;
+  try {
+    const normal = await service.mutateTx(client, "guild", "member", 500, "daily_reward", "daily-test");
+    const casino = await service.mutateTx(client, "guild", "member", 500, "casino_payout", "casino-test");
+    assert.equal(normal.delta, 5000);
+    assert.equal(casino.delta, 500);
+  } finally {
+    Math.random = originalRandom;
+  }
+});
+
 test("10x FC earnings keep meaningful progression and equipment sinks", () => {
   assert.equal(balancing.economy.earningMultiplier, 10);
   const averageLevelOneDaily = ((balancing.economy.dailyMin + balancing.economy.dailyMax) / 2 + 8) *
@@ -123,7 +149,7 @@ test("rebirth multipliers double on every cycle and cooldown cuts have a safety 
   assert.equal(core.applyCooldownReduction(10000, 0.45, 6000), 6000);
 });
 
-test("rebirth requirements use an easier FC and level curve, with Candy and gear reserved for later rebirths", () => {
+test("rebirth requirements use a balanced FC and level curve, with Candy and gear reserved for later rebirths", () => {
   assert.equal(balancing.rebirth.startingWallet, 1000);
   assert.equal(balancing.rebirth.firstWalletRequirement, 30000);
   assert.equal(balancing.rebirth.firstLevelRequirement, 8);
