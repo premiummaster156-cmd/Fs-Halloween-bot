@@ -221,6 +221,7 @@ class EconomyService {
     if (existing.rowCount) return { duplicate: true, balance: Number(result.rows[0].wallet), delta: 0, candyDrop: null };
 
     const currentWallet = Number(result.rows[0].wallet);
+    const maxWallet = Number(balancing.economy.maxWallet);
     const career = balancing.careerEffects[result.rows[0].job_id] || {};
     let appliedAmount = amount;
     const dropEligible = amount > 0 && Boolean(balancing.candyDrops[reason]);
@@ -232,12 +233,25 @@ class EconomyService {
       const incomeBonus = Math.min(0.75, (gear.moneyBonus || 0) + (career.moneyBonus || 0));
       const multiplier = Math.max(1, Number(balancing.economy.earningMultiplier) || 1) *
         getRebirthMultiplier(result.rows[0].prestige) * (1 + incomeBonus);
-      appliedAmount = Math.min(balancing.economy.maxWallet - currentWallet, Math.floor(amount * multiplier));
-      if (appliedAmount < 1) throw new DomainError("Your wallet is at its maximum balance.", "WALLET_FULL");
+      appliedAmount = Math.floor(amount * multiplier);
+      if (!Number.isSafeInteger(appliedAmount) || appliedAmount < 1) {
+        throw new DomainError("This reward is too large to process safely.", "INVALID_REWARD_AMOUNT");
+      }
     }
-    const next = currentWallet + appliedAmount;
+
+    // The wallet has a display/spending ceiling, not an income ceiling. Keep as
+    // much as possible in the wallet and automatically bank the overflow so a
+    // full wallet never causes a completed reward to fail.
+    const normalizedWallet = appliedAmount > 0 ? Math.min(currentWallet, maxWallet) : currentWallet;
+    const recoveredWalletOverflow = appliedAmount > 0 ? Math.max(0, currentWallet - maxWallet) : 0;
+    const walletDelta = appliedAmount > 0
+      ? Math.min(appliedAmount, Math.max(0, maxWallet - normalizedWallet))
+      : appliedAmount;
+    const bankDelta = appliedAmount > 0
+      ? recoveredWalletOverflow + appliedAmount - walletDelta
+      : 0;
+    const next = normalizedWallet + walletDelta;
     if (next < 0) throw new DomainError("You do not have enough FS Coins in your wallet.", "INSUFFICIENT_FUNDS");
-    if (next > balancing.economy.maxWallet) throw new DomainError("That amount would exceed the wallet limit.", "WALLET_LIMIT");
 
     const candyDrop = appliedAmount > 0
       ? calculateCandyDrop(reason, gear.candyDropBonus || 0)
@@ -245,8 +259,8 @@ class EconomyService {
     const lifetimeEarned = LIFETIME_EARNING_REASONS.has(reason) ? Math.max(0, appliedAmount) : 0;
     const lifetimeSpent = LIFETIME_SPENDING_REASONS.has(reason) ? Math.max(0, -appliedAmount) : 0;
     await client.query(
-      "UPDATE players SET wallet = $3, lifetime_earned = lifetime_earned + $4, lifetime_spent = lifetime_spent + $5, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2",
-      [guildId, userId, next, lifetimeEarned, lifetimeSpent]
+      "UPDATE players SET wallet = $3, bank = bank + $4, lifetime_earned = lifetime_earned + $5, lifetime_spent = lifetime_spent + $6, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2",
+      [guildId, userId, next, bankDelta, lifetimeEarned, lifetimeSpent]
     );
     await client.query(
       "INSERT INTO economy_ledger (guild_id, user_id, delta, reason, reference, metadata) VALUES ($1, $2, $3, $4, $5, $6::jsonb)",
@@ -264,7 +278,7 @@ class EconomyService {
         [guildId, userId, balancing.halloween.eventId, candyDrop.amount]
       );
     }
-    return { duplicate: false, balance: next, delta: appliedAmount, baseDelta: amount, candyDrop };
+    return { duplicate: false, balance: next, delta: appliedAmount, walletDelta, bankDelta, baseDelta: amount, candyDrop };
   }
 
   async addXpTx(client, guildId, userId, amount, roleIds = [], activityBonus = 0) {
