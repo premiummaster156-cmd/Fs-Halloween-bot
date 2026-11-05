@@ -40,12 +40,15 @@ The existing `.env` in this project already has values configured for the requir
 
 ## Commands
 
-The bot now has two user-facing slash-command entry points:
+The bot has several focused slash-command entry points:
 
-- **/menu** — open the private player hub. Buttons and menus guide members through profile, rewards, careers, banking, transfers, gear, games, heists, Halloween and leaderboards.
-- **/admin panel** — open the private administration console. Server settings, event controls, player tools, leaderboard fairness, custom slash commands and audit history are managed inside the panel.
+- **/menu** — open the private player hub for profile, rewards, careers, banking, transfers, gear, economy games, heists, Halloween and leaderboards.
+- **/play** — launch public multiplayer games: Quick Draw, live Trivia, Rock–Paper–Scissors duels and Would You Rather. It also shows Party Points stats and rankings.
+- **/roast** — generate a random, light-hearted roast for a member.
+- **/fortune** — draw a once-a-day chaos fortune with a funny title, mini-mission and warning.
+- **/admin panel** — open the private administration console for server settings, event controls, player tools, leaderboard fairness, custom JavaScript commands and audit history.
 
-Actions that require typed values open a short form. Members no longer need separate slash commands for routine game actions. The older command names are removed when the slash commands are redeployed.
+Game dashboards remain focused on gameplay, while these commands provide direct shortcuts for activities that work better as public channel events.
 
 Casino games have a 100 FC minimum bet and no maximum bet; wagers are limited only by the player's available wallet balance. The base cooldown is 15 seconds and there is no daily wager cap. Equipped casino gear can increase the frequency of winning results and shorten the cooldown, while adjusting winning payouts to keep the published long-run return fair. Coin Flip, High Dice and Slots each have a base theoretical return of 95%. Slots has a 1% Jackpot (10×), 4% Big win (4×), 20% Small win (3.45×), and 75% no-win chance.
 
@@ -60,6 +63,20 @@ Equipment bonuses apply only while the item is equipped. Gear can improve work s
 5. Use **Gear** to equip items and upgrade each one up to five times. More expensive equipment has stronger bonuses; upgrades improve its effects. Gear can improve salary, FC and XP income, operation success, casino hit frequency, fines and cooldowns.
 6. Open **Rebirth** to see a live checklist. The first three rebirths require no gear, Candy-shop collectibles, Candy reserve or upgrades. Starting with the fourth, each rebirth adds a requirement for distinct owned equipment, unique Candy-shop collectibles and unspent Candy; gear-upgrade levels begin with the fifth. FC and player-level targets increase gently, while quest claims, job levels and work shifts grow gradually. Rebirth resets wallet to 1,000 FC, bank to zero, player level to 1 and current career. Owned equipment, upgrades, Candy, Candy-shop collectibles, event claims and lifetime records stay. Each rebirth doubles eligible FC and XP earnings: 2× after the first, 4× after the second, 8× after the third, and so on.
 7. Open **Halloween** to track quests, claim completed rewards, check the weekly activity mission and browse seasonal items.
+
+## Party Games and social features
+
+Party Games use **Party Points**, a separate non-spendable score. They do not create FS Coins, so multiplayer activity cannot inflate the economy.
+
+- **/play quick-draw** opens a 12-second lobby and starts a reaction-time race. Players who click before the signal are disqualified.
+- **/play trivia** launches a four-option live question. Each player gets one attempt; the first correct answer wins the round.
+- **/play duel opponent** challenges a member to Rock–Paper–Scissors. The challenged member must accept before both players lock in their moves.
+- **/play would-you-rather** starts a 45-second public vote and displays the server's final choice.
+- **/play leaderboard** and **/play stats** track Party Points, games, wins and win streaks.
+- **/roast member** generates a harmless, randomized one-liner. The bot suppresses notification pings.
+- **/fortune** gives each member one daily chaos-fortune card. It does not award coins or affect gameplay balance.
+
+Party-game records are stored in PostgreSQL and survive restarts. Active rounds are temporary; a restart ends any in-progress round, but it does not erase the leaderboard.
 
 ## Operations
 
