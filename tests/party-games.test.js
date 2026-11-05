@@ -97,6 +97,29 @@ test("active server boosters earn 15% more Party Game points", async () => {
   assert.equal(inserts[0][2], Math.floor(12 * (1 + require("../src/config/game-balancing").serverBoosterEffects.partyPointsBonus)));
 });
 
+test("active server boosters get a shorter daily Fortune cooldown", async () => {
+  const updates = [];
+  const pool = {
+    query: async (sql, values) => {
+      if (sql.includes("SELECT is_active")) return { rowCount: 1, rows: [{ is_active: true }] };
+      return { rowCount: 1, rows: [] };
+    }
+  };
+  const client = {
+    query: async (sql, values) => {
+      if (sql.includes("SELECT next_at")) return { rowCount: 1, rows: [{ next_at: new Date(0) }] };
+      if (sql.includes("UPDATE cooldowns SET next_at")) updates.push(values);
+      return { rowCount: 1, rows: [] };
+    }
+  };
+  const service = new PartyGameService(pool, { transact: (callback) => callback(client) });
+  await service.claimDailyFortune("guild-1", "booster-1");
+  assert.equal(updates.length, 1);
+  const remainingMs = updates[0][3].getTime() - Date.now();
+  const expectedMs = DAILY_FORTUNE_COOLDOWN_MS * (1 - require("../src/config/game-balancing").serverBoosterEffects.partyCooldownReduction);
+  assert.ok(Math.abs(remainingMs - expectedMs) < 1000);
+});
+
 test("party leaderboard and profile queries are scoped to the requested guild and member", async () => {
   const calls = [];
   const service = new PartyGameService({
