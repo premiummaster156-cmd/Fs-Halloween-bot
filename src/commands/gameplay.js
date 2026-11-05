@@ -338,7 +338,7 @@ const casinoCommand = {
 const leaderboardCommand = {
   data: new SlashCommandBuilder()
     .setName("leaderboard")
-    .setDescription("View Fukishokai's wealth, level, earnings or party-game rankings.")
+    .setDescription("View Fukishokai's public wealth, level, earnings or party-game rankings.")
     .addStringOption((option) => option
       .setName("ranking")
       .setDescription("Choose what you want to rank.")
@@ -351,27 +351,39 @@ const leaderboardCommand = {
       )),
   async execute(interaction, services) {
     const metric = interaction.options.getString("ranking", true);
+    const medals = ["🥇", "🥈", "🥉"];
     if (metric === "party") {
       const rows = await services.partyGames.leaderboard(interaction.guildId, 10);
-      const lines = rows.map((row, index) =>
-        "**" + (index + 1) + ".** <@" + row.user_id + "> · " +
-        Number(row.points).toLocaleString() + " points · " + Number(row.wins).toLocaleString() + " wins"
-      );
+      const lines = rows.map((row, index) => {
+        const games = Number(row.games) || 0;
+        const wins = Number(row.wins) || 0;
+        const winRate = games ? Math.round(wins / games * 100) : 0;
+        return (medals[index] || "**#" + (index + 1) + "**") + " <@" + row.user_id + "> · **" +
+          Number(row.points).toLocaleString() + " PP** · " + wins.toLocaleString() + "/" +
+          games.toLocaleString() + " wins (" + winRate + "%)";
+      });
       return interaction.editReply(embed(
-        "🏆 PARTY POINTS LEADERBOARD",
-        lines.length ? lines.join("\n") : "No party-game results yet."
+        "🏆 PARTY POINTS  /  TOP 10",
+        lines.length ? "The server's most active Party Games players.\n\n" + lines.join("\n") : "No party-game results yet.",
+        [{ name: "Scoring", value: "Party Points are earned through completed Party Games. Wins, total games and streaks remain part of each player's record." }]
       ));
     }
+
     const rows = await getLeaderboard(services.pool, interaction.guildId, metric, 10);
-    const lines = rows.map((row, index) => {
-      const score = Number(row.score);
-      const value = metric === "level" ? "Level " + score : score.toLocaleString() + (metric === "wealth" ? " FC" : " FC earned");
-      return "**" + (index + 1) + ".** <@" + row.user_id + "> · " + value;
-    });
-    const title = metric === "wealth" ? "WEALTH" : metric === "level" ? "PLAYER LEVEL" : "LIFETIME EARNINGS";
+    const scoreLabel = (score) => metric === "level"
+      ? "Level " + score.toLocaleString()
+      : score.toLocaleString() + (metric === "wealth" ? " FC total wealth" : " FC lifetime earned");
+    const lines = rows.map((row, index) =>
+      (medals[index] || "**#" + (index + 1) + "**") + " <@" + row.user_id + "> · **" + scoreLabel(Number(row.score)) + "**"
+    );
+    const title = metric === "wealth" ? "TOTAL WEALTH" : metric === "level" ? "PLAYER LEVEL" : "LIFETIME FC EARNED";
+    const explanation = metric === "wealth"
+      ? "Wallet and bank balances combined."
+      : metric === "level" ? "Current player level, with XP used to break ties." : "Total FC earned over the member's lifetime.";
     return interaction.editReply(embed(
-      "🏆 " + title + " LEADERBOARD",
-      lines.length ? lines.join("\n") : "No leaderboard data is available yet."
+      "🏆 " + title + "  /  TOP 10",
+      lines.length ? "The server's current leaders.\n\n" + lines.join("\n") : "No leaderboard data is available yet.",
+      [{ name: "Ranking metric", value: explanation }]
     ));
   }
 };

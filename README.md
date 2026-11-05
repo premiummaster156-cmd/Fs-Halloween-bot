@@ -46,7 +46,7 @@ The bot's built-in Discord slash-command list is intentionally limited to these 
 - **/admin-panel** — opens the private administration console. Only the server owner, configured bot owner and configured trusted Admin Role can use it.
 - **/leaderboard ranking:** — publishes a public leaderboard for total wealth, player level, lifetime FC earned or Party Points.
 
-Use the dashboard for the other player features. Dashboard navigation and administration screens remain private; completed gameplay receipts are posted publicly in the configured game channel. The `/leaderboard` response is public so everyone in the channel can see the rankings.
+Use the dashboard for the other player features, including the permanent Achievement Book. Dashboard navigation and administration screens remain private; completed gameplay receipts are posted publicly in the configured game channel. The `/leaderboard` response is public so everyone in the channel can see the rankings, with medal positions, scores and Party Games win rates.
 
 The admin console retains its custom JavaScript command workspace. A custom slash command appears in Discord only when an authorized administrator explicitly publishes it; the default deployment contains only the three built-in commands.
 
@@ -64,7 +64,11 @@ Equipment bonuses apply only while the item is equipped. Gear can improve work s
 4. Open **Games** to review crime and casino risks, or **Heists** to create a crew. The bot posts a public crew board that updates with each member and chosen role, then publishes the final mission result when the leader starts it.
 5. Use **Gear** to equip items and upgrade each one up to five times. More expensive equipment has stronger bonuses; upgrades improve its effects. Gear can improve salary, FC and XP income, operation success, casino hit frequency, fines and cooldowns.
 6. Open **Rebirth** to see a live checklist. The first three rebirths require no gear, Candy-shop collectibles, Candy reserve or upgrades. Starting with the fourth, each rebirth adds a requirement for distinct owned equipment, unique Candy-shop collectibles and unspent Candy; gear-upgrade levels begin with the fifth. FC and player-level targets increase gently, while quest claims, job levels and work shifts grow gradually. Rebirth resets wallet to 1,000 FC, bank to zero, player level to 1 and current career. Owned equipment, upgrades, Candy, Candy-shop collectibles, event claims and lifetime records stay. Each rebirth doubles eligible FC and XP earnings: 2× after the first, 4× after the second, 8× after the third, and so on.
-7. Open **Halloween** to track quests, claim completed rewards, check the weekly activity mission and browse seasonal items.
+7. Open **Achievements** to track permanent milestones and claim each unlocked FC/XP reward once. Open **Halloween** to track quests, claim completed rewards, check the weekly activity mission and browse seasonal items.
+
+## Achievements
+
+The private dashboard's **Achievements** page tracks ten permanent milestones across work shifts, career levels, successful operations, heists, player level, combined wealth, rebirths and Party Games. Each milestone shows live progress and its FC/XP reward. Unlocked rewards are claimed through the dashboard and can only be collected once; achievement progress does not expire.
 
 ## Party Games and social features
 
