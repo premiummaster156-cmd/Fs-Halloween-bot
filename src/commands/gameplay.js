@@ -93,9 +93,9 @@ const profileCommand = {
           " · Personal boosts recorded: " + booster.personalBoostCount +
           " · Server total: " + booster.serverBoostCount +
           (booster.unlockedItems.length
-            ? "\\n🌟 MYTHIC items: " + booster.unlockedItems.map((item) => item.name).join(", ")
+            ? "\n🌟 MYTHIC items: " + booster.unlockedItems.map((item) => item.name).join(", ")
             : "") +
-          (booster.active ? "\\nPassive server-booster bonuses are active." : "\\nEarned MYTHIC items and their upgrades stay in your inventory."),
+          (booster.active ? "\nPassive server-booster bonuses are active." : "\nEarned MYTHIC items and their upgrades stay in your inventory."),
         inline: false
       });
     }
