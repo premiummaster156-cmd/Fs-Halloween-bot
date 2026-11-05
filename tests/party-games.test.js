@@ -68,17 +68,33 @@ test("party stats record only bounded non-negative points and increment win stre
   const service = new PartyGameService({
     query: async (sql, values) => {
       calls.push({ sql, values });
+      if (sql.includes("SELECT is_active")) return { rowCount: 1, rows: [{ is_active: false }] };
       return { rowCount: 1, rows: [] };
     }
   }, {});
   await service.record("guild-1", "player-1", { points: 12, won: true });
-  assert.equal(calls.length, 1);
-  assert.match(calls[0].sql, /INSERT INTO party_game_stats/);
-  assert.match(calls[0].sql, /current_streak/);
-  assert.deepEqual(calls[0].values, ["guild-1", "player-1", 12, 1, 1]);
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].sql, /SELECT is_active/);
+  assert.match(calls[1].sql, /INSERT INTO party_game_stats/);
+  assert.match(calls[1].sql, /current_streak/);
+  assert.deepEqual(calls[1].values, ["guild-1", "player-1", 12, 1, 1]);
   await service.record("guild-1", "player-2", { points: 999999, won: false });
-  assert.equal(calls[1].values[2], 1000);
-  assert.equal(calls[1].values[3], 0);
+  assert.equal(calls[3].values[2], 1000);
+  assert.equal(calls[3].values[3], 0);
+});
+
+test("active server boosters earn 15% more Party Game points", async () => {
+  const inserts = [];
+  const pool = {
+    query: async (sql, values) => {
+      if (sql.includes("SELECT is_active")) return { rowCount: 1, rows: [{ is_active: true }] };
+      inserts.push(values);
+      return { rowCount: 1, rows: [] };
+    }
+  };
+  const service = new PartyGameService(pool, {});
+  await service.record("guild-1", "booster-1", { points: 12, won: true });
+  assert.equal(inserts[0][2], Math.floor(12 * (1 + require("../src/config/game-balancing").serverBoosterEffects.partyPointsBonus)));
 });
 
 test("party leaderboard and profile queries are scoped to the requested guild and member", async () => {
