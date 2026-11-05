@@ -4,7 +4,14 @@ const balancing = require("../config/game-balancing");
 const { DomainError, uuid, randomInt, claimCooldownTx, levelXpRequired, getRebirthMultiplier, applyCooldownReduction } = require("../utils/core");
 
 const MULTIPLIED_EARNING_REASONS = new Set([
-  "daily_reward", "job_work", "crime_success", "heist_reward", "chat_activity_reward"
+  "daily_reward",
+  "job_work",
+  "crime_success",
+  "heist_reward",
+  "chat_activity_reward",
+  "achievement_reward",
+  "guild_boss_attack",
+  "guild_boss_clear"
 ]);
 
 async function ensurePlayerTx(client, guildId, userId) {
@@ -171,7 +178,8 @@ class EconomyService {
       ? await this.inventory.getEffectsTx(client, guildId, userId)
       : {};
     if (earningEligible) {
-      const multiplier = getRebirthMultiplier(result.rows[0].prestige) * (1 + (gear.moneyBonus || 0));
+      const multiplier = Math.max(1, Number(balancing.economy.earningMultiplier) || 1) *
+        getRebirthMultiplier(result.rows[0].prestige) * (1 + (gear.moneyBonus || 0));
       appliedAmount = Math.min(balancing.economy.maxWallet - currentWallet, Math.floor(amount * multiplier));
       if (appliedAmount < 1) throw new DomainError("Your wallet is at its maximum balance.", "WALLET_FULL");
     }
