@@ -480,11 +480,20 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
   if (page === "home") {
     const cfg = await s.guildSettings.getAll(guildId);
     const ev = await s.halloween.getEvent(guildId);
+    const overview = await s.pool.query(
+      "SELECT " +
+      "(SELECT COUNT(*) FROM players WHERE guild_id = $1)::int AS players, " +
+      "(SELECT COUNT(*) FROM custom_commands WHERE guild_id = $1 AND deleted_at IS NULL)::int AS custom_commands, " +
+      "(SELECT COUNT(*) FROM security_incidents WHERE guild_id = $1 AND status = 'open')::int AS open_incidents",
+      [guildId]
+    );
+    const totals = overview.rows[0] || { players: 0, custom_commands: 0, open_incidents: 0 };
     return panel("FUKISHOKAI  /  ADMIN CONSOLE", "One private control centre for the server. The server owner, bot owner and configured Admin Role can manage every control here.",
       [
         { name: "🔐 Bot access", value: "Server owner + OWNER_ID + the configured Admin Role. Discord Administrator alone does not grant bot control." },
         { name: "⚙️ Server setup", value: "Admin role: " + (cfg.adminRoleId ? "<@&" + cfg.adminRoleId + ">" : "Not configured") + "\nLog channel: " + (cfg.logChannelId ? "<#" + cfg.logChannelId + ">" : "Not set") + "\nHalloween reward role: " + (cfg.halloweenRoleId ? "<@&" + cfg.halloweenRoleId + ">" : "Not set") },
-        { name: "🎃 Halloween", value: ev ? (ev.enabled ? "Enabled" : "Disabled") + " · Ends <t:" + Math.floor(new Date(ev.ends_at).getTime() / 1000) + ":R>" : "Not configured" }
+        { name: "🎃 Halloween", value: ev ? (ev.enabled ? "Enabled" : "Disabled") + " · Ends <t:" + Math.floor(new Date(ev.ends_at).getTime() / 1000) + ":R>" : "Not configured" },
+        { name: "📊 Operations overview", value: Number(totals.players).toLocaleString() + " player profiles · " + Number(totals.custom_commands).toLocaleString() + " saved custom commands · " + Number(totals.open_incidents).toLocaleString() + " open security incidents" }
       ], [
         row(aBtn(owner, "settings", "Server settings", ButtonStyle.Primary, "⚙️"), aBtn(owner, "event", "Event controls", ButtonStyle.Secondary, "🎃")),
         row(aBtn(owner, "player", "Player management", ButtonStyle.Secondary, "👤"), aBtn(owner, "fairness", "Leaderboard fairness", ButtonStyle.Secondary, "🏆")),
@@ -1418,4 +1427,4 @@ async function handleDashboardInteraction(i, s) {
     return handleSelection(i, s, p[0], p[1], p[2], p);
   }
 }
-module.exports = { openMenu, openAdmin, handleDashboardInteraction, isAdmin, buildHeistEmbed, recordMemberAction };
+module.exports = { openMenu, openAdmin, handleDashboardInteraction, isAdmin, buildHeistEmbed, recordMemberAction, renderMenu };
