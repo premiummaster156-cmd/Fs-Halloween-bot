@@ -192,7 +192,7 @@ async function renderMenu(guildId, owner, page, s) {
       [
         row(btn(owner, "profile", "Profile", ButtonStyle.Primary, "👤"), btn(owner, "earn", "Earn", ButtonStyle.Success, "💰"), btn(owner, "career", "Careers", ButtonStyle.Secondary, "💼"), btn(owner, "gear", "Gear", ButtonStyle.Secondary, "🎒"), btn(owner, "games", "Games", ButtonStyle.Secondary, "🎮")),
         row(btn(owner, "heists", "Heists", ButtonStyle.Secondary, "🕵️"), btn(owner, "event", "Halloween", ButtonStyle.Secondary, "🎃"), btn(owner, "bank", "Bank", ButtonStyle.Secondary, "🏦"), btn(owner, "transfer", "Transfer", ButtonStyle.Secondary, "↗️"), btn(owner, "rankings", "Rankings", ButtonStyle.Secondary, "🏆")),
-        row(btn(owner, "rebirth", "Rebirth", ButtonStyle.Primary, "♻️"), btn(owner, "help", "How to play", ButtonStyle.Secondary, "📖"), btn(owner, "refresh", "Refresh", ButtonStyle.Secondary, "🔄"))
+        row(btn(owner, "rebirth", "Rebirth", ButtonStyle.Primary, "♻️"), btn(owner, "achievements", "Achievements", ButtonStyle.Secondary, "🏅"), btn(owner, "help", "How to play", ButtonStyle.Secondary, "📖"), btn(owner, "refresh", "Refresh", ButtonStyle.Secondary, "🔄"))
       ], "info", "FUKISHOKAI  •  Private player dashboard");
   }
   if (page === "profile") {
@@ -218,6 +218,30 @@ async function renderMenu(guildId, owner, page, s) {
         { name: "🧠 Work shift", value: career ? "Answer three questions based on your " + career.name + " role. Each correct answer adds to your pay and XP." : "No career selected. Open Careers first, then return here." },
         { name: "💬 Chat activity", value: "Every message from a human member counts toward weekly activity, including rapid or spam messages. Chat FC and XP rewards still have daily caps." }
       ], [row(btn(owner, "daily", "Claim Daily", ButtonStyle.Success, "🎁"), btn(owner, "work", "Start Work Shift", ButtonStyle.Primary, "🧠")), nav]);
+  }
+  if (page === "achievements") {
+    const entries = await s.achievements.status(guildId, owner);
+    const claimed = entries.filter((item) => item.claimed).length;
+    const ready = entries.filter((item) => item.unlocked && !item.claimed);
+    const fields = entries.map((item) => {
+      const state = item.claimed ? "CLAIMED" : item.unlocked ? "READY TO CLAIM" : item.progressPercent + "%";
+      const progress = bar(item.current, item.target, 9);
+      return {
+        name: (item.claimed ? "✅ " : item.unlocked ? "🎁 " : "▫️ ") + item.name + " · " + state,
+        value: item.description + "\n" + progress + "\nReward: " + item.rewardFc.toLocaleString() + " FC · " + item.rewardXp + " XP"
+      };
+    });
+    const controls = [];
+    if (ready.length) {
+      controls.push(menu(owner, "achievement-claim", "Claim an unlocked achievement", ready.map((item) => ({
+        label: item.name,
+        value: item.id,
+        description: "+" + item.rewardFc.toLocaleString() + " FC · +" + item.rewardXp + " XP"
+      }))));
+    }
+    controls.push(nav);
+    return panel("ACHIEVEMENT BOOK", "Permanent milestones across work, careers, operations, heists, progression and Party Games. Progress never expires.\n\n**Collected:** " + claimed + "/" + entries.length + " · **Ready to claim:** " + ready.length,
+      fields, controls, ready.length ? "success" : "info", "FUKISHOKAI  •  Permanent player milestones");
   }
   if (page === "career") {
     const data = await s.jobs.view(guildId, owner);
@@ -721,8 +745,20 @@ async function handleSelection(i, s, scope, owner, action, parts) {
     if (value === owner) return i.reply({ content: "You cannot transfer FC to yourself.", flags: MessageFlags.Ephemeral });
     return i.showModal(modal("dash:" + owner + ":transfer-modal:" + value, "Send FS Coins", [{ id: "amount", label: "Amount in FC", placeholder: "1000", max: 12 }]));
   }
-  if (action === "equip" || action === "unequip" || action === "shop-buy" || action === "upgrade-item" || action === "crime-run" || action === "event-claim" || action === "event-buy" || action === "ranking-type") {
+  if (action === "equip" || action === "unequip" || action === "shop-buy" || action === "upgrade-item" || action === "crime-run" || action === "event-claim" || action === "event-buy" || action === "ranking-type" || action === "achievement-claim") {
     await i.deferUpdate();
+    if (action === "achievement-claim") {
+      const result = await s.achievements.claim(i.guildId, owner, value, memberRoleIds(i));
+      await recordMemberAction(i, s, "achievement_claimed",
+        "claimed the **" + result.achievement.name + "** achievement and received " + result.rewardFc.toLocaleString() + " FC.",
+        { achievementId: result.achievement.id, rewardFc: result.rewardFc, rewardXp: result.rewardXp });
+      return i.editReply(panel("ACHIEVEMENT CLAIMED", "**" + result.achievement.name + "**\n" + result.achievement.description,
+        [
+          { name: "FC reward", value: "+" + result.rewardFc.toLocaleString() + " FC", inline: true },
+          { name: "XP reward", value: "+" + result.rewardXp.toLocaleString() + " XP", inline: true },
+          { name: "Player level", value: String(result.level), inline: true }
+        ], [row(btn(owner, "achievements", "Achievement book")), navButton(owner)], "success"));
+    }
     if (action === "equip") {
       const r = await s.inventory.equip(i.guildId, owner, value);
       await recordMemberAction(i, s, "equipment_equipped", "equipped **" + r.item.name + "**.", { itemId: r.item.id, slot: r.item.slot });
@@ -1109,7 +1145,7 @@ async function handleButton(i, s) {
     if (roleNotice && payload.embeds[0]) payload.embeds[0].addFields({ name: "Final reward role", value: roleNotice });
     return i.editReply(payload);
   }
-  const pages = ["home", "profile", "earn", "career", "bank", "transfer", "gear", "shop", "games", "crime", "casino", "heists", "weekly", "event-shop", "rankings", "rebirth", "help"];
+  const pages = ["home", "profile", "earn", "career", "bank", "transfer", "gear", "shop", "games", "crime", "casino", "heists", "weekly", "event-shop", "rankings", "rebirth", "achievements", "help"];
   if (pages.includes(action)) return i.update(await renderMenu(i.guildId, owner, action, s));
   if (action === "refresh") return i.update(await renderMenu(i.guildId, owner, "home", s));
   if (action === "rebirth-review") return i.update(await renderMenu(i.guildId, owner, "rebirth-confirm", s));
