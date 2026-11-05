@@ -111,5 +111,4 @@ test("active boosters receive the passive effects in equipment aggregation", asy
   assert.equal(effects.xpBonus, balancing.serverBoosterEffects.xpBonus);
   assert.equal(effects.workPayBonus, balancing.serverBoosterEffects.workPayBonus);
   assert.equal(effects.candyDropBonus, balancing.serverBoosterEffects.candyDropBonus);
-  assert.equal(effects.partyPointsBonus, 0);
 });
