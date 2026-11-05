@@ -84,7 +84,7 @@ function getRebirthRequirements(player, claimedQuestCount = 0, inventoryRows = [
   const itemMilestone = rebirths >= balancing.rebirth.itemRequirementsStartAt;
   const itemSteps = itemMilestone ? rebirths - balancing.rebirth.itemRequirementsStartAt : 0;
   const gearItemsRequired = itemMilestone
-    ? Math.min(balancing.items.filter((item) => item.type === "equipment").length,
+    ? Math.min(balancing.items.filter((item) => item.type === "equipment" && item.rebirthEligible !== false).length,
       balancing.rebirth.firstGearItemsRequirement + itemSteps * balancing.rebirth.gearItemsGrowth)
     : 0;
   const candyItemsRequired = itemMilestone
@@ -104,17 +104,20 @@ function getRebirthRequirements(player, claimedQuestCount = 0, inventoryRows = [
   const currentJobLevel = Number(player.job_level || 1);
   const workShiftsCompleted = Number(player.rebirth_work_count || 0);
   const rows = Array.isArray(inventoryRows) ? inventoryRows : [];
+  const rebirthEligibleGearIds = new Set(balancing.items
+    .filter((item) => item.type === "equipment" && item.rebirthEligible !== false)
+    .map((item) => item.id));
   const ownedGearIds = new Set(rows
     .filter((row) => Number(row.quantity ?? 1) > 0)
     .map((row) => row.item_id || row.itemId)
-    .filter((id) => balancing.items.some((item) => item.id === id && item.type === "equipment")));
+    .filter((id) => rebirthEligibleGearIds.has(id)));
   const ownedCandyItemIds = new Set(rows
     .filter((row) => Number(row.quantity ?? 1) > 0)
     .map((row) => row.item_id || row.itemId)
     .filter((id) => balancing.halloween.shop.some((item) => item.id === id)));
   const gearUpgradeLevels = rows.reduce((sum, row) => {
     const id = row.item_id || row.itemId;
-    return sum + (balancing.items.some((item) => item.id === id && item.type === "equipment")
+    return sum + (rebirthEligibleGearIds.has(id)
       ? Math.max(0, Number(row.upgrade_level ?? row.upgradeLevel) || 0) : 0);
   }, 0);
   const candy = Math.max(0, Number(candyBalance) || 0);
