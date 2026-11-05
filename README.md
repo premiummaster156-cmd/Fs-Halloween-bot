@@ -40,6 +40,8 @@ The existing `.env` in this project already has values configured for the requir
 
 ## Commands
 
+Only three commands are needed to use the bot:
+
 The bot's built-in Discord slash-command list is intentionally limited to these three commands:
 
 - **/menu** — opens the private interactive player dashboard.
@@ -48,7 +50,7 @@ The bot's built-in Discord slash-command list is intentionally limited to these 
 
 Use the dashboard for the other player features, including the permanent Achievement Book. Dashboard navigation and administration screens remain private; completed gameplay receipts are posted publicly in the configured game channel. The `/leaderboard` response is public so everyone in the channel can see the rankings, with medal positions, scores and Party Games win rates.
 
-The admin console retains its custom JavaScript command workspace. A custom slash command appears in Discord only when an authorized administrator explicitly publishes it; the default deployment contains only the four built-in commands.
+The admin console retains its custom JavaScript command workspace. A custom slash command appears in Discord only when an authorized administrator explicitly publishes it; the default deployment contains only the three built-in commands.
 
 Casino games have a 100 FC minimum bet and no maximum bet; wagers are limited only by the player's available wallet balance. The base cooldown is 15 seconds and there is no daily wager cap. Equipped casino gear can increase the frequency of winning results and shorten the cooldown, while adjusting winning payouts to keep the published long-run return fair. Coin Flip, High Dice and Slots each have a base theoretical return of 95%. Slots has a 1% Jackpot (10×), 4% Big win (4×), 20% Small win (3.45×), and 75% no-win chance.
 
@@ -60,7 +62,7 @@ Members actively boosting this server receive automatic passive bonuses across F
 
 **Five 🌟 MYTHIC booster-exclusive items** are awarded by each member's own personal boost notifications — never by the server's total boost count. Personal boost #1 awards the **Crimson Oni Katana**; #2 the **Phantom Shogun Mask**; #3 the **Wraithguard Armor**; #4 the **Dragonfire Signet**; and #5 the **Eternal Kitsune Wings**. Every reward is added to that member's inventory and equipped automatically. There is no claim button and these items cannot be bought with FC. Each item has several strong perks, can be upgraded five times with FC from **/menu → Gear**, and is clearly marked **MYTHIC · BOOSTER EXCLUSIVE** so it cannot be confused with normal shop equipment. Earned items and upgrades stay after a member stops boosting; the separate passive booster bonuses apply only while the member is actively boosting.
 
-**Server setup required:** in Discord, open **Server Settings → Overview → System Messages Channel** and enable **Send a message when someone boosts this server**. The bot counts Discord's personal **GUILD_BOOST** system messages and ignores the separate server-tier milestone messages. Discord's member object exposes a boost-start timestamp, not a per-member boost quantity, so personal reward progress starts with the boost notifications the bot receives after this feature is deployed.
+**One-time server setup for automatic booster items:** in Discord, open **Server Settings → Overview → System Messages Channel** and enable **Send a message when someone boosts this server**. The bot must be able to view that channel and read its messages. Personal boost #1–#5 each grants the matching MYTHIC item automatically; if the boost notification is not delivered to a channel the bot can read, that boost cannot be counted. Older boosts from before setup are not backfilled. The bot counts Discord's personal **GUILD_BOOST** system messages and ignores the separate server-tier milestone messages. Discord's member object exposes a boost-start timestamp, not a per-member boost quantity, so personal reward progress starts with the boost notifications the bot receives after this feature is deployed.
 
 Equipment bonuses apply only while the item is equipped. Gear can improve work salary and XP, general FC and XP rewards, crime and heist outcomes, casino win chances, cooldowns, and random Candy drop chances. Each item can be upgraded five times; upgrades cost progressively more FC and require higher player levels. Casino gear improves the chance of hitting a win, while the payout is adjusted to preserve each game's published long-run return. Candy drops are rolled on real FC earnings: Daily 12%, Work 20%, successful Crime 14%, Heist rewards 26%, Casino payouts 6%, and chat FC rewards 2.5%. Equipped gear adds up to 20 percentage points to the chance, with upgrades strengthening the bonus. Drops remain available after the Halloween event schedule ends. The first three rebirths have no gear, Candy or upgrade requirements. Starting with the fourth rebirth, members need progressively more distinct equipment, unique Candy-shop collectibles and an unspent Candy reserve; gear-upgrade levels are added from the fifth rebirth onward. Rebirth begins at 30,000 FC in combined wallet and bank wealth and player level 8. It also requires claimed normal event quest rewards, an active career at the required job level, and completed work shifts in the current run. Each rebirth resets the wallet to 1,000 FC, bank to zero, player level to 1, and current career, while doubling FC and XP earning permanently (2×, then 4×, 8× and so on). For later rebirths, the FC target grows by 1.5×, the player-level target rises by two, claimed quest requirements increase by one up to the six normal quests, job level rises every two rebirths, and required work shifts increase by two.
 
@@ -73,6 +75,14 @@ Equipment bonuses apply only while the item is equipped. Gear can improve work s
 5. Use **Gear** to equip items and upgrade each one up to five times. More expensive equipment has stronger bonuses; upgrades improve its effects. Gear can improve salary, FC and XP income, operation success, casino hit frequency, fines and cooldowns.
 6. Open **Rebirth** to see a live checklist. The first three rebirths require no gear, Candy-shop collectibles, Candy reserve or upgrades. Starting with the fourth, each rebirth adds a requirement for distinct owned equipment, unique Candy-shop collectibles and unspent Candy; gear-upgrade levels begin with the fifth. FC and player-level targets increase gently, while quest claims, job levels and work shifts grow gradually. Rebirth resets wallet to 1,000 FC, bank to zero, player level to 1 and current career. Owned equipment, upgrades, Candy, Candy-shop collectibles, event claims and lifetime records stay. Each rebirth doubles eligible FC and XP earnings: 2× after the first, 4× after the second, 8× after the third, and so on.
 7. Open **Achievements** to track permanent milestones and claim each unlocked FC/XP reward once. Open **Halloween** to track quests, claim completed rewards, check the weekly activity mission and browse seasonal items.
+
+## Quick start for members
+
+1. Run **/menu**.
+2. Choose **Careers** and select the first job you qualify for.
+3. Open **Earn** and claim Daily or complete a Work shift.
+4. Open **Gear** to equip items. Normal gear is bought with FC; 🌟 MYTHIC booster gear is awarded automatically for your personal server boosts.
+5. Use **How to play** inside the menu whenever you need a plain-language explanation. You can ignore Rebirth, Casino and Heists until you want them.
 
 ## Achievements
 
