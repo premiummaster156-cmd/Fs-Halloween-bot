@@ -51,6 +51,7 @@ The bot has direct slash-command shortcuts as well as the full dashboard:
 - **/casino** — play Coin Flip, High Dice or Slots. The minimum bet is 100 FC; there is no maximum bet.
 - **/leaderboard ranking** — compare wealth, player levels, lifetime earnings or Party Points.
 - **/boss status**, **/boss attack**, **/boss leaderboard** and **/boss claim** — join the optional weekly cooperative boss fight.
+- **/achievements view** and **/achievements claim** — track permanent milestones across work, careers, operations, heists, leveling, wealth, rebirth and Party Games.
 - **/play** — launch Quick Draw, live Trivia, Rock–Paper–Scissors duels and Would You Rather.
 - **/roast** — generate a random, light-hearted roast for a member.
 - **/fortune** — draw a daily chaos-fortune card.
@@ -64,6 +65,10 @@ Most game results are public in the configured game channel. Work questions are 
 Each Monday (UTC), the server gets a new boss from a rotating set of four. Members at level 3 or higher can use **/boss attack** once every eight hours. Each hit deals level-scaled damage and grants 35 FC plus 10 XP. The shared boss has 22,000 HP, so members can work together throughout the week.
 
 Use **/boss status** to see health and your contribution, and **/boss leaderboard** to see the top damage dealt. If the server defeats the boss, every member who contributed can claim 700 FC and 80 XP with **/boss claim**. The top three contributors also receive extra FC and XP. Unclaimed clear rewards remain available across later weeks; members do not lose them when a new boss appears.
+
+### Permanent achievements
+
+The achievement book has ten milestones covering work shifts, career level, successful operations, heists, player level, total wealth, rebirths and Party Games. Use **/achievements view** to see exact progress and rewards, then **/achievements claim** to collect each unlocked reward once. Achievements do not expire, and there are no streak penalties or missed-day resets.
 
 Casino games have a 100 FC minimum bet and no maximum bet; wagers are limited only by the player's available wallet balance. The base cooldown is 15 seconds and there is no daily wager cap. Equipped casino gear can increase the frequency of winning results and shorten the cooldown, while adjusting winning payouts to keep the published long-run return fair. Coin Flip, High Dice and Slots each have a base theoretical return of 95%. Slots has a 1% Jackpot (10×), 4% Big win (4×), 20% Small win (3.45×), and 75% no-win chance.
 
