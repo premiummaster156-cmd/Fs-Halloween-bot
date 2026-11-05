@@ -19,6 +19,7 @@ const { ActivityService } = require("./services/activity");
 const { InventoryService } = require("./services/inventory");
 const { GuildSettingsService } = require("./services/guild-settings");
 const { SecurityService } = require("./services/security");
+const { ServerBoosterService } = require("./services/server-boosters");
 const { CustomCommandService } = require("./services/custom-commands");
 const { respond } = require("./ui");
 
@@ -34,11 +35,12 @@ async function start() {
   economy.inventory = inventory;
   const guildSettings = new GuildSettingsService(pool);
   const security = new SecurityService(pool, guildSettings);
+  const serverBoosters = new ServerBoosterService(pool);
   const customCommands = new CustomCommandService(pool);
   const restoredCommandFiles = await customCommands.restoreWorkspaceFiles();
   console.log("[workspace] Restored " + restoredCommandFiles + " JavaScript command file(s).");
   client.services = {
-    pool, balancing, economy, inventory, guildSettings, security, customCommands,
+    pool, balancing, economy, inventory, guildSettings, security, serverBoosters, customCommands,
     partyGames: new PartyGameService(pool, economy),
     jobs: new JobsGame(pool, economy, inventory),
     crime: new CrimeGame(pool, economy, inventory),
@@ -86,6 +88,8 @@ async function start() {
         if (!rate.allowed) {
           return interaction.reply({ content: "You're clicking through the dashboard very quickly. Please pause for a moment and try again.", flags: MessageFlags.Ephemeral });
         }
+        await serverBoosters.syncMember(interaction.member, interaction.guild)
+          .catch((error) => console.warn("[boosters] Could not refresh member boost status:", error.message));
         await handleDashboardInteraction(interaction, client.services);
       } catch (error) {
         console.error("[dashboard] Interaction failed:", error.code || error.name, error.message);
@@ -177,6 +181,8 @@ async function start() {
     }
 
     try {
+      await serverBoosters.syncMember(interaction.member, interaction.guild)
+        .catch((error) => console.warn("[boosters] Could not refresh member boost status:", error.message));
       if (command) await command.execute(interaction, client.services);
       else await client.services.customCommands.execute(interaction, customCommand);
     } catch (error) {
@@ -209,10 +215,23 @@ async function start() {
 
   client.on(Events.MessageCreate, (message) => {
     if (!message.guildId || message.author.bot || message.webhookId) return;
-    const roleIds = message.member ? Array.from(message.member.roles.cache.keys()) : [];
+    const roleIds = message.member?.roles?.cache
+      ? Array.from(message.member.roles.cache.keys())
+      : Array.isArray(message.member?.roles) ? message.member.roles : [];
+    if (message.member) {
+      serverBoosters.syncMember(message.member, message.guild)
+        .catch((error) => console.warn("[boosters] Message boost sync failed:", error.message));
+    }
     client.services.activity.trackMessage(message, roleIds).catch((error) => {
       console.error("[activity] Message tracking failed:", error.message);
     });
+  });
+
+  client.on(Events.GuildUpdate, (_oldGuild, newGuild) => {
+    if (Number.isFinite(Number(newGuild.premiumSubscriptionCount))) {
+      serverBoosters.syncGuild(newGuild.id, newGuild.premiumSubscriptionCount)
+        .catch((error) => console.warn("[boosters] Guild boost-tier sync failed:", error.message));
+    }
   });
 
   // Lightweight anti-nuke watch. Attribution depends on the bot having View Audit Log.
