@@ -248,6 +248,9 @@ const workCommand = {
       { name: "Correct answers", value: correct + "/3", inline: true },
       { name: "Job level", value: String(result.jobLevel), inline: true }
     ];
+    if (result.bankDelta > 0) {
+      fields.push({ name: "Saved to bank", value: "+" + result.bankDelta.toLocaleString() + " FC", inline: true });
+    }
     if (result.candyDrop) fields.push({ name: "Candy found", value: "+" + result.candyDrop.amount, inline: true });
     if (result.promoted) fields.push({ name: "Promotion", value: "Your career advanced to job level " + result.jobLevel + ".", inline: false });
     return interaction.editReply(embed(
