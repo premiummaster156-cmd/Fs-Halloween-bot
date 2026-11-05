@@ -109,3 +109,11 @@ test("all Party Games and social slash commands are registered with valid Discor
   const subcommands = play.options.map((option) => option.name);
   assert.deepEqual(subcommands, ["quick-draw", "trivia", "would-you-rather", "duel", "leaderboard", "stats"]);
 });
+
+
+test("custom JavaScript command names cannot shadow the new built-in social commands", () => {
+  const { validateCommandMeta } = require("../src/services/custom-commands");
+  for (const name of ["play", "roast", "fortune"]) {
+    assert.throws(() => validateCommandMeta(name, "A conflicting built-in command"), /reserved/);
+  }
+});
