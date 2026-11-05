@@ -6,7 +6,7 @@ const { EmbedBuilder, SlashCommandBuilder, REST, Routes } = require("discord.js"
 const settings = require("../config/settings");
 const workspace = require("./admin-workspace");
 
-const RESERVED_NAMES = new Set(["admin", "menu", "play", "roast", "fortune"]);
+const RESERVED_NAMES = new Set(["admin", "admin-panel", "leaderboard", "menu", "play", "roast", "fortune"]);
 const OPTION_TYPES = new Set(["string", "integer", "number", "boolean", "user", "channel", "role", "mentionable"]);
 const RESPONSE_KEYS = new Set(["visibility", "content", "title", "description", "color", "fields"]);
 const OPTION_KEYS = new Set(["name", "description", "type", "required", "choices", "minLength", "maxLength", "minValue", "maxValue"]);
