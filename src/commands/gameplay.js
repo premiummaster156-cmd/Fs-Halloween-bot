@@ -88,10 +88,14 @@ const profileCommand = {
     ];
     if (booster) {
       fields.push({
-        name: "Server Booster",
-        value: booster.active
-          ? "Active · " + booster.serverBoostCount + " total server boosts · +15% FC, XP, Party points and event rewards"
-          : "Not currently boosting · Previously earned booster items remain yours",
+        name: "⚡ Server Booster",
+        value: (booster.active ? "Active booster" : "Not currently boosting") +
+          " · Personal boosts recorded: " + booster.personalBoostCount +
+          " · Server total: " + booster.serverBoostCount +
+          (booster.unlockedItems.length
+            ? "\\n🌟 MYTHIC items: " + booster.unlockedItems.map((item) => item.name).join(", ")
+            : "") +
+          (booster.active ? "\\nPassive server-booster bonuses are active." : "\\nEarned MYTHIC items and their upgrades stay in your inventory."),
         inline: false
       });
     }
