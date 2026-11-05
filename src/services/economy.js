@@ -268,6 +268,8 @@ class EconomyService {
         ...metadata,
         baseAmount: amount,
         appliedMultiplier: amount > 0 && appliedAmount !== amount ? appliedAmount / amount : 1,
+        walletCredit: walletDelta,
+        bankedAmount: bankDelta,
         candyDrop: candyDrop ? candyDrop.amount : 0
       })]
     );
