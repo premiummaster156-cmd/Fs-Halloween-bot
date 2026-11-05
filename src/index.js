@@ -213,16 +213,16 @@ async function start() {
     }
   });
 
-  client.on(Events.MessageCreate, (message) => {
+  client.on(Events.MessageCreate, async (message) => {
     if (!message.guildId || message.author.bot || message.webhookId) return;
     const roleIds = message.member?.roles?.cache
       ? Array.from(message.member.roles.cache.keys())
       : Array.isArray(message.member?.roles) ? message.member.roles : [];
     if (message.member) {
-      serverBoosters.syncMember(message.member, message.guild)
+      await serverBoosters.syncMember(message.member, message.guild)
         .catch((error) => console.warn("[boosters] Message boost sync failed:", error.message));
     }
-    client.services.activity.trackMessage(message, roleIds).catch((error) => {
+    await client.services.activity.trackMessage(message, roleIds).catch((error) => {
       console.error("[activity] Message tracking failed:", error.message);
     });
   });
