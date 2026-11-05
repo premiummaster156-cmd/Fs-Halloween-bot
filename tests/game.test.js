@@ -235,6 +235,21 @@ test("server booster perks cover the economy, progression, operations and specia
   assert.equal(mask.rebirthEligible, false);
 });
 
+test("booster-only equipment cannot satisfy normal rebirth gear milestones", () => {
+  const { getRebirthRequirements } = require("../src/services/economy");
+  const player = {
+    wallet: 500000, bank: 0, level: 50, prestige: 3,
+    job_id: "street_runner", job_level: 30, rebirth_work_count: 30
+  };
+  const status = getRebirthRequirements(player, 6, [
+    { item_id: "booster_crimson_katana", quantity: 1, upgrade_level: 5 }
+  ], 25);
+  assert.equal(status.gearItemsRequired, 1);
+  assert.equal(status.gearItemsCount, 0);
+  assert.equal(status.gearUpgradeLevels, 0);
+  assert.equal(status.checks.gearItems, false);
+});
+
 test("rebirth multipliers double on every cycle and cooldown cuts have a safety cap", () => {
   assert.equal(core.getRebirthMultiplier(0), 1);
   assert.equal(core.getRebirthMultiplier(1), 2);
