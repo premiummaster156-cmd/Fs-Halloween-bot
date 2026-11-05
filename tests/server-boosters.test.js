@@ -1,8 +1,15 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const balancing = require("../src/config/game-balancing");
-const { ServerBoosterService, isActiveBooster } = require("../src/services/server-boosters");
+const { ServerBoosterService, isActiveBooster, applyBoosterEventReward } = require("../src/services/server-boosters");
 const { InventoryService } = require("../src/services/inventory");
+
+test("active boosters receive 15% extra Halloween Candy and event points", () => {
+  assert.equal(applyBoosterEventReward(75, true), 86);
+  assert.equal(applyBoosterEventReward(10, true), 11);
+  assert.equal(applyBoosterEventReward(75, false), 75);
+  assert.equal(applyBoosterEventReward(-10, true), 0);
+});
 
 test("booster status is read from the server-scoped member record", async () => {
   const calls = [];
