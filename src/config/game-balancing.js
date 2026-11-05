@@ -58,14 +58,14 @@ module.exports = {
       },
       slots: {
         name: "Slots", minLevel: 5,
-        theoreticalReturnRate: 0.90,
+        theoreticalReturnRate: 0.95,
         outcomes: [
-          { maxRoll: 4, label: "Jackpot", multiplierHundredths: 1000 },
-          { maxRoll: 44, label: "Big win", multiplierHundredths: 400 },
-          { maxRoll: 244, label: "Small win", multiplierHundredths: 345 },
+          { maxRoll: 9, label: "Jackpot", multiplierHundredths: 1000 },
+          { maxRoll: 49, label: "Big win", multiplierHundredths: 400 },
+          { maxRoll: 249, label: "Small win", multiplierHundredths: 345 },
           { maxRoll: 999, label: "No win", multiplierHundredths: 0 }
         ],
-        description: "0.5% Jackpot (10×), 4% Big win (4×), 20% Small win (3.45×), 75.5% no win. Long-run average return: 90%."
+        description: "1% Jackpot (10×), 4% Big win (4×), 20% Small win (3.45×), 75% no win. Long-run average return: 95%."
       }
     }
   },
