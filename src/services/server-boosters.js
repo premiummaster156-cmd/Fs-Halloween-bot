@@ -31,8 +31,7 @@ class ServerBoosterService {
     const role = roles.find((candidate) => {
       const tags = candidate.tags || {};
       return Object.prototype.hasOwnProperty.call(tags, "premiumSubscriber") ||
-        Object.prototype.hasOwnProperty.call(tags, "premium_subscriber") ||
-        candidate.name === "Server Booster";
+        Object.prototype.hasOwnProperty.call(tags, "premium_subscriber");
     });
     return role?.id || null;
   }
@@ -43,9 +42,16 @@ class ServerBoosterService {
     if (!userId || !guildId) return { synced: false, reason: "missing_member_or_guild" };
 
     const syncKey = guildId + ":" + userId;
+    const now = Date.now();
     const lastSyncAt = this.memberSyncAt.get(syncKey) || 0;
-    if (Date.now() - lastSyncAt < this.memberSyncCooldownMs) {
+    if (now - lastSyncAt < this.memberSyncCooldownMs) {
       return { synced: false, reason: "recently_synced" };
+    }
+    if (this.memberSyncAt.size > 10000) {
+      const staleBefore = now - this.memberSyncCooldownMs * 4;
+      for (const [key, syncedAt] of this.memberSyncAt) {
+        if (syncedAt < staleBefore) this.memberSyncAt.delete(key);
+      }
     }
 
     const hasPremiumSince = member && (
@@ -94,7 +100,7 @@ class ServerBoosterService {
     const granted = active
       ? await this.grantEligibleItems(guildId, userId, guildBoostCount)
       : [];
-    this.memberSyncAt.set(syncKey, Date.now());
+    this.memberSyncAt.set(syncKey, now);
     return { synced: true, active, serverBoostCount: guildBoostCount, granted };
   }
 
