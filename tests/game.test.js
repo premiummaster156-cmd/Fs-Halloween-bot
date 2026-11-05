@@ -214,7 +214,8 @@ test("3x FC earnings keep meaningful progression and equipment sinks", () => {
     balancing.items.filter((item) => !item.boosterOnly).map((item) => item.cost),
     [7000, 18000, 25000, 36000, 50000, 64000, 116000, 170000, 290000, 480000]
   );
-  assert.ok(balancing.items.every((item, index, items) => index === 0 || item.cost > items[index - 1].cost));
+  const normalEquipment = balancing.items.filter((item) => !item.boosterOnly);
+  assert.ok(normalEquipment.every((item, index, items) => index === 0 || item.cost > items[index - 1].cost));
 });
 
 test("server booster perks cover the economy, progression, operations and special gear tiers", () => {
@@ -228,11 +229,18 @@ test("server booster perks cover the economy, progression, operations and specia
   const katana = balancing.items.find((item) => item.id === "booster_crimson_katana");
   const mask = balancing.items.find((item) => item.id === "booster_phantom_mask");
   assert.ok(katana.boosterOnly);
-  assert.equal(katana.requiredServerBoosts, 1);
+  assert.equal(katana.boostNumber, 1);
   assert.equal(katana.rebirthEligible, false);
   assert.ok(mask.boosterOnly);
-  assert.equal(mask.requiredServerBoosts, 2);
+  assert.equal(mask.boostNumber, 2);
   assert.equal(mask.rebirthEligible, false);
+  const collection = balancing.items.filter((item) => item.boosterOnly).sort((a, b) => a.boostNumber - b.boostNumber);
+  assert.deepEqual(collection.map((item) => item.boostNumber), [1, 2, 3, 4, 5]);
+  assert.deepEqual(collection.map((item) => item.name), [
+    "Crimson Oni Katana", "Phantom Shogun Mask", "Wraithguard Armor",
+    "Dragonfire Signet", "Eternal Kitsune Wings"
+  ]);
+  assert.ok(collection.every((item) => item.cost > 0 && item.type === "equipment"));
 });
 
 test("booster-only equipment cannot satisfy normal rebirth gear milestones", () => {
