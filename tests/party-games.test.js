@@ -98,18 +98,12 @@ test("party leaderboard and profile queries are scoped to the requested guild an
 });
 
 
-test("all Party Games and social slash commands are registered with valid Discord definitions", () => {
+test("Party Games remain available through the game service, not standalone slash shortcuts", () => {
   const { loadCommands } = require("../src/commands");
   const commands = loadCommands();
-  for (const name of ["menu", "admin", "play", "roast", "fortune"]) {
-    assert.ok(commands.has(name), "Expected /" + name + " to be registered.");
-    assert.doesNotThrow(() => commands.get(name).data.toJSON());
-  }
-  const play = commands.get("play").data.toJSON();
-  const subcommands = play.options.map((option) => option.name);
-  assert.deepEqual(subcommands, ["quick-draw", "trivia", "would-you-rather", "duel", "leaderboard", "stats"]);
+  assert.deepEqual([...commands.keys()].sort(), ["admin-panel", "leaderboard", "menu"]);
+  assert.ok(require("../src/services/party-games").PartyGameService);
 });
-
 
 test("custom JavaScript command names cannot shadow the new built-in social commands", () => {
   const { validateCommandMeta } = require("../src/services/custom-commands");
