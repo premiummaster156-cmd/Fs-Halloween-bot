@@ -224,7 +224,7 @@ async function renderMenu(guildId, owner, page, s) {
       ...(booster ? [{
         name: "⚡ Server Booster",
         value: booster.active
-          ? "Active · Server boost tier: " + booster.serverBoostCount + " total boosts · +15% FC/XP and wider gameplay bonuses"
+          ? "Active · " + booster.serverBoostCount + " total server boosts · +15% FC, XP, Party points and event rewards"
           : "Not currently boosting · Booster-only gear already earned stays in your inventory",
         inline: false
       }] : [])
