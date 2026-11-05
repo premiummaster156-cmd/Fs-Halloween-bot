@@ -12,16 +12,17 @@ async function deploy() {
   const commands = Array.from(loadCommands().values()).map((command) => command.data.toJSON());
   const rest = new REST({ version: "10" }).setToken(settings.discordToken);
 
-  // Replace the application's global command list with the three supported built-ins.
-  await rest.put(Routes.applicationCommands(settings.clientId), { body: commands });
-
-  // Also replace the configured server's command list so old guild-scoped commands disappear immediately.
   if (guildId) {
+    // Guild commands override global commands in that server. Clear globals first so
+    // Discord does not show every command twice in the configured guild.
+    await rest.put(Routes.applicationCommands(settings.clientId), { body: [] });
     await rest.put(Routes.applicationGuildCommands(settings.clientId, guildId), { body: commands });
-    console.log("Registered exactly " + commands.length + " built-in commands globally and in guild " + guildId + ".");
+    console.log("Registered exactly " + commands.length + " built-in commands in guild " + guildId + "; global commands cleared.");
     return;
   }
 
+  // Without a configured guild, publish the built-ins globally only.
+  await rest.put(Routes.applicationCommands(settings.clientId), { body: commands });
   console.log("Registered exactly " + commands.length + " built-in commands globally.");
 }
 
