@@ -4,7 +4,7 @@ const { openMenu, openAdmin } = require("./dashboard");
 const { playCommand, roastCommand, fortuneCommand } = require("./party");
 const {
   dailyCommand, profileCommand, jobCommand, workCommand, crimeCommand,
-  casinoCommand, leaderboardCommand, bossCommand, guideCommand
+  casinoCommand, leaderboardCommand, bossCommand, guideCommand, achievementsCommand
 } = require("./gameplay");
 
 const commands = [
@@ -38,7 +38,8 @@ const commands = [
   casinoCommand,
   leaderboardCommand,
   bossCommand,
-  guideCommand
+  guideCommand,
+  achievementsCommand
 ];
 
 function loadCommands() {
