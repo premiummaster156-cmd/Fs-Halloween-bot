@@ -11,9 +11,35 @@ const { getPlayer, getLeaderboard } = require("../services/economy");
 const { getUpgradeCost } = require("../services/inventory");
 const { levelXpRequired, uuid, getRebirthMultiplier } = require("../utils/core");
 const { makeWorkChallenge } = require("../games/work-challenge");
+const { playQuickDraw, playTrivia, playWouldYouRather, playDuelWithOpponent } = require("./party");
 const { audit, sendLog } = require("../utils/logging");
 
 const sessions = new Map();
+
+async function launchPublicPartyGame(interaction, services, mode, opponent) {
+  const channel = interaction.channel;
+  if (!channel || typeof channel.send !== "function") {
+    throw new Error("Open /menu in a text channel where the bot can send public game messages.");
+  }
+  const publicInteraction = {
+    guildId: interaction.guildId,
+    guild: interaction.guild,
+    user: interaction.user,
+    message: null,
+    editReply: async (payload) => {
+      const message = await channel.send(payload);
+      if (!publicInteraction.message) publicInteraction.message = message;
+      return message;
+    }
+  };
+  if (mode === "quick-draw") await playQuickDraw(publicInteraction, services);
+  else if (mode === "trivia") await playTrivia(publicInteraction, services);
+  else if (mode === "would-you-rather") await playWouldYouRather(publicInteraction, services);
+  else if (mode === "duel") await playDuelWithOpponent(publicInteraction, services, opponent);
+  else throw new Error("Unknown Party Games mode.");
+  return publicInteraction.message;
+}
+
 
 function isOwner(i) {
   return Boolean((settings.ownerId && i.user.id === settings.ownerId) || i.guild?.ownerId === i.user.id);
@@ -408,12 +434,37 @@ async function renderMenu(guildId, owner, page, s) {
       [row(btn(owner, "rebirth-review", "Rebirth", ButtonStyle.Danger).setDisabled(!status.eligible), btn(owner, "event-shop", "Candy shop", ButtonStyle.Secondary)), nav]);
   }
   if (page === "games") {
-    return panel("OPERATIONS  /  GAME ROOM", "These activities involve risk. Read the possible costs and requirements before starting.",
+    return panel("OPERATIONS  /  GAME ROOM", "Choose your activity. Competitive Party Games launch publicly in this channel; your dashboard stays private.",
       [
-        { name: "🎭 Crime", value: "Attempt an operation for a possible reward. If caught, you pay a fine." },
-        { name: "🎰 Casino", value: "Play Coin Flip, High Dice or Slots. You can lose the full wager." },
-        { name: "🕵️ Heists", value: "Build a crew, pick roles and attempt a team mission." }
-      ], [row(btn(owner, "crime", "Crime", ButtonStyle.Secondary, "🎭"), btn(owner, "casino", "Casino", ButtonStyle.Secondary, "🎰"), btn(owner, "heists", "Heists", ButtonStyle.Primary, "🕵️")), nav]);
+        { name: "🎭 Crime", value: "Six risk-based operations with level gates, fines and career bonuses." },
+        { name: "🎰 Casino", value: "Coin Flip, High Dice and Slots with transparent odds and your personal round history." },
+        { name: "🕵️ Heists", value: "Five cooperative missions with specialist crew roles." },
+        { name: "🎮 Party Games", value: "Quick Draw, Live Trivia, Would You Rather and Rock–Paper–Scissors. Earn non-spendable Party Points." }
+      ], [row(btn(owner, "crime", "Crime", ButtonStyle.Secondary, "🎭"), btn(owner, "casino", "Casino", ButtonStyle.Secondary, "🎰"), btn(owner, "heists", "Heists", ButtonStyle.Secondary, "🕵️"), btn(owner, "party", "Party Games", ButtonStyle.Primary, "🎮")), nav]);
+  }
+  if (page === "party") {
+    const [stats, leaders] = await Promise.all([
+      s.partyGames.getStats(guildId, owner),
+      s.partyGames.leaderboard(guildId, 5)
+    ]);
+    const winRate = Number(stats.games) ? Math.round(Number(stats.wins) / Number(stats.games) * 100) : 0;
+    const ranking = leaders.length ? leaders.map((entry, index) =>
+      (["🥇", "🥈", "🥉"][index] || "**#" + (index + 1) + "**") + " <@" + entry.user_id + "> · " +
+      Number(entry.points).toLocaleString() + " PP · " + Number(entry.wins) + "/" + Number(entry.games) + " wins"
+    ).join("\\n") : "No Party Points yet. Start the first public game.";
+    return panel("PARTY GAMES  /  SOCIAL ARENA",
+      "Games are posted publicly in the channel where you opened /menu. Your dashboard remains private. Party Points are separate from FC and cannot be spent.",
+      [
+        { name: "🎖️ Your record", value: Number(stats.points).toLocaleString() + " Party Points · " + Number(stats.wins) + " wins · " + Number(stats.games) + " games · " + winRate + "% win rate" },
+        { name: "🔥 Win streak", value: Number(stats.current_streak) + " current · " + Number(stats.best_streak) + " best", inline: true },
+        { name: "🏆 Top players", value: ranking }
+      ],
+      [
+        row(btn(owner, "party-quick-draw", "Quick Draw", ButtonStyle.Success), btn(owner, "party-trivia", "Live Trivia", ButtonStyle.Primary)),
+        row(btn(owner, "party-wyr", "Would You Rather", ButtonStyle.Secondary), btn(owner, "party-refresh", "Refresh stats", ButtonStyle.Secondary)),
+        new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId("dash:" + owner + ":party-duel-target").setPlaceholder("Choose a member to challenge").setMinValues(1).setMaxValues(1)),
+        nav
+      ]);
   }
   if (page === "crime") {
     const p = await getPlayer(s.pool, guildId, owner);
@@ -809,6 +860,24 @@ async function handleSelection(i, s, scope, owner, action, parts) {
   }
 
   if (scope !== "dash") return;
+  if (action === "party-quick-draw" || action === "party-trivia" || action === "party-wyr") {
+    await i.deferUpdate();
+    const mode = action === "party-quick-draw" ? "quick-draw" : action === "party-trivia" ? "trivia" : "would-you-rather";
+    const game = await launchPublicPartyGame(i, s, mode);
+    return i.editReply(panel("PARTY GAME COMPLETE", "Your public game has finished in <#" + i.channelId + ">." +
+      (game ? "\\n[Open the game message](https://discord.com/channels/" + i.guildId + "/" + i.channelId + "/" + game.id + ")" : ""),
+      [], [row(btn(owner, "party", "Party Games")), navButton(owner)], "success"));
+  }
+  if (action === "party-refresh") return i.update(await renderMenu(i.guildId, owner, "party", s));
+  if (action === "party-duel-target") {
+    await i.deferUpdate();
+    const opponentMember = await i.guild.members.fetch(value).catch(() => null);
+    if (!opponentMember) return i.editReply(panel("DUEL NOT STARTED", "That member could not be found in this server.", [], [navButton(owner)], "warning"));
+    const game = await launchPublicPartyGame(i, s, "duel", opponentMember.user);
+    return i.editReply(panel("DUEL COMPLETE", "Your Rock–Paper–Scissors duel has finished in <#" + i.channelId + ">." +
+      (game ? "\\n[Open the duel message](https://discord.com/channels/" + i.guildId + "/" + i.channelId + "/" + game.id + ")" : ""),
+      [], [row(btn(owner, "party", "Party Games")), navButton(owner)], "success"));
+  }
   if (action === "job-apply") {
     await i.deferUpdate();
     const result = await s.jobs.apply(i.guildId, owner, value);
@@ -1222,7 +1291,7 @@ async function handleButton(i, s) {
     if (roleNotice && payload.embeds[0]) payload.embeds[0].addFields({ name: "Final reward role", value: roleNotice });
     return i.editReply(payload);
   }
-  const pages = ["home", "profile", "earn", "career", "bank", "transfer", "gear", "shop", "games", "crime", "casino", "heists", "weekly", "event-shop", "rankings", "rebirth", "achievements", "help"];
+  const pages = ["home", "profile", "earn", "career", "bank", "transfer", "gear", "shop", "games", "party", "crime", "casino", "heists", "weekly", "event-shop", "rankings", "rebirth", "achievements", "help"];
   if (pages.includes(action)) return i.update(await renderMenu(i.guildId, owner, action, s));
   if (action === "refresh") return i.update(await renderMenu(i.guildId, owner, "home", s));
   if (action === "rebirth-review") return i.update(await renderMenu(i.guildId, owner, "rebirth-confirm", s));
