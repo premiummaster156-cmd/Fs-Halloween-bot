@@ -147,7 +147,7 @@ test("the 10x FC multiplier applies to normal rewards but not casino payouts", a
   const service = new EconomyService({});
   const client = {
     query: async (sql) => {
-      if (sql.includes("SELECT wallet, prestige FROM players")) {
+      if (sql.includes("SELECT wallet, prestige, job_id FROM players")) {
         return { rowCount: 1, rows: [{ wallet: 100, prestige: 0 }] };
       }
       if (sql.includes("SELECT id FROM economy_ledger")) {
