@@ -19,6 +19,12 @@ function mentionSafe() {
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+function safeDisplayName(user) {
+  return String(user?.globalName || user?.username || "Player")
+    .replace(/[\\`*_~|]/g, "")
+    .replace(/@/g, "@\\u200b")
+    .slice(0, 48);
+}
 function gameId() {
   return randomUUID().replace(/-/g, "").slice(0, 10);
 }
@@ -61,7 +67,7 @@ async function playQuickDraw(interaction, services) {
     if (entrants.size >= 25) {
       return component.reply({ content: "The race lobby is full. The maximum is 25 players.", flags: MessageFlags.Ephemeral });
     }
-    entrants.set(component.user.id, component.user.globalName || component.user.username);
+    entrants.set(component.user.id, safeDisplayName(component.user));
     await component.deferUpdate();
     const names = Array.from(entrants.values()).map((name) => "• " + name).join("\n");
     await lobbyMessage.edit({
@@ -263,6 +269,8 @@ async function playDuel(interaction, services) {
   const opponent = interaction.options.getUser("opponent", true);
   if (opponent.id === interaction.user.id) throw new Error("You cannot challenge yourself. Even you deserve a worthy opponent.");
   if (opponent.bot) throw new Error("Bots do not duel. They have enough unfair advantages already.");
+  const opponentMember = await interaction.guild.members.fetch(opponent.id).catch(() => null);
+  if (!opponentMember) throw new Error("That opponent is not a member of this server.");
   const id = gameId();
   const acceptId = "party:" + id + ":accept";
   const declineId = "party:" + id + ":decline";
@@ -304,7 +312,8 @@ async function playDuel(interaction, services) {
     await message.edit({
       embeds: [render(declined ? "DUEL DECLINED" : "CHALLENGE EXPIRED",
         declined ? "<@" + opponent.id + "> declined the duel. No hard feelings. Probably." : "The challenge expired. Your opponent may be training in secret.")],
-      components: []
+      components: [],
+      allowedMentions: mentionSafe()
     });
     return;
   }
@@ -320,7 +329,8 @@ async function playDuel(interaction, services) {
       button(choiceIds[0], "🪨 Rock"),
       button(choiceIds[1], "📄 Paper"),
       button(choiceIds[2], "✂️ Scissors")
-    )]
+    )],
+    allowedMentions: mentionSafe()
   });
   let outcome = null;
   const game = choiceMessage.createMessageComponentCollector({
@@ -343,7 +353,8 @@ async function playDuel(interaction, services) {
         "🥊 MOVES LOCKED",
         "<@" + interaction.user.id + ">: **" + (choices.has(interaction.user.id) ? "Ready" : "Choosing...") + "**\n" +
         "<@" + opponent.id + ">: **" + (choices.has(opponent.id) ? "Ready" : "Choosing...") + "**\n\nYour actual moves are still hidden."
-      )]
+      )],
+      allowedMentions: mentionSafe()
     });
     if (choices.size === 2) {
       const result = resolveRps(choices.get(interaction.user.id), choices.get(opponent.id));
