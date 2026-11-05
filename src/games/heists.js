@@ -50,7 +50,7 @@ class HeistsGame {
       if (heist.leader_id !== userId) throw new DomainError("Only the heist leader can start it.", "HEIST_NOT_LEADER");
       const mission = balancing.heists.find((item) => item.id === heist.mission_id);
       const crewResult = await client.query(
-        "SELECT hp.user_id, hp.role_id, p.level, p.wallet FROM heist_participants hp JOIN players p ON p.guild_id = hp.guild_id AND p.user_id = hp.user_id WHERE hp.heist_id = $1 ORDER BY hp.user_id FOR UPDATE OF p",
+        "SELECT hp.user_id, hp.role_id, p.level, p.wallet, p.job_id FROM heist_participants hp JOIN players p ON p.guild_id = hp.guild_id AND p.user_id = hp.user_id WHERE hp.heist_id = $1 ORDER BY hp.user_id FOR UPDATE OF p",
         [heistId]
       );
       const crew = crewResult.rows;
@@ -69,7 +69,8 @@ class HeistsGame {
       const uniqueRoles = new Set(crew.map((member) => member.role_id)).size;
       const roleBonus = crew.reduce((sum, member) => {
         const gear = gearByUser.get(member.user_id) || {};
-        return sum + balancing.heistRoles[member.role_id].bonus + (gear.heistChance || 0);
+        const career = balancing.careerEffects[member.job_id] || {};
+        return sum + balancing.heistRoles[member.role_id].bonus + (gear.heistChance || 0) + (career.heistChance || 0);
       }, 0) + Math.max(0, uniqueRoles - 1) * 2;
       const successChance = calculateHeistChance(mission.baseChance, averageLevel, crew.length, mission.difficulty, roleBonus);
       const roll = randomInt(1, 100);
