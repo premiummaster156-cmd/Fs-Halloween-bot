@@ -101,7 +101,7 @@ test("party leaderboard and profile queries are scoped to the requested guild an
 test("Party Games remain available through the game service, not standalone slash shortcuts", () => {
   const { loadCommands } = require("../src/commands");
   const commands = loadCommands();
-  assert.deepEqual([...commands.keys()].sort(), ["admin-panel", "leaderboard", "menu"]);
+  assert.deepEqual([...commands.keys()].sort(), ["admin-panel", "leaderboard", "menu", "profile"]);
   assert.ok(require("../src/services/party-games").PartyGameService);
 });
 

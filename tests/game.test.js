@@ -58,6 +58,41 @@ test("crime and heist catalogs provide a full six-operation and five-mission pro
   assert.ok(balancing.heists.at(-1).minLevel > balancing.heists[0].minLevel);
 });
 
+test("earnings above the wallet ceiling are automatically saved to the bank", async () => {
+  const { EconomyService } = require("../src/services/economy");
+  const service = new EconomyService({});
+  const originalRandom = Math.random;
+  Math.random = () => 0.999;
+  try {
+    for (const scenario of [
+      { wallet: balancing.economy.maxWallet - 50, walletDelta: 50, bankDelta: 950 },
+      { wallet: balancing.economy.maxWallet, walletDelta: 0, bankDelta: 1000 }
+    ]) {
+      const updates = [];
+      const client = {
+        query: async (sql, values) => {
+          if (sql.includes("SELECT wallet, prestige, job_id FROM players")) {
+            return { rowCount: 1, rows: [{ wallet: scenario.wallet, prestige: 0, job_id: null }] };
+          }
+          if (sql.includes("SELECT id FROM economy_ledger")) return { rowCount: 0, rows: [] };
+          if (sql.includes("UPDATE players SET wallet =")) updates.push({ sql, values });
+          return { rowCount: 1, rows: [] };
+        }
+      };
+      const result = await service.mutateTx(client, "guild", "member", 100, "job_work", "wallet-cap-test-" + scenario.wallet);
+      assert.equal(result.delta, 1000);
+      assert.equal(result.balance, balancing.economy.maxWallet);
+      assert.equal(result.walletDelta, scenario.walletDelta);
+      assert.equal(result.bankDelta, scenario.bankDelta);
+      assert.equal(updates.length, 1);
+      assert.equal(updates[0].values[2], balancing.economy.maxWallet);
+      assert.equal(updates[0].values[3], scenario.bankDelta);
+    }
+  } finally {
+    Math.random = originalRandom;
+  }
+});
+
 test("career passive income bonus stacks with the 10x FC boost", async () => {
   const { EconomyService } = require("../src/services/economy");
   const service = new EconomyService({});

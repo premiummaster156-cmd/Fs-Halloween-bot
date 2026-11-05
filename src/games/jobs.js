@@ -85,7 +85,11 @@ class JobsGame {
       const progression = await this.economy.addXpTx(client, guildId, userId, baseXpEarned, roleIds, gear.workXpBonus || 0);
       await trackActionTx(client, guildId, userId, "work", 1);
       await trackActionTx(client, guildId, userId, "wallet_earned", pay);
-      return { job, pay, xpEarned, correctAnswers: correct, totalQuestions: total, promoted, jobLevel, progression, candyDrop: earning.candyDrop || null };
+      return {
+        job, pay, walletDelta: earning.walletDelta || 0, bankDelta: earning.bankDelta || 0,
+        xpEarned, correctAnswers: correct, totalQuestions: total, promoted, jobLevel,
+        progression, candyDrop: earning.candyDrop || null
+      };
     });
   }
 
