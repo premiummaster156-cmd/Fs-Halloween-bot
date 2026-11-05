@@ -75,7 +75,7 @@ test("two server boosts unlock both exclusive items for active boosters", async 
   const pool = {
     query: async (sql, values) => {
       if (sql.includes("INSERT INTO inventory")) {
-        grantedRows.push(values[1]);
+        grantedRows.push(values[2]);
         return { rowCount: 1, rows: [{ user_id: "member-1" }] };
       }
       return { rowCount: 1, rows: [] };
