@@ -265,3 +265,19 @@ CREATE INDEX IF NOT EXISTS bot_user_restrictions_expiry_idx
 -- Persistent public crew board for visible heist recruiting and final results.
 ALTER TABLE heists ADD COLUMN IF NOT EXISTS announcement_channel_id TEXT;
 ALTER TABLE heists ADD COLUMN IF NOT EXISTS announcement_message_id TEXT;
+
+
+-- Non-spendable points and records for public party mini-games.
+CREATE TABLE IF NOT EXISTS party_game_stats (
+  guild_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  points BIGINT NOT NULL DEFAULT 0 CHECK (points >= 0),
+  games BIGINT NOT NULL DEFAULT 0 CHECK (games >= 0),
+  wins BIGINT NOT NULL DEFAULT 0 CHECK (wins >= 0),
+  current_streak INTEGER NOT NULL DEFAULT 0 CHECK (current_streak >= 0),
+  best_streak INTEGER NOT NULL DEFAULT 0 CHECK (best_streak >= 0),
+  last_played_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (guild_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS party_game_stats_leaderboard_idx
+  ON party_game_stats (guild_id, points DESC, wins DESC, best_streak DESC);
