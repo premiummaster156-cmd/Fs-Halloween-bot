@@ -179,15 +179,15 @@ class GuildBossGame {
         const period = row.period_start instanceof Date
           ? row.period_start.toISOString().slice(0, 10)
           : String(row.period_start).slice(0, 10);
-        await this.economy.mutateTx(
+        const earning = await this.economy.mutateTx(
           client, guildId, userId, fc, "guild_boss_clear",
           "guild-boss-clear:" + period + ":" + userId,
           { periodStart: period, rank, damage: Number(row.damage) }
         );
         const progression = await this.economy.addXpTx(client, guildId, userId, xp);
-        totalFc += fc;
+        totalFc += earning.delta;
         totalXp += progression.gained;
-        claimed.push({ bossName: row.boss_name, rank, fc, xp: progression.gained });
+        claimed.push({ bossName: row.boss_name, rank, fc: earning.delta, xp: progression.gained });
       }
 
       if (!claimed.length) {

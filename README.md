@@ -52,15 +52,17 @@ The admin console retains its custom JavaScript command workspace. A custom slas
 
 ### Weekly cooperative boss
 
-Each Monday (UTC), the server gets a new boss from a rotating set of four. Members at level 3 or higher can use **/boss attack** once every eight hours. Each hit deals level-scaled damage and grants 35 FC plus 10 XP. The shared boss has 22,000 HP, so members can work together throughout the week.
+Each Monday (UTC), the server gets a new boss from a rotating set of four. Members at level 3 or higher can attack once every eight hours. Each hit deals level-scaled damage and grants 350 FC plus 10 XP after the FC earnings boost. The shared boss has 22,000 HP, so members can work together throughout the week.
 
-Use **/boss status** to see health and your contribution, and **/boss leaderboard** to see the top damage dealt. If the server defeats the boss, every member who contributed can claim 700 FC and 80 XP with **/boss claim**. The top three contributors also receive extra FC and XP. Unclaimed clear rewards remain available across later weeks; members do not lose them when a new boss appears.
+The weekly boss status and contribution records are retained. If the server defeats the boss, every contributing member can claim at least 7,000 FC and 80 XP. The top three contributors receive additional FC, for totals of 10,000 FC, 9,000 FC and 8,000 FC respectively. Unclaimed clear rewards remain available across later weeks.
 
 ### Permanent achievements
 
 The achievement book has ten milestones covering work shifts, career level, successful operations, heists, player level, total wealth, rebirths and Party Games. Use **/achievements view** to see exact progress and rewards, then **/achievements claim** to collect each unlocked reward once. Achievements do not expire, and there are no streak penalties or missed-day resets.
 
 Casino games have a 100 FC minimum bet and no maximum bet; wagers are limited only by the player's available wallet balance. The base cooldown is 15 seconds and there is no daily wager cap. Equipped casino gear can increase the frequency of winning results and shorten the cooldown, while adjusting winning payouts to keep the published long-run return fair. Coin Flip, High Dice and Slots each have a base theoretical return of 95%. Slots has a 1% Jackpot (10×), 4% Big win (4×), 20% Small win (3.45×), and 75% no-win chance.
+
+Normal FC rewards from Daily, Work, Crime, Heists, chat activity, achievements and weekly boss rewards are multiplied by 10×. Rebirth and equipped gear bonuses still stack on top. Casino payouts are deliberately excluded from this boost so their published 95% theoretical return remains unchanged.
 
 Equipment bonuses apply only while the item is equipped. Gear can improve work salary and XP, general FC and XP rewards, crime and heist outcomes, casino win chances, cooldowns, and random Candy drop chances. Each item can be upgraded five times; upgrades cost progressively more FC and require higher player levels. Casino gear improves the chance of hitting a win, while the payout is adjusted to preserve each game's published long-run return. Candy drops are rolled on real FC earnings: Daily 12%, Work 20%, successful Crime 14%, Heist rewards 26%, Casino payouts 6%, and chat FC rewards 2.5%. Equipped gear adds up to 20 percentage points to the chance, with upgrades strengthening the bonus. Drops remain available after the Halloween event schedule ends. The first three rebirths have no gear, Candy or upgrade requirements. Starting with the fourth rebirth, members need progressively more distinct equipment, unique Candy-shop collectibles and an unspent Candy reserve; gear-upgrade levels are added from the fifth rebirth onward. Rebirth begins at 12,000 FC in combined wallet and bank wealth and player level 8. It also requires claimed normal event quest rewards, an active career at the required job level, and completed work shifts in the current run. Each rebirth resets the wallet to 1,000 FC, bank to zero, player level to 1, and current career, while doubling FC and XP earning permanently (2×, then 4×, 8× and so on). For later rebirths, the FC target grows by 1.5×, the player-level target rises by two, claimed quest requirements increase by one up to the six normal quests, job level rises every two rebirths, and required work shifts increase by two.
 
@@ -76,17 +78,7 @@ Equipment bonuses apply only while the item is equipped. Gear can improve work s
 
 ## Party Games and social features
 
-Party Games use **Party Points**, a separate non-spendable score. They do not create FS Coins, so multiplayer activity cannot inflate the economy.
-
-- **/play quick-draw** opens a 12-second lobby and starts a reaction-time race. Players who click before the signal are disqualified.
-- **/play trivia** launches a four-option live question. Each player gets one attempt; the first correct answer wins the round.
-- **/play duel opponent** challenges a member to Rock–Paper–Scissors. The challenged member must accept before both players lock in their moves.
-- **/play would-you-rather** starts a 45-second public vote and displays the server's final choice.
-- **/play leaderboard** and **/play stats** track Party Points, games, wins and win streaks.
-- **/roast member** generates a harmless, randomized one-liner. The bot suppresses notification pings.
-- **/fortune** gives each member one daily chaos-fortune card. It does not award coins or affect gameplay balance.
-
-Party-game records are stored in PostgreSQL and survive restarts. Active rounds are temporary; a restart ends any in-progress round, but it does not erase the leaderboard.
+Party Games use **Party Points**, a separate non-spendable score. They do not create FS Coins, so multiplayer activity cannot inflate the economy. Historical party-game records remain stored and can be viewed through the Party Points option in **/leaderboard**. The standalone `/play`, `/roast` and `/fortune` shortcuts are not part of the registered built-in command list.
 
 ## Operations
 

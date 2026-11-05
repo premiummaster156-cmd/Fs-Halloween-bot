@@ -359,7 +359,7 @@ const leaderboardCommand = {
       );
       return interaction.editReply(embed(
         "🏆 PARTY POINTS LEADERBOARD",
-        lines.length ? lines.join("\n") : "No party-game results yet. Start a round with **/play**."
+        lines.length ? lines.join("\n") : "No party-game results yet."
       ));
     }
     const rows = await getLeaderboard(services.pool, interaction.guildId, metric, 10);

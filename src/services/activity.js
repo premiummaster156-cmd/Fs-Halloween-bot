@@ -60,11 +60,13 @@ class ActivityService {
       const xpReward = Math.min(xpRemaining, balancing.chat.xpPerMessage);
 
       let candyDrop = null;
+      let awardedFc = 0;
       if (reward > 0) {
         const earning = await this.economy.mutateTx(client, guildId, userId, reward, "chat_activity_reward", uuid(), {
           weekStart,
           channelId: message.channelId
         });
+        awardedFc = earning.delta;
         candyDrop = earning.candyDrop || null;
         await client.query(
           "UPDATE daily_chat_rewards SET earned = earned + $4, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2 AND reward_day = $3",
@@ -72,7 +74,7 @@ class ActivityService {
         );
         await client.query(
           "UPDATE weekly_activity SET chat_earned = chat_earned + $4, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2 AND week_start = $3",
-          [guildId, userId, weekStart, reward]
+          [guildId, userId, weekStart, awardedFc]
         );
       }
 
@@ -88,7 +90,7 @@ class ActivityService {
       return {
         counted: true,
         messages: Number(counted.rows[0].messages),
-        reward,
+        reward: awardedFc,
         candyDrop,
         rewardCapRemaining: Math.max(0, remaining - reward),
         xpReward,
