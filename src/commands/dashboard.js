@@ -385,7 +385,7 @@ async function renderMenu(guildId, owner, page, s) {
         (booster.collectionComplete
           ? "You have completed the special collection."
           : booster.nextItem
-            ? "Next boost reward: **" + booster.nextItem.name + "**. It is assigned and equipped automatically.")
+            ? "Next boost reward: **" + booster.nextItem.name + "**. It is assigned and equipped automatically."
       : "Personal boost progress appears here after your booster status is synced.";
     return panel("GEAR  /  YOUR ITEMS",
       "Two item types: **Normal gear** is bought with FC. **🌟 MYTHIC booster gear** is earned automatically from your own boosts. All equipment can be upgraded up to level " + balancing.itemUpgrades.maxLevel + " with FC.",
