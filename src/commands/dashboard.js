@@ -275,11 +275,22 @@ async function renderMenu(guildId, owner, page, s) {
       [menu(owner, "job-apply", "Choose a career to apply for", options), nav]);
   }
   if (page === "bank") {
-    const b = await s.economy.getBalance(guildId, owner);
-    return panel("BANK  /  FINANCES", "Move money between your wallet and bank. You can spend from your wallet; the bank keeps savings separate.", [
+    const [b, activity] = await Promise.all([
+      s.economy.getBalance(guildId, owner),
+      s.economy.getBankHistory(guildId, owner, 5)
+    ]);
+    const recent = activity.recent.map((item) => {
+      const deposited = item.reason === "bank_deposit";
+      const timestamp = Math.floor(new Date(item.created_at).getTime() / 1000);
+      return (deposited ? "⬆️ Deposited " : "⬇️ Withdrew ") + item.amount.toLocaleString() +
+        " FC · " + (Number.isFinite(timestamp) ? "<t:" + timestamp + ":R>" : "Recent");
+    });
+    return panel("BANK  /  FINANCES", "Move FC safely between your wallet and savings. Deposits and withdrawals are 1:1 with no transfer fee; bank movements do not count as new lifetime earnings.", [
       { name: "👛 Wallet", value: b.wallet.toLocaleString() + " FC", inline: true },
-      { name: "🏦 Bank", value: b.bank.toLocaleString() + " FC", inline: true },
-      { name: "💎 Combined wealth", value: b.total.toLocaleString() + " FC", inline: true }
+      { name: "🏦 Bank savings", value: b.bank.toLocaleString() + " FC", inline: true },
+      { name: "💎 Combined wealth", value: b.total.toLocaleString() + " FC", inline: true },
+      { name: "📈 Lifetime bank activity", value: "Deposited " + activity.deposited.toLocaleString() + " FC · Withdrawn " + activity.withdrawn.toLocaleString() + " FC · " + activity.transactions + " transactions" },
+      { name: "🧾 Recent transactions", value: recent.length ? recent.join("\n") : "Your bank deposits and withdrawals will appear here." }
     ], [row(btn(owner, "deposit", "Deposit", ButtonStyle.Success, "⬆️"), btn(owner, "withdraw", "Withdraw", ButtonStyle.Primary, "⬇️")), nav]);
   }
   if (page === "transfer") {
@@ -317,7 +328,7 @@ async function renderMenu(guildId, owner, page, s) {
         return {
           label: x.item.name,
           value: x.item.id,
-          description: "Level " + nextLevel + "/" + balancing.itemUpgrades.maxLevel + " · " + cost.toLocaleString() + " FC · Player level " + requiredLevel + "+" 
+          description: "Level " + nextLevel + "/" + balancing.itemUpgrades.maxLevel + " · " + cost.toLocaleString() + " FC · Player level " + requiredLevel + "+"
         };
       });
     if (equip.length) controls.push(menu(owner, "equip", "Choose gear to equip", equip));
@@ -325,11 +336,17 @@ async function renderMenu(guildId, owner, page, s) {
     if (upgrade.length) controls.push(menu(owner, "upgrade-item", "Choose gear to upgrade", upgrade));
     controls.push(row(btn(owner, "shop", "Equipment shop", ButtonStyle.Primary, "🛒")));
     controls.push(nav);
-    return panel("GEAR  /  INVENTORY", "Equip one item per slot. Owned gear can be upgraded up to level " + balancing.itemUpgrades.maxLevel + "; each upgrade strengthens its bonuses.",
+    const equipment = inv.items.filter((item) => item.item.type === "equipment");
+    const totalUpgradeLevels = equipment.reduce((sum, item) => sum + item.upgradeLevel, 0);
+    const equippedUpgradeLevels = equipment.filter((item) => item.equipped).reduce((sum, item) => sum + item.upgradeLevel, 0);
+    const nextUpgradeCosts = equipment.filter((item) => item.upgradeLevel < balancing.itemUpgrades.maxLevel)
+      .map((item) => getUpgradeCost(item.item, item.upgradeLevel + 1)).sort((a, b) => a - b);
+    return panel("GEAR  /  INVENTORY", "Equip one item per slot. Each upgrade adds " + Math.round(balancing.itemUpgrades.effectPerLevel * 100) + "% to that item's listed effects, up to level " + balancing.itemUpgrades.maxLevel + ".",
       [
         { name: "🎒 Owned items", value: owned.length ? owned.join("\n").slice(0, 1100) : "Your inventory is empty. Visit the shop to browse equipment." },
-        { name: "🧩 Equipped gear", value: equipped.length ? equipped.join("\n") : "No equipment is currently active." },
-        { name: "⚙️ Active bonuses", value: formatItemEffects(effects).slice(0, 1000) }
+        { name: "🧩 Equipped loadout", value: equipped.length + "/" + balancing.items.length + " slots active · " + equippedUpgradeLevels + " equipped upgrade levels" + (nextUpgradeCosts.length ? "\nNext available upgrade: " + nextUpgradeCosts[0].toLocaleString() + " FC" : "\nAll owned gear is fully upgraded.") },
+        { name: "⚙️ Active bonuses", value: formatItemEffects(effects).slice(0, 1000) },
+        { name: "📊 Collection progress", value: equipment.length + "/" + balancing.items.length + " equipment owned · " + totalUpgradeLevels + " total upgrade levels" }
       ], controls);
   }
   if (page === "shop") {
@@ -340,7 +357,10 @@ async function renderMenu(guildId, owner, page, s) {
       [menu(owner, "shop-buy", "Select equipment to purchase", options), nav]);
   }
   if (page === "rebirth" || page === "rebirth-confirm") {
-    const status = await s.economy.getRebirthStatus(guildId, owner);
+    const [status, history] = await Promise.all([
+      s.economy.getRebirthStatus(guildId, owner),
+      s.economy.getRebirthHistory(guildId, owner, 5)
+    ]);
     const mark = (passed) => passed ? "✅" : "▫️";
     const lines = [
       mark(status.checks.wealth) + " **FC:** " + status.wealth.toLocaleString() + "/" + status.walletRequired.toLocaleString(),
@@ -370,11 +390,20 @@ async function renderMenu(guildId, owner, page, s) {
         "warning");
     }
 
+    const historyLines = history.map((item) => {
+      const meta = item.metadata || {};
+      const wealth = Number(meta.previousWallet || 0) + Number(meta.previousBank || 0);
+      const timestamp = Math.floor(new Date(item.created_at).getTime() / 1000);
+      return "**Rebirth " + (meta.rebirths || "?") + "** · " + wealth.toLocaleString() + " FC · Level " +
+        (meta.previousLevel || "?") + " · " + (Number.isFinite(timestamp) ? "<t:" + timestamp + ":R>" : "Recorded");
+    });
     return panel("REBIRTH  /  " + status.multiplier.toLocaleString() + "× → " + status.nextMultiplier.toLocaleString() + "×",
       "Complete these requirements to double your FC and XP earnings.",
       [
         { name: "Requirements", value: lines.join("\n") },
-        { name: "On rebirth", value: "Reset: 1,000 FC · Level 1 · No career. Your gear and Candy stay." }
+        { name: "Next-run preview", value: "After this rebirth: " + status.nextWalletRequired.toLocaleString() + " FC · Level " + status.nextLevelRequired + " · " + status.nextQuestClaimsRequired + " quest claims · " + status.nextWorkShiftsRequired + " work shifts" },
+        { name: "On rebirth", value: "Reset: 1,000 FC · Bank 0 · Level 1 · No career. Keep: gear, upgrades, Candy, collectibles, event claims and lifetime records." },
+        { name: "Rebirth history", value: historyLines.length ? historyLines.join("\n") : "Your completed rebirths will be recorded here." }
       ],
       [row(btn(owner, "rebirth-review", "Rebirth", ButtonStyle.Danger).setDisabled(!status.eligible), btn(owner, "event-shop", "Candy shop", ButtonStyle.Secondary)), nav]);
   }
