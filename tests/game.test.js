@@ -65,8 +65,8 @@ test("earnings above the wallet ceiling are automatically saved to the bank", as
   Math.random = () => 0.999;
   try {
     for (const scenario of [
-      { wallet: balancing.economy.maxWallet - 50, walletDelta: 50, bankDelta: 950 },
-      { wallet: balancing.economy.maxWallet, walletDelta: 0, bankDelta: 1000 }
+      { wallet: balancing.economy.maxWallet - 50, walletDelta: 50, bankDelta: 2950 },
+      { wallet: balancing.economy.maxWallet, walletDelta: 0, bankDelta: 3000 }
     ]) {
       const updates = [];
       const client = {
@@ -80,7 +80,7 @@ test("earnings above the wallet ceiling are automatically saved to the bank", as
         }
       };
       const result = await service.mutateTx(client, "guild", "member", 100, "job_work", "wallet-cap-test-" + scenario.wallet);
-      assert.equal(result.delta, 1000);
+      assert.equal(result.delta, 3000);
       assert.equal(result.balance, balancing.economy.maxWallet);
       assert.equal(result.walletDelta, scenario.walletDelta);
       assert.equal(result.bankDelta, scenario.bankDelta);
