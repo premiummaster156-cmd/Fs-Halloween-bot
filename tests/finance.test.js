@@ -41,25 +41,13 @@ test("rebirth history returns saved reset metadata in newest-first order", async
   const economy = new EconomyService(pool);
   const history = await economy.getRebirthHistory("guild-1", "member-1", 5);
   assert.equal(history[0].metadata.rebirths, 2);
-  assert.deepEqual(await Promise.resolve(history[0].metadata.previousBank), 5000);
+  assert.equal(history[0].metadata.previousBank, 5000);
 });
 
 test("bank moves and incoming transfers do not inflate lifetime earned or spent totals", async () => {
   const economy = new EconomyService({});
   const updates = [];
-  const client = {
-    query: async (sql) => {
-      if (sql.includes("SELECT wallet, prestige, job_id FROM players")) {
-        return { rowCount: 1, rows: [{ wallet: 100, prestige: 0, job_id: null }] };
-      }
-      if (sql.includes("SELECT id FROM economy_ledger")) return { rowCount: 0, rows: [] };
-      if (sql.includes("UPDATE players SET wallet =")) {
-        const args = arguments;
-        return { rowCount: 1, rows: [] };
-      }
-      return { rowCount: 1, rows: [] };
-    }
-  };
+  const client = {};
   client.query = async (sql, values) => {
     if (sql.includes("SELECT wallet, prestige, job_id FROM players")) {
       return { rowCount: 1, rows: [{ wallet: 100, prestige: 0, job_id: null }] };
