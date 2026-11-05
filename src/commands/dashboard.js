@@ -311,67 +311,102 @@ async function renderMenu(guildId, owner, page, s) {
     const inv = await s.inventory.getInventory(guildId, owner);
     const effects = await s.inventory.getEffects(guildId, owner);
     const booster = s.serverBoosters ? await s.serverBoosters.getStatus(guildId, owner) : null;
-    const owned = inv.items.map((x) => {
-      if (x.item.type !== "equipment") {
-        return "🎃 **" + x.item.name + "** × " + x.quantity + " · Candy collectible · Rebirth milestone";
-      }
-      const current = (x.equipped ? "🟢 " : "▫️ ") + "**" + x.item.name + "** × " + x.quantity +
-        " · Upgrade " + x.upgradeLevel + "/" + balancing.itemUpgrades.maxLevel + (x.equipped ? " · Equipped" : "");
-      if (x.upgradeLevel >= balancing.itemUpgrades.maxLevel) return current + " · MAX";
-      const nextLevel = x.upgradeLevel + 1;
-      const nextCost = getUpgradeCost(x.item, nextLevel);
-      const requiredLevel = x.item.minLevel + nextLevel * balancing.itemUpgrades.levelRequirementPerUpgrade;
+    const specialItems = inv.items.filter((entry) => entry.item.boosterOnly);
+    const standardItems = inv.items.filter((entry) => entry.item.type === "equipment" && !entry.item.boosterOnly);
+    const collectibles = inv.items.filter((entry) => entry.item.type !== "equipment");
+    const specialLines = specialItems.map((entry) => {
+      const current = "🌟 **MYTHIC · " + entry.item.name + "** · Personal boost #" + entry.item.boostNumber +
+        " · Upgrade " + entry.upgradeLevel + "/" + balancing.itemUpgrades.maxLevel +
+        (entry.equipped ? " · AUTO-EQUIPPED" : "");
+      const next = entry.upgradeLevel >= balancing.itemUpgrades.maxLevel
+        ? " · MAX LEVEL"
+        : " · Next upgrade: " + getUpgradeCost(entry.item, entry.upgradeLevel + 1).toLocaleString() + " FC";
+      return current + next + "\n" + (entry.item.rewardSummary || formatItemEffects(entry.item.effects));
+    });
+    const standardLines = standardItems.map((entry) => {
+      const current = (entry.equipped ? "🟢 " : "▫️ ") + "**" + entry.item.name + "** · Upgrade " +
+        entry.upgradeLevel + "/" + balancing.itemUpgrades.maxLevel + (entry.equipped ? " · Equipped" : "");
+      if (entry.upgradeLevel >= balancing.itemUpgrades.maxLevel) return current + " · MAX";
+      const nextLevel = entry.upgradeLevel + 1;
+      const nextCost = getUpgradeCost(entry.item, nextLevel);
+      const requiredLevel = entry.item.minLevel + nextLevel * balancing.itemUpgrades.levelRequirementPerUpgrade;
       return current + " · Next: " + nextCost.toLocaleString() + " FC / Lv " + requiredLevel;
     });
-    const equipped = inv.equipped.map((x) => {
-      const ownedItem = inv.items.find((entry) => entry.item.id === x.item.id);
-      return "**" + x.slot + ":** " + x.item.name + " · Upgrade " + (ownedItem?.upgradeLevel || 0) + "/" + balancing.itemUpgrades.maxLevel;
+    const collectibleLines = collectibles.map((entry) =>
+      "🎃 **" + entry.item.name + "** × " + entry.quantity + " · Candy collectible"
+    );
+    const equipped = inv.equipped.map((entry) => {
+      const ownedItem = inv.items.find((item) => item.item.id === entry.item.id);
+      return "**" + entry.item.name + ":** " + (entry.item.boosterOnly ? "🌟 MYTHIC" : entry.slot) +
+        " · Upgrade " + (ownedItem?.upgradeLevel || 0) + "/" + balancing.itemUpgrades.maxLevel;
     });
     const controls = [];
-    const equip = inv.items.filter((x) => x.item.type === "equipment" && !x.equipped).map((x) => ({ label: x.item.name, value: x.item.id, description: "Equip in " + x.item.slot }));
-    const unequip = inv.equipped.map((x) => ({ label: x.slot, value: x.slot, description: x.item.name }));
-    const upgrade = inv.items.filter((x) => x.item.type === "equipment" && x.upgradeLevel < balancing.itemUpgrades.maxLevel)
-      .map((x) => {
-        const nextLevel = x.upgradeLevel + 1;
-        const cost = getUpgradeCost(x.item, nextLevel);
-        const requiredLevel = x.item.minLevel + nextLevel * balancing.itemUpgrades.levelRequirementPerUpgrade;
-        return {
-          label: x.item.name,
-          value: x.item.id,
-          description: "Level " + nextLevel + "/" + balancing.itemUpgrades.maxLevel + " · " + cost.toLocaleString() + " FC · Player level " + requiredLevel + "+"
-        };
-      });
-    if (equip.length) controls.push(menu(owner, "equip", "Choose gear to equip", equip));
-    if (unequip.length) controls.push(menu(owner, "unequip", "Choose a slot to clear", unequip));
-    if (upgrade.length) controls.push(menu(owner, "upgrade-item", "Choose gear to upgrade", upgrade));
-    controls.push(row(btn(owner, "shop", "Equipment shop", ButtonStyle.Primary, "🛒")));
+    const equip = inv.items.filter((entry) =>
+      entry.item.type === "equipment" && !entry.equipped
+    ).map((entry) => ({
+      label: (entry.item.boosterOnly ? "🌟 " : "") + entry.item.name,
+      value: entry.item.id,
+      description: (entry.item.boosterOnly ? "MYTHIC · " : "") + "Equip in " + entry.item.slot
+    }));
+    const unequip = inv.equipped.map((entry) => ({
+      label: entry.slot,
+      value: entry.slot,
+      description: entry.item.name
+    }));
+    const upgrade = inv.items.filter((entry) =>
+      entry.item.type === "equipment" && entry.upgradeLevel < balancing.itemUpgrades.maxLevel
+    ).map((entry) => {
+      const nextLevel = entry.upgradeLevel + 1;
+      const cost = getUpgradeCost(entry.item, nextLevel);
+      const requiredLevel = entry.item.minLevel + nextLevel * balancing.itemUpgrades.levelRequirementPerUpgrade;
+      return {
+        label: (entry.item.boosterOnly ? "🌟 " : "") + entry.item.name,
+        value: entry.item.id,
+        description: (entry.item.boosterOnly ? "MYTHIC · " : "") +
+          "Upgrade " + nextLevel + "/" + balancing.itemUpgrades.maxLevel + " · " +
+          cost.toLocaleString() + " FC · Player level " + requiredLevel + "+"
+      };
+    });
+    if (equip.length) controls.push(menu(owner, "equip", "Equip an item", equip));
+    if (unequip.length) controls.push(menu(owner, "unequip", "Unequip an item", unequip));
+    if (upgrade.length) controls.push(menu(owner, "upgrade-item", "Upgrade an item", upgrade));
+    controls.push(row(btn(owner, "shop", "Normal equipment shop", ButtonStyle.Primary, "🛒")));
     controls.push(nav);
-    const equipment = inv.items.filter((item) => item.item.type === "equipment");
-    const totalUpgradeLevels = equipment.reduce((sum, item) => sum + item.upgradeLevel, 0);
-    const equippedUpgradeLevels = equipment.filter((item) => item.equipped).reduce((sum, item) => sum + item.upgradeLevel, 0);
-    const nextUpgradeCosts = equipment.filter((item) => item.upgradeLevel < balancing.itemUpgrades.maxLevel)
-      .map((item) => getUpgradeCost(item.item, item.upgradeLevel + 1)).sort((a, b) => a - b);
-    return panel("GEAR  /  INVENTORY", "Equip one item per slot. Each upgrade adds " + Math.round(balancing.itemUpgrades.effectPerLevel * 100) + "% to that item's listed effects, up to level " + balancing.itemUpgrades.maxLevel + ".",
+
+    const allEquipment = [...standardItems, ...specialItems];
+    const totalUpgradeLevels = allEquipment.reduce((sum, entry) => sum + entry.upgradeLevel, 0);
+    const equippedUpgradeLevels = allEquipment.filter((entry) => entry.equipped)
+      .reduce((sum, entry) => sum + entry.upgradeLevel, 0);
+    const nextUpgradeCosts = allEquipment.filter((entry) => entry.upgradeLevel < balancing.itemUpgrades.maxLevel)
+      .map((entry) => getUpgradeCost(entry.item, entry.upgradeLevel + 1)).sort((a, b) => a - b);
+    const boosterItems = balancing.items.filter((item) => item.boosterOnly).sort((a, b) => a.boostNumber - b.boostNumber);
+    const boosterProgress = booster
+      ? (booster.personalBoostCount || 0) + "/" + boosterItems.length + " personal boosts recorded. " +
+        (booster.collectionComplete
+          ? "You have completed the special collection."
+          : booster.nextItem
+            ? "Next boost reward: **" + booster.nextItem.name + "**. It is assigned and equipped automatically.")
+      : "Personal boost progress appears here after your booster status is synced.";
+    return panel("GEAR  /  YOUR ITEMS",
+      "Two item types: **Normal gear** is bought with FC. **🌟 MYTHIC booster gear** is earned automatically from your own boosts. All equipment can be upgraded up to level " + balancing.itemUpgrades.maxLevel + " with FC.",
       [
-        { name: "🎒 Owned items", value: owned.length ? owned.join("\n").slice(0, 1100) : "Your inventory is empty. Visit the shop to browse equipment." },
-        { name: "🧩 Equipped loadout", value: equipped.length + "/" + balancing.items.length + " slots active · " + equippedUpgradeLevels + " equipped upgrade levels" + (nextUpgradeCosts.length ? "\nNext available upgrade: " + nextUpgradeCosts[0].toLocaleString() + " FC" : equipment.length ? "\nAll owned gear is fully upgraded." : "\nBuy equipment to start building a loadout.") },
-        { name: "⚙️ Active bonuses", value: formatItemEffects(effects).slice(0, 1000) },
-        ...(booster ? [{
-          name: "⚡ Server Booster rewards",
-          value: (booster.active ? "Active booster · " : "Not currently boosting · ") +
-            booster.serverBoostCount + " total server boosts. " +
-            (booster.unlockedItems.length
-              ? "Earned: " + booster.unlockedItems.map((item) => item.name).join(", ") + "."
-              : "Boost the server to unlock the Crimson Oni Katana at 1 boost and Phantom Shogun Mask at 2.")
-        }] : []),
-        { name: "📊 Collection progress", value: equipment.length + "/" + balancing.items.length + " equipment owned · " + totalUpgradeLevels + " total upgrade levels" }
+        { name: "🌟 MYTHIC · BOOSTER EXCLUSIVES", value: specialLines.length ? specialLines.join("\n\n").slice(0, 1024) : "No special items yet. Each personal boost notification gives you the next special item automatically. No claim button and no FC purchase." },
+        { name: "⚙️ NORMAL EQUIPMENT", value: standardLines.length ? standardLines.join("\n").slice(0, 1024) : "No normal equipment yet. Open the shop to buy gear with FC." },
+        ...(collectibleLines.length ? [{ name: "🎃 CANDY COLLECTIBLES", value: collectibleLines.join("\n").slice(0, 800) }] : []),
+        { name: "⚡ BOOSTER REWARD PROGRESS", value: boosterProgress },
+        { name: "🧩 EQUIPPED LOADOUT", value: equipped.length ? equipped.join("\n").slice(0, 900) : "Nothing equipped yet. Choose an item above to equip it." },
+        { name: "⚙️ ACTIVE BONUSES", value: formatItemEffects(effects).slice(0, 1000) },
+        { name: "📊 COLLECTION", value: standardItems.length + "/" + balancing.items.filter((item) => item.type === "equipment" && !item.boosterOnly).length +
+          " normal items · " + specialItems.length + "/" + boosterItems.length + " MYTHIC items · " +
+          totalUpgradeLevels + " total upgrade levels · " + equippedUpgradeLevels + " equipped upgrade levels" +
+          (nextUpgradeCosts.length ? "\nCheapest next upgrade: " + nextUpgradeCosts[0].toLocaleString() + " FC" : "") }
       ], controls);
   }
   if (page === "shop") {
     const shopItems = balancing.items.filter((item) => !item.boosterOnly);
     const options = shopItems.map((x) => ({ label: x.name, value: x.id, description: x.cost.toLocaleString() + " FC · Level " + x.minLevel + "+ · " + x.slot }));
     const list = shopItems.map((x) => "**" + x.name + "** · " + x.cost.toLocaleString() + " FC\nLevel " + x.minLevel + "+ · " + x.slot + "\n" + x.description + "\n*Bonuses:* " + formatItemEffects(x.effects));
-    return panel("EQUIPMENT SHOP", "Higher-tier equipment costs more and requires a higher level. Buy it, equip it, then upgrade it from Gear.",
+    return panel("NORMAL EQUIPMENT SHOP", "These are regular items bought with FC. 🌟 MYTHIC booster items are separate: your personal boosts award them automatically, and you can upgrade them from Gear.",
       [{ name: "Available equipment", value: list.join("\n\n").slice(0, 3900) }],
       [menu(owner, "shop-buy", "Select equipment to purchase", options), nav]);
   }
@@ -549,15 +584,16 @@ async function renderMenu(guildId, owner, page, s) {
       ]), nav], "info");
   }
   if (page === "help") {
-    return panel("HOW TO PLAY  /  QUICK GUIDE", "A simple route through the game. Open a dashboard section whenever you need more detail.",
+    return panel("HOW TO PLAY  /  SIMPLE GUIDE", "You do not need to learn everything at once. Follow these steps in order.",
       [
-        { name: "1 · Start", value: "Choose a career. You need a career before you can work." },
-        { name: "2 · Earn", value: "Claim Daily once per day and answer the three Work questions." },
-        { name: "3 · Save and upgrade", value: "Use your Bank, buy gear, equip it and raise its upgrade level to strengthen its bonuses." },
-        { name: "4 · Take risks", value: "Crime and Casino can lose FC. Check the risk and possible fine first." },
-        { name: "5 · Team up", value: "Create a Heist, share its ID, invite members, then start when your crew is ready." },
-        { name: "6 · Halloween", value: "Complete quests, claim rewards, and follow the weekly activity mission. A claimed event quest unlocks your first rebirth." },
-        { name: "7 · Rebirth", value: "Build up your FC wealth and level, then reset your run for a permanent doubling of FC and XP earnings. Gear and upgrades stay with you." }
+        { name: "1 · Choose a career", value: "Open Careers and pick one you qualify for. A career is needed for Work." },
+        { name: "2 · Earn coins and XP", value: "Use Daily when it is ready. Start Work and answer 3 questions; more correct answers mean a bigger reward." },
+        { name: "3 · Buy and improve normal gear", value: "Open Gear → Normal equipment shop. Buy with FC, equip an item, then upgrade it up to 5 times." },
+        { name: "4 · Get special booster gear", value: "Every personal boost notification awards your next 🌟 MYTHIC item automatically. It is added to your inventory and equipped for you. No claim button and no FC purchase. Upgrade it with FC in Gear." },
+        { name: "5 · Try risky games", value: "Crime and Casino can cost FC. Read the chance, wager or possible fine before playing." },
+        { name: "6 · Play with others", value: "Start a Heist, share its crew ID and invite members. Party Games give Party Points, not FC." },
+        { name: "7 · Complete Halloween tasks", value: "Do quests, collect Candy and finish the weekly message goal. Event rewards are separate from FC." },
+        { name: "8 · Rebirth", value: "Rebirth resets your wallet, bank, level and career. You keep your items and upgrades, and future eligible FC/XP earnings double. The checklist shows exactly what you still need." }
       ], [nav]);
   }
   return renderMenu(guildId, owner, "home", s);
