@@ -50,6 +50,7 @@ module.exports = {
     dailyCooldownReduction: 0.05,
     casinoCooldownReduction: 0.05,
     partyPointsBonus: 0.15,
+    partyCooldownReduction: 0.05,
     eventRewardBonus: 0.15
   },
   items: [
