@@ -12,6 +12,7 @@ const { JobsGame } = require("./games/jobs");
 const { CrimeGame } = require("./games/crime");
 const { CasinoGame } = require("./games/casino");
 const { HeistsGame } = require("./games/heists");
+const { GuildBossGame } = require("./games/guild-boss");
 const { HalloweenGame } = require("./games/halloween");
 const { PartyGameService } = require("./services/party-games");
 const { ActivityService } = require("./services/activity");
@@ -43,6 +44,7 @@ async function start() {
     crime: new CrimeGame(pool, economy, inventory),
     casino: new CasinoGame(pool, economy, inventory),
     heists: new HeistsGame(pool, economy, inventory),
+    guildBoss: new GuildBossGame(pool, economy),
     halloween: new HalloweenGame(pool, guildSettings),
     activity: new ActivityService(pool, economy)
   };
@@ -165,7 +167,7 @@ async function start() {
 
     const startedAt = Date.now();
     const privateReply = command
-      ? command.data.name === "admin" || command.data.name === "menu"
+      ? command.data.name === "admin" || command.data.name === "menu" || command.data.name === "work"
       : customCommand.definition?.response?.visibility === "private";
     try {
       await interaction.deferReply(privateReply ? { flags: MessageFlags.Ephemeral } : {});
