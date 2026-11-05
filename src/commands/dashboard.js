@@ -149,6 +149,18 @@ function formatItemEffects(effects = {}) {
   ]) if (effects[key]) lines.push(label + " -" + percent(effects[key]) + "%");
   return lines.length ? lines.join(" · ") : "No active bonuses";
 }
+function formatCareerEffects(effects = {}) {
+  const lines = [];
+  const percent = (value) => Math.round(Number(value || 0) * 100);
+  if (effects.workPayBonus) lines.push("Work pay +" + percent(effects.workPayBonus) + "%");
+  if (effects.workCooldownReduction) lines.push("Work cooldown -" + percent(effects.workCooldownReduction) + "%");
+  if (effects.moneyBonus) lines.push("All FC income +" + percent(effects.moneyBonus) + "%");
+  if (effects.crimeChance) lines.push("Crime success +" + effects.crimeChance + " points");
+  if (effects.crimeRewardBonus) lines.push("Crime rewards +" + percent(effects.crimeRewardBonus) + "%");
+  if (effects.fineReduction) lines.push("Fines -" + percent(effects.fineReduction) + "%");
+  if (effects.heistChance) lines.push("Heist success +" + effects.heistChance + " points");
+  return lines.length ? lines.join(" · ") : "No passive perk";
+}
 function back(owner) { return row(btn(owner, "home", "Dashboard", ButtonStyle.Secondary, "⌂")); }
 function modal(customId, title, fields) {
   const m = new ModalBuilder().setCustomId(customId).setTitle(title);
@@ -246,10 +258,20 @@ async function renderMenu(guildId, owner, page, s) {
   if (page === "career") {
     const data = await s.jobs.view(guildId, owner);
     const current = data.job ? data.job.name + " · Job level " + data.player.job_level : "Not selected";
-    const options = data.jobs.map((j) => ({ label: j.name, value: j.id, description: "Level " + j.minLevel + "+ · Wallet " + j.minWallet.toLocaleString() + " FC" }));
-    const lines = data.jobs.map((j) => "**" + j.tier + ". " + j.name + "** · Level " + j.minLevel + "+\nWallet " + j.minWallet.toLocaleString() + " FC · Pay " + j.payMin.toLocaleString() + "–" + j.payMax.toLocaleString() + " FC\n" + j.description);
-    return panel("CAREER DESK", "Your career controls work pay and progression.\n\n**Current career:** " + current,
-      [{ name: "Choose your path", value: lines.join("\n\n").slice(0, 3900) }],
+    const currentPerk = data.job ? formatCareerEffects(balancing.careerEffects[data.job.id]) : "Choose a career to unlock its passive perk.";
+    const options = data.jobs.map((j) => ({
+      label: j.name, value: j.id,
+      description: "Level " + j.minLevel + "+ · Wallet " + j.minWallet.toLocaleString() + " FC · " + formatCareerEffects(balancing.careerEffects[j.id]).slice(0, 45)
+    }));
+    const lines = data.jobs.map((j) => "**" + j.tier + ". " + j.name + "** · Level " + j.minLevel + "+\nWallet " + j.minWallet.toLocaleString() + " FC · Pay " + j.payMin.toLocaleString() + "–" + j.payMax.toLocaleString() + " FC\n**Career perk:** " + formatCareerEffects(balancing.careerEffects[j.id]) + "\n" + j.description);
+    const threshold = 180 + (Number(data.player.job_level) * Number(data.player.job_level) * 55);
+    const jobProgress = data.job ? bar(data.player.job_xp, threshold, 10) : "Apply for a career to start earning job XP.";
+    return panel("CAREER DESK", "Every career has a distinct passive perk. Higher tiers unlock better work pay and more advanced operations.\n\n**Current career:** " + current,
+      [
+        { name: "Active career perk", value: currentPerk },
+        { name: "Promotion progress", value: jobProgress + (data.job ? "\n" + Number(data.player.job_xp).toLocaleString() + "/" + threshold.toLocaleString() + " job XP" : "") },
+        { name: "Career paths", value: lines.join("\n\n").slice(0, 3300) }
+      ],
       [menu(owner, "job-apply", "Choose a career to apply for", options), nav]);
   }
   if (page === "bank") {
@@ -374,16 +396,33 @@ async function renderMenu(guildId, owner, page, s) {
   }
   if (page === "casino") {
     const games = Object.entries(balancing.casino.games);
+    const [stats, history] = await Promise.all([
+      s.casino.stats(guildId, owner),
+      s.casino.history(guildId, owner, 5)
+    ]);
     const rows = games.map(([id, g]) => row(btn(owner, "casino-" + id, g.name, ButtonStyle.Secondary)));
     rows.push(nav);
+    const winRate = stats.rounds ? Math.round(stats.wins / stats.rounds * 100) : 0;
+    const recent = history.map((item) => {
+      const game = balancing.casino.games[item.game_id];
+      const label = game ? game.name : "Casino";
+      const net = item.net > 0 ? "+" + item.net.toLocaleString() : item.net.toLocaleString();
+      return (item.net > 0 ? "🟢 " : item.net < 0 ? "🟠 " : "⚪ ") + "**" + label + "** · Bet " +
+        item.wager.toLocaleString() + " · Payout " + item.payout.toLocaleString() + " · Net " + net + " FC";
+    });
     return panel("CASINO  /  GAME TABLE",
-      "Choose a game. Every player has the same published odds. The minimum bet is " +
+      "Choose a game. Every player has the same published odds. Minimum bet: " +
       balancing.casino.minBet.toLocaleString() +
-      " FC, with no maximum bet. There is a " + balancing.casino.cooldownMs / 1000 + "-second cooldown between rounds and no daily wager cap.",
-      games.map(([, g]) => ({
-        name: g.name + " · Level " + g.minLevel + "+",
-        value: g.description + "\nTheoretical long-run return: " + Math.round(g.theoreticalReturnRate * 100) + "%"
-      })),
+      " FC · No maximum · " + balancing.casino.cooldownMs / 1000 + "-second cooldown · No daily wager cap.",
+      [
+        ...games.map(([, g]) => ({
+          name: g.name + " · Level " + g.minLevel + "+",
+          value: g.description + "\nTheoretical long-run return: " + Math.round(g.theoreticalReturnRate * 100) + "%"
+        })),
+        { name: "📊 Your casino record", value: stats.rounds.toLocaleString() + " rounds · " + stats.wins.toLocaleString() + " wins · " + winRate + "% win rate" },
+        { name: "FC performance", value: "Wagered " + stats.wagered.toLocaleString() + " FC · Paid " + stats.payout.toLocaleString() + " FC · Net " + (stats.net > 0 ? "+" : "") + stats.net.toLocaleString() + " FC" },
+        { name: "Recent rounds", value: recent.length ? recent.join("\n").slice(0, 1000) : "Your completed casino rounds will appear here." }
+      ],
       rows, "warning");
   }
   if (page === "heists") {
