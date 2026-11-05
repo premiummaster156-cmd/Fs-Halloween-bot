@@ -4,7 +4,7 @@ const hour = 60 * minute;
 module.exports = {
   economy: {
     // Multiplies normal FC earning transactions; casino returns, transfers and admin grants are excluded.
-    earningMultiplier: 10,
+    earningMultiplier: 3,
     dailyMin: 420, dailyMax: 720, dailyCooldownMs: 24 * hour, dailyXp: 18,
     minimumBet: 100, maximumBet: 100000,
     transferMinimum: 1, transferMaximum: 500000,
