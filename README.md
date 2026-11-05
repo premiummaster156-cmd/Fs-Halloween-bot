@@ -40,15 +40,30 @@ The existing `.env` in this project already has values configured for the requir
 
 ## Commands
 
-The bot has several focused slash-command entry points:
+The bot has direct slash-command shortcuts as well as the full dashboard:
 
-- **/menu** — open the private player hub for profile, rewards, careers, banking, transfers, gear, economy games, heists, Halloween and leaderboards.
-- **/play** — launch public multiplayer games: Quick Draw, live Trivia, Rock–Paper–Scissors duels and Would You Rather. It also shows Party Points stats and rankings.
+- **/guide** — explain the main commands and how to get started.
+- **/profile [member]** — view a member's level, career, wealth, rebirths and Party Games record.
+- **/daily** — claim daily FC and XP. There is no streak to lose.
+- **/job careers** and **/job apply** — compare careers and apply for one.
+- **/work** — privately answer three questions for a career shift reward.
+- **/crime** — choose an operation and see the success chance and possible fine.
+- **/casino** — play Coin Flip, High Dice or Slots. The minimum bet is 100 FC; there is no maximum bet.
+- **/leaderboard ranking** — compare wealth, player levels, lifetime earnings or Party Points.
+- **/boss status**, **/boss attack**, **/boss leaderboard** and **/boss claim** — join the optional weekly cooperative boss fight.
+- **/play** — launch Quick Draw, live Trivia, Rock–Paper–Scissors duels and Would You Rather.
 - **/roast** — generate a random, light-hearted roast for a member.
-- **/fortune** — draw a once-a-day chaos fortune with a funny title, mini-mission and warning.
+- **/fortune** — draw a daily chaos-fortune card.
+- **/menu** — open the full private player dashboard.
 - **/admin panel** — open the private administration console for server settings, event controls, player tools, leaderboard fairness, custom JavaScript commands and audit history.
 
-Game dashboards remain focused on gameplay, while these commands provide direct shortcuts for activities that work better as public channel events.
+Most game results are public in the configured game channel. Work questions are private so other members cannot give away the answers.
+
+### Weekly cooperative boss
+
+Each Monday (UTC), the server gets a new boss from a rotating set of four. Members at level 3 or higher can use **/boss attack** once every eight hours. Each hit deals level-scaled damage and grants 35 FC plus 10 XP. The shared boss has 22,000 HP, so members can work together throughout the week.
+
+Use **/boss status** to see health and your contribution, and **/boss leaderboard** to see the top damage dealt. If the server defeats the boss, every member who contributed can claim 700 FC and 80 XP with **/boss claim**. The top three contributors also receive extra FC and XP. Unclaimed clear rewards remain available across later weeks; members do not lose them when a new boss appears.
 
 Casino games have a 100 FC minimum bet and no maximum bet; wagers are limited only by the player's available wallet balance. The base cooldown is 15 seconds and there is no daily wager cap. Equipped casino gear can increase the frequency of winning results and shorten the cooldown, while adjusting winning payouts to keep the published long-run return fair. Coin Flip, High Dice and Slots each have a base theoretical return of 95%. Slots has a 1% Jackpot (10×), 4% Big win (4×), 20% Small win (3.45×), and 75% no-win chance.
 
