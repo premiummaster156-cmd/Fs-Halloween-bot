@@ -21,6 +21,15 @@ module.exports = {
     { id: "underboss", name: "Underboss", tier: 6, minLevel: 21, minWallet: 300000, payMin: 1350, payMax: 2300, cooldownMs: 10 * minute, xp: 80, description: "Coordinate valuable operations and trusted crews." },
     { id: "crime_boss", name: "Crime Boss", tier: 7, minLevel: 30, minWallet: 1000000, payMin: 2200, payMax: 3800, cooldownMs: 10 * minute, xp: 105, description: "The highest career tier, earned through long-term progress." }
   ],
+  careerEffects: {
+    street_runner: { workPayBonus: 0.03 },
+    delivery_rider: { workCooldownReduction: 0.04 },
+    shopkeeper: { moneyBonus: 0.03 },
+    enforcer: { crimeChance: 4, fineReduction: 0.03 },
+    smuggler: { crimeRewardBonus: 0.08 },
+    underboss: { heistChance: 4 },
+    crime_boss: { moneyBonus: 0.05, heistChance: 2 }
+  },
   items: [
     { id: "reinforced_gloves", name: "Reinforced Gloves", type: "equipment", slot: "hands", cost: 7000, minLevel: 2, description: "Reliable handling improves crime success and reduces crime cooldowns.", effects: { crimeChance: 3, crimeCooldownReduction: 0.05, candyDropBonus: 0.01 } },
     { id: "urban_disguise", name: "Urban Disguise", type: "equipment", slot: "outfit", cost: 18000, minLevel: 5, description: "Stay unnoticed on operations and get a small edge at the casino.", effects: { crimeChance: 4, heistChance: 1, casinoChance: 0.6, casinoCooldownReduction: 0.04, candyDropBonus: 0.015 } },
@@ -38,7 +47,10 @@ module.exports = {
   crimes: [
     { id: "pickpocket", name: "Pickpocket", minLevel: 1, baseChance: 67, rewardMin: 90, rewardMax: 220, fineMin: 35, fineMax: 100, cooldownMs: 12 * minute, xp: 12, difficulty: 1 },
     { id: "shoplift", name: "Shoplift", minLevel: 4, baseChance: 54, rewardMin: 260, rewardMax: 650, fineMin: 120, fineMax: 290, cooldownMs: 22 * minute, xp: 22, difficulty: 2 },
-    { id: "smuggle", name: "Smuggle", minLevel: 9, baseChance: 42, rewardMin: 700, rewardMax: 1650, fineMin: 300, fineMax: 720, cooldownMs: 35 * minute, xp: 38, difficulty: 3 }
+    { id: "smuggle", name: "Smuggle", minLevel: 9, baseChance: 42, rewardMin: 700, rewardMax: 1650, fineMin: 300, fineMax: 720, cooldownMs: 35 * minute, xp: 38, difficulty: 3 },
+    { id: "courier_intercept", name: "Courier Intercept", minLevel: 14, baseChance: 38, rewardMin: 1400, rewardMax: 2800, fineMin: 550, fineMax: 1100, cooldownMs: 45 * minute, xp: 48, difficulty: 4 },
+    { id: "data_breach", name: "Data Breach", minLevel: 20, baseChance: 32, rewardMin: 2600, rewardMax: 5200, fineMin: 900, fineMax: 1800, cooldownMs: 60 * minute, xp: 68, difficulty: 5 },
+    { id: "vault_extraction", name: "Vault Extraction", minLevel: 27, baseChance: 26, rewardMin: 5000, rewardMax: 9500, fineMin: 1800, fineMax: 3600, cooldownMs: 90 * minute, xp: 95, difficulty: 6 }
   ],
   casino: {
     // Same bet range for everyone. No daily wager cap.
@@ -74,14 +86,18 @@ module.exports = {
   heists: [
     { id: "night_market", name: "Night Market Run", minLevel: 2, minParticipants: 2, maxParticipants: 3, difficulty: 1, baseChance: 43, payoutMin: 1800, payoutMax: 3600, failPenalty: 90, cooldownMs: 8 * hour, description: "A compact first team operation." },
     { id: "armored_van", name: "Armored Van", minLevel: 7, minParticipants: 3, maxParticipants: 4, difficulty: 2, baseChance: 34, payoutMin: 6500, payoutMax: 12000, failPenalty: 260, cooldownMs: 12 * hour, description: "Requires a balanced crew and good preparation." },
-    { id: "museum_blackout", name: "Museum Blackout", minLevel: 13, minParticipants: 4, maxParticipants: 5, difficulty: 3, baseChance: 27, payoutMin: 18000, payoutMax: 34000, failPenalty: 650, cooldownMs: 18 * hour, description: "A demanding mission for experienced crews." }
+    { id: "museum_blackout", name: "Museum Blackout", minLevel: 13, minParticipants: 4, maxParticipants: 5, difficulty: 3, baseChance: 27, payoutMin: 18000, payoutMax: 34000, failPenalty: 650, cooldownMs: 18 * hour, description: "A demanding mission for experienced crews." },
+    { id: "harbor_exchange", name: "Harbor Exchange", minLevel: 18, minParticipants: 4, maxParticipants: 5, difficulty: 4, baseChance: 24, payoutMin: 28000, payoutMax: 52000, failPenalty: 1000, cooldownMs: 20 * hour, description: "Coordinate a five-person handoff across a guarded shipping terminal." },
+    { id: "blacksite_extraction", name: "Blacksite Extraction", minLevel: 25, minParticipants: 5, maxParticipants: 5, difficulty: 5, baseChance: 20, payoutMin: 50000, payoutMax: 90000, failPenalty: 1800, cooldownMs: 24 * hour, description: "A high-risk, full-crew operation that demands every role." }
   ],
   heistRoles: {
     planner: { bonus: 5, label: "Planner" },
     hacker: { bonus: 7, label: "Hacker" },
     driver: { bonus: 4, label: "Driver" },
     muscle: { bonus: 3, label: "Muscle" },
-    scout: { bonus: 5, label: "Scout" }
+    scout: { bonus: 5, label: "Scout" },
+    infiltrator: { bonus: 4, label: "Infiltrator" },
+    technician: { bonus: 5, label: "Technician" }
   },
   candyDrops: {
     // Chance is rolled once for each genuine FC earning transaction. Gear adds percentage points.
