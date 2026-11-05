@@ -1,5 +1,3 @@
-const { randomInt } = require("../utils/core");
-
 const TRIVIA_QUESTIONS = [
   { category: "Science", question: "Which planet is known as the Red Planet?", answer: "Mars", options: ["Venus", "Mars", "Mercury", "Neptune"] },
   { category: "Geography", question: "What is the capital of Japan?", answer: "Tokyo", options: ["Seoul", "Beijing", "Tokyo", "Bangkok"] },
