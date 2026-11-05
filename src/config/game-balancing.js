@@ -48,7 +48,9 @@ module.exports = {
     crimeCooldownReduction: 0.05,
     heistCooldownReduction: 0.05,
     dailyCooldownReduction: 0.05,
-    casinoCooldownReduction: 0.05
+    casinoCooldownReduction: 0.05,
+    partyPointsBonus: 0.15,
+    eventRewardBonus: 0.15
   },
   items: [
     { id: "reinforced_gloves", name: "Reinforced Gloves", type: "equipment", slot: "hands", cost: 7000, minLevel: 2, description: "Reliable handling improves crime success and reduces crime cooldowns.", effects: { crimeChance: 3, crimeCooldownReduction: 0.05, candyDropBonus: 0.01 } },
