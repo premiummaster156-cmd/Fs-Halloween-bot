@@ -95,3 +95,70 @@ test("Code Studio checks the trusted Admin Role in the exact server selected by 
     /server ID/
   );
 });
+
+
+test("AI workspace bearer-key API uses its configured server without requiring a browser session", async () => {
+  const { createIdeServer } = require("../src/web/ide-server");
+  const previous = {
+    adminWorkspaceApiKey: settings.adminWorkspaceApiKey,
+    ideGuildId: settings.ideGuildId
+  };
+  settings.adminWorkspaceApiKey = "test-workspace-key-".padEnd(48, "x");
+  settings.ideGuildId = "123456789012345678";
+  const listedGuilds = [];
+  const server = createIdeServer({}, {
+    customCommands: {
+      list: async (guildId) => {
+        listedGuilds.push(guildId);
+        return [];
+      }
+    }
+  });
+
+  try {
+    await new Promise((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", resolve);
+    });
+    const address = server.address();
+    const response = await fetch("http://127.0.0.1:" + address.port + "/api/ai/workspace/files", {
+      headers: { Authorization: "Bearer " + settings.adminWorkspaceApiKey }
+    });
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { files: [] });
+    assert.deepEqual(listedGuilds, ["123456789012345678"]);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    settings.adminWorkspaceApiKey = previous.adminWorkspaceApiKey;
+    settings.ideGuildId = previous.ideGuildId;
+  }
+});
+
+test("AI workspace bearer-key API refuses to run without a valid configured server ID", async () => {
+  const { createIdeServer } = require("../src/web/ide-server");
+  const previous = {
+    adminWorkspaceApiKey: settings.adminWorkspaceApiKey,
+    ideGuildId: settings.ideGuildId
+  };
+  settings.adminWorkspaceApiKey = "test-workspace-key-".padEnd(48, "x");
+  settings.ideGuildId = "";
+  const server = createIdeServer({}, { customCommands: { list: async () => [] } });
+
+  try {
+    await new Promise((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", resolve);
+    });
+    const address = server.address();
+    const response = await fetch("http://127.0.0.1:" + address.port + "/api/ai/workspace/files", {
+      headers: { Authorization: "Bearer " + settings.adminWorkspaceApiKey }
+    });
+    assert.equal(response.status, 503);
+    assert.match((await response.json()).error, /IDE_GUILD_ID/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    settings.adminWorkspaceApiKey = previous.adminWorkspaceApiKey;
+    settings.ideGuildId = previous.ideGuildId;
+  }
+});
