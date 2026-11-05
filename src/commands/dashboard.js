@@ -192,7 +192,7 @@ async function renderMenu(guildId, owner, page, s) {
     const seasonal = await s.halloween.status(guildId, owner);
     const career = balancing.jobs.find((j) => j.id === p.job_id);
     const wealth = Number(p.wallet) + Number(p.bank);
-    return panel("FUKISHOKAI  /  PLAYER HUB", "Welcome to your game centre. Pick a section below. Every screen explains the next step and shows the requirements before you commit.",
+    return panel("FUKISHOKAI  /  PLAYER HUB", "NEW HERE? Start with Careers → choose a job → Earn → Daily or Work. Gear makes you stronger. Games are optional and can cost FC. Use How to play if you get stuck.",
       [
         { name: "💎 Total wealth", value: wealth.toLocaleString() + " FC", inline: true },
         { name: "👛 Wallet", value: Number(p.wallet).toLocaleString() + " FC", inline: true },
@@ -200,7 +200,7 @@ async function renderMenu(guildId, owner, page, s) {
         { name: "🍬 Candy", value: Number(seasonal.wallet.candy || 0).toLocaleString(), inline: true },
         { name: "⭐ Player level", value: "Level " + p.level + "\n" + bar(p.xp, levelXpRequired(Number(p.level)), 10), inline: false },
         { name: "💼 Career", value: career ? career.name + "  ·  Job level " + p.job_level : "Not selected — open Careers to choose one.", inline: true },
-        { name: "🎯 Suggested next step", value: career ? "Claim Daily, complete a Work shift, upgrade your gear or join a crew." : "Start by choosing a career. You need one before you can work." }
+        { name: "🎯 Your next step", value: career ? "Go to Earn and claim Daily or start Work. Then use Gear when you can afford an upgrade." : "1. Open Careers. 2. Choose the first job you qualify for. 3. Open Earn and start Work." }
       ],
       [
         row(btn(owner, "profile", "Profile", ButtonStyle.Primary, "👤"), btn(owner, "earn", "Earn", ButtonStyle.Success, "💰"), btn(owner, "career", "Careers", ButtonStyle.Secondary, "💼"), btn(owner, "gear", "Gear", ButtonStyle.Secondary, "🎒"), btn(owner, "games", "Games", ButtonStyle.Secondary, "🎮")),
@@ -233,11 +233,11 @@ async function renderMenu(guildId, owner, page, s) {
   if (page === "earn") {
     const p = await getPlayer(s.pool, guildId, owner);
     const career = balancing.jobs.find((j) => j.id === p.job_id);
-    return panel("EARN  /  REWARDS", "Choose how to earn FC and XP. Work requires an active career; Daily can be claimed once per cooldown.",
+    return panel("EARN  /  GET FC", "FC is the game currency. Daily is the quick reward. Work pays more: choose a career first, then answer 3 questions. More correct answers = more FC and XP.",
       [
         { name: "🎁 Daily reward", value: "A quick FC and XP reward. Your player level increases the FC amount." },
         { name: "🧠 Work shift", value: career ? "Answer three questions based on your " + career.name + " role. Each correct answer adds to your pay and XP." : "No career selected. Open Careers first, then return here." },
-        { name: "💬 Chat activity", value: "Every message from a human member counts toward weekly activity, including rapid or spam messages. Chat FC and XP rewards still have daily caps." }
+        { name: "💬 Weekly activity", value: "Chat normally to fill the weekly bar and earn the event reward. Bot messages do not count. Chat FC/XP have separate daily limits." }
       ], [row(btn(owner, "daily", "Claim Daily", ButtonStyle.Success, "🎁"), btn(owner, "work", "Start Work Shift", ButtonStyle.Primary, "🧠")), nav]);
   }
   if (page === "achievements") {
@@ -382,7 +382,7 @@ async function renderMenu(guildId, owner, page, s) {
     const boosterItems = balancing.items.filter((item) => item.boosterOnly).sort((a, b) => a.boostNumber - b.boostNumber);
     const boosterProgress = booster
       ? Math.min(booster.personalBoostCount || 0, boosterItems.length) + "/" + boosterItems.length +
-        " MYTHIC items earned · " + (booster.personalBoostCount || 0) + " personal boosts recorded. " +
+        " MYTHIC rewards · " + (booster.personalBoostCount || 0) + " of your boosts recorded. " +
         (booster.collectionComplete
           ? "You have completed the special collection."
           : booster.nextItem
@@ -390,12 +390,13 @@ async function renderMenu(guildId, owner, page, s) {
             : "Your next boost event will be checked automatically.")
       : "Personal boost progress appears here after your booster status is synced.";
     return panel("GEAR  /  YOUR ITEMS",
-      "Two item types: **Normal gear** is bought with FC. **🌟 MYTHIC booster gear** is earned automatically from your own boosts. All equipment can be upgraded up to level " + balancing.itemUpgrades.maxLevel + " with FC.",
+      "Two clear categories: **NORMAL** = buy with FC. **🌟 MYTHIC BOOSTER EXCLUSIVE** = special gear earned automatically from your own server boosts, never bought or claimed. MYTHIC items have stronger, unique perks. Equip gear to use its bonuses; upgrade either type with FC up to level " + balancing.itemUpgrades.maxLevel + ".",
       [
-        { name: "🌟 MYTHIC · BOOSTER EXCLUSIVES", value: specialLines.length ? specialLines.join("\n\n").slice(0, 1024) : "No special items yet. Each personal boost notification gives you the next special item automatically. No claim button and no FC purchase." },
+        { name: "🌟 MYTHIC · BOOSTER EXCLUSIVES", value: specialLines.length ? specialLines.join("\n\n").slice(0, 1024) : "No MYTHIC item yet. Your first personal server boost automatically gives you the Crimson Oni Katana. No claim button, no shop and no FC cost." },
         { name: "⚙️ NORMAL EQUIPMENT", value: standardLines.length ? standardLines.join("\n").slice(0, 1024) : "No normal equipment yet. Open the shop to buy gear with FC." },
         ...(collectibleLines.length ? [{ name: "🎃 CANDY COLLECTIBLES", value: collectibleLines.join("\n").slice(0, 800) }] : []),
         { name: "⚡ BOOSTER REWARD PROGRESS", value: boosterProgress },
+        { name: "🌟 ALL 5 MYTHIC BOOST REWARDS", value: boosterItems.map((item) => "**#" + item.boostNumber + " " + item.name + "** — " + (item.rewardSummary || formatItemEffects(item.effects))).join("\n").slice(0, 1024) },
         { name: "🧩 EQUIPPED LOADOUT", value: equipped.length ? equipped.join("\n").slice(0, 900) : "Nothing equipped yet. Choose an item above to equip it." },
         { name: "⚙️ ACTIVE BONUSES", value: formatItemEffects(effects).slice(0, 1000) },
         { name: "📊 COLLECTION", value: standardItems.length + "/" + balancing.items.filter((item) => item.type === "equipment" && !item.boosterOnly).length +
@@ -586,16 +587,16 @@ async function renderMenu(guildId, owner, page, s) {
       ]), nav], "info");
   }
   if (page === "help") {
-    return panel("HOW TO PLAY  /  SIMPLE GUIDE", "You do not need to learn everything at once. Follow these steps in order.",
+    return panel("HOW TO PLAY  /  QUICK GUIDE", "Ignore the advanced features until you are comfortable. These are the only steps you need to get started.",
       [
-        { name: "1 · Choose a career", value: "Open Careers and pick one you qualify for. A career is needed for Work." },
-        { name: "2 · Earn coins and XP", value: "Use Daily when it is ready. Start Work and answer 3 questions; more correct answers mean a bigger reward." },
-        { name: "3 · Buy and improve normal gear", value: "Open Gear → Normal equipment shop. Buy with FC, equip an item, then upgrade it up to 5 times." },
-        { name: "4 · Get special booster gear", value: "Every personal boost notification awards your next 🌟 MYTHIC item automatically. It is added to your inventory and equipped for you. No claim button and no FC purchase. Upgrade it with FC in Gear." },
-        { name: "5 · Try risky games", value: "Crime and Casino can cost FC. Read the chance, wager or possible fine before playing." },
-        { name: "6 · Play with others", value: "Start a Heist, share its crew ID and invite members. Party Games give Party Points, not FC." },
-        { name: "7 · Complete Halloween tasks", value: "Do quests, collect Candy and finish the weekly message goal. Event rewards are separate from FC." },
-        { name: "8 · Rebirth", value: "Rebirth resets your wallet, bank, level and career. You keep your items and upgrades, and future eligible FC/XP earnings double. The checklist shows exactly what you still need." }
+        { name: "1 · Pick a career", value: "Open Careers and choose the first job you qualify for. You need a career to Work." },
+        { name: "2 · Earn FC", value: "Open Earn. Claim Daily when ready or press Start Work and answer 3 simple questions." },
+        { name: "3 · Build your gear", value: "Open Gear. Buy NORMAL gear in the shop with FC, equip it, and upgrade it for stronger bonuses." },
+        { name: "4 · Server Booster rewards", value: "Boost this server and your personal boost #1–#5 automatically awards a different 🌟 MYTHIC item. It appears in Gear and equips itself. No claiming or FC purchase. See all 5 rewards and perks in Gear." },
+        { name: "5 · Play when you want", value: "Crime and Casino are optional and risky. Heists are team missions. Read the reward and possible loss before confirming." },
+        { name: "6 · Halloween", value: "Complete the listed quests to earn Candy and event points. Candy is separate from FC." },
+        { name: "7 · Rebirth (advanced)", value: "Rebirth is optional. It resets wallet, bank, level and career but keeps your gear. The Rebirth page shows every requirement before you confirm." },
+        { name: "What do the words mean?", value: "**FC** = game coins · **XP** = experience for levels · **Candy** = event currency · **Gear** = items that give bonuses · **MYTHIC** = rare boost-only gear." }
       ], [nav]);
   }
   return renderMenu(guildId, owner, "home", s);
