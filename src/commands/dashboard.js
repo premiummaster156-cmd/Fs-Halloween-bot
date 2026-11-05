@@ -381,11 +381,13 @@ async function renderMenu(guildId, owner, page, s) {
       .map((entry) => getUpgradeCost(entry.item, entry.upgradeLevel + 1)).sort((a, b) => a - b);
     const boosterItems = balancing.items.filter((item) => item.boosterOnly).sort((a, b) => a.boostNumber - b.boostNumber);
     const boosterProgress = booster
-      ? (booster.personalBoostCount || 0) + "/" + boosterItems.length + " personal boosts recorded. " +
+      ? Math.min(booster.personalBoostCount || 0, boosterItems.length) + "/" + boosterItems.length +
+        " MYTHIC items earned · " + (booster.personalBoostCount || 0) + " personal boosts recorded. " +
         (booster.collectionComplete
           ? "You have completed the special collection."
           : booster.nextItem
             ? "Next boost reward: **" + booster.nextItem.name + "**. It is assigned and equipped automatically."
+            : "Your next boost event will be checked automatically.")
       : "Personal boost progress appears here after your booster status is synced.";
     return panel("GEAR  /  YOUR ITEMS",
       "Two item types: **Normal gear** is bought with FC. **🌟 MYTHIC booster gear** is earned automatically from your own boosts. All equipment can be upgraded up to level " + balancing.itemUpgrades.maxLevel + " with FC.",
