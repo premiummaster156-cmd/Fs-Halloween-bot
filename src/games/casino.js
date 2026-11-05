@@ -19,6 +19,44 @@ class CasinoGame {
   constructor(pool, economy, inventory) { this.pool = pool; this.economy = economy; this.inventory = inventory; }
   list() { return Object.entries(balancing.casino.games).map(([id, game]) => ({ id, ...game })); }
 
+  async stats(guildId, userId) {
+    const result = await this.pool.query(
+      "SELECT COUNT(DISTINCT split_part(reference, ':', 1))::int AS rounds, " +
+      "COUNT(DISTINCT split_part(reference, ':', 1)) FILTER (WHERE reason = 'casino_payout')::int AS wins, " +
+      "COALESCE(SUM(CASE WHEN reason = 'casino_bet' THEN -delta ELSE 0 END), 0)::bigint AS wagered, " +
+      "COALESCE(SUM(CASE WHEN reason = 'casino_payout' THEN delta ELSE 0 END), 0)::bigint AS payout, " +
+      "COALESCE(SUM(delta), 0)::bigint AS net " +
+      "FROM economy_ledger WHERE guild_id = $1 AND user_id = $2 AND reason IN ('casino_bet', 'casino_payout')",
+      [guildId, userId]
+    );
+    const row = result.rows[0] || {};
+    return {
+      rounds: Number(row.rounds) || 0,
+      wins: Number(row.wins) || 0,
+      wagered: Number(row.wagered) || 0,
+      payout: Number(row.payout) || 0,
+      net: Number(row.net) || 0
+    };
+  }
+
+  async history(guildId, userId, limit = 5) {
+    const result = await this.pool.query(
+      "SELECT split_part(reference, ':', 1) AS round_id, MAX(metadata->>'gameId') AS game_id, " +
+      "COALESCE(SUM(CASE WHEN reason = 'casino_bet' THEN -delta ELSE 0 END), 0)::bigint AS wager, " +
+      "COALESCE(SUM(CASE WHEN reason = 'casino_payout' THEN delta ELSE 0 END), 0)::bigint AS payout, " +
+      "COALESCE(SUM(delta), 0)::bigint AS net, MIN(created_at) AS played_at " +
+      "FROM economy_ledger WHERE guild_id = $1 AND user_id = $2 AND reason IN ('casino_bet', 'casino_payout') " +
+      "GROUP BY split_part(reference, ':', 1) ORDER BY played_at DESC LIMIT $3",
+      [guildId, userId, Math.max(1, Math.min(10, Math.floor(Number(limit) || 5)))]
+    );
+    return result.rows.map((row) => ({
+      ...row,
+      wager: Number(row.wager) || 0,
+      payout: Number(row.payout) || 0,
+      net: Number(row.net) || 0
+    }));
+  }
+
   async play(guildId, userId, gameId, bet) {
     const game = balancing.casino.games[gameId];
     const wager = Math.floor(Number(bet));
