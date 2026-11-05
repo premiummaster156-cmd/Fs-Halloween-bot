@@ -348,15 +348,31 @@ BEGIN
   END IF;
 END $$;
  
--- Active Discord Server Booster status. Boost rewards are based on the guild's total boost count.
+-- Live booster status is separate from a member's lifetime personal boost-event count.
 CREATE TABLE IF NOT EXISTS server_booster_status (
   guild_id TEXT NOT NULL,
   user_id TEXT NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT FALSE,
   server_boost_count INTEGER NOT NULL DEFAULT 0 CHECK (server_boost_count >= 0),
+  personal_boost_count INTEGER NOT NULL DEFAULT 0 CHECK (personal_boost_count >= 0),
   boost_started_at TIMESTAMPTZ,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (guild_id, user_id)
 );
+ALTER TABLE server_booster_status
+  ADD COLUMN IF NOT EXISTS personal_boost_count INTEGER NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS server_booster_status_active_idx
   ON server_booster_status (guild_id, is_active, server_boost_count);
+
+-- Each Discord GUILD_BOOST system message is one idempotent personal boost reward event.
+CREATE TABLE IF NOT EXISTS server_boost_events (
+  guild_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  message_id TEXT NOT NULL,
+  boost_number INTEGER CHECK (boost_number IS NULL OR boost_number > 0),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (guild_id, message_id),
+  UNIQUE (guild_id, user_id, boost_number)
+);
+CREATE INDEX IF NOT EXISTS server_boost_events_member_idx
+  ON server_boost_events (guild_id, user_id, created_at DESC);
