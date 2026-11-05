@@ -257,19 +257,19 @@ test("casino odds are transparent and match the published game returns", () => {
   assert.ok(Math.abs(coinFlipReturn - games.coinflip.theoreticalReturnRate) < 0.000001);
   assert.ok(Math.abs(diceReturn - games.dice.theoreticalReturnRate) < 0.000001);
   assert.ok(Math.abs(slotsReturn - games.slots.theoreticalReturnRate) < 0.000001);
-  assert.equal(games.slots.theoreticalReturnRate, 0.90);
+  assert.equal(games.slots.theoreticalReturnRate, 0.95);
 });
 
-test("casino has a 100 FC minimum, no maximum, a 15-second cooldown and no daily cap", () => {
+test("casino restores original jackpot odds while keeping a 100 FC minimum, no maximum and 15-second cooldown", () => {
   assert.equal(balancing.casino.minBet, 100);
   assert.equal(balancing.casino.maxBet, undefined);
   assert.equal(balancing.casino.cooldownMs, 15000);
   assert.equal(balancing.casino.dailyWagerLimit, undefined);
-  assert.equal(balancing.casino.games.slots.outcomes[0].maxRoll, 4);
+  assert.equal(balancing.casino.games.slots.outcomes[0].maxRoll, 9);
   assert.equal(balancing.casino.games.slots.outcomes[0].multiplierHundredths, 1000);
-  assert.equal(balancing.casino.games.slots.outcomes[1].maxRoll, 44);
+  assert.equal(balancing.casino.games.slots.outcomes[1].maxRoll, 49);
   assert.equal(balancing.casino.games.slots.outcomes[1].multiplierHundredths, 400);
-  assert.equal(balancing.casino.games.slots.outcomes[2].maxRoll, 244);
+  assert.equal(balancing.casino.games.slots.outcomes[2].maxRoll, 249);
   assert.equal(balancing.casino.games.slots.outcomes[2].multiplierHundredths, 345);
 });
 
