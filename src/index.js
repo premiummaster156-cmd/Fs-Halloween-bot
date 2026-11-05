@@ -119,11 +119,11 @@ async function start() {
     if (!interaction.inGuild()) return respond(interaction, { kind: "error", ephemeral: true, title: "Server Only", description: "Use this command inside Fukishokai." });
 
     const ownerAccess = await security.hasAdminAccess(interaction.guild, interaction.user.id);
-    if (interaction.commandName === "admin" && !ownerAccess) {
+    if (interaction.commandName === "admin-panel" && !ownerAccess) {
       await security.recordUnauthorizedAdminAttempt(interaction);
       return respond(interaction, {
         kind: "error", ephemeral: true, title: "Owner access required",
-        description: "Only the server owner, configured bot owner, or Admin Role selected in /admin panel can open the administration console."
+        description: "Only the server owner, configured bot owner, or Admin Role selected in /admin-panel can open the administration console."
       });
     }
 
@@ -169,7 +169,7 @@ async function start() {
 
     const startedAt = Date.now();
     const privateReply = command
-      ? command.data.name === "admin" || command.data.name === "menu" || command.data.name === "work"
+      ? command.data.name === "admin-panel" || command.data.name === "menu"
       : customCommand.definition?.response?.visibility === "private";
     try {
       await interaction.deferReply(privateReply ? { flags: MessageFlags.Ephemeral } : {});
