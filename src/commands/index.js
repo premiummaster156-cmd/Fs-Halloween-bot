@@ -2,6 +2,10 @@ const { SlashCommandBuilder } = require("discord.js");
 const { respond } = require("../ui");
 const { openMenu, openAdmin } = require("./dashboard");
 const { playCommand, roastCommand, fortuneCommand } = require("./party");
+const {
+  dailyCommand, profileCommand, jobCommand, workCommand, crimeCommand,
+  casinoCommand, leaderboardCommand, bossCommand, guideCommand
+} = require("./gameplay");
 
 const commands = [
   {
@@ -25,7 +29,16 @@ const commands = [
   },
   playCommand,
   roastCommand,
-  fortuneCommand
+  fortuneCommand,
+  dailyCommand,
+  profileCommand,
+  jobCommand,
+  workCommand,
+  crimeCommand,
+  casinoCommand,
+  leaderboardCommand,
+  bossCommand,
+  guideCommand
 ];
 
 function loadCommands() {
