@@ -36,7 +36,8 @@ class JobsGame {
       const job = balancing.jobs.find((item) => item.id === player.job_id);
       if (!job) throw new DomainError("You do not have a job yet. Use /job to view careers and apply.", "NO_JOB");
       const gear = this.inventory ? await this.inventory.getEffectsTx(client, guildId, userId) : {};
-      const cooldownMs = applyCooldownReduction(job.cooldownMs, gear.workCooldownReduction, 60 * 1000);
+      const career = balancing.careerEffects[job.id] || {};
+      const cooldownMs = applyCooldownReduction(job.cooldownMs, (gear.workCooldownReduction || 0) + (career.workCooldownReduction || 0), 60 * 1000);
       // Shorten cooldowns created by older releases without restarting the timer.
       await client.query(
         "UPDATE cooldowns SET next_at = LEAST(next_at, updated_at + ($3::double precision * INTERVAL '1 millisecond')) WHERE guild_id = $1 AND user_id = $2 AND cooldown_key = 'work' AND next_at > updated_at + ($3::double precision * INTERVAL '1 millisecond')",
@@ -60,8 +61,10 @@ class JobsGame {
       if (job.id !== expectedJobId) throw new DomainError("Your career changed while the shift challenge was open. Start a new shift for your current career.", "JOB_CHANGED_DURING_SHIFT");
       const factor = 1 + (randomInt(-18, 18) / 100);
       const gear = this.inventory ? await this.inventory.getEffectsTx(client, guildId, userId) : {};
+      const career = balancing.careerEffects[job.id] || {};
+      const workPayBonus = Math.min(0.75, (gear.workPayBonus || 0) + (career.workPayBonus || 0));
       const basePay = calculateWorkPay(job, Number(player.job_level), factor);
-      const preMultiplierPay = Math.max(1, Math.floor(basePay * (1 + (gear.workPayBonus || 0)) * correct / total));
+      const preMultiplierPay = Math.max(1, Math.floor(basePay * (1 + workPayBonus) * correct / total));
       const earning = await this.economy.mutateTx(client, guildId, userId, preMultiplierPay, "job_work", uuid(), { jobId: job.id, jobLevel: Number(player.job_level) });
       const pay = earning.delta;
       const baseXpEarned = Math.max(1, Math.floor(job.xp * correct / total));
