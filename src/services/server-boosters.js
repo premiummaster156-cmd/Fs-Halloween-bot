@@ -11,6 +11,8 @@ async function isActiveBooster(queryable, guildId, userId) {
 class ServerBoosterService {
   constructor(pool) {
     this.pool = pool;
+    this.memberSyncAt = new Map();
+    this.memberSyncCooldownMs = 30 * 1000;
   }
 
   getMemberId(member) {
@@ -33,6 +35,12 @@ class ServerBoosterService {
     const userId = this.getMemberId(member);
     const guildId = guild?.id || member?.guild?.id;
     if (!userId || !guildId) return { synced: false, reason: "missing_member_or_guild" };
+
+    const syncKey = guildId + ":" + userId;
+    const lastSyncAt = this.memberSyncAt.get(syncKey) || 0;
+    if (Date.now() - lastSyncAt < this.memberSyncCooldownMs) {
+      return { synced: false, reason: "recently_synced" };
+    }
 
     const hasPremiumSince = member && (
       "premiumSince" in Object(member) ||
@@ -76,6 +84,7 @@ class ServerBoosterService {
       );
     }
 
+    this.memberSyncAt.set(syncKey, Date.now());
     const granted = active ? await this.syncGuild(guildId, guildBoostCount) : [];
     return { synced: true, active, serverBoostCount: guildBoostCount, granted };
   }
