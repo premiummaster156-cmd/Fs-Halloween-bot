@@ -22,8 +22,8 @@ const commands = [
     async execute(interaction, services) {
       return openAdmin(interaction, services);
     }
-  }
-  ,playCommand,
+  },
+  playCommand,
   roastCommand,
   fortuneCommand
 ];
