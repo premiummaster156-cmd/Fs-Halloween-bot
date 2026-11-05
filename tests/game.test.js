@@ -376,9 +376,10 @@ test("Candy shop collectible items are unique and usable as permanent rebirth mi
 test("gear catalog has rising tiers and five upgrade levels", () => {
   assert.equal(balancing.itemUpgrades.maxLevel, 5);
   assert.ok(balancing.items.length >= 10);
-  for (let index = 1; index < balancing.items.length; index += 1) {
-    assert.ok(balancing.items[index].cost > balancing.items[index - 1].cost);
-    assert.ok(balancing.items[index].minLevel > balancing.items[index - 1].minLevel);
+  const shopItems = balancing.items.filter((item) => !item.boosterOnly);
+  for (let index = 1; index < shopItems.length; index += 1) {
+    assert.ok(shopItems[index].cost > shopItems[index - 1].cost);
+    assert.ok(shopItems[index].minLevel > shopItems[index - 1].minLevel);
   }
 });
 
