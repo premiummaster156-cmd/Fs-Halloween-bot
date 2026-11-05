@@ -37,3 +37,42 @@ test("casino dashboard shows lifetime performance and recent round receipts", as
   assert.ok(embed.fields.some((field) => field.name === "FC performance" && field.value.includes("-300 FC")));
   assert.ok(embed.fields.some((field) => field.name === "Recent rounds" && field.value.includes("Slots")));
 });
+
+test("Gear clearly separates Mythic booster items from normal gear and shows automatic reward progress", async () => {
+  const special = balancing.items.find((item) => item.id === "booster_crimson_katana");
+  const normal = balancing.items.find((item) => !item.boosterOnly && item.type === "equipment");
+  const next = balancing.items.find((item) => item.id === "booster_phantom_mask");
+  const payload = await renderMenu("guild-1", "member-1", "gear", {
+    inventory: {
+      getInventory: async () => ({
+        items: [
+          { item: special, quantity: 1, upgradeLevel: 1, equipped: true },
+          { item: normal, quantity: 1, upgradeLevel: 0, equipped: false }
+        ],
+        equipped: [{ slot: special.slot, item: special }]
+      }),
+      getEffects: async () => ({ crimeChance: 5, workPayBonus: 0.08 })
+    },
+    serverBoosters: {
+      getStatus: async () => ({
+        active: true,
+        serverBoostCount: 12,
+        personalBoostCount: 1,
+        nextItem: next,
+        collectionComplete: false,
+        unlockedItems: [special]
+      })
+    }
+  });
+  const embed = payload.embeds[0].toJSON();
+  const specialField = embed.fields.find((field) => field.name.includes("MYTHIC"));
+  const normalField = embed.fields.find((field) => field.name.includes("NORMAL EQUIPMENT"));
+  const progressField = embed.fields.find((field) => field.name.includes("BOOSTER REWARD PROGRESS"));
+  assert.ok(specialField && specialField.value.includes("Crimson Oni Katana"));
+  assert.ok(specialField.value.includes("AUTO-EQUIPPED"));
+  assert.ok(normalField && normalField.value.includes(normal.name));
+  assert.ok(progressField && progressField.value.includes("1/5 personal boosts"));
+  assert.ok(progressField.value.includes("Phantom Shogun Mask"));
+  assert.ok(embed.description.includes("MYTHIC"));
+  assert.ok(payload.components.some((component) => component.components?.some((button) => button.customId?.includes("upgrade-item"))));
+});
