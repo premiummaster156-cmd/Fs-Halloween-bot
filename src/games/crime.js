@@ -19,9 +19,12 @@ class CrimeGame {
       const gear = this.inventory ? await this.inventory.getEffectsTx(client, guildId, userId) : {};
       const cooldownMs = applyCooldownReduction(crime.cooldownMs, gear.crimeCooldownReduction, 60 * 1000);
       await claimCooldownTx(client, guildId, userId, "crime:" + crime.id, cooldownMs);
-      const careerBonus = ["enforcer", "smuggler", "underboss", "crime_boss"].includes(player.job_id) ? 4 : 0;
+      const career = balancing.careerEffects[player.job_id] || {};
       const reputation = Math.max(-4, Math.min(4, Math.floor(Number(player.reputation) / 10)));
-      const successChance = calculateCrimeChance(crime.baseChance, Number(player.level), crime.difficulty, careerBonus + reputation + (gear.crimeChance || 0));
+      const successChance = calculateCrimeChance(
+        crime.baseChance, Number(player.level), crime.difficulty,
+        (career.crimeChance || 0) + reputation + (gear.crimeChance || 0)
+      );
       const succeeded = chance(successChance);
       const reference = uuid();
       let reward = 0;
@@ -29,7 +32,7 @@ class CrimeGame {
       let candyDrop = null;
       if (succeeded) {
         const baseReward = Math.floor(randomInt(crime.rewardMin, crime.rewardMax) * (1 + Math.min(0.3, Number(player.level) * 0.004)));
-        const earning = await this.economy.mutateTx(client, guildId, userId, Math.floor(baseReward * (1 + (gear.crimeRewardBonus || 0))), "crime_success", reference, { crimeId, successChance });
+        const earning = await this.economy.mutateTx(client, guildId, userId, Math.floor(baseReward * (1 + Math.min(0.75, (gear.crimeRewardBonus || 0) + (career.crimeRewardBonus || 0)))), "crime_success", reference, { crimeId, successChance });
         reward = earning.delta;
         candyDrop = earning.candyDrop || null;
         await client.query("UPDATE players SET crime_successes = crime_successes + 1, reputation = LEAST(100, reputation + 1), updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [guildId, userId]);
@@ -38,7 +41,8 @@ class CrimeGame {
         await trackActionTx(client, guildId, userId, "wallet_earned", reward);
       } else {
         const rawFine = randomInt(crime.fineMin, crime.fineMax);
-        fine = Math.min(Number(player.wallet), Math.floor(rawFine * (1 - (gear.fineReduction || 0))));
+        const fineReduction = Math.min(0.75, (gear.fineReduction || 0) + (career.fineReduction || 0));
+        fine = Math.min(Number(player.wallet), Math.floor(rawFine * (1 - fineReduction)));
         if (fine > 0) await this.economy.mutateTx(client, guildId, userId, -fine, "crime_failed_fine", reference, { crimeId, successChance });
         await client.query("UPDATE players SET reputation = GREATEST(-100, reputation - 2), updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [guildId, userId]);
       }

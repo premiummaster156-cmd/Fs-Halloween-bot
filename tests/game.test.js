@@ -37,6 +37,49 @@ test("casino payout uses integer calculations", () => {
   assert.equal(core.casinoPayout(101, 130), 131);
 });
 
+test("every career has a distinct passive perk", () => {
+  const careerIds = balancing.jobs.map((job) => job.id);
+  assert.deepEqual(Object.keys(balancing.careerEffects).sort(), careerIds.slice().sort());
+  assert.ok(Object.values(balancing.careerEffects).every((effects) => Object.keys(effects).length > 0));
+  assert.equal(balancing.careerEffects.street_runner.workPayBonus, 0.03);
+  assert.equal(balancing.careerEffects.delivery_rider.workCooldownReduction, 0.04);
+  assert.equal(balancing.careerEffects.enforcer.crimeChance, 4);
+  assert.equal(balancing.careerEffects.smuggler.crimeRewardBonus, 0.08);
+  assert.equal(balancing.careerEffects.underboss.heistChance, 4);
+});
+
+test("crime and heist catalogs provide a full six-operation and five-mission progression", () => {
+  assert.equal(balancing.crimes.length, 6);
+  assert.equal(balancing.heists.length, 5);
+  assert.equal(new Set(balancing.crimes.map((item) => item.id)).size, balancing.crimes.length);
+  assert.equal(new Set(balancing.heists.map((item) => item.id)).size, balancing.heists.length);
+  assert.ok(balancing.crimes.every((item) => item.cooldownMs > 0 && item.rewardMax >= item.rewardMin));
+  assert.ok(balancing.heists.every((item) => item.minParticipants >= 2 && item.maxParticipants <= 5));
+  assert.ok(balancing.heists.at(-1).minLevel > balancing.heists[0].minLevel);
+});
+
+test("career passive income bonus stacks with the 10x FC boost", async () => {
+  const { EconomyService } = require("../src/services/economy");
+  const service = new EconomyService({});
+  const client = {
+    query: async (sql) => {
+      if (sql.includes("SELECT wallet, prestige, job_id FROM players")) {
+        return { rowCount: 1, rows: [{ wallet: 100, prestige: 0, job_id: "shopkeeper" }] };
+      }
+      if (sql.includes("SELECT id FROM economy_ledger")) return { rowCount: 0, rows: [] };
+      return { rowCount: 1, rows: [] };
+    }
+  };
+  const originalRandom = Math.random;
+  Math.random = () => 0.999;
+  try {
+    const earning = await service.mutateTx(client, "guild", "member", 500, "daily_reward", "career-test");
+    assert.equal(earning.delta, 5150);
+  } finally {
+    Math.random = originalRandom;
+  }
+});
+
 test("economy balance, job, heist, and quest data is internally valid", () => {
   assert.ok(balancing.jobs.length >= 5);
   assert.equal(new Set(balancing.jobs.map((item) => item.id)).size, balancing.jobs.length);
@@ -104,7 +147,7 @@ test("the 10x FC multiplier applies to normal rewards but not casino payouts", a
   const service = new EconomyService({});
   const client = {
     query: async (sql) => {
-      if (sql.includes("SELECT wallet, prestige FROM players")) {
+      if (sql.includes("SELECT wallet, prestige, job_id FROM players")) {
         return { rowCount: 1, rows: [{ wallet: 100, prestige: 0 }] };
       }
       if (sql.includes("SELECT id FROM economy_ledger")) {

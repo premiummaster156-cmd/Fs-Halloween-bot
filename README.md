@@ -70,6 +70,16 @@ Equipment bonuses apply only while the item is equipped. Gear can improve work s
 
 The private dashboard's **Achievements** page tracks ten permanent milestones across work shifts, career levels, successful operations, heists, player level, combined wealth, rebirths and Party Games. Each milestone shows live progress and its FC/XP reward. Unlocked rewards are claimed through the dashboard and can only be collected once; achievement progress does not expire.
 
+## Careers, operations and casino
+
+All seven career tiers now have a distinct passive benefit: work pay, work cooldown, general FC income, crime success, crime rewards, or heist success. The Career Desk shows each perk and the member's job-level promotion progress. Work shifts continue to generate a fresh pool of 100 randomized questions in one of three difficulty bands, with recent questions avoided.
+
+The Crime board contains six operations, from Pickpocket through Vault Extraction. Higher-risk operations require higher player levels and offer larger rewards, fines and cooldowns. Career perks, reputation and equipped gear influence success and rewards.
+
+Heists now include five cooperative missions, with crews of two to five and seven selectable roles. Unique crew roles improve team success odds; higher-tier missions require a full, coordinated crew.
+
+The Casino dashboard displays lifetime rounds, wins, win rate, total FC wagered, total payouts, net result and recent round history. The published theoretical return remains 95% for all three casino games. The 10× FC earning multiplier does not apply to casino payouts.
+
 ## Party Games and social features
 
 Party Games use **Party Points**, a separate non-spendable score. They do not create FS Coins, so multiplayer activity cannot inflate the economy. Historical party-game records remain stored and can be viewed through the Party Points option in **/leaderboard**. Party Games are accessed through the interactive dashboard; the standalone `/play`, `/roast` and `/fortune` shortcuts are not registered.
