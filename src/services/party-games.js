@@ -57,8 +57,13 @@ class PartyGameService {
   }
 
   async claimDailyFortune(guildId, userId) {
+    const active = await isActiveBooster(this.pool, guildId, userId);
+    const reduction = active
+      ? Math.max(0, Math.min(0.45, Number(balancing.serverBoosterEffects.partyCooldownReduction) || 0))
+      : 0;
+    const cooldownMs = Math.max(60 * 1000, Math.floor(DAILY_FORTUNE_COOLDOWN_MS * (1 - reduction)));
     return this.economy.transact((client) =>
-      claimCooldownTx(client, guildId, userId, "daily_fortune", DAILY_FORTUNE_COOLDOWN_MS)
+      claimCooldownTx(client, guildId, userId, "daily_fortune", cooldownMs)
     );
   }
 }
