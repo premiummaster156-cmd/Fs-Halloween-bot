@@ -1,5 +1,13 @@
 const balancing = require("../config/game-balancing");
 
+async function isActiveBooster(queryable, guildId, userId) {
+  const result = await queryable.query(
+    "SELECT is_active FROM server_booster_status WHERE guild_id = $1 AND user_id = $2",
+    [guildId, userId]
+  );
+  return Boolean(result.rows[0]?.is_active);
+}
+
 class ServerBoosterService {
   constructor(pool) {
     this.pool = pool;
@@ -45,8 +53,11 @@ class ServerBoosterService {
     const active = Boolean(premiumSince) || hasPremiumRole;
     const guildBoostCountRaw = guild?.premiumSubscriptionCount ?? guild?.premium_subscription_count;
     const guildBoostCount = Math.max(0, Math.floor(Number(guildBoostCountRaw) || 0));
-    const startedAt = premiumSince
-      ? (premiumSince instanceof Date ? premiumSince.toISOString() : new Date(premiumSince).toISOString())
+    const parsedPremiumSince = premiumSince
+      ? (premiumSince instanceof Date ? premiumSince : new Date(premiumSince))
+      : null;
+    const startedAt = parsedPremiumSince && Number.isFinite(parsedPremiumSince.getTime())
+      ? parsedPremiumSince.toISOString()
       : null;
 
     if (active) {
@@ -82,12 +93,12 @@ class ServerBoosterService {
     for (const item of rewards) {
       const result = await this.pool.query(
         "INSERT INTO inventory (guild_id, user_id, item_id, quantity) " +
-        "SELECT guild_id, user_id, $3, 1 FROM server_booster_status " +
+        "SELECT guild_id, user_id, $2, 1 FROM server_booster_status " +
         "WHERE guild_id = $1 AND is_active = TRUE " +
         "ON CONFLICT (guild_id, user_id, item_id) DO UPDATE SET " +
         "quantity = GREATEST(inventory.quantity, 1), updated_at = NOW() " +
         "WHERE inventory.quantity < 1 RETURNING user_id",
-        [guildId, item.requiredServerBoosts, item.id]
+        [guildId, item.id]
       );
       for (const row of result.rows || []) granted.push({ userId: row.user_id, item });
     }
@@ -124,4 +135,4 @@ class ServerBoosterService {
   }
 }
 
-module.exports = { ServerBoosterService };
+module.exports = { ServerBoosterService, isActiveBooster };
