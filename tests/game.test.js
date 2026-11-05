@@ -211,10 +211,28 @@ test("3x FC earnings keep meaningful progression and equipment sinks", () => {
   assert.equal(balancing.rebirth.firstWalletRequirement, 30000);
   assert.ok(balancing.rebirth.firstWalletRequirement > averageLevelOneDaily * 5);
   assert.deepEqual(
-    balancing.items.map((item) => item.cost),
+    balancing.items.filter((item) => !item.boosterOnly).map((item) => item.cost),
     [7000, 18000, 25000, 36000, 50000, 64000, 116000, 170000, 290000, 480000]
   );
   assert.ok(balancing.items.every((item, index, items) => index === 0 || item.cost > items[index - 1].cost));
+});
+
+test("server booster perks cover the economy, progression, operations and special gear tiers", () => {
+  assert.equal(balancing.serverBoosterEffects.moneyBonus, 0.15);
+  assert.equal(balancing.serverBoosterEffects.xpBonus, 0.15);
+  assert.equal(balancing.serverBoosterEffects.partyPointsBonus, 0.15);
+  assert.equal(balancing.serverBoosterEffects.eventRewardBonus, 0.15);
+  assert.equal(balancing.serverBoosterEffects.workCooldownReduction, 0.05);
+  assert.equal(balancing.serverBoosterEffects.casinoChance, 0.5);
+
+  const katana = balancing.items.find((item) => item.id === "booster_crimson_katana");
+  const mask = balancing.items.find((item) => item.id === "booster_phantom_mask");
+  assert.ok(katana.boosterOnly);
+  assert.equal(katana.requiredServerBoosts, 1);
+  assert.equal(katana.rebirthEligible, false);
+  assert.ok(mask.boosterOnly);
+  assert.equal(mask.requiredServerBoosts, 2);
+  assert.equal(mask.rebirthEligible, false);
 });
 
 test("rebirth multipliers double on every cycle and cooldown cuts have a safety cap", () => {
