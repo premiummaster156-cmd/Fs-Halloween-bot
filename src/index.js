@@ -1,5 +1,5 @@
 require("dotenv").config();
-const { Client, GatewayIntentBits, Events, MessageFlags, AuditLogEvent } = require("discord.js");
+const { Client, GatewayIntentBits, Events, MessageFlags, AuditLogEvent, MessageType } = require("discord.js");
 const { DomainError } = require("./utils/core");
 const settings = require("./config/settings");
 const balancing = require("./config/game-balancing");
@@ -214,7 +214,26 @@ async function start() {
   });
 
   client.on(Events.MessageCreate, async (message) => {
-    if (!message.guildId || message.author.bot || message.webhookId) return;
+    if (!message.guildId) return;
+
+    // Discord's GUILD_BOOST system message records the member who performed a boost.
+    // The unique message ID prevents retries or duplicate gateway delivery from granting twice.
+    if (message.type === MessageType.GuildBoost) {
+      const reward = await serverBoosters.recordBoostMessage(message).catch((error) => {
+        console.error("[boosters] Could not record personal boost:", error.message);
+        return null;
+      });
+      if (reward?.granted && reward.item) {
+        await message.channel.send({
+          content: "🌟 <@" + message.author.id + "> earned **" + reward.item.name +
+            "** for personal boost #" + reward.personalBoostCount + "! It was added to your inventory and equipped automatically. Upgrade it from **/menu → Gear**.",
+          allowedMentions: { users: [message.author.id] }
+        }).catch((error) => console.warn("[boosters] Could not announce booster reward:", error.message));
+      }
+      return;
+    }
+
+    if (message.author.bot || message.webhookId) return;
     const roleIds = message.member?.roles?.cache
       ? Array.from(message.member.roles.cache.keys())
       : Array.isArray(message.member?.roles) ? message.member.roles : [];

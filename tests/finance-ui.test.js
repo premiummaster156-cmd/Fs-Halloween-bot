@@ -32,10 +32,11 @@ test("gear dashboard shows loadout capacity, upgrade progress and active bonuses
     }
   });
   const embed = payload.embeds[0].toJSON();
-  assert.equal(embed.title, "GEAR  /  INVENTORY");
-  assert.ok(embed.fields.some((field) => field.name === "🧩 Equipped loadout" && field.value.includes("1/12 slots active")));
-  assert.ok(embed.fields.some((field) => field.name === "📊 Collection progress" && field.value.includes("1/12 equipment owned")));
-  assert.ok(embed.fields.some((field) => field.name === "⚙️ Active bonuses"));
+  assert.equal(embed.title, "GEAR  /  YOUR ITEMS");
+  assert.ok(embed.fields.some((field) => field.name === "⚙️ NORMAL EQUIPMENT" && field.value.includes(item.name)));
+  assert.ok(embed.fields.some((field) => field.name === "🧩 EQUIPPED LOADOUT" && field.value.includes(item.name)));
+  assert.ok(embed.fields.some((field) => field.name === "⚡ BOOSTER REWARD PROGRESS"));
+  assert.ok(embed.fields.some((field) => field.name === "⚙️ ACTIVE BONUSES"));
 });
 
 test("rebirth dashboard previews the next cycle and records completed resets", async () => {
