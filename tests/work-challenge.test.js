@@ -8,7 +8,7 @@ test("career tiers unlock progressively harder work challenge bands", () => {
   assert.equal(getQuestionBand(byId.street_runner, 1), "easy");
   assert.equal(getQuestionBand(byId.shopkeeper, 1), "medium");
   assert.equal(getQuestionBand(byId.crime_boss, 1), "hard");
-  assert.equal(getQuestionBand(byId.street_runner, 30), "medium");
+  assert.equal(getQuestionBand(byId.street_runner, 31), "medium");
 });
 
 test("each work shift draws three valid questions from a fresh 100-question pool", () => {
