@@ -90,7 +90,7 @@ const profileCommand = {
       fields.push({
         name: "Server Booster",
         value: booster.active
-          ? "Active · " + booster.serverBoostCount + " total server boosts · +15% FC/XP and wider gameplay bonuses"
+          ? "Active · " + booster.serverBoostCount + " total server boosts · +15% FC, XP, Party points and event rewards"
           : "Not currently boosting · Previously earned booster items remain yours",
         inline: false
       });
