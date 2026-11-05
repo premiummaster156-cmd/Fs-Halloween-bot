@@ -280,7 +280,7 @@ function createIdeServer(client, services) {
 
         // The bearer-key integration is server-scoped; it does not use a browser OAuth session.
         const guildId = String(settings.ideGuildId || "");
-        if (!/^\\d{1,25}$/.test(guildId)) {
+        if (!/^[0-9]{1,25}$/.test(guildId)) {
           return json(res, 503, { error: "Configure IDE_GUILD_ID (or GUILD_ID) to scope the AI workspace API to one server." });
         }
         const filesPath = "/api/ai/workspace/files";
