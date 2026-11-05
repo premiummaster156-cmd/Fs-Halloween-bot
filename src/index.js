@@ -13,6 +13,7 @@ const { CrimeGame } = require("./games/crime");
 const { CasinoGame } = require("./games/casino");
 const { HeistsGame } = require("./games/heists");
 const { HalloweenGame } = require("./games/halloween");
+const { PartyGameService } = require("./services/party-games");
 const { ActivityService } = require("./services/activity");
 const { InventoryService } = require("./services/inventory");
 const { GuildSettingsService } = require("./services/guild-settings");
@@ -37,6 +38,7 @@ async function start() {
   console.log("[workspace] Restored " + restoredCommandFiles + " JavaScript command file(s).");
   client.services = {
     pool, balancing, economy, inventory, guildSettings, security, customCommands,
+    partyGames: new PartyGameService(pool, economy),
     jobs: new JobsGame(pool, economy, inventory),
     crime: new CrimeGame(pool, economy, inventory),
     casino: new CasinoGame(pool, economy, inventory),
