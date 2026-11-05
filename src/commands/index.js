@@ -1,11 +1,6 @@
 const { SlashCommandBuilder } = require("discord.js");
-const { respond } = require("../ui");
 const { openMenu, openAdmin } = require("./dashboard");
-const { playCommand, roastCommand, fortuneCommand } = require("./party");
-const {
-  dailyCommand, profileCommand, jobCommand, workCommand, crimeCommand,
-  casinoCommand, leaderboardCommand, bossCommand, guideCommand, achievementsCommand
-} = require("./gameplay");
+const { leaderboardCommand } = require("./gameplay");
 
 const commands = [
   {
@@ -18,28 +13,13 @@ const commands = [
   },
   {
     data: new SlashCommandBuilder()
-      .setName("admin")
-      .setDescription("Open the private Fukishokai administration console.")
-      .addSubcommand((subcommand) => subcommand
-        .setName("panel")
-        .setDescription("Manage server settings, events, players and rankings.")),
+      .setName("admin-panel")
+      .setDescription("Open the private Fukishokai administration console."),
     async execute(interaction, services) {
       return openAdmin(interaction, services);
     }
   },
-  playCommand,
-  roastCommand,
-  fortuneCommand,
-  dailyCommand,
-  profileCommand,
-  jobCommand,
-  workCommand,
-  crimeCommand,
-  casinoCommand,
-  leaderboardCommand,
-  bossCommand,
-  guideCommand,
-  achievementsCommand
+  leaderboardCommand
 ];
 
 function loadCommands() {

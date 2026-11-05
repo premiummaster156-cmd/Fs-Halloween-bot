@@ -40,25 +40,15 @@ The existing `.env` in this project already has values configured for the requir
 
 ## Commands
 
-The bot has direct slash-command shortcuts as well as the full dashboard:
+The bot's built-in Discord slash-command list is intentionally limited to these three commands:
 
-- **/guide** — explain the main commands and how to get started.
-- **/profile [member]** — view a member's level, career, wealth, rebirths and Party Games record.
-- **/daily** — claim daily FC and XP. There is no streak to lose.
-- **/job careers** and **/job apply** — compare careers and apply for one.
-- **/work** — privately answer three questions for a career shift reward.
-- **/crime** — choose an operation and see the success chance and possible fine.
-- **/casino** — play Coin Flip, High Dice or Slots. The minimum bet is 100 FC; there is no maximum bet.
-- **/leaderboard ranking** — compare wealth, player levels, lifetime earnings or Party Points.
-- **/boss status**, **/boss attack**, **/boss leaderboard** and **/boss claim** — join the optional weekly cooperative boss fight.
-- **/achievements view** and **/achievements claim** — track permanent milestones across work, careers, operations, heists, leveling, wealth, rebirth and Party Games.
-- **/play** — launch Quick Draw, live Trivia, Rock–Paper–Scissors duels and Would You Rather.
-- **/roast** — generate a random, light-hearted roast for a member.
-- **/fortune** — draw a daily chaos-fortune card.
-- **/menu** — open the full private player dashboard.
-- **/admin panel** — open the private administration console for server settings, event controls, player tools, leaderboard fairness, custom JavaScript commands and audit history.
+- **/menu** — opens the private interactive player dashboard.
+- **/admin-panel** — opens the private administration console. Only the server owner, configured bot owner and configured trusted Admin Role can use it.
+- **/leaderboard ranking:** — publishes a public leaderboard for total wealth, player level, lifetime FC earned or Party Points.
 
-Most game results are public in the configured game channel. Work questions are private so other members cannot give away the answers.
+Use the dashboard for the other player features. Dashboard navigation and administration screens remain private; completed gameplay receipts are posted publicly in the configured game channel. The `/leaderboard` response is public so everyone in the channel can see the rankings.
+
+The admin console retains its custom JavaScript command workspace. A custom slash command appears in Discord only when an authorized administrator explicitly publishes it; the default deployment contains only the three built-in commands.
 
 ### Weekly cooperative boss
 
@@ -100,9 +90,9 @@ Party-game records are stored in PostgreSQL and survive restarts. Active rounds 
 
 ## Operations
 
-Set **OWNER_ID** in `.env` to the bot owner Discord user ID. For AI-assisted command creation, also configure a long random `ADMIN_WORKSPACE_API_KEY` and give the same secret to the authorized AI agent. The server owner, configured bot owner, and members holding the Admin Role selected in **/admin panel → Server settings** can open and operate the full administration console. Discord Administrator, Manage Server, and other admin roles do not grant bot-control access. `ADMIN_ROLE_IDS` is no longer used for bot access.
+Set **OWNER_ID** in `.env` to the bot owner Discord user ID. For AI-assisted command creation, also configure a long random `ADMIN_WORKSPACE_API_KEY` and give the same secret to the authorized AI agent. The server owner, configured bot owner, and members holding the Admin Role selected in **/admin-panel → Server settings** can open and operate the full administration console. Discord Administrator, Manage Server, and other admin roles do not grant bot-control access. `ADMIN_ROLE_IDS` is no longer used for bot access.
 
-Configure the trusted Admin Role, log channel, Halloween reward role and 2× XP role in **/admin panel → Server settings**. The Admin Role must be a normal server role, not @everyone or an integration-managed role. The Halloween reward role must be a normal assignable server role, not `@everyone` or an integration-managed role.
+Configure the trusted Admin Role, log channel, Halloween reward role and 2× XP role in **/admin-panel → Server settings**. The Admin Role must be a normal server role, not @everyone or an integration-managed role. The Halloween reward role must be a normal assignable server role, not `@everyone` or an integration-managed role.
 
 Members open **/menu** in the configured game channel. The dashboard itself stays private; successful gameplay and economy actions are announced in that same channel. Navigation, refreshes and ordinary cooldown messages are not posted publicly.
 
@@ -119,7 +109,7 @@ Built-in command registration during initial setup still uses `npm run deploy-co
 
 ## Administration controls
 
-Open **/admin panel** to manage the server from one private interface:
+Open **/admin-panel** to manage the server from one private interface:
 
 - **Server settings:** Halloween reward role, 2× XP role, log channel, and clear-setting controls.
 - **Event controls:** start/restart or stop the Halloween event. Stopping requires confirmation.
