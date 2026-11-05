@@ -41,7 +41,8 @@ class CrimeGame {
         await trackActionTx(client, guildId, userId, "wallet_earned", reward);
       } else {
         const rawFine = randomInt(crime.fineMin, crime.fineMax);
-        fine = Math.min(Number(player.wallet), Math.floor(rawFine * (1 - (gear.fineReduction || 0))));
+        const fineReduction = Math.min(0.75, (gear.fineReduction || 0) + (career.fineReduction || 0));
+        fine = Math.min(Number(player.wallet), Math.floor(rawFine * (1 - fineReduction)));
         if (fine > 0) await this.economy.mutateTx(client, guildId, userId, -fine, "crime_failed_fine", reference, { crimeId, successChance });
         await client.query("UPDATE players SET reputation = GREATEST(-100, reputation - 2), updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [guildId, userId]);
       }
