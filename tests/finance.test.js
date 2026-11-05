@@ -67,6 +67,6 @@ test("bank moves and incoming transfers do not inflate lifetime earned or spent 
     Math.random = originalRandom;
   }
   assert.deepEqual(updates.map((values) => values.slice(3)), [
-    [0, 0], [0, 0], [0, 0], [0, 50]
+    [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 50]
   ]);
 });
