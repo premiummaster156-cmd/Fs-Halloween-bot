@@ -2,6 +2,7 @@ const {
   SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags
 } = require("discord.js");
 const { randomUUID } = require("node:crypto");
+const { randomInt } = require("../utils/core");
 const { createEmbed } = require("../ui");
 const {
   makeTriviaQuestion, makeWouldYouRather, makeRoast, makeFortune, resolveRps
@@ -266,7 +267,10 @@ async function playWouldYouRather(interaction, services) {
 }
 
 async function playDuel(interaction, services) {
-  const opponent = interaction.options.getUser("opponent", true);
+  return playDuelWithOpponent(interaction, services, interaction.options.getUser("opponent", true));
+}
+
+async function playDuelWithOpponent(interaction, services, opponent) {
   if (opponent.id === interaction.user.id) throw new Error("You cannot challenge yourself. Even you deserve a worthy opponent.");
   if (opponent.bot) throw new Error("Bots do not duel. They have enough unfair advantages already.");
   const opponentMember = await interaction.guild.members.fetch(opponent.id).catch(() => null);
@@ -507,4 +511,4 @@ const fortuneCommand = {
   }
 };
 
-module.exports = { playCommand, roastCommand, fortuneCommand };
+module.exports = { playCommand, roastCommand, fortuneCommand, playQuickDraw, playTrivia, playWouldYouRather, playDuelWithOpponent, showLeaderboard, showStats };
