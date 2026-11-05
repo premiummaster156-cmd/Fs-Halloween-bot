@@ -90,7 +90,10 @@ class ServerBoosterService {
       );
     }
 
-    const granted = active ? await this.syncGuild(guildId, guildBoostCount) : [];
+    if (active) await this.syncGuild(guildId, guildBoostCount);
+    const granted = active
+      ? await this.grantEligibleItems(guildId, userId, guildBoostCount)
+      : [];
     this.memberSyncAt.set(syncKey, Date.now());
     return { synced: true, active, serverBoostCount: guildBoostCount, granted };
   }
@@ -102,20 +105,24 @@ class ServerBoosterService {
       "WHERE guild_id = $1 AND is_active = TRUE AND server_boost_count IS DISTINCT FROM $2",
       [guildId, count]
     );
+    return { serverBoostCount: count };
+  }
 
+  async grantEligibleItems(guildId, userId, boostCount) {
+    const count = Math.max(0, Math.floor(Number(boostCount) || 0));
+    const rewards = balancing.items.filter((item) =>
+      item.boosterOnly && count >= item.requiredServerBoosts
+    );
     const granted = [];
-    const rewards = balancing.items.filter((item) => item.boosterOnly && count >= item.requiredServerBoosts);
     for (const item of rewards) {
       const result = await this.pool.query(
-        "INSERT INTO inventory (guild_id, user_id, item_id, quantity) " +
-        "SELECT guild_id, user_id, $2, 1 FROM server_booster_status " +
-        "WHERE guild_id = $1 AND is_active = TRUE " +
+        "INSERT INTO inventory (guild_id, user_id, item_id, quantity) VALUES ($1, $2, $3, 1) " +
         "ON CONFLICT (guild_id, user_id, item_id) DO UPDATE SET " +
         "quantity = GREATEST(inventory.quantity, 1), updated_at = NOW() " +
         "WHERE inventory.quantity < 1 RETURNING user_id",
-        [guildId, item.id]
+        [guildId, userId, item.id]
       );
-      for (const row of result.rows || []) granted.push({ userId: row.user_id, item });
+      if (result.rowCount) granted.push({ userId, item });
     }
     return granted;
   }
