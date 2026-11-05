@@ -23,11 +23,16 @@ function makeBoosterPool() {
         events.add(key);
         return { rowCount: 1, rows: [{ message_id: values[2] }] };
       }
-      if (sql.includes("INSERT INTO server_booster_status")) {
+      if (sql.includes("INSERT INTO server_booster_status") && sql.includes("personal_boost_count")) {
         state.active = true;
         state.serverBoostCount = Number(values[2]) || 0;
         state.personalBoostCount += 1;
         return { rowCount: 1, rows: [{ personal_boost_count: state.personalBoostCount }] };
+      }
+      if (sql.includes("INSERT INTO server_booster_status")) {
+        state.active = true;
+        state.serverBoostCount = Number(values[2]) || 0;
+        return { rowCount: 1, rows: [] };
       }
       if (sql.includes("UPDATE server_boost_events SET boost_number")) {
         return { rowCount: 1, rows: [] };
