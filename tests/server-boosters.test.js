@@ -45,6 +45,24 @@ test("syncMember detects an active Discord booster and grants eligible tiers", a
   assert.equal(calls[0].values[1], "member-1");
 });
 
+test("members who are no longer boosting lose passive status but keep their earned items", async () => {
+  const calls = [];
+  const pool = {
+    query: async (sql, values) => {
+      calls.push({ sql, values });
+      return { rowCount: 1, rows: [] };
+    }
+  };
+  const service = new ServerBoosterService(pool);
+  const result = await service.syncMember(
+    { id: "member-1", premiumSince: null },
+    { id: "guild-1", premiumSubscriptionCount: 1 }
+  );
+  assert.equal(result.active, false);
+  assert.deepEqual(result.granted, []);
+  assert.match(calls[0].sql, /UPDATE server_booster_status SET is_active = FALSE/);
+});
+
 test("one server boost awards the Crimson Oni Katana to active boosters only", async () => {
   const calls = [];
   const pool = {
