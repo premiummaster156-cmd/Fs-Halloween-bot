@@ -51,3 +51,30 @@ test("player metrics include combined wallet and bank wealth plus Party Games al
   assert.equal(metrics.work_count, 18);
 });
 
+
+test("the private dashboard exposes achievement progress and a claim control", async () => {
+  const { renderMenu } = require("../src/commands/dashboard");
+  const entries = [
+    {
+      id: "first_shift", name: "First Shift", description: "Complete your first shift.",
+      current: 1, actual: 1, target: 1, progressPercent: 100, unlocked: true,
+      claimed: false, rewardFc: 150, rewardXp: 25
+    },
+    {
+      id: "steady_worker", name: "Steady Worker", description: "Complete ten shifts.",
+      current: 3, actual: 3, target: 10, progressPercent: 30, unlocked: false,
+      claimed: false, rewardFc: 250, rewardXp: 35
+    }
+  ];
+  const payload = await renderMenu("guild-1", "member-1", "achievements", {
+    achievements: { status: async () => entries }
+  });
+  const embed = payload.embeds[0].toJSON();
+  assert.equal(embed.title, "ACHIEVEMENT BOOK");
+  assert.ok(embed.description.includes("Collected: 0/2"));
+  assert.ok(embed.description.includes("Ready to claim: 1"));
+  const controls = payload.components.flatMap((component) => component.toJSON().components);
+  const claimMenu = controls.find((component) => component.custom_id === "dash:member-1:achievement-claim");
+  assert.ok(claimMenu);
+  assert.deepEqual(claimMenu.options.map((option) => option.value), ["first_shift"]);
+});
