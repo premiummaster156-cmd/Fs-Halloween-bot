@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const { loadCommands } = require("../src/commands");
 const { leaderboardCommand, profileCommand } = require("../src/commands/gameplay");
 
-test("only the three approved built-in slash commands are registered", () => {
+test("the approved built-in slash commands are registered", () => {
   const commands = loadCommands();
   assert.deepEqual([...commands.keys()].sort(), ["admin-panel", "leaderboard", "menu", "profile"]);
   for (const command of commands.values()) {
