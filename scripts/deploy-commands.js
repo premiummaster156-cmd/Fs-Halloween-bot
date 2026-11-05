@@ -12,6 +12,13 @@ function resolveTargetGuildId(env = process.env, configuredGuildId = settings.gu
   return guildId;
 }
 
+async function replaceCommandsForGuild({ rest, clientId, guildId, deployGuild }) {
+  // Remove application-wide commands first. If global and guild commands
+  // coexist, Discord can display both sets during command propagation.
+  await rest.put(Routes.applicationCommands(clientId), { body: [] });
+  return deployGuild(guildId);
+}
+
 async function deploy() {
   if (!settings.discordToken || !settings.clientId) {
     throw new Error("DISCORD_TOKEN and CLIENT_ID are required.");
@@ -25,11 +32,12 @@ async function deploy() {
   const { CustomCommandService } = require("../src/services/custom-commands");
 
   try {
-    const result = await new CustomCommandService(pool).deployGuild(guildId);
-
-    // Clear application-wide commands so Discord cannot show both the old
-    // global set and this server-specific set.
-    await rest.put(Routes.applicationCommands(settings.clientId), { body: [] });
+    const result = await replaceCommandsForGuild({
+      rest,
+      clientId: settings.clientId,
+      guildId,
+      deployGuild: (targetGuildId) => new CustomCommandService(pool).deployGuild(targetGuildId)
+    });
 
     console.log(
       "Replaced slash commands for server " + guildId +
@@ -48,4 +56,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { deploy, resolveTargetGuildId };
+module.exports = { deploy, resolveTargetGuildId, replaceCommandsForGuild };

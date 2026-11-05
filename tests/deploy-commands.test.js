@@ -26,3 +26,43 @@ test("slash command deployment rejects malformed server IDs", () => {
     /Global slash-command deployment is disabled/
   );
 });
+
+
+test("deployment clears global commands before replacing the target server command set", async () => {
+  const { replaceCommandsForGuild } = require("../scripts/deploy-commands");
+  const calls = [];
+  const result = await replaceCommandsForGuild({
+    rest: {
+      put: async (route, payload) => {
+        calls.push({ type: "clear-global", route, payload });
+      }
+    },
+    clientId: "app-1",
+    guildId: "guild-1",
+    deployGuild: async (guildId) => {
+      calls.push({ type: "replace-guild", guildId });
+      return { registeredCount: 3, customCount: 0 };
+    }
+  });
+
+  assert.deepEqual(calls.map((call) => call.type), ["clear-global", "replace-guild"]);
+  assert.deepEqual(calls[0].payload, { body: [] });
+  assert.equal(calls[1].guildId, "guild-1");
+  assert.deepEqual(result, { registeredCount: 3, customCount: 0 });
+});
+
+test("deployment does not proceed to guild registration if global cleanup fails", async () => {
+  const { replaceCommandsForGuild } = require("../scripts/deploy-commands");
+  let guildDeploymentCalled = false;
+
+  await assert.rejects(
+    replaceCommandsForGuild({
+      rest: { put: async () => { throw new Error("Discord API unavailable"); } },
+      clientId: "app-1",
+      guildId: "guild-1",
+      deployGuild: async () => { guildDeploymentCalled = true; }
+    }),
+    /Discord API unavailable/
+  );
+  assert.equal(guildDeploymentCalled, false);
+});
