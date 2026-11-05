@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require("discord.js");
 const { respond } = require("../ui");
 const { openMenu, openAdmin } = require("./dashboard");
+const { playCommand, roastCommand, fortuneCommand } = require("./party");
 
 const commands = [
   {
@@ -22,6 +23,9 @@ const commands = [
       return openAdmin(interaction, services);
     }
   }
+  ,playCommand,
+  roastCommand,
+  fortuneCommand
 ];
 
 function loadCommands() {
