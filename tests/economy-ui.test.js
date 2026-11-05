@@ -71,8 +71,9 @@ test("Gear clearly separates Mythic booster items from normal gear and shows aut
   assert.ok(specialField && specialField.value.includes("Crimson Oni Katana"));
   assert.ok(specialField.value.includes("AUTO-EQUIPPED"));
   assert.ok(normalField && normalField.value.includes(normal.name));
-  assert.ok(progressField && progressField.value.includes("1/5 personal boosts"));
+  assert.ok(progressField && progressField.value.includes("1/5 MYTHIC items earned"));
   assert.ok(progressField.value.includes("Phantom Shogun Mask"));
   assert.ok(embed.description.includes("MYTHIC"));
-  assert.ok(payload.components.some((component) => component.components?.some((button) => button.customId?.includes("upgrade-item"))));
+  const componentRows = payload.components.map((component) => component.toJSON());
+  assert.ok(componentRows.some((row) => row.components.some((button) => button.custom_id?.includes("upgrade-item"))));
 });
