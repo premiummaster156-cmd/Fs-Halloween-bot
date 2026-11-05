@@ -41,8 +41,8 @@ function mapPlayerMetrics(player, partyStats = {}) {
     level: Number(player.level) || 1,
     wealth: Number(player.wallet || 0) + Number(player.bank || 0),
     prestige: Number(player.prestige) || 0,
-    party_games: Number(partyStats.games) || 0,
-    party_wins: Number(partyStats.wins) || 0
+    party_games: Number(partyStats.games ?? partyStats.party_games) || 0,
+    party_wins: Number(partyStats.wins ?? partyStats.party_wins) || 0
   };
 }
 
