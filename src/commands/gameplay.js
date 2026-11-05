@@ -519,7 +519,7 @@ const guideCommand = {
         { name: "💰 Earn and progress", value: "**/daily** — claim your daily FC and XP.\n**/job careers** — compare careers.\n**/job apply** — choose a career.\n**/work** — answer three questions for shift pay." },
         { name: "🎮 Take part", value: "**/crime** — choose an operation and see its success chance.\n**/casino** — play Coin Flip, High Dice or Slots.\n**/play** — launch multiplayer party games." },
         { name: "🛡️ Weekly team goal", value: "**/boss status** — check the shared boss.\n**/boss attack** — deal damage (level 3+, once every 8 hours).\n**/boss leaderboard** — see contributors.\n**/boss claim** — collect rewards after a clear." },
-        { name: "🏆 Check your standing", value: "**/profile** — view a member's progress.\n**/leaderboard** — compare wealth, levels, lifetime earnings or Party Points.\n**/menu** — open the full interactive dashboard." }
+        { name: "🏆 Check your standing", value: "**/profile** — view a member's progress.\n**/leaderboard** — compare wealth, levels, lifetime earnings or Party Points.\n**/achievements view** — track permanent milestones and rewards.\n**/menu** — open the full interactive dashboard." }
       ]
     ));
   }
