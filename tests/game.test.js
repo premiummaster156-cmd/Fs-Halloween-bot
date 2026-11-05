@@ -65,8 +65,8 @@ test("earnings above the wallet ceiling are automatically saved to the bank", as
   Math.random = () => 0.999;
   try {
     for (const scenario of [
-      { wallet: balancing.economy.maxWallet - 50, walletDelta: 50, bankDelta: 950 },
-      { wallet: balancing.economy.maxWallet, walletDelta: 0, bankDelta: 1000 }
+      { wallet: balancing.economy.maxWallet - 50, walletDelta: 50, bankDelta: 250 },
+      { wallet: balancing.economy.maxWallet, walletDelta: 0, bankDelta: 300 }
     ]) {
       const updates = [];
       const client = {
@@ -80,7 +80,7 @@ test("earnings above the wallet ceiling are automatically saved to the bank", as
         }
       };
       const result = await service.mutateTx(client, "guild", "member", 100, "job_work", "wallet-cap-test-" + scenario.wallet);
-      assert.equal(result.delta, 1000);
+      assert.equal(result.delta, 300);
       assert.equal(result.balance, balancing.economy.maxWallet);
       assert.equal(result.walletDelta, scenario.walletDelta);
       assert.equal(result.bankDelta, scenario.bankDelta);
@@ -93,7 +93,7 @@ test("earnings above the wallet ceiling are automatically saved to the bank", as
   }
 });
 
-test("career passive income bonus stacks with the 10x FC boost", async () => {
+test("career passive income bonus stacks with the 3x FC boost", async () => {
   const { EconomyService } = require("../src/services/economy");
   const service = new EconomyService({});
   const client = {
@@ -109,7 +109,7 @@ test("career passive income bonus stacks with the 10x FC boost", async () => {
   Math.random = () => 0.999;
   try {
     const earning = await service.mutateTx(client, "guild", "member", 500, "daily_reward", "career-test");
-    assert.equal(earning.delta, 5150);
+    assert.equal(earning.delta, 1545);
   } finally {
     Math.random = originalRandom;
   }
@@ -177,7 +177,7 @@ test("upgrade prices rise with each item upgrade tier", () => {
   assert.ok(fifth > second);
 });
 
-test("the 10x FC multiplier applies to normal rewards but not casino payouts", async () => {
+test("the 3x FC multiplier applies to normal rewards but not casino payouts", async () => {
   const { EconomyService } = require("../src/services/economy");
   const service = new EconomyService({});
   const client = {
@@ -196,18 +196,18 @@ test("the 10x FC multiplier applies to normal rewards but not casino payouts", a
   try {
     const normal = await service.mutateTx(client, "guild", "member", 500, "daily_reward", "daily-test");
     const casino = await service.mutateTx(client, "guild", "member", 500, "casino_payout", "casino-test");
-    assert.equal(normal.delta, 5000);
+    assert.equal(normal.delta, 1500);
     assert.equal(casino.delta, 500);
   } finally {
     Math.random = originalRandom;
   }
 });
 
-test("10x FC earnings keep meaningful progression and equipment sinks", () => {
-  assert.equal(balancing.economy.earningMultiplier, 10);
+test("3x FC earnings keep meaningful progression and equipment sinks", () => {
+  assert.equal(balancing.economy.earningMultiplier, 3);
   const averageLevelOneDaily = ((balancing.economy.dailyMin + balancing.economy.dailyMax) / 2 + 8) *
     balancing.economy.earningMultiplier;
-  assert.equal(averageLevelOneDaily, 5780);
+  assert.equal(averageLevelOneDaily, 1734);
   assert.equal(balancing.rebirth.firstWalletRequirement, 30000);
   assert.ok(balancing.rebirth.firstWalletRequirement > averageLevelOneDaily * 5);
   assert.deepEqual(
