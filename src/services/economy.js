@@ -163,12 +163,13 @@ class EconomyService {
     const amount = Math.trunc(Number(delta));
     if (!Number.isSafeInteger(amount) || amount === 0) throw new DomainError("Amount must be a non-zero whole number.", "INVALID_AMOUNT");
     await ensurePlayerTx(client, guildId, userId);
-    const result = await client.query("SELECT wallet, prestige FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [guildId, userId]);
+    const result = await client.query("SELECT wallet, prestige, job_id FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [guildId, userId]);
     const ref = reference || uuid();
     const existing = await client.query("SELECT id FROM economy_ledger WHERE guild_id = $1 AND user_id = $2 AND reference = $3", [guildId, userId, ref]);
     if (existing.rowCount) return { duplicate: true, balance: Number(result.rows[0].wallet), delta: 0, candyDrop: null };
 
     const currentWallet = Number(result.rows[0].wallet);
+    const career = balancing.careerEffects[result.rows[0].job_id] || {};
     let appliedAmount = amount;
     const dropEligible = amount > 0 && Boolean(balancing.candyDrops[reason]);
     const earningEligible = amount > 0 && MULTIPLIED_EARNING_REASONS.has(reason);
@@ -176,8 +177,9 @@ class EconomyService {
       ? await this.inventory.getEffectsTx(client, guildId, userId)
       : {};
     if (earningEligible) {
+      const incomeBonus = Math.min(0.75, (gear.moneyBonus || 0) + (career.moneyBonus || 0));
       const multiplier = Math.max(1, Number(balancing.economy.earningMultiplier) || 1) *
-        getRebirthMultiplier(result.rows[0].prestige) * (1 + (gear.moneyBonus || 0));
+        getRebirthMultiplier(result.rows[0].prestige) * (1 + incomeBonus);
       appliedAmount = Math.min(balancing.economy.maxWallet - currentWallet, Math.floor(amount * multiplier));
       if (appliedAmount < 1) throw new DomainError("Your wallet is at its maximum balance.", "WALLET_FULL");
     }
