@@ -3,7 +3,7 @@ const settings = require("../config/settings");
 const { DomainError } = require("../utils/core");
 const { transaction } = require("../database/pool");
 const { ensurePlayerTx } = require("../services/economy");
-const { isActiveBooster } = require("../services/server-boosters");
+const { isActiveBooster, applyBoosterEventReward } = require("../services/server-boosters");
 const { activeEventTx } = require("../services/events");
 const { getWeekStart } = require("../services/activity");
 
@@ -88,9 +88,8 @@ class HalloweenGame {
         );
       }
       const boosterActive = await isActiveBooster(client, guildId, userId);
-      const eventRewardMultiplier = 1 + (boosterActive ? Number(balancing.serverBoosterEffects.eventRewardBonus) || 0 : 0);
-      const candyReward = Math.floor(balancing.halloween.weeklyMessageCandyReward * eventRewardMultiplier);
-      const pointsReward = Math.floor(balancing.halloween.weeklyMessagePointsReward * eventRewardMultiplier);
+      const candyReward = applyBoosterEventReward(balancing.halloween.weeklyMessageCandyReward, boosterActive);
+      const pointsReward = applyBoosterEventReward(balancing.halloween.weeklyMessagePointsReward, boosterActive);
       const questId = "weekly_messages:" + weekStart;
       const claim = await client.query(
         "INSERT INTO event_claims (guild_id, user_id, event_id, quest_id, candy, points) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING RETURNING quest_id",
@@ -131,9 +130,8 @@ class HalloweenGame {
       const progress = result.rowCount ? Number(result.rows[0].progress) : 0;
       if (progress < quest.goal) throw new DomainError("Your progress is " + progress + "/" + quest.goal + ". Finish the task before claiming.", "EVENT_QUEST_INCOMPLETE");
       const boosterActive = await isActiveBooster(client, guildId, userId);
-      const eventRewardMultiplier = 1 + (boosterActive ? Number(balancing.serverBoosterEffects.eventRewardBonus) || 0 : 0);
-      const candyReward = Math.floor(quest.candy * eventRewardMultiplier);
-      const pointsReward = Math.floor(quest.points * eventRewardMultiplier);
+      const candyReward = applyBoosterEventReward(quest.candy, boosterActive);
+      const pointsReward = applyBoosterEventReward(quest.points, boosterActive);
       const claim = await client.query(
         "INSERT INTO event_claims (guild_id, user_id, event_id, quest_id, candy, points) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING RETURNING quest_id",
         [guildId, userId, event.event_id, questId, candyReward, pointsReward]
