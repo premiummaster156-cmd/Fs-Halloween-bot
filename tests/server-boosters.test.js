@@ -16,6 +16,28 @@ test("booster status is read from the server-scoped member record", async () => 
   assert.deepEqual(calls[0].values, ["guild-1", "member-1"]);
 });
 
+test("syncMember detects an active Discord booster and grants eligible tiers", async () => {
+  const calls = [];
+  const pool = {
+    query: async (sql, values) => {
+      calls.push({ sql, values });
+      if (sql.includes("INSERT INTO inventory")) return { rowCount: 1, rows: [{ user_id: "member-1" }] };
+      return { rowCount: 1, rows: [] };
+    }
+  };
+  const service = new ServerBoosterService(pool);
+  const member = { id: "member-1", premiumSince: new Date("2026-11-05T10:00:00Z") };
+  const result = await service.syncMember(member, { id: "guild-1", premiumSubscriptionCount: 2 });
+  assert.equal(result.active, true);
+  assert.equal(result.serverBoostCount, 2);
+  assert.deepEqual(result.granted.map((entry) => entry.item.id), [
+    "booster_crimson_katana",
+    "booster_phantom_mask"
+  ]);
+  assert.equal(calls[0].values[0], "guild-1");
+  assert.equal(calls[0].values[1], "member-1");
+});
+
 test("one server boost awards the Crimson Oni Katana to active boosters only", async () => {
   const calls = [];
   const pool = {
