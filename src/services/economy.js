@@ -12,6 +12,24 @@ const MULTIPLIED_EARNING_REASONS = new Set([
   "achievement_reward",
 ]);
 
+const LIFETIME_EARNING_REASONS = new Set([
+  "daily_reward",
+  "job_work",
+  "crime_success",
+  "heist_reward",
+  "casino_payout",
+  "chat_activity_reward",
+  "achievement_reward"
+]);
+const LIFETIME_SPENDING_REASONS = new Set([
+  "shop_purchase",
+  "item_upgrade",
+  "casino_bet",
+  "crime_failed_fine",
+  "heist_failed_fine",
+  "member_transfer_out"
+]);
+
 async function ensurePlayerTx(client, guildId, userId) {
   await client.query(
     "INSERT INTO players (guild_id, user_id, wallet) VALUES ($1, $2, $3) ON CONFLICT (guild_id, user_id) DO NOTHING",
@@ -159,6 +177,40 @@ class EconomyService {
     return { wallet: Number(player.wallet), bank: Number(player.bank), total: Number(player.wallet) + Number(player.bank) };
   }
 
+  async getBankHistory(guildId, userId, limit = 5) {
+    const [summary, recent] = await Promise.all([
+      this.pool.query(
+        "SELECT COUNT(*)::int AS transactions, " +
+        "COALESCE(SUM(CASE WHEN reason = 'bank_deposit' THEN -delta ELSE 0 END), 0)::bigint AS deposited, " +
+        "COALESCE(SUM(CASE WHEN reason = 'bank_withdrawal' THEN delta ELSE 0 END), 0)::bigint AS withdrawn " +
+        "FROM economy_ledger WHERE guild_id = $1 AND user_id = $2 AND reason IN ('bank_deposit', 'bank_withdrawal')",
+        [guildId, userId]
+      ),
+      this.pool.query(
+        "SELECT reason, ABS(delta)::bigint AS amount, created_at FROM economy_ledger " +
+        "WHERE guild_id = $1 AND user_id = $2 AND reason IN ('bank_deposit', 'bank_withdrawal') " +
+        "ORDER BY created_at DESC LIMIT $3",
+        [guildId, userId, Math.max(1, Math.min(10, Math.floor(Number(limit) || 5)))]
+      )
+    ]);
+    const row = summary.rows[0] || {};
+    return {
+      transactions: Number(row.transactions) || 0,
+      deposited: Number(row.deposited) || 0,
+      withdrawn: Number(row.withdrawn) || 0,
+      recent: recent.rows.map((item) => ({ ...item, amount: Number(item.amount) || 0 }))
+    };
+  }
+
+  async getRebirthHistory(guildId, userId, limit = 5) {
+    const result = await this.pool.query(
+      "SELECT created_at, metadata FROM economy_ledger WHERE guild_id = $1 AND user_id = $2 " +
+      "AND reason = 'rebirth_reset' ORDER BY created_at DESC LIMIT $3",
+      [guildId, userId, Math.max(1, Math.min(10, Math.floor(Number(limit) || 5)))]
+    );
+    return result.rows;
+  }
+
   async mutateTx(client, guildId, userId, delta, reason, reference, metadata = {}) {
     const amount = Math.trunc(Number(delta));
     if (!Number.isSafeInteger(amount) || amount === 0) throw new DomainError("Amount must be a non-zero whole number.", "INVALID_AMOUNT");
@@ -190,9 +242,11 @@ class EconomyService {
     const candyDrop = appliedAmount > 0
       ? calculateCandyDrop(reason, gear.candyDropBonus || 0)
       : null;
+    const lifetimeEarned = LIFETIME_EARNING_REASONS.has(reason) ? Math.max(0, appliedAmount) : 0;
+    const lifetimeSpent = LIFETIME_SPENDING_REASONS.has(reason) ? Math.max(0, -appliedAmount) : 0;
     await client.query(
       "UPDATE players SET wallet = $3, lifetime_earned = lifetime_earned + $4, lifetime_spent = lifetime_spent + $5, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2",
-      [guildId, userId, next, Math.max(0, appliedAmount), Math.max(0, -appliedAmount)]
+      [guildId, userId, next, lifetimeEarned, lifetimeSpent]
     );
     await client.query(
       "INSERT INTO economy_ledger (guild_id, user_id, delta, reason, reference, metadata) VALUES ($1, $2, $3, $4, $5, $6::jsonb)",
@@ -257,12 +311,28 @@ class EconomyService {
         [guildId, userId, balancing.halloween.eventId]
       )
     ]);
-    return getRebirthRequirements(
+    const status = getRebirthRequirements(
       player,
       claims.rows[0]?.claimed_count || 0,
       inventory.rows,
       candy.rows[0]?.candy || 0
     );
+    const next = getRebirthRequirements(
+      { wallet: 0, bank: 0, level: 1, prestige: status.rebirths + 1, job_id: null, job_level: 1, rebirth_work_count: 0 },
+      0, [], 0
+    );
+    return {
+      ...status,
+      nextWalletRequired: next.walletRequired,
+      nextLevelRequired: next.levelRequired,
+      nextQuestClaimsRequired: next.questClaimsRequired,
+      nextJobLevelRequired: next.jobLevelRequired,
+      nextWorkShiftsRequired: next.workShiftsRequired,
+      nextGearItemsRequired: next.gearItemsRequired,
+      nextCandyItemsRequired: next.candyItemsRequired,
+      nextCandyBalanceRequired: next.candyBalanceRequired,
+      nextGearUpgradeLevelsRequired: next.gearUpgradeLevelsRequired
+    };
   }
 
   async rebirth(guildId, userId) {

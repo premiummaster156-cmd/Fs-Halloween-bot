@@ -70,6 +70,12 @@ Equipment bonuses apply only while the item is equipped. Gear can improve work s
 
 The private dashboard's **Achievements** page tracks ten permanent milestones across work shifts, career levels, successful operations, heists, player level, combined wealth, rebirths and Party Games. Each milestone shows live progress and its FC/XP reward. Unlocked rewards are claimed through the dashboard and can only be collected once; achievement progress does not expire.
 
+## Bank, equipment and rebirth records
+
+The Bank dashboard shows wallet and savings balances, lifetime deposits and withdrawals, and recent bank transactions. Deposits and withdrawals move FC between the two balances without creating new lifetime earnings or spending. Player-to-player transfers are not counted as earned FC; the Lifetime Earned leaderboard reflects game rewards and casino payouts rather than money moved between accounts.
+
+The Gear dashboard shows owned equipment, equipped slots, active bonuses, total upgrade levels and the cheapest available next upgrade. Each upgrade adds 15% to that item's listed effects, up to five levels. Rebirth keeps equipment, upgrades, Candy, collectibles, event claims and lifetime records; it resets wallet, bank, level and current career. The dashboard previews the next rebirth requirements and records completed rebirths.
+
 ## Careers, operations and casino
 
 All seven career tiers now have a distinct passive benefit: work pay, work cooldown, general FC income, crime success, crime rewards, or heist success. The Career Desk shows each perk and the member's job-level promotion progress. Work shifts continue to generate a fresh pool of 100 randomized questions in one of three difficulty bands, with recent questions avoided.

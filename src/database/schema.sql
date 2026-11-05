@@ -310,3 +310,40 @@ CREATE TABLE IF NOT EXISTS achievement_claims (
 );
 CREATE INDEX IF NOT EXISTS achievement_claims_member_idx
   ON achievement_claims (guild_id, user_id, claimed_at DESC);
+
+
+-- One-time repair: lifetime totals count real game income and outflows, not moving money
+-- between wallet/bank or receiving a player transfer.
+CREATE TABLE IF NOT EXISTS application_migrations (
+  migration_id TEXT PRIMARY KEY,
+  applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM application_migrations
+    WHERE migration_id = '2026-11-05-lifetime-economy-accounting-v1'
+  ) THEN
+    UPDATE players p
+    SET lifetime_earned = COALESCE((
+      SELECT SUM(l.delta) FROM economy_ledger l
+      WHERE l.guild_id = p.guild_id AND l.user_id = p.user_id
+        AND l.reason IN (
+          'daily_reward', 'job_work', 'crime_success', 'heist_reward',
+          'casino_payout', 'chat_activity_reward', 'achievement_reward'
+        )
+    ), 0),
+    lifetime_spent = COALESCE((
+      SELECT SUM(-l.delta) FROM economy_ledger l
+      WHERE l.guild_id = p.guild_id AND l.user_id = p.user_id
+        AND l.reason IN (
+          'shop_purchase', 'item_upgrade', 'casino_bet',
+          'crime_failed_fine', 'heist_failed_fine', 'member_transfer_out'
+        )
+    ), 0);
+
+    INSERT INTO application_migrations (migration_id)
+    VALUES ('2026-11-05-lifetime-economy-accounting-v1');
+  END IF;
+END $$;
