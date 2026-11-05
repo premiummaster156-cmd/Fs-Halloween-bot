@@ -396,6 +396,7 @@ async function renderMenu(guildId, owner, page, s) {
         { name: "⚙️ NORMAL EQUIPMENT", value: standardLines.length ? standardLines.join("\n").slice(0, 1024) : "No normal equipment yet. Open the shop to buy gear with FC." },
         ...(collectibleLines.length ? [{ name: "🎃 CANDY COLLECTIBLES", value: collectibleLines.join("\n").slice(0, 800) }] : []),
         { name: "⚡ BOOSTER REWARD PROGRESS", value: boosterProgress },
+        { name: "🌟 ALL 5 MYTHIC BOOST REWARDS", value: boosterItems.map((item) => "**#" + item.boostNumber + " " + item.name + "** — " + (item.rewardSummary || formatItemEffects(item.effects))).join("\n").slice(0, 1024) },
         { name: "🧩 EQUIPPED LOADOUT", value: equipped.length ? equipped.join("\n").slice(0, 900) : "Nothing equipped yet. Choose an item above to equip it." },
         { name: "⚙️ ACTIVE BONUSES", value: formatItemEffects(effects).slice(0, 1000) },
         { name: "📊 COLLECTION", value: standardItems.length + "/" + balancing.items.filter((item) => item.type === "equipment" && !item.boosterOnly).length +
