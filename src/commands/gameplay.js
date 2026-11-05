@@ -10,6 +10,7 @@ const balancing = require("../config/game-balancing");
 const { getPlayer, getLeaderboard } = require("../services/economy");
 const { makeWorkChallenge } = require("../games/work-challenge");
 const { getRebirthMultiplier, levelXpRequired } = require("../utils/core");
+const { ACHIEVEMENTS } = require("../games/achievements");
 
 function embed(title, description, fields = [], color = 0x851E2A) {
   return {
@@ -452,6 +453,60 @@ const bossCommand = {
   }
 };
 
+const achievementsCommand = {
+  data: new SlashCommandBuilder()
+    .setName("achievements")
+    .setDescription("Track permanent milestones and claim one-time rewards.")
+    .addSubcommand((subcommand) => subcommand
+      .setName("view")
+      .setDescription("See achievement progress and rewards."))
+    .addSubcommand((subcommand) => subcommand
+      .setName("claim")
+      .setDescription("Claim a reward for an achievement you completed.")
+      .addStringOption((option) => option
+        .setName("achievement")
+        .setDescription("Choose an unlocked achievement.")
+        .setRequired(true)
+        .addChoices(...ACHIEVEMENTS.map((item) => ({ name: item.name, value: item.id }))))),
+  async execute(interaction, services) {
+    const action = interaction.options.getSubcommand();
+    if (action === "view") {
+      const entries = await services.achievements.status(interaction.guildId, interaction.user.id);
+      const claimedCount = entries.filter((item) => item.claimed).length;
+      const lines = entries.map((item) => {
+        const mark = item.claimed ? "✅" : item.unlocked ? "🎁" : "▫️";
+        const progress = item.actual.toLocaleString() + "/" + item.target.toLocaleString();
+        const state = item.claimed ? "Claimed" : item.unlocked ? "Ready to claim" : progress;
+        return mark + " **" + item.name + "** — " + state +
+          (item.claimed ? "" : " · " + item.rewardFc.toLocaleString() + " FC / " + item.rewardXp + " XP") +
+          "\n_" + item.description + "_";
+      });
+      return interaction.editReply(embed(
+        "🏅 ACHIEVEMENT BOOK",
+        "Permanent milestones for the different ways you play. Progress never expires.\n" +
+          "**Rewards claimed:** " + claimedCount + "/" + entries.length + "\n\n" + lines.join("\n\n")
+      ));
+    }
+
+    const result = await services.achievements.claim(
+      interaction.guildId,
+      interaction.user.id,
+      interaction.options.getString("achievement", true),
+      memberRoleIds(interaction)
+    );
+    return interaction.editReply(embed(
+      "🏅 ACHIEVEMENT UNLOCKED",
+      "**" + result.achievement.name + "**\n" + result.achievement.description,
+      [
+        { name: "FS Coins", value: "+" + result.rewardFc.toLocaleString() + " FC", inline: true },
+        { name: "XP", value: "+" + result.rewardXp + " XP", inline: true },
+        { name: "Player level", value: String(result.level), inline: true }
+      ],
+      0x32865B
+    ));
+  }
+};
+
 const guideCommand = {
   data: new SlashCommandBuilder()
     .setName("guide")
@@ -479,5 +534,6 @@ module.exports = {
   casinoCommand,
   leaderboardCommand,
   bossCommand,
-  guideCommand
+  guideCommand,
+  achievementsCommand
 };
