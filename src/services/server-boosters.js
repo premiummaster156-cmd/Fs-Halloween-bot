@@ -8,6 +8,12 @@ async function isActiveBooster(queryable, guildId, userId) {
   return Boolean(result.rows[0]?.is_active);
 }
 
+function applyBoosterEventReward(baseAmount, isActive) {
+  const amount = Math.max(0, Math.floor(Number(baseAmount) || 0));
+  const multiplier = 1 + (isActive ? Number(balancing.serverBoosterEffects.eventRewardBonus) || 0 : 0);
+  return Math.floor(amount * multiplier);
+}
+
 class ServerBoosterService {
   constructor(pool) {
     this.pool = pool;
@@ -84,8 +90,8 @@ class ServerBoosterService {
       );
     }
 
-    this.memberSyncAt.set(syncKey, Date.now());
     const granted = active ? await this.syncGuild(guildId, guildBoostCount) : [];
+    this.memberSyncAt.set(syncKey, Date.now());
     return { synced: true, active, serverBoostCount: guildBoostCount, granted };
   }
 
@@ -144,4 +150,4 @@ class ServerBoosterService {
   }
 }
 
-module.exports = { ServerBoosterService, isActiveBooster };
+module.exports = { ServerBoosterService, isActiveBooster, applyBoosterEventReward };
