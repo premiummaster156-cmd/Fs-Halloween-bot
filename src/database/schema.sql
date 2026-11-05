@@ -281,3 +281,41 @@ CREATE TABLE IF NOT EXISTS party_game_stats (
 );
 CREATE INDEX IF NOT EXISTS party_game_stats_leaderboard_idx
   ON party_game_stats (guild_id, points DESC, wins DESC, best_streak DESC);
+
+
+-- Weekly cooperative boss. Periods are Monday-start UTC weeks.
+CREATE TABLE IF NOT EXISTS guild_bosses (
+  guild_id TEXT NOT NULL,
+  period_start DATE NOT NULL,
+  boss_id TEXT NOT NULL,
+  boss_name TEXT NOT NULL,
+  description TEXT NOT NULL,
+  max_hp INTEGER NOT NULL CHECK (max_hp > 0),
+  hp INTEGER NOT NULL CHECK (hp >= 0),
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'defeated')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (guild_id, period_start)
+);
+CREATE INDEX IF NOT EXISTS guild_bosses_guild_status_idx
+  ON guild_bosses (guild_id, status, period_start DESC);
+
+CREATE TABLE IF NOT EXISTS guild_boss_contributions (
+  guild_id TEXT NOT NULL,
+  period_start DATE NOT NULL,
+  user_id TEXT NOT NULL,
+  damage BIGINT NOT NULL DEFAULT 0 CHECK (damage >= 0),
+  attacks INTEGER NOT NULL DEFAULT 0 CHECK (attacks >= 0),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (guild_id, period_start, user_id)
+);
+CREATE INDEX IF NOT EXISTS guild_boss_contributions_rank_idx
+  ON guild_boss_contributions (guild_id, period_start, damage DESC, attacks DESC);
+
+CREATE TABLE IF NOT EXISTS guild_boss_claims (
+  guild_id TEXT NOT NULL,
+  period_start DATE NOT NULL,
+  user_id TEXT NOT NULL,
+  claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (guild_id, period_start, user_id)
+);
