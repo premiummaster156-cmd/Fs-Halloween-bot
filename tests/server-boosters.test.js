@@ -57,10 +57,14 @@ test("one server boost awards the Crimson Oni Katana to active boosters only", a
     }
   };
   const service = new ServerBoosterService(pool);
-  const granted = await service.syncGuild("guild-1", 1);
-  assert.equal(granted.length, 1);
-  assert.equal(granted[0].userId, "member-1");
-  assert.equal(granted[0].item.id, "booster_crimson_katana");
+  const granted = await service.syncMember(
+    { id: "member-1", premiumSince: new Date("2026-11-05T10:00:00Z") },
+    { id: "guild-1", premiumSubscriptionCount: 1 }
+  );
+  assert.equal(granted.active, true);
+  assert.equal(granted.granted.length, 1);
+  assert.equal(granted.granted[0].userId, "member-1");
+  assert.equal(granted.granted[0].item.id, "booster_crimson_katana");
   assert.ok(calls.some((call) => call.sql.includes("SET server_boost_count")));
   assert.ok(calls.some((call) => call.values?.includes("booster_crimson_katana")));
   assert.ok(!calls.some((call) => call.values?.includes("booster_phantom_mask")));
@@ -78,12 +82,27 @@ test("two server boosts unlock both exclusive items for active boosters", async 
     }
   };
   const service = new ServerBoosterService(pool);
-  const granted = await service.syncGuild("guild-1", 2);
+  const granted = await service.grantEligibleItems("guild-1", "member-1", 2);
   assert.deepEqual(granted.map((entry) => entry.item.id), [
     "booster_crimson_katana",
     "booster_phantom_mask"
   ]);
   assert.deepEqual(grantedRows, ["booster_crimson_katana", "booster_phantom_mask"]);
+});
+
+test("guild boost-count changes do not grant equipment to stale booster records", async () => {
+  const calls = [];
+  const pool = {
+    query: async (sql, values) => {
+      calls.push({ sql, values });
+      return { rowCount: 1, rows: [] };
+    }
+  };
+  const service = new ServerBoosterService(pool);
+  await service.syncGuild("guild-1", 2);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].sql, /UPDATE server_booster_status/);
+  assert.ok(!calls.some((call) => call.sql.includes("INSERT INTO inventory")));
 });
 
 test("booster-only equipment is absent from the FC shop and cannot be purchased", async () => {
