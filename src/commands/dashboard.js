@@ -344,7 +344,7 @@ async function renderMenu(guildId, owner, page, s) {
     return panel("GEAR  /  INVENTORY", "Equip one item per slot. Each upgrade adds " + Math.round(balancing.itemUpgrades.effectPerLevel * 100) + "% to that item's listed effects, up to level " + balancing.itemUpgrades.maxLevel + ".",
       [
         { name: "🎒 Owned items", value: owned.length ? owned.join("\n").slice(0, 1100) : "Your inventory is empty. Visit the shop to browse equipment." },
-        { name: "🧩 Equipped loadout", value: equipped.length + "/" + balancing.items.length + " slots active · " + equippedUpgradeLevels + " equipped upgrade levels" + (nextUpgradeCosts.length ? "\nNext available upgrade: " + nextUpgradeCosts[0].toLocaleString() + " FC" : "\nAll owned gear is fully upgraded.") },
+        { name: "🧩 Equipped loadout", value: equipped.length + "/" + balancing.items.length + " slots active · " + equippedUpgradeLevels + " equipped upgrade levels" + (nextUpgradeCosts.length ? "\nNext available upgrade: " + nextUpgradeCosts[0].toLocaleString() + " FC" : equipment.length ? "\nAll owned gear is fully upgraded." : "\nBuy equipment to start building a loadout.") },
         { name: "⚙️ Active bonuses", value: formatItemEffects(effects).slice(0, 1000) },
         { name: "📊 Collection progress", value: equipment.length + "/" + balancing.items.length + " equipment owned · " + totalUpgradeLevels + " total upgrade levels" }
       ], controls);
