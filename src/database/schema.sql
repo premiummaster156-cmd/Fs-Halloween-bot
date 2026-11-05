@@ -319,3 +319,15 @@ CREATE TABLE IF NOT EXISTS guild_boss_claims (
   claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (guild_id, period_start, user_id)
 );
+
+
+-- Permanent achievement claims are unique per member and milestone.
+CREATE TABLE IF NOT EXISTS achievement_claims (
+  guild_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  achievement_id TEXT NOT NULL,
+  claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (guild_id, user_id, achievement_id)
+);
+CREATE INDEX IF NOT EXISTS achievement_claims_member_idx
+  ON achievement_claims (guild_id, user_id, claimed_at DESC);
