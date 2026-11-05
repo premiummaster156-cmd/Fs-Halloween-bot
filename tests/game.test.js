@@ -99,6 +99,20 @@ test("upgrade prices rise with each item upgrade tier", () => {
   assert.ok(fifth > second);
 });
 
+test("10x FC earnings keep meaningful progression and equipment sinks", () => {
+  assert.equal(balancing.economy.earningMultiplier, 10);
+  const averageLevelOneDaily = ((balancing.economy.dailyMin + balancing.economy.dailyMax) / 2 + 8) *
+    balancing.economy.earningMultiplier;
+  assert.equal(averageLevelOneDaily, 5780);
+  assert.equal(balancing.rebirth.firstWalletRequirement, 30000);
+  assert.ok(balancing.rebirth.firstWalletRequirement > averageLevelOneDaily * 5);
+  assert.deepEqual(
+    balancing.items.map((item) => item.cost),
+    [7000, 18000, 25000, 36000, 50000, 64000, 116000, 170000, 290000, 480000]
+  );
+  assert.ok(balancing.items.every((item, index, items) => index === 0 || item.cost > items[index - 1].cost));
+});
+
 test("rebirth multipliers double on every cycle and cooldown cuts have a safety cap", () => {
   assert.equal(core.getRebirthMultiplier(0), 1);
   assert.equal(core.getRebirthMultiplier(1), 2);
@@ -111,7 +125,7 @@ test("rebirth multipliers double on every cycle and cooldown cuts have a safety 
 
 test("rebirth requirements use an easier FC and level curve, with Candy and gear reserved for later rebirths", () => {
   assert.equal(balancing.rebirth.startingWallet, 1000);
-  assert.equal(balancing.rebirth.firstWalletRequirement, 12000);
+  assert.equal(balancing.rebirth.firstWalletRequirement, 30000);
   assert.equal(balancing.rebirth.firstLevelRequirement, 8);
   assert.equal(balancing.rebirth.walletRequirementGrowth, 1.5);
   assert.equal(balancing.rebirth.levelRequirementGrowth, 2);
