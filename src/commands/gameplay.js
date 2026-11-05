@@ -73,7 +73,10 @@ const profileCommand = {
     const career = balancing.jobs.find((job) => job.id === player.job_id);
     const wealth = Number(player.wallet) + Number(player.bank);
     const stats = await services.partyGames.getStats(interaction.guildId, member.id);
-    return interaction.editReply(embed(
+    const booster = services.serverBoosters
+      ? await services.serverBoosters.getStatus(interaction.guildId, member.id)
+      : null;
+    const fields = [
       "👤 " + (member.globalName || member.username) + "  /  PLAYER PROFILE",
       "A snapshot of this member's Fukishokai progress.",
       [
@@ -84,8 +87,19 @@ const profileCommand = {
         { name: "Career", value: career ? career.name + " · Job level " + player.job_level : "Not selected", inline: true },
         { name: "Rebirths", value: Number(player.prestige) + " · " + getRebirthMultiplier(player.prestige).toLocaleString() + "× earnings", inline: true },
         { name: "Lifetime earned", value: Number(player.lifetime_earned).toLocaleString() + " FC", inline: true },
-        { name: "Party record", value: Number(stats.wins).toLocaleString() + " wins in " + Number(stats.games).toLocaleString() + " games · " + Number(stats.points).toLocaleString() + " points", inline: false }
-      ]
+        { name: "Party record", value: Number(stats.wins).toLocaleString() + " wins in " + Number(stats.games).toLocaleString() + " games · " + Number(stats.points).toLocaleString() + " points", inline: false },
+        ...(booster ? [{
+          name: "Server Booster",
+          value: booster.active
+            ? "Active · " + booster.serverBoostCount + " total server boosts · +15% FC/XP and wider gameplay bonuses"
+            : "Not currently boosting · Previously earned booster items remain yours",
+          inline: false
+        }] : [])
+      ];
+    return interaction.editReply(embed(
+      "👤 " + (member.globalName || member.username) + "  /  PLAYER PROFILE",
+      "A snapshot of this member's Fukishokai progress.",
+      fields
     ));
   }
 };
