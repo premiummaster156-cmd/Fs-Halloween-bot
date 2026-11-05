@@ -2,7 +2,6 @@ const {
   SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags
 } = require("discord.js");
 const { randomUUID } = require("node:crypto");
-const { randomInt } = require("../utils/core");
 const { createEmbed } = require("../ui");
 const {
   makeTriviaQuestion, makeWouldYouRather, makeRoast, makeFortune, resolveRps
@@ -36,11 +35,6 @@ function render(title, description, fields = [], color) {
 async function waitForCollector(collector) {
   return new Promise((resolve) => collector.once("end", resolve));
 }
-function displayName(interaction, userId) {
-  const member = interaction.guild.members.cache.get(userId);
-  return member?.displayName || member?.user?.globalName || member?.user?.username || "Player";
-}
-
 async function playQuickDraw(interaction, services) {
   const id = gameId();
   const joinId = "party:" + id + ":join";
@@ -91,7 +85,7 @@ async function playQuickDraw(interaction, services) {
   await lobbyMessage.edit({
     embeds: [render(
       "⚡ GET READY",
-      "Players: **" + entrants.size + "**\n\n<:clock:> **WAIT FOR THE SIGNAL.**\n\nClicking early gets you disqualified."
+      "Players: **" + entrants.size + "**\n\n⏳ **WAIT FOR THE SIGNAL.**\n\nClicking early gets you disqualified."
     )],
     components: [row(button(drawId, "WAIT...", ButtonStyle.Secondary))]
   });
