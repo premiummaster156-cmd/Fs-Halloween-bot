@@ -382,7 +382,7 @@ async function renderMenu(guildId, owner, page, s) {
     const boosterItems = balancing.items.filter((item) => item.boosterOnly).sort((a, b) => a.boostNumber - b.boostNumber);
     const boosterProgress = booster
       ? Math.min(booster.personalBoostCount || 0, boosterItems.length) + "/" + boosterItems.length +
-        " / 5 MYTHIC rewards · " + (booster.personalBoostCount || 0) + " of your boosts recorded. " +
+        " MYTHIC rewards · " + (booster.personalBoostCount || 0) + " of your boosts recorded. " +
         (booster.collectionComplete
           ? "You have completed the special collection."
           : booster.nextItem
