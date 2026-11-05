@@ -347,3 +347,16 @@ BEGIN
     VALUES ('2026-11-05-lifetime-economy-accounting-v1');
   END IF;
 END $$;
+ 
+-- Active Discord Server Booster status. Boost rewards are based on the guild's total boost count.
+CREATE TABLE IF NOT EXISTS server_booster_status (
+  guild_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT FALSE,
+  server_boost_count INTEGER NOT NULL DEFAULT 0 CHECK (server_boost_count >= 0),
+  boost_started_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (guild_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS server_booster_status_active_idx
+  ON server_booster_status (guild_id, is_active, server_boost_count);

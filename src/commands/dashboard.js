@@ -140,6 +140,7 @@ function formatItemEffects(effects = {}) {
   if (effects.casinoChance) lines.push("Casino win chance +" + effects.casinoChance + " points");
   if (effects.slotLuck) lines.push("Slots luck +" + effects.slotLuck + " roll shift");
   if (effects.fineReduction) lines.push("Fines -" + percent(effects.fineReduction) + "%");
+  if (effects.candyDropBonus) lines.push("Candy drop chance +" + percent(effects.candyDropBonus) + " points");
   for (const [key, label] of [
     ["workCooldownReduction", "Work cooldown"],
     ["crimeCooldownReduction", "Crime cooldown"],
@@ -210,6 +211,7 @@ async function renderMenu(guildId, owner, page, s) {
   if (page === "profile") {
     const p = await getPlayer(s.pool, guildId, owner);
     const career = balancing.jobs.find((j) => j.id === p.job_id);
+    const booster = s.serverBoosters ? await s.serverBoosters.getStatus(guildId, owner) : null;
     return panel("PLAYER PROFILE", "Your current standing, wealth and activity across Fukishokai.", [
       { name: "⭐ Level " + p.level, value: bar(p.xp, levelXpRequired(Number(p.level))) + "\nXP to next level: " + Number(p.xp).toLocaleString() + "/" + levelXpRequired(Number(p.level)).toLocaleString() },
       { name: "💼 Career", value: career ? career.name + "  ·  Level " + p.job_level : "Unemployed", inline: true },
@@ -218,7 +220,14 @@ async function renderMenu(guildId, owner, page, s) {
       { name: "🎭 Successful crimes", value: Number(p.crime_successes).toLocaleString(), inline: true },
       { name: "🕵️ Heists completed", value: Number(p.heists_completed).toLocaleString(), inline: true },
       { name: "⭐ Reputation", value: String(p.reputation), inline: true },
-      { name: "♻️ Rebirths", value: Number(p.prestige || 0) + " · " + Math.pow(2, Math.min(Number(p.prestige || 0), 52)).toLocaleString() + "× FC / XP", inline: true }
+      { name: "♻️ Rebirths", value: Number(p.prestige || 0) + " · " + Math.pow(2, Math.min(Number(p.prestige || 0), 52)).toLocaleString() + "× FC / XP", inline: true },
+      ...(booster ? [{
+        name: "⚡ Server Booster",
+        value: booster.active
+          ? "Active · " + booster.serverBoostCount + " total server boosts · +15% FC, XP, Party points and event rewards"
+          : "Not currently boosting · Booster-only gear already earned stays in your inventory",
+        inline: false
+      }] : [])
     ], [nav]);
   }
   if (page === "earn") {
@@ -301,6 +310,7 @@ async function renderMenu(guildId, owner, page, s) {
   if (page === "gear") {
     const inv = await s.inventory.getInventory(guildId, owner);
     const effects = await s.inventory.getEffects(guildId, owner);
+    const booster = s.serverBoosters ? await s.serverBoosters.getStatus(guildId, owner) : null;
     const owned = inv.items.map((x) => {
       if (x.item.type !== "equipment") {
         return "🎃 **" + x.item.name + "** × " + x.quantity + " · Candy collectible · Rebirth milestone";
@@ -346,12 +356,21 @@ async function renderMenu(guildId, owner, page, s) {
         { name: "🎒 Owned items", value: owned.length ? owned.join("\n").slice(0, 1100) : "Your inventory is empty. Visit the shop to browse equipment." },
         { name: "🧩 Equipped loadout", value: equipped.length + "/" + balancing.items.length + " slots active · " + equippedUpgradeLevels + " equipped upgrade levels" + (nextUpgradeCosts.length ? "\nNext available upgrade: " + nextUpgradeCosts[0].toLocaleString() + " FC" : equipment.length ? "\nAll owned gear is fully upgraded." : "\nBuy equipment to start building a loadout.") },
         { name: "⚙️ Active bonuses", value: formatItemEffects(effects).slice(0, 1000) },
+        ...(booster ? [{
+          name: "⚡ Server Booster rewards",
+          value: (booster.active ? "Active booster · " : "Not currently boosting · ") +
+            booster.serverBoostCount + " total server boosts. " +
+            (booster.unlockedItems.length
+              ? "Earned: " + booster.unlockedItems.map((item) => item.name).join(", ") + "."
+              : "Boost the server to unlock the Crimson Oni Katana at 1 boost and Phantom Shogun Mask at 2.")
+        }] : []),
         { name: "📊 Collection progress", value: equipment.length + "/" + balancing.items.length + " equipment owned · " + totalUpgradeLevels + " total upgrade levels" }
       ], controls);
   }
   if (page === "shop") {
-    const options = balancing.items.map((x) => ({ label: x.name, value: x.id, description: x.cost.toLocaleString() + " FC · Level " + x.minLevel + "+ · " + x.slot }));
-    const list = balancing.items.map((x) => "**" + x.name + "** · " + x.cost.toLocaleString() + " FC\nLevel " + x.minLevel + "+ · " + x.slot + "\n" + x.description + "\n*Bonuses:* " + formatItemEffects(x.effects));
+    const shopItems = balancing.items.filter((item) => !item.boosterOnly);
+    const options = shopItems.map((x) => ({ label: x.name, value: x.id, description: x.cost.toLocaleString() + " FC · Level " + x.minLevel + "+ · " + x.slot }));
+    const list = shopItems.map((x) => "**" + x.name + "** · " + x.cost.toLocaleString() + " FC\nLevel " + x.minLevel + "+ · " + x.slot + "\n" + x.description + "\n*Bonuses:* " + formatItemEffects(x.effects));
     return panel("EQUIPMENT SHOP", "Higher-tier equipment costs more and requires a higher level. Buy it, equip it, then upgrade it from Gear.",
       [{ name: "Available equipment", value: list.join("\n\n").slice(0, 3900) }],
       [menu(owner, "shop-buy", "Select equipment to purchase", options), nav]);

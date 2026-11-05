@@ -57,12 +57,14 @@ class InventoryService {
   }
 
   listShop() {
-    return balancing.items.map((item) => ({ ...item }));
+    return balancing.items.filter((item) => !item.boosterOnly).map((item) => ({ ...item }));
   }
 
   async buy(guildId, userId, itemId) {
     const item = balancing.items.find((entry) => entry.id === itemId);
-    if (!item) throw new DomainError("That item is not in the shop.", "ITEM_NOT_FOUND");
+    if (!item || item.boosterOnly) {
+      throw new DomainError("That item is exclusive to active server boosters and cannot be purchased.", "ITEM_NOT_IN_SHOP");
+    }
     return transaction(async (client) => {
       await ensurePlayerTx(client, guildId, userId);
       const playerResult = await client.query(
@@ -196,6 +198,13 @@ class InventoryService {
       const item = balancing.items.find((entry) => entry.id === row.item_id);
       return item ? { ...item, upgradeLevel: Number(row.upgrade_level || 0) } : null;
     }).filter(Boolean);
+    const booster = await client.query(
+      "SELECT is_active FROM server_booster_status WHERE guild_id = $1 AND user_id = $2",
+      [guildId, userId]
+    );
+    if (booster.rows[0]?.is_active) {
+      items.push({ id: "server_booster_passive", effects: balancing.serverBoosterEffects });
+    }
     return combineEffects(items);
   }
 
@@ -204,10 +213,18 @@ class InventoryService {
       "SELECT e.item_id, i.upgrade_level FROM equipped_items e JOIN inventory i ON i.guild_id = e.guild_id AND i.user_id = e.user_id AND i.item_id = e.item_id WHERE e.guild_id = $1 AND e.user_id = $2",
       [guildId, userId]
     );
-    return combineEffects(result.rows.map((row) => {
+    const items = result.rows.map((row) => {
       const item = balancing.items.find((entry) => entry.id === row.item_id);
       return item ? { ...item, upgradeLevel: Number(row.upgrade_level || 0) } : null;
-    }).filter(Boolean));
+    }).filter(Boolean);
+    const booster = await this.pool.query(
+      "SELECT is_active FROM server_booster_status WHERE guild_id = $1 AND user_id = $2",
+      [guildId, userId]
+    );
+    if (booster.rows[0]?.is_active) {
+      items.push({ id: "server_booster_passive", effects: balancing.serverBoosterEffects });
+    }
+    return combineEffects(items);
   }
 }
 

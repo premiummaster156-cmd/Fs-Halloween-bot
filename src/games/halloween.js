@@ -3,6 +3,7 @@ const settings = require("../config/settings");
 const { DomainError } = require("../utils/core");
 const { transaction } = require("../database/pool");
 const { ensurePlayerTx } = require("../services/economy");
+const { isActiveBooster, applyBoosterEventReward } = require("../services/server-boosters");
 const { activeEventTx } = require("../services/events");
 const { getWeekStart } = require("../services/activity");
 
@@ -86,15 +87,18 @@ class HalloweenGame {
           "WEEKLY_ACTIVITY_INCOMPLETE"
         );
       }
+      const boosterActive = await isActiveBooster(client, guildId, userId);
+      const candyReward = applyBoosterEventReward(balancing.halloween.weeklyMessageCandyReward, boosterActive);
+      const pointsReward = applyBoosterEventReward(balancing.halloween.weeklyMessagePointsReward, boosterActive);
       const questId = "weekly_messages:" + weekStart;
       const claim = await client.query(
         "INSERT INTO event_claims (guild_id, user_id, event_id, quest_id, candy, points) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING RETURNING quest_id",
-        [guildId, userId, event.event_id, questId, balancing.halloween.weeklyMessageCandyReward, balancing.halloween.weeklyMessagePointsReward]
+        [guildId, userId, event.event_id, questId, candyReward, pointsReward]
       );
       if (!claim.rowCount) throw new DomainError("You already claimed this week's activity reward.", "WEEKLY_ACTIVITY_CLAIMED");
       await client.query(
         "INSERT INTO event_wallets (guild_id, user_id, event_id, candy, points) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (guild_id, user_id, event_id) DO UPDATE SET candy = event_wallets.candy + EXCLUDED.candy, points = event_wallets.points + EXCLUDED.points, updated_at = NOW()",
-        [guildId, userId, event.event_id, balancing.halloween.weeklyMessageCandyReward, balancing.halloween.weeklyMessagePointsReward]
+        [guildId, userId, event.event_id, candyReward, pointsReward]
       );
       const count = await client.query(
         "SELECT COUNT(*)::int AS claimed FROM event_claims WHERE guild_id = $1 AND user_id = $2 AND event_id = $3",
@@ -103,8 +107,8 @@ class HalloweenGame {
       return {
         messages,
         weekStart,
-        candy: balancing.halloween.weeklyMessageCandyReward,
-        points: balancing.halloween.weeklyMessagePointsReward,
+        candy: candyReward,
+        points: pointsReward,
         claimedCount: count.rows[0].claimed,
         eligibleForRole: count.rows[0].claimed >= balancing.halloween.finalRoleQuestCount,
         roleId: event.role_id
@@ -125,17 +129,26 @@ class HalloweenGame {
       );
       const progress = result.rowCount ? Number(result.rows[0].progress) : 0;
       if (progress < quest.goal) throw new DomainError("Your progress is " + progress + "/" + quest.goal + ". Finish the task before claiming.", "EVENT_QUEST_INCOMPLETE");
+      const boosterActive = await isActiveBooster(client, guildId, userId);
+      const candyReward = applyBoosterEventReward(quest.candy, boosterActive);
+      const pointsReward = applyBoosterEventReward(quest.points, boosterActive);
       const claim = await client.query(
         "INSERT INTO event_claims (guild_id, user_id, event_id, quest_id, candy, points) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING RETURNING quest_id",
-        [guildId, userId, event.event_id, questId, quest.candy, quest.points]
+        [guildId, userId, event.event_id, questId, candyReward, pointsReward]
       );
       if (!claim.rowCount) throw new DomainError("You already claimed this quest.", "EVENT_QUEST_CLAIMED");
       await client.query(
         "INSERT INTO event_wallets (guild_id, user_id, event_id, candy, points) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (guild_id, user_id, event_id) DO UPDATE SET candy = event_wallets.candy + EXCLUDED.candy, points = event_wallets.points + EXCLUDED.points, updated_at = NOW()",
-        [guildId, userId, event.event_id, quest.candy, quest.points]
+        [guildId, userId, event.event_id, candyReward, pointsReward]
       );
       const count = await client.query("SELECT COUNT(*)::int AS claimed FROM event_claims WHERE guild_id = $1 AND user_id = $2 AND event_id = $3", [guildId, userId, event.event_id]);
-      return { quest, claimedCount: count.rows[0].claimed, eligibleForRole: count.rows[0].claimed >= balancing.halloween.finalRoleQuestCount, roleId: event.role_id };
+      return {
+        quest: { ...quest, candy: candyReward, points: pointsReward },
+        claimedCount: count.rows[0].claimed,
+        eligibleForRole: count.rows[0].claimed >= balancing.halloween.finalRoleQuestCount,
+        roleId: event.role_id,
+        boosterBonus: boosterActive
+      };
     });
   }
 

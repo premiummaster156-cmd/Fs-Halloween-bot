@@ -211,10 +211,43 @@ test("3x FC earnings keep meaningful progression and equipment sinks", () => {
   assert.equal(balancing.rebirth.firstWalletRequirement, 30000);
   assert.ok(balancing.rebirth.firstWalletRequirement > averageLevelOneDaily * 5);
   assert.deepEqual(
-    balancing.items.map((item) => item.cost),
+    balancing.items.filter((item) => !item.boosterOnly).map((item) => item.cost),
     [7000, 18000, 25000, 36000, 50000, 64000, 116000, 170000, 290000, 480000]
   );
   assert.ok(balancing.items.every((item, index, items) => index === 0 || item.cost > items[index - 1].cost));
+});
+
+test("server booster perks cover the economy, progression, operations and special gear tiers", () => {
+  assert.equal(balancing.serverBoosterEffects.moneyBonus, 0.15);
+  assert.equal(balancing.serverBoosterEffects.xpBonus, 0.15);
+  assert.equal(balancing.serverBoosterEffects.partyPointsBonus, 0.15);
+  assert.equal(balancing.serverBoosterEffects.eventRewardBonus, 0.15);
+  assert.equal(balancing.serverBoosterEffects.workCooldownReduction, 0.05);
+  assert.equal(balancing.serverBoosterEffects.casinoChance, 0.5);
+
+  const katana = balancing.items.find((item) => item.id === "booster_crimson_katana");
+  const mask = balancing.items.find((item) => item.id === "booster_phantom_mask");
+  assert.ok(katana.boosterOnly);
+  assert.equal(katana.requiredServerBoosts, 1);
+  assert.equal(katana.rebirthEligible, false);
+  assert.ok(mask.boosterOnly);
+  assert.equal(mask.requiredServerBoosts, 2);
+  assert.equal(mask.rebirthEligible, false);
+});
+
+test("booster-only equipment cannot satisfy normal rebirth gear milestones", () => {
+  const { getRebirthRequirements } = require("../src/services/economy");
+  const player = {
+    wallet: 500000, bank: 0, level: 50, prestige: 3,
+    job_id: "street_runner", job_level: 30, rebirth_work_count: 30
+  };
+  const status = getRebirthRequirements(player, 6, [
+    { item_id: "booster_crimson_katana", quantity: 1, upgrade_level: 5 }
+  ], 25);
+  assert.equal(status.gearItemsRequired, 1);
+  assert.equal(status.gearItemsCount, 0);
+  assert.equal(status.gearUpgradeLevels, 0);
+  assert.equal(status.checks.gearItems, false);
 });
 
 test("rebirth multipliers double on every cycle and cooldown cuts have a safety cap", () => {
@@ -343,9 +376,10 @@ test("Candy shop collectible items are unique and usable as permanent rebirth mi
 test("gear catalog has rising tiers and five upgrade levels", () => {
   assert.equal(balancing.itemUpgrades.maxLevel, 5);
   assert.ok(balancing.items.length >= 10);
-  for (let index = 1; index < balancing.items.length; index += 1) {
-    assert.ok(balancing.items[index].cost > balancing.items[index - 1].cost);
-    assert.ok(balancing.items[index].minLevel > balancing.items[index - 1].minLevel);
+  const shopItems = balancing.items.filter((item) => !item.boosterOnly);
+  for (let index = 1; index < shopItems.length; index += 1) {
+    assert.ok(shopItems[index].cost > shopItems[index - 1].cost);
+    assert.ok(shopItems[index].minLevel > shopItems[index - 1].minLevel);
   }
 });
 

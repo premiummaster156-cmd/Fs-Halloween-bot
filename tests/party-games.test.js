@@ -68,17 +68,56 @@ test("party stats record only bounded non-negative points and increment win stre
   const service = new PartyGameService({
     query: async (sql, values) => {
       calls.push({ sql, values });
+      if (sql.includes("SELECT is_active")) return { rowCount: 1, rows: [{ is_active: false }] };
       return { rowCount: 1, rows: [] };
     }
   }, {});
   await service.record("guild-1", "player-1", { points: 12, won: true });
-  assert.equal(calls.length, 1);
-  assert.match(calls[0].sql, /INSERT INTO party_game_stats/);
-  assert.match(calls[0].sql, /current_streak/);
-  assert.deepEqual(calls[0].values, ["guild-1", "player-1", 12, 1, 1]);
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].sql, /SELECT is_active/);
+  assert.match(calls[1].sql, /INSERT INTO party_game_stats/);
+  assert.match(calls[1].sql, /current_streak/);
+  assert.deepEqual(calls[1].values, ["guild-1", "player-1", 12, 1, 1]);
   await service.record("guild-1", "player-2", { points: 999999, won: false });
-  assert.equal(calls[1].values[2], 1000);
-  assert.equal(calls[1].values[3], 0);
+  assert.equal(calls[3].values[2], 1000);
+  assert.equal(calls[3].values[3], 0);
+});
+
+test("active server boosters earn 15% more Party Game points", async () => {
+  const inserts = [];
+  const pool = {
+    query: async (sql, values) => {
+      if (sql.includes("SELECT is_active")) return { rowCount: 1, rows: [{ is_active: true }] };
+      inserts.push(values);
+      return { rowCount: 1, rows: [] };
+    }
+  };
+  const service = new PartyGameService(pool, {});
+  await service.record("guild-1", "booster-1", { points: 12, won: true });
+  assert.equal(inserts[0][2], Math.floor(12 * (1 + require("../src/config/game-balancing").serverBoosterEffects.partyPointsBonus)));
+});
+
+test("active server boosters get a shorter daily Fortune cooldown", async () => {
+  const updates = [];
+  const pool = {
+    query: async (sql, values) => {
+      if (sql.includes("SELECT is_active")) return { rowCount: 1, rows: [{ is_active: true }] };
+      return { rowCount: 1, rows: [] };
+    }
+  };
+  const client = {
+    query: async (sql, values) => {
+      if (sql.includes("SELECT next_at")) return { rowCount: 1, rows: [{ next_at: new Date(0) }] };
+      if (sql.includes("UPDATE cooldowns SET next_at")) updates.push(values);
+      return { rowCount: 1, rows: [] };
+    }
+  };
+  const service = new PartyGameService(pool, { transact: (callback) => callback(client) });
+  await service.claimDailyFortune("guild-1", "booster-1");
+  assert.equal(updates.length, 1);
+  const remainingMs = updates[0][3].getTime() - Date.now();
+  const expectedMs = DAILY_FORTUNE_COOLDOWN_MS * (1 - require("../src/config/game-balancing").serverBoosterEffects.partyCooldownReduction);
+  assert.ok(Math.abs(remainingMs - expectedMs) < 1000);
 });
 
 test("party leaderboard and profile queries are scoped to the requested guild and member", async () => {

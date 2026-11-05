@@ -33,8 +33,8 @@ test("gear dashboard shows loadout capacity, upgrade progress and active bonuses
   });
   const embed = payload.embeds[0].toJSON();
   assert.equal(embed.title, "GEAR  /  INVENTORY");
-  assert.ok(embed.fields.some((field) => field.name === "🧩 Equipped loadout" && field.value.includes("1/10 slots active")));
-  assert.ok(embed.fields.some((field) => field.name === "📊 Collection progress" && field.value.includes("1/10 equipment owned")));
+  assert.ok(embed.fields.some((field) => field.name === "🧩 Equipped loadout" && field.value.includes("1/12 slots active")));
+  assert.ok(embed.fields.some((field) => field.name === "📊 Collection progress" && field.value.includes("1/12 equipment owned")));
   assert.ok(embed.fields.some((field) => field.name === "⚙️ Active bonuses"));
 });
 

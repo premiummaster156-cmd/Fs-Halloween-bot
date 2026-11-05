@@ -1,4 +1,6 @@
 const { claimCooldownTx } = require("../utils/core");
+const balancing = require("../config/game-balancing");
+const { isActiveBooster } = require("./server-boosters");
 
 const DAILY_FORTUNE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
@@ -9,7 +11,10 @@ class PartyGameService {
   }
 
   async record(guildId, userId, { points = 0, won = false } = {}) {
-    const safePoints = Math.max(0, Math.min(1000, Math.floor(Number(points) || 0)));
+    const basePoints = Math.max(0, Math.min(1000, Math.floor(Number(points) || 0)));
+    const boosterActive = await isActiveBooster(this.pool, guildId, userId);
+    const multiplier = 1 + (boosterActive ? Number(balancing.serverBoosterEffects.partyPointsBonus) || 0 : 0);
+    const safePoints = Math.floor(basePoints * multiplier);
     await this.pool.query(
       "INSERT INTO party_game_stats (guild_id, user_id, points, games, wins, current_streak, best_streak, last_played_at) " +
       "VALUES ($1, $2, $3, 1, $4, $5, $5, NOW()) " +
@@ -52,8 +57,13 @@ class PartyGameService {
   }
 
   async claimDailyFortune(guildId, userId) {
+    const active = await isActiveBooster(this.pool, guildId, userId);
+    const reduction = active
+      ? Math.max(0, Math.min(0.45, Number(balancing.serverBoosterEffects.partyCooldownReduction) || 0))
+      : 0;
+    const cooldownMs = Math.max(60 * 1000, Math.floor(DAILY_FORTUNE_COOLDOWN_MS * (1 - reduction)));
     return this.economy.transact((client) =>
-      claimCooldownTx(client, guildId, userId, "daily_fortune", DAILY_FORTUNE_COOLDOWN_MS)
+      claimCooldownTx(client, guildId, userId, "daily_fortune", cooldownMs)
     );
   }
 }

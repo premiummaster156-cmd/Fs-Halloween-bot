@@ -30,6 +30,29 @@ module.exports = {
     underboss: { heistChance: 4 },
     crime_boss: { moneyBonus: 0.05, heistChance: 2 }
   },
+  // Applied automatically while a member is actively boosting this server.
+  // Casino odds are increased through the fair-play gear path, which scales payouts to preserve RTP.
+  serverBoosterEffects: {
+    moneyBonus: 0.15,
+    xpBonus: 0.15,
+    workPayBonus: 0.08,
+    workXpBonus: 0.08,
+    crimeRewardBonus: 0.05,
+    crimeChance: 3,
+    heistChance: 3,
+    fineReduction: 0.05,
+    casinoChance: 0.5,
+    slotLuck: 3,
+    candyDropBonus: 0.03,
+    workCooldownReduction: 0.05,
+    crimeCooldownReduction: 0.05,
+    heistCooldownReduction: 0.05,
+    dailyCooldownReduction: 0.05,
+    casinoCooldownReduction: 0.05,
+    partyPointsBonus: 0.15,
+    partyCooldownReduction: 0.05,
+    eventRewardBonus: 0.15
+  },
   items: [
     { id: "reinforced_gloves", name: "Reinforced Gloves", type: "equipment", slot: "hands", cost: 7000, minLevel: 2, description: "Reliable handling improves crime success and reduces crime cooldowns.", effects: { crimeChance: 3, crimeCooldownReduction: 0.05, candyDropBonus: 0.01 } },
     { id: "urban_disguise", name: "Urban Disguise", type: "equipment", slot: "outfit", cost: 18000, minLevel: 5, description: "Stay unnoticed on operations and get a small edge at the casino.", effects: { crimeChance: 4, heistChance: 1, casinoChance: 0.6, casinoCooldownReduction: 0.04, candyDropBonus: 0.015 } },
@@ -40,7 +63,9 @@ module.exports = {
     { id: "smuggler_satchel", name: "Smuggler Satchel", type: "equipment", slot: "belt", cost: 116000, minLevel: 17, description: "Improve crime success, reduce fines and shorten daily reward cooldowns.", effects: { crimeChance: 5, fineReduction: 0.10, xpBonus: 0.06, dailyCooldownReduction: 0.05, candyDropBonus: 0.035 } },
     { id: "crimson_charm", name: "Crimson Charm", type: "equipment", slot: "charm", cost: 170000, minLevel: 20, description: "A rare keepsake that improves work, income, XP and risky operations.", effects: { crimeChance: 3, heistChance: 4, workPayBonus: 0.10, moneyBonus: 0.08, xpBonus: 0.10, casinoChance: 0.8, workCooldownReduction: 0.06, candyDropBonus: 0.04 } },
     { id: "phantom_chronometer", name: "Phantom Chronometer", type: "equipment", slot: "watch", cost: 290000, minLevel: 26, description: "Advanced timing gear that shortens work, crime, heist, daily and casino cooldowns.", effects: { workCooldownReduction: 0.12, crimeCooldownReduction: 0.10, heistCooldownReduction: 0.10, dailyCooldownReduction: 0.08, casinoCooldownReduction: 0.12, xpBonus: 0.08, candyDropBonus: 0.045 } },
-    { id: "syndicate_ledger", name: "Syndicate Ledger", type: "equipment", slot: "badge", cost: 480000, minLevel: 32, description: "Elite equipment for higher income, XP and improved gambling luck.", effects: { moneyBonus: 0.15, xpBonus: 0.15, workPayBonus: 0.12, crimeRewardBonus: 0.08, casinoChance: 1.5, slotLuck: 12, heistChance: 3, candyDropBonus: 0.05 } }
+    { id: "syndicate_ledger", name: "Syndicate Ledger", type: "equipment", slot: "badge", cost: 480000, minLevel: 32, description: "Elite equipment for higher income, XP and improved gambling luck.", effects: { moneyBonus: 0.15, xpBonus: 0.15, workPayBonus: 0.12, crimeRewardBonus: 0.08, casinoChance: 1.5, slotLuck: 12, heistChance: 3, candyDropBonus: 0.05 } },
+    { id: "booster_crimson_katana", name: "Crimson Oni Katana", type: "equipment", slot: "weapon", cost: 850000, minLevel: 5, boosterOnly: true, requiredServerBoosts: 1, rebirthEligible: false, description: "A ceremonial blade awarded only to active boosters when this server has at least one boost.", effects: { crimeChance: 4, crimeRewardBonus: 0.05, workPayBonus: 0.05, heistChance: 1, candyDropBonus: 0.02 } },
+    { id: "booster_phantom_mask", name: "Phantom Shogun Mask", type: "equipment", slot: "mask", cost: 1250000, minLevel: 10, boosterOnly: true, requiredServerBoosts: 2, rebirthEligible: false, description: "An exclusive mask awarded to active boosters when this server has at least two boosts.", effects: { moneyBonus: 0.05, xpBonus: 0.08, heistChance: 3, casinoChance: 0.3, slotLuck: 2, candyDropBonus: 0.03, workCooldownReduction: 0.03, dailyCooldownReduction: 0.03 } }
   ],
   itemUpgrades: { maxLevel: 5, effectPerLevel: 0.15, costBaseFactor: 0.65, costGrowthFactor: 1.7, levelRequirementPerUpgrade: 2 },
   rebirth: { startingWallet: 1000, firstWalletRequirement: 30000, firstLevelRequirement: 8, walletRequirementGrowth: 1.5, levelRequirementGrowth: 2, firstQuestClaimsRequirement: 1, questClaimsGrowth: 1, firstJobLevelRequirement: 1, jobLevelGrowthEvery: 2, firstWorkShiftsRequirement: 3, workShiftsGrowth: 2, itemRequirementsStartAt: 3, firstGearItemsRequirement: 1, gearItemsGrowth: 1, firstCandyItemsRequirement: 1, candyItemsGrowth: 1, firstCandyBalanceRequirement: 25, candyBalanceGrowth: 25, gearUpgradeRequirementsStartAt: 4, firstGearUpgradeLevelsRequirement: 1, gearUpgradeLevelsGrowth: 1 },

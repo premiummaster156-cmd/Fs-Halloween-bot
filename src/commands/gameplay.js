@@ -73,23 +73,35 @@ const profileCommand = {
     const career = balancing.jobs.find((job) => job.id === player.job_id);
     const wealth = Number(player.wallet) + Number(player.bank);
     const stats = await services.partyGames.getStats(interaction.guildId, member.id);
+    const booster = services.serverBoosters
+      ? await services.serverBoosters.getStatus(interaction.guildId, member.id)
+      : null;
+    const fields = [
+      { name: "Level", value: "Level " + player.level + "\n" + bar(player.xp, levelXpRequired(Number(player.level))) + "\n" + Number(player.xp).toLocaleString() + "/" + levelXpRequired(Number(player.level)) + " XP", inline: false },
+      { name: "Total wealth", value: wealth.toLocaleString() + " FC", inline: true },
+      { name: "Wallet", value: Number(player.wallet).toLocaleString() + " FC", inline: true },
+      { name: "Bank", value: Number(player.bank).toLocaleString() + " FC", inline: true },
+      { name: "Career", value: career ? career.name + " · Job level " + player.job_level : "Not selected", inline: true },
+      { name: "Rebirths", value: Number(player.prestige) + " · " + getRebirthMultiplier(player.prestige).toLocaleString() + "× earnings", inline: true },
+      { name: "Lifetime earned", value: Number(player.lifetime_earned).toLocaleString() + " FC", inline: true },
+      { name: "Party record", value: Number(stats.wins).toLocaleString() + " wins in " + Number(stats.games).toLocaleString() + " games · " + Number(stats.points).toLocaleString() + " points", inline: false }
+    ];
+    if (booster) {
+      fields.push({
+        name: "Server Booster",
+        value: booster.active
+          ? "Active · " + booster.serverBoostCount + " total server boosts · +15% FC, XP, Party points and event rewards"
+          : "Not currently boosting · Previously earned booster items remain yours",
+        inline: false
+      });
+    }
     return interaction.editReply(embed(
       "👤 " + (member.globalName || member.username) + "  /  PLAYER PROFILE",
       "A snapshot of this member's Fukishokai progress.",
-      [
-        { name: "Level", value: "Level " + player.level + "\n" + bar(player.xp, levelXpRequired(Number(player.level))) + "\n" + Number(player.xp).toLocaleString() + "/" + levelXpRequired(Number(player.level)) + " XP", inline: false },
-        { name: "Total wealth", value: wealth.toLocaleString() + " FC", inline: true },
-        { name: "Wallet", value: Number(player.wallet).toLocaleString() + " FC", inline: true },
-        { name: "Bank", value: Number(player.bank).toLocaleString() + " FC", inline: true },
-        { name: "Career", value: career ? career.name + " · Job level " + player.job_level : "Not selected", inline: true },
-        { name: "Rebirths", value: Number(player.prestige) + " · " + getRebirthMultiplier(player.prestige).toLocaleString() + "× earnings", inline: true },
-        { name: "Lifetime earned", value: Number(player.lifetime_earned).toLocaleString() + " FC", inline: true },
-        { name: "Party record", value: Number(stats.wins).toLocaleString() + " wins in " + Number(stats.games).toLocaleString() + " games · " + Number(stats.points).toLocaleString() + " points", inline: false }
-      ]
+      fields
     ));
   }
 };
-
 const jobCommand = {
   data: new SlashCommandBuilder()
     .setName("job")
