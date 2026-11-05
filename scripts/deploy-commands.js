@@ -1,7 +1,6 @@
 require("dotenv").config();
 const { REST, Routes } = require("discord.js");
 const settings = require("../src/config/settings");
-const { loadCommands } = require("../src/commands");
 
 async function deploy() {
   if (!settings.discordToken || !settings.clientId) {
