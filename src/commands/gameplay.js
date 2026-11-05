@@ -398,7 +398,7 @@ const bossCommand = {
         boss.description + "\n\n**Health:** " + hp.toLocaleString() + " / " + maxHp.toLocaleString() +
           "\n" + bar(maxHp - hp, maxHp) + " defeated" +
           "\n**Week starts:** " + status.periodStart +
-          (boss.status === "defeated" ? "\n\n<:none:0> **Boss defeated!** Use /boss claim if you contributed." : "\n\nUse **/boss attack** to help your server."),
+          (boss.status === "defeated" ? "\n\n✅ **Boss defeated!** Use /boss claim if you contributed." : "\n\nUse **/boss attack** to help your server."),
         [
           { name: "Your damage", value: status.contribution.damage.toLocaleString(), inline: true },
           { name: "Your attacks", value: status.contribution.attacks.toLocaleString(), inline: true },
