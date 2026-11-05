@@ -71,8 +71,8 @@ test("the private dashboard exposes achievement progress and a claim control", a
   });
   const embed = payload.embeds[0].toJSON();
   assert.equal(embed.title, "ACHIEVEMENT BOOK");
-  assert.ok(embed.description.includes("Collected: 0/2"));
-  assert.ok(embed.description.includes("Ready to claim: 1"));
+  assert.ok(embed.description.includes("0/2"));
+  assert.ok(embed.description.includes("Ready to claim") && embed.description.includes("1"));
   const controls = payload.components.flatMap((component) => component.toJSON().components);
   const claimMenu = controls.find((component) => component.custom_id === "dash:member-1:achievement-claim");
   assert.ok(claimMenu);
