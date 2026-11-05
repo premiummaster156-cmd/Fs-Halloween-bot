@@ -175,7 +175,9 @@ class GuildBossGame {
         const rankBonus = rank === 1 ? 300 : rank === 2 ? 200 : rank === 3 ? 100 : 0;
         const fc = CLEAR_REWARD_FC + rankBonus;
         const xp = CLEAR_REWARD_XP + (rank <= 3 ? 20 : 0);
-        const period = String(row.period_start).slice(0, 10);
+        const period = row.period_start instanceof Date
+          ? row.period_start.toISOString().slice(0, 10)
+          : String(row.period_start).slice(0, 10);
         await this.economy.mutateTx(
           client, guildId, userId, fc, "guild_boss_clear",
           "guild-boss-clear:" + period + ":" + userId,
