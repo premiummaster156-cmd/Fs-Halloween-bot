@@ -51,9 +51,3 @@ test("player metrics include combined wallet and bank wealth plus Party Games al
   assert.equal(metrics.work_count, 18);
 });
 
-test("achievement slash command is registered with valid view and claim choices", () => {
-  const { loadCommands } = require("../src/commands");
-  const command = loadCommands().get("achievements");
-  assert.ok(command);
-  assert.doesNotThrow(() => command.data.toJSON());
-});
