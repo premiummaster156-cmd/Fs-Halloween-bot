@@ -5,12 +5,12 @@ const { transaction } = require("../database/pool");
 const { trackActionTx } = require("../services/events");
 
 const BOSSES = [
-  { id: "training_golem", name: "Training Golem", title: "The First Trial", minLevel: 1, maxHp: 520, attack: 24, rewardFc: 600, rewardXp: 55, description: "An ancient construct that tests new challengers." },
-  { id: "ashen_knight", name: "Ashen Knight", title: "Keeper of Embers", minLevel: 25, maxHp: 1900, attack: 48, rewardFc: 1800, rewardXp: 110, description: "A fallen champion wrapped in burning steel." },
-  { id: "rift_warden", name: "Rift Warden", title: "Gatekeeper of the Deep", minLevel: 75, maxHp: 4200, attack: 86, rewardFc: 3600, rewardXp: 220, description: "A sentinel that bends the arena around its blade." },
-  { id: "abyss_wyrm", name: "Abyss Wyrm", title: "The Hollow Serpent", minLevel: 150, maxHp: 8200, attack: 145, rewardFc: 6500, rewardXp: 390, description: "A colossal wyrm that feeds on broken promises." },
-  { id: "oni_shogun", name: "Oni Shogun", title: "Lord of the Crimson Gate", minLevel: 300, maxHp: 13500, attack: 220, rewardFc: 10500, rewardXp: 650, description: "A warlord whose armour remembers a thousand duels." },
-  { id: "dragon_sovereign", name: "Dragon Sovereign", title: "The Final Ascendant", minLevel: 500, maxHp: 19000, attack: 285, rewardFc: 15000, rewardXp: 900, description: "The final guardian of the Rift, beyond the old world." }
+  { id: "training_golem", name: "Training Golem", title: "The First Trial", minLevel: 1, maxHp: 500, attack: 22, rewardFc: 500, rewardXp: 50, description: "An ancient construct that tests new challengers." },
+  { id: "ashen_knight", name: "Ashen Knight", title: "Keeper of Embers", minLevel: 20, maxHp: 1300, attack: 38, rewardFc: 1200, rewardXp: 90, description: "A fallen champion wrapped in burning steel." },
+  { id: "rift_warden", name: "Rift Warden", title: "Gatekeeper of the Deep", minLevel: 40, maxHp: 2600, attack: 58, rewardFc: 2500, rewardXp: 150, description: "A sentinel that bends the arena around its blade." },
+  { id: "abyss_wyrm", name: "Abyss Wyrm", title: "The Hollow Serpent", minLevel: 60, maxHp: 4300, attack: 82, rewardFc: 4500, rewardXp: 230, description: "A colossal wyrm that feeds on broken promises." },
+  { id: "oni_shogun", name: "Oni Shogun", title: "Lord of the Crimson Gate", minLevel: 80, maxHp: 6300, attack: 112, rewardFc: 7500, rewardXp: 350, description: "A warlord whose armour remembers a thousand duels." },
+  { id: "dragon_sovereign", name: "Dragon Sovereign", title: "The Final Ascendant", minLevel: 100, maxHp: 8500, attack: 145, rewardFc: 12000, rewardXp: 500, description: "The final guardian of the Rift, beyond the old world." }
 ];
 
 const BOSS_COOLDOWN_MS = 20 * 60 * 1000;
