@@ -9,7 +9,7 @@
 ## Current task in progress
 
 Branch: `progression-100-rebirth-level-600-game-expansion`  
-PR: pending creation / CI validation. Do not treat this branch as deployed until merged and the user pulls/restarts the bot.
+PR #26 merged into main as commit `0bbe3271699646830e224a8a4037a85cc8c924b2`. Post-merge CI run 42256014897 is in progress. The user must still pull/restart the bot; no live Discord deployment is claimed.
 
 Requested:
 - Replace raw JSON activity-log lines with readable game log cards.
@@ -125,3 +125,10 @@ The schema is also applied at startup. No slash-command redeployment is required
 - Multiplier remains +0.5× per rebirth (51× at rebirth 100).
 - Database caps are installed by the idempotent migration runner in `src/database/migrate.js`, not by procedural SQL in `schema.sql`.
 - GitHub Actions run 42255754565 completed successfully: dependency installation, syntax validation, slash-command validation and full test suite all passed.
+
+## Merge status update — 2026-11-06
+
+- PR #26 is merged into `main` (merge commit `0bbe3271699646830e224a8a4037a85cc8c924b2`).
+- Pre-merge CI on the final PR head passed: run 42255886764.
+- Post-merge CI run 42256014897 is being checked.
+- Deployment remains the user's responsibility: pull main, run migrations, restart the bot.
