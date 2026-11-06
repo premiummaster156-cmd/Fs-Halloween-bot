@@ -61,7 +61,7 @@ Requested:
 Implemented on this branch:
 - `progression.maxLevel = 600`, `progression.maxRebirths = 100`.
 - Rebirth multiplier is `1 + 0.5 × rebirths`, capped at 100 rebirths (51×).
-- Rebirth wealth requirement growth changed from 2× to 1.09× per rebirth; level target grows by 5.65 per rebirth and caps at 600.
+- Final-season rebirth formula: 20,000 FC + 10,000 FC per current rebirth; level 12 + four per current rebirth, capped at 600.
 - Rebirth service blocks further rebirth after 100.
 - XP progression and admin Set Level / Set Rebirth controls use the new caps.
 - Database migration adds idempotent PostgreSQL checks for level 1–600 and prestige 0–100.
@@ -88,14 +88,14 @@ All eight items are normal shop equipment (not booster-exclusive), use unique eq
 
 | Item | Unlock level | FC cost | Ability |
 |---|---:|---:|---|
-| Nightfall Greaves | 60 | 650,000 | PHASE |
-| Soulrender Crown | 90 | 900,000 | DREAD |
-| Starforged Mantle | 130 | 1,300,000 | AEGIS |
-| Phoenix Core | 180 | 1,800,000 | REBIRTH |
-| Eclipse Greatblade | 240 | 2,500,000 | EXECUTE |
-| Chrono Shard | 300 | 3,400,000 | HASTE |
-| Abyssal Grimoire | 400 | 4,500,000 | HEX |
-| Dragon Sovereign Halo | 500 | 6,000,000 | ASCEND |
+| Nightfall Greaves | 30 | 100,000 | PHASE |
+| Soulrender Crown | 40 | 135,000 | DREAD |
+| Starforged Mantle | 50 | 175,000 | AEGIS |
+| Phoenix Core | 60 | 220,000 | REBIRTH |
+| Eclipse Greatblade | 70 | 270,000 | EXECUTE |
+| Chrono Shard | 80 | 330,000 | HASTE |
+| Abyssal Grimoire | 90 | 400,000 | HEX |
+| Dragon Sovereign Halo | 100 | 480,000 | ASCEND |
 
 Abilities retain their passive stat bonuses and, on `active-abilities-rift-arena`, also have one-use active combat effects in the Rift Arena. Each equipped ability can be used once per battle. The Arena adds a custom beveled 3D-inspired canvas HUD; it is layered 2D artwork, not true 3D geometry. More abilities/items, loot tables and richer 3D art remain possible follow-on work.
 
@@ -111,7 +111,7 @@ Abilities retain their passive stat bonuses and, on `active-abilities-rift-arena
 - Personal boost item rewards depend on received `GUILD_BOOST` messages; old boosts are not backfilled.
 - Ordinary chat Candy drops are silent; never restore per-message Candy announcements.
 - Profile card uses server display name and system font fallback for Unicode.
-- Work shift quiz remains three questions. Work-shift rebirth requirement caps at 30.
+- Work shift quiz remains three questions. Final-season work-shift rebirth requirement starts at three and caps at ten.
 - Admin access: server owner, configured bot owner, or configured trusted Admin Role. Discord Administrator alone does not grant bot admin.
 - Privileged actions remain audited.
 - Never claim live Discord testing based only on GitHub CI/repository access.
@@ -132,7 +132,7 @@ Abilities retain their passive stat bonuses and, on `active-abilities-rift-arena
 ## Validation and deployment
 
 For the current `active-abilities-rift-arena` branch:
-1. Inspect GitHub Actions CI and fix failures before merge.
+1. Latest final-season CI run 42287485838 passed on commit `65251dd2771edeb948c1a6fd407ba00ebffa2de1` (dependency installation, syntax check, slash-command validation and full test suite). Earlier failed runs were before the test expectations were updated to the new season values.
 2. Run `npm run check` / `npm test` in Node.js 20 locally when available.
 3. Validate PostgreSQL schema syntax and idempotency, including the one-active-battle partial index.
 4. Verify Arena actions, ability ownership/equip checks, one-use-per-ability, stale-turn rejection, reward balance and cooldown behavior.
@@ -160,8 +160,8 @@ The schema is also applied at startup. No slash-command redeployment is required
 
 ## Finalized balance correction — supersedes earlier draft values above
 
-- Rebirth wealth requirement growth is **1.09×** per rebirth, not 1.15×. This keeps the 100th rebirth target within the 4 billion combined wallet/bank capacity.
-- Rebirth level requirement growth is **5.65** per rebirth, so rebirth 100 requires level 600.
+- Earlier draft rebirth values (1.09× wealth growth and +5.65 levels) are superseded by the November 30 final-season formula: 20,000 FC + 10,000 FC per current rebirth; level 12 + four per current rebirth.
+- Career level caps at ten and current-run work shifts cap at ten. Gear/Candy/upgrade milestones begin at rebirths 3/4/5 and are capped to keep the finale attainable.
 - Multiplier remains +0.5× per rebirth (51× at rebirth 100).
 - Database caps are installed by the idempotent migration runner in `src/database/migrate.js`, not by procedural SQL in `schema.sql`.
 - GitHub Actions run 42255754565 completed successfully: dependency installation, syntax validation, slash-command validation and full test suite all passed.
