@@ -136,3 +136,31 @@ test("admin channel settings keep command and Candy announcements configurable w
   assert.ok(ids.some((id) => id.includes("setting-member-channel")));
   assert.ok(ids.some((id) => id.includes("setting-log")));
 });
+
+
+test("endgame Gear page shows item abilities and the framed game HUD", async () => {
+  const item = balancing.items.find((entry) => entry.id === "emberfang_blade");
+  const payload = await renderMenu("guild-1", "member-1", "gear", {
+    inventory: {
+      getInventory: async () => ({
+        items: [{ item, quantity: 1, upgradeLevel: 0, equipped: false }],
+        equipped: []
+      }),
+      getEffects: async () => ({ specialAbilities: [] })
+    },
+    serverBoosters: {
+      getStatus: async () => ({
+        active: false, serverBoostCount: 0, personalBoostCount: 0,
+        nextItem: balancing.items.find((entry) => entry.id === "booster_crimson_katana"),
+        collectionComplete: false, unlockedItems: []
+      })
+    }
+  });
+  const embed = payload.embeds[0].toJSON();
+  const equipment = embed.fields.find((field) => field.name === "⚙️ NORMAL EQUIPMENT");
+  assert.ok(equipment.value.includes("Emberfang Blade"));
+  assert.ok(equipment.value.includes("Blood Pact"));
+  assert.ok(equipment.value.includes("successful crime payout"));
+  assert.ok(embed.description.includes("FUKISHOKAI GAME HUD"));
+  assert.ok(embed.title.includes("GEAR"));
+});

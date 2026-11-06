@@ -1,7 +1,7 @@
 const { transaction } = require("../database/pool");
 const settings = require("../config/settings");
 const balancing = require("../config/game-balancing");
-const { DomainError, uuid, randomInt, claimCooldownTx, levelXpRequired, getRebirthMultiplier, applyCooldownReduction } = require("../utils/core");
+const { DomainError, uuid, randomInt, claimCooldownTx, levelXpRequired, getRebirthMultiplier, applyCooldownReduction, MAX_PLAYER_LEVEL, MAX_REBIRTHS, rollSpecialAbilities, sumAbilityValue } = require("../utils/core");
 
 const MULTIPLIED_EARNING_REASONS = new Set([
   "daily_reward",
@@ -69,12 +69,16 @@ function calculateCandyDrop(reason, gearBonus = 0, chanceRoll = Math.random(), a
 }
 
 function getRebirthRequirements(player, claimedQuestCount = 0, inventoryRows = [], candyBalance = 0) {
-  const rebirths = Math.max(0, Number(player.prestige) || 0);
+  const rebirths = Math.max(0, Math.floor(Number(player.prestige) || 0));
   const wealth = Number(player.wallet || 0) + Number(player.bank || 0);
-  const walletRequired = Math.min(Number.MAX_SAFE_INTEGER,
-    Math.ceil(balancing.rebirth.firstWalletRequirement * Math.pow(balancing.rebirth.walletRequirementGrowth, rebirths)));
-  const levelRequired = Math.min(100,
-    balancing.rebirth.firstLevelRequirement + rebirths * balancing.rebirth.levelRequirementGrowth);
+  const walletRequired = Math.ceil(
+    balancing.rebirth.firstWalletRequirement *
+    Math.pow(1 + balancing.rebirth.walletRequirementGrowth * rebirths, 2)
+  );
+  const levelRequired = Math.min(
+    MAX_PLAYER_LEVEL,
+    balancing.rebirth.firstLevelRequirement + rebirths * balancing.rebirth.levelRequirementGrowth
+  );
   const questClaimsRequired = Math.min(
     balancing.halloween.quests.length,
     balancing.rebirth.firstQuestClaimsRequirement + rebirths * balancing.rebirth.questClaimsGrowth
@@ -86,7 +90,7 @@ function getRebirthRequirements(player, claimedQuestCount = 0, inventoryRows = [
     balancing.rebirth.firstWorkShiftsRequirement + rebirths * balancing.rebirth.workShiftsGrowth
   );
 
-  // Equipment and Candy-shop milestones start only when preparing for rebirth #4.
+  // Equipment and Candy-shop milestones begin when preparing for rebirth #3 (prestige 2).
   const itemMilestone = rebirths >= balancing.rebirth.itemRequirementsStartAt;
   const itemSteps = itemMilestone ? rebirths - balancing.rebirth.itemRequirementsStartAt : 0;
   const gearItemsRequired = itemMilestone
@@ -100,9 +104,15 @@ function getRebirthRequirements(player, claimedQuestCount = 0, inventoryRows = [
   const candyBalanceRequired = itemMilestone
     ? balancing.rebirth.firstCandyBalanceRequirement + itemSteps * balancing.rebirth.candyBalanceGrowth
     : 0;
+  const maxGearUpgradeLevels = balancing.items.filter((item) =>
+    item.type === "equipment" && item.rebirthEligible !== false
+  ).length * balancing.itemUpgrades.maxLevel;
   const gearUpgradeLevelsRequired = rebirths >= balancing.rebirth.gearUpgradeRequirementsStartAt
-    ? balancing.rebirth.firstGearUpgradeLevelsRequirement +
-      (rebirths - balancing.rebirth.gearUpgradeRequirementsStartAt) * balancing.rebirth.gearUpgradeLevelsGrowth
+    ? Math.min(
+      maxGearUpgradeLevels,
+      balancing.rebirth.firstGearUpgradeLevelsRequirement +
+        (rebirths - balancing.rebirth.gearUpgradeRequirementsStartAt) * balancing.rebirth.gearUpgradeLevelsGrowth
+    )
     : 0;
 
   const currentJob = balancing.jobs.find((job) => job.id === player.job_id) || null;
@@ -129,6 +139,7 @@ function getRebirthRequirements(player, claimedQuestCount = 0, inventoryRows = [
   const candy = Math.max(0, Number(candyBalance) || 0);
 
   const checks = {
+    canRebirth: rebirths < MAX_REBIRTHS,
     wealth: wealth >= walletRequired,
     level: Number(player.level || 1) >= levelRequired,
     quests: claimed >= questClaimsRequired,
@@ -153,7 +164,7 @@ function getRebirthRequirements(player, claimedQuestCount = 0, inventoryRows = [
     candyItemsCount: ownedCandyItemIds.size, candyItemsRequired,
     candyBalance: candy, candyBalanceRequired,
     gearUpgradeLevels, gearUpgradeLevelsRequired,
-    checks, eligible: Object.values(checks).every(Boolean)
+    checks, maxRebirths: MAX_REBIRTHS, maxLevel: MAX_PLAYER_LEVEL, atMaxRebirth: rebirths >= MAX_REBIRTHS, eligible: Object.values(checks).every(Boolean)
   };
 }
 
@@ -328,12 +339,12 @@ class EconomyService {
     let level = Number(result.rows[0].level);
     let xp = Number(result.rows[0].xp) + gained;
     let levelsGained = 0;
-    while (level < 100 && xp >= levelXpRequired(level)) {
+    while (level < MAX_PLAYER_LEVEL && xp >= levelXpRequired(level)) {
       xp -= levelXpRequired(level);
       level += 1;
       levelsGained += 1;
     }
-    if (level >= 100) xp = 0;
+    if (level >= MAX_PLAYER_LEVEL) xp = 0;
     await client.query("UPDATE players SET level = $3, xp = $4, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [guildId, userId, level, xp]);
     return { gained, multiplier, level, levelsGained, xp, nextLevelXp: levelXpRequired(level) };
   }
@@ -411,6 +422,7 @@ class EconomyService {
       );
 
       const failures = [
+        ["canRebirth", "You have reached the maximum of " + MAX_REBIRTHS + " rebirths.", "REBIRTH_MAXED"],
         ["wealth", "You need " + requirements.walletRequired.toLocaleString() + " FC in combined wallet and bank savings.", "REBIRTH_FUNDS_REQUIRED"],
         ["level", "You need player level " + requirements.levelRequired + ".", "REBIRTH_LEVEL_REQUIRED"],
         ["quests", "You need " + requirements.questClaimsRequired + " claimed normal event quest rewards.", "REBIRTH_EVENT_REWARDS_REQUIRED"],
@@ -495,13 +507,20 @@ class EconomyService {
       const row = await client.query("SELECT level FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [guildId, userId]);
       const cooldownMs = applyCooldownReduction(balancing.economy.dailyCooldownMs, gear.dailyCooldownReduction, 60 * 60 * 1000);
       await claimCooldownTx(client, guildId, userId, "daily", cooldownMs);
-      const baseAmount = randomInt(balancing.economy.dailyMin, balancing.economy.dailyMax) + Number(row.rows[0].level) * 8;
-      const earning = await this.mutateTx(client, guildId, userId, baseAmount, "daily_reward", uuid(), {});
+      const dailyAbilities = rollSpecialAbilities(gear, "daily_claim");
+      const abilityBonus = sumAbilityValue(dailyAbilities, "reward_bonus");
+      const baseAmount = Math.floor(
+        (randomInt(balancing.economy.dailyMin, balancing.economy.dailyMax) + Number(row.rows[0].level) * 8) *
+        (1 + abilityBonus)
+      );
+      const earning = await this.mutateTx(client, guildId, userId, baseAmount, "daily_reward", uuid(), {
+        triggeredAbilities: dailyAbilities.map((ability) => ability.name)
+      });
       const progression = await this.addXpTx(client, guildId, userId, balancing.economy.dailyXp, roleIds);
       const events = require("./events");
       await events.trackActionTx(client, guildId, userId, "daily", 1);
       await events.trackActionTx(client, guildId, userId, "wallet_earned", earning.delta);
-      return { amount: earning.delta, cooldownMs, progression, candyDrop: earning.candyDrop || null };
+      return { amount: earning.delta, cooldownMs, progression, candyDrop: earning.candyDrop || null, triggeredAbilities: dailyAbilities.map((ability) => ability.name) };
     });
   }
 }

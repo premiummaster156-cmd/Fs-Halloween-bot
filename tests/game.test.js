@@ -3,9 +3,11 @@ const assert = require("node:assert/strict");
 const core = require("../src/utils/core");
 const balancing = require("../src/config/game-balancing");
 
-test("level requirements grow with level", () => {
+test("level requirements grow through the level 600 endgame cap", () => {
   assert.ok(core.levelXpRequired(10) > core.levelXpRequired(5));
   assert.ok(core.levelXpRequired(5) > core.levelXpRequired(1));
+  assert.equal(core.levelXpRequired(600), 41493);
+  assert.equal(core.levelXpRequired(999), 41493);
 });
 
 test("career pay has bounded randomness and grows by job level", () => {
@@ -212,11 +214,11 @@ test("3x FC earnings keep meaningful progression and equipment sinks", () => {
   assert.equal(balancing.progression.xpMultiplier, 1);
   assert.equal(balancing.progression.roleBoosterMultiplier, 1.2);
   assert.ok(balancing.rebirth.firstWalletRequirement > averageLevelOneDaily * 5);
-  assert.deepEqual(balancing.jobs.map((job) => job.minLevel), [1, 8, 18, 32, 50, 70, 100]);
-  assert.deepEqual(balancing.jobs.map((job) => job.minWallet), [0, 10000, 50000, 200000, 750000, 2500000, 10000000]);
+  assert.deepEqual(balancing.jobs.map((job) => job.minLevel), [1, 8, 18, 32, 50, 70, 100, 140, 220, 320, 450, 600]);
+  assert.deepEqual(balancing.jobs.map((job) => job.minWallet), [0, 10000, 50000, 200000, 750000, 2500000, 10000000, 20000000, 45000000, 100000000, 250000000, 600000000]);
   assert.deepEqual(
     balancing.items.filter((item) => !item.boosterOnly).map((item) => item.cost),
-    [7000, 18000, 25000, 36000, 50000, 64000, 116000, 170000, 290000, 480000]
+    [7000, 18000, 25000, 36000, 50000, 64000, 116000, 170000, 290000, 480000, 1200000, 2100000, 3600000, 6000000, 12000000, 25000000, 60000000, 150000000]
   );
   const normalEquipment = balancing.items.filter((item) => !item.boosterOnly);
   assert.ok(normalEquipment.every((item, index, items) => index === 0 || item.cost > items[index - 1].cost));
@@ -262,17 +264,23 @@ test("booster-only equipment cannot satisfy normal rebirth gear milestones", () 
   assert.equal(status.checks.gearItems, false);
 });
 
-test("rebirth multipliers add 70% per rebirth up to 15x at 20 rebirths", () => {
+test("rebirth multipliers follow the +0.5x prestige ladder up to 51x at 100", () => {
   assert.equal(core.getRebirthMultiplier(0), 1);
-  assert.equal(core.getRebirthMultiplier(1), 1.7);
-  assert.equal(core.getRebirthMultiplier(2), 2.4);
-  assert.equal(core.getRebirthMultiplier(5), 4.5);
-  assert.equal(core.getRebirthMultiplier(10), 8);
-  assert.equal(core.getRebirthMultiplier(15), 11.5);
-  assert.equal(core.getRebirthMultiplier(20), 15);
-  assert.equal(core.getRebirthMultiplier(50), 15);
-  assert.equal(core.levelXpRequired(1), 120);
-  assert.equal(core.levelXpRequired(100), 2100);
+  assert.equal(core.getRebirthMultiplier(1), 1.5);
+  assert.equal(core.getRebirthMultiplier(2), 2);
+  assert.equal(core.getRebirthMultiplier(3), 2.5);
+  assert.equal(core.getRebirthMultiplier(5), 3.5);
+  assert.equal(core.getRebirthMultiplier(10), 6);
+  assert.equal(core.getRebirthMultiplier(20), 11);
+  assert.equal(core.getRebirthMultiplier(50), 26);
+  assert.equal(core.getRebirthMultiplier(100), 51);
+  assert.equal(core.getRebirthMultiplier(101), 51);
+  assert.equal(core.levelXpRequired(1), 122);
+  assert.equal(core.levelXpRequired(100), 4100);
+  assert.equal(core.levelXpRequired(600), 41493);
+  assert.equal(core.levelXpRequired(999), 41493);
+  assert.equal(core.MAX_PLAYER_LEVEL, 600);
+  assert.equal(core.MAX_REBIRTHS, 100);
   assert.equal(core.applyCooldownReduction(10000, 0.20), 8000);
   assert.equal(core.applyCooldownReduction(10000, 0.60), 5500);
   assert.equal(core.applyCooldownReduction(10000, 0.45, 6000), 6000);
@@ -282,8 +290,10 @@ test("rebirth requirements use a substantially harder level, wealth and activity
   assert.equal(balancing.rebirth.startingWallet, 1000);
   assert.equal(balancing.rebirth.firstWalletRequirement, 500000);
   assert.equal(balancing.rebirth.firstLevelRequirement, 35);
-  assert.equal(balancing.rebirth.walletRequirementGrowth, 2);
-  assert.equal(balancing.rebirth.levelRequirementGrowth, 10);
+  assert.equal(balancing.rebirth.walletRequirementGrowth, 0.12);
+  assert.equal(balancing.rebirth.levelRequirementGrowth, 5);
+  assert.equal(balancing.progression.maxLevel, 600);
+  assert.equal(balancing.progression.maxRebirths, 100);
   assert.equal(balancing.rebirth.firstQuestClaimsRequirement, 3);
   assert.equal(balancing.rebirth.questClaimsGrowth, 1);
   assert.equal(balancing.rebirth.firstJobLevelRequirement, 5);
@@ -926,4 +936,74 @@ test("an active bot restriction cannot be bypassed when Discord role hierarchy l
   // The monitoring path still treats unknown hierarchy conservatively and
   // will not create incidents or apply actions when a member's rank is unknown.
   assert.equal(await security.isAboveBotRole(guild, "restricted-member"), true);
+});
+
+
+test("the 100th rebirth is terminal and grants the final 51x multiplier", () => {
+  const { getRebirthRequirements } = require("../src/services/economy");
+  const status = getRebirthRequirements({
+    wallet: 100000000, bank: 0, level: 600, prestige: 100,
+    job_id: "eternal_overlord", job_level: 30, rebirth_work_count: 30
+  }, 6, [], 0);
+  assert.equal(status.maxRebirths, 100);
+  assert.equal(status.maxLevel, 600);
+  assert.equal(status.atMaxRebirth, true);
+  assert.equal(status.checks.canRebirth, false);
+  assert.equal(status.eligible, false);
+  assert.equal(status.nextMultiplier, 51);
+  assert.equal(core.getRebirthMultiplier(100), 51);
+});
+
+
+
+test("endgame careers, crime operations, heists and unique gear abilities cover levels 100 through 600", () => {
+  assert.equal(balancing.jobs.at(-1).id, "eternal_overlord");
+  assert.equal(balancing.jobs.at(-1).minLevel, 600);
+  assert.deepEqual(
+    balancing.crimes.filter((crime) => crime.minLevel >= 100).map((crime) => crime.minLevel),
+    [120, 220, 350, 500]
+  );
+  assert.deepEqual(
+    balancing.heists.filter((heist) => heist.minLevel >= 100).map((heist) => heist.minLevel),
+    [120, 250, 400, 550]
+  );
+  const endgame = balancing.items.filter((item) => [
+    "emberfang_blade", "spectral_mantle", "titan_core", "oracle_lens",
+    "revenant_sigil", "void_engine", "dragonheart_reactor", "eclipse_crown"
+  ].includes(item.id));
+  assert.equal(endgame.length, 8);
+  assert.ok(endgame.every((item) => item.specialAbility && item.specialAbility.name && item.specialAbility.short));
+  assert.deepEqual(endgame.map((item) => item.specialAbility.trigger), [
+    "crime_success", "crime_failed", "heist_failed", "work_perfect",
+    "work_complete", "heist_start", "heist_success", "daily_claim"
+  ]);
+});
+
+test("rebirth 100 upgrade requirements never exceed the actual eligible gear upgrade capacity", () => {
+  const { getRebirthRequirements } = require("../src/services/economy");
+  const player = {
+    wallet: 100000000, bank: 0, level: 600, prestige: 99,
+    job_id: "eternal_overlord", job_level: 30, rebirth_work_count: 30
+  };
+  const status = getRebirthRequirements(player, 6, [], 10000);
+  const capacity = balancing.items.filter((item) => item.type === "equipment" && item.rebirthEligible !== false).length *
+    balancing.itemUpgrades.maxLevel;
+  assert.equal(status.gearUpgradeLevelsRequired, capacity);
+  assert.ok(status.gearUpgradeLevelsRequired <= capacity);
+  assert.equal(status.workShiftsRequired, 30);
+  assert.equal(status.levelRequired, 530);
+});
+
+test("endgame gear exposes upgrade-scaled active special abilities", () => {
+  const { combineEffects } = require("../src/services/inventory");
+  const item = balancing.items.find((entry) => entry.id === "emberfang_blade");
+  assert.ok(item && item.specialAbility);
+  const effects = combineEffects([{ ...item, upgradeLevel: 2 }]);
+  assert.equal(effects.specialAbilities.length, 1);
+  assert.equal(effects.specialAbilities[0].name, "Blood Pact");
+  assert.ok(effects.specialAbilities[0].chance > item.specialAbility.chance);
+  const triggered = core.rollSpecialAbilities(effects, "crime_success", () => 0);
+  assert.equal(triggered.length, 1);
+  assert.ok(core.sumAbilityValue(triggered, "reward_bonus") > 0);
+  assert.deepEqual(core.rollSpecialAbilities(effects, "work_complete", () => 0), []);
 });

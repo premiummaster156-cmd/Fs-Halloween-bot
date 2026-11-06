@@ -11,6 +11,15 @@ const ACHIEVEMENTS = [
   { id: "level_ten", name: "Rising Star", description: "Reach player level 10.", metric: "level", target: 10, rewardFc: 350, rewardXp: 50 },
   { id: "millionaire", name: "Millionaire", description: "Hold 1,000,000 FC across your wallet and bank.", metric: "wealth", target: 1000000, rewardFc: 1000, rewardXp: 100 },
   { id: "reborn", name: "A New Beginning", description: "Complete your first rebirth.", metric: "prestige", target: 1, rewardFc: 700, rewardXp: 100 },
+  { id: "veteran_rebirth", name: "Seasoned Soul", description: "Reach 10 rebirths.", metric: "prestige", target: 10, rewardFc: 25000, rewardXp: 2500 },
+  { id: "mythic_rebirth", name: "Mythic Cycle", description: "Reach 25 rebirths.", metric: "prestige", target: 25, rewardFc: 100000, rewardXp: 7500 },
+  { id: "transcendent_rebirth", name: "Transcendent", description: "Reach 50 rebirths.", metric: "prestige", target: 50, rewardFc: 500000, rewardXp: 15000 },
+  { id: "eternal_rebirth", name: "Eternal Overlord", description: "Reach the maximum of 100 rebirths.", metric: "prestige", target: 100, rewardFc: 5000000, rewardXp: 50000 },
+  { id: "level_50", name: "Rising Operator", description: "Reach player level 50.", metric: "level", target: 50, rewardFc: 5000, rewardXp: 1200 },
+  { id: "level_100", name: "Crime Boss", description: "Reach player level 100.", metric: "level", target: 100, rewardFc: 15000, rewardXp: 3000 },
+  { id: "level_200", name: "Shadow Director", description: "Reach player level 200.", metric: "level", target: 200, rewardFc: 60000, rewardXp: 8000 },
+  { id: "level_400", name: "Phantom Emperor", description: "Reach player level 400.", metric: "level", target: 400, rewardFc: 250000, rewardXp: 20000 },
+  { id: "level_600", name: "Eternal Overlord", description: "Reach the final player level 600.", metric: "level", target: 600, rewardFc: 1000000, rewardXp: 60000 },
   { id: "party_regular", name: "Party Regular", description: "Play 10 Party Games.", metric: "party_games", target: 10, rewardFc: 300, rewardXp: 40 },
   { id: "party_champion", name: "Crowd Favourite", description: "Win 25 Party Games.", metric: "party_wins", target: 25, rewardFc: 650, rewardXp: 85 }
 ];

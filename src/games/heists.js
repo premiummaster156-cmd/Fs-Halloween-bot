@@ -1,6 +1,6 @@
 const { randomUUID } = require("node:crypto");
 const balancing = require("../config/game-balancing");
-const { randomInt, uuid, calculateHeistChance, splitReward, DomainError, claimCooldownTx, applyCooldownReduction } = require("../utils/core");
+const { randomInt, uuid, calculateHeistChance, splitReward, DomainError, claimCooldownTx, applyCooldownReduction, rollSpecialAbilities, sumAbilityValue } = require("../utils/core");
 const { ensurePlayerTx } = require("../services/economy");
 const { transaction } = require("../database/pool");
 const { trackActionTx } = require("../services/events");
@@ -56,9 +56,15 @@ class HeistsGame {
       const crew = crewResult.rows;
       if (crew.length < mission.minParticipants) throw new DomainError("You need at least " + mission.minParticipants + " crew members to start.", "HEIST_CREW_TOO_SMALL");
       const gearByUser = new Map();
+      const abilityProcsByUser = new Map();
       for (const member of crew) {
         const effects = this.inventory ? await this.inventory.getEffectsTx(client, guildId, member.user_id) : {};
         gearByUser.set(member.user_id, effects);
+        abilityProcsByUser.set(member.user_id, {
+          start: rollSpecialAbilities(effects, "heist_start"),
+          success: rollSpecialAbilities(effects, "heist_success"),
+          failed: rollSpecialAbilities(effects, "heist_failed")
+        });
       }
       for (const member of crew) {
         const gear = gearByUser.get(member.user_id) || {};
@@ -70,7 +76,9 @@ class HeistsGame {
       const roleBonus = crew.reduce((sum, member) => {
         const gear = gearByUser.get(member.user_id) || {};
         const career = balancing.careerEffects[member.job_id] || {};
-        return sum + balancing.heistRoles[member.role_id].bonus + (gear.heistChance || 0) + (career.heistChance || 0);
+        const abilities = abilityProcsByUser.get(member.user_id)?.start || [];
+        return sum + balancing.heistRoles[member.role_id].bonus + (gear.heistChance || 0) +
+          (career.heistChance || 0) + sumAbilityValue(abilities, "success_chance");
       }, 0) + Math.max(0, uniqueRoles - 1) * 2;
       const successChance = calculateHeistChance(mission.baseChance, averageLevel, crew.length, mission.difficulty, roleBonus);
       const roll = randomInt(1, 100);
@@ -82,7 +90,12 @@ class HeistsGame {
         const baseTotalPayout = randomInt(mission.payoutMin, mission.payoutMax);
         const shares = splitReward(baseTotalPayout, crew.map((member) => member.user_id));
         for (const share of shares) {
-          const earning = await this.economy.mutateTx(client, guildId, share.userId, share.amount, "heist_reward", reference + ":" + share.userId, { heistId, missionId: mission.id });
+          const abilities = abilityProcsByUser.get(share.userId)?.success || [];
+          const payoutBonus = sumAbilityValue(abilities, "payout_bonus");
+          const memberPayout = Math.floor(share.amount * (1 + payoutBonus));
+          const earning = await this.economy.mutateTx(client, guildId, share.userId, memberPayout, "heist_reward", reference + ":" + share.userId, {
+            heistId, missionId: mission.id, triggeredAbilities: abilities.map((ability) => ability.name)
+          });
           totalPayout += earning.delta;
           if (earning.candyDrop) candyDropsByUser.set(share.userId, earning.candyDrop);
           await client.query("UPDATE players SET heists_completed = heists_completed + 1, reputation = LEAST(100, reputation + 2) WHERE guild_id = $1 AND user_id = $2", [guildId, share.userId]);
@@ -93,13 +106,25 @@ class HeistsGame {
       } else {
         for (const member of crew) {
           const gear = gearByUser.get(member.user_id) || {};
-          const fine = Math.min(Number(member.wallet), Math.floor(mission.failPenalty * (1 - (gear.fineReduction || 0))));
+          const abilities = abilityProcsByUser.get(member.user_id)?.failed || [];
+          const avoidsFine = abilities.some((ability) => ability.effect === "avoid_fine");
+          const abilityReduction = sumAbilityValue(abilities, "fine_reduction");
+          const fineReduction = Math.min(0.90, (gear.fineReduction || 0) + abilityReduction);
+          const fine = avoidsFine ? 0 : Math.min(Number(member.wallet), Math.floor(mission.failPenalty * (1 - fineReduction)));
           if (fine > 0) await this.economy.mutateTx(client, guildId, member.user_id, -fine, "heist_failed_fine", reference + ":" + member.user_id, { heistId, missionId: mission.id, roll });
           await client.query("UPDATE players SET reputation = GREATEST(-100, reputation - 1) WHERE guild_id = $1 AND user_id = $2", [guildId, member.user_id]);
         }
       }
       await client.query("UPDATE heists SET status = $3, success_chance = $4, roll = $5, total_payout = $6, started_at = NOW(), completed_at = NOW() WHERE id = $1 AND guild_id = $2", [heistId, guildId, succeeded ? "success" : "failed", successChance, roll, totalPayout]);
-      return { mission, succeeded, successChance, roll, totalPayout, crew: crew.map((member) => ({ userId: member.user_id, role: member.role_id, candyDrop: candyDropsByUser.get(member.user_id) || null })) };
+      return {
+        mission, succeeded, successChance, roll, totalPayout,
+        crew: crew.map((member) => ({
+          userId: member.user_id,
+          role: member.role_id,
+          candyDrop: candyDropsByUser.get(member.user_id) || null,
+          triggeredAbilities: Object.values(abilityProcsByUser.get(member.user_id) || {}).flat().map((ability) => ability.name)
+        }))
+      };
     });
   }
 

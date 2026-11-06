@@ -1,5 +1,8 @@
 const crypto = require("node:crypto");
 
+const MAX_PLAYER_LEVEL = 600;
+const MAX_REBIRTHS = 100;
+
 class DomainError extends Error {
   constructor(message, code = "DOMAIN_ERROR") {
     super(message);
@@ -39,9 +42,9 @@ function chance(percent) {
 function uuid() { return crypto.randomUUID(); }
 function clamp(value, minimum, maximum) { return Math.min(maximum, Math.max(minimum, value)); }
 function getRebirthMultiplier(rebirths) {
-  // Each rebirth adds 70%; 20 rebirths reach 15x with linear, non-exponential growth.
-  const count = Math.max(0, Math.floor(Number(rebirths) || 0));
-  return 1 + Math.min(count, 20) * 0.7;
+  // A clear prestige ladder: 0=1x, 1=1.5x, 2=2x, 3=2.5x ... 100=51x.
+  const count = clamp(Math.floor(Number(rebirths) || 0), 0, MAX_REBIRTHS);
+  return 1 + count * 0.5;
 }
 function applyCooldownReduction(baseMs, reduction, floorMs = 1000) {
   const base = Math.max(0, Math.floor(Number(baseMs) || 0));
@@ -50,8 +53,20 @@ function applyCooldownReduction(baseMs, reduction, floorMs = 1000) {
   return Math.max(floor, Math.floor(base * (1 - safeReduction)));
 }
 function levelXpRequired(level) {
-  const safeLevel = Math.max(1, Math.floor(Number(level) || 1));
-  return 100 + (safeLevel * 20);
+  const safeLevel = clamp(Math.floor(Number(level) || 1), 1, MAX_PLAYER_LEVEL);
+  // A gently accelerating curve gives the expanded 1–600 journey real endgame weight.
+  return 100 + (safeLevel * 20) + Math.floor(Math.pow(safeLevel, 1.5) * 2);
+}
+
+function rollSpecialAbilities(effects, trigger, random = Math.random) {
+  const abilities = Array.isArray(effects?.specialAbilities) ? effects.specialAbilities : [];
+  return abilities.filter((ability) => ability.trigger === trigger && random() < Math.max(0, Math.min(0.75, Number(ability.chance) || 0)));
+}
+
+function sumAbilityValue(abilities, effect) {
+  return (Array.isArray(abilities) ? abilities : [])
+    .filter((ability) => ability.effect === effect)
+    .reduce((sum, ability) => sum + Math.max(0, Number(ability.value) || 0), 0);
 }
 function calculateWorkPay(job, jobLevel, randomPercent) {
   const level = Math.max(1, Math.floor(jobLevel || 1));
@@ -62,11 +77,11 @@ function calculateWorkPay(job, jobLevel, randomPercent) {
   return Math.max(1, Math.floor(variable * (1 + Math.min(level - 1, 20) * 0.035)));
 }
 function calculateCrimeChance(baseChance, playerLevel, difficulty, roleBonus) {
-  const levelBonus = Math.max(0, Number(playerLevel) - 1) * 1.15;
+  const levelBonus = Math.sqrt(Math.max(0, Number(playerLevel) - 1)) * 2.4;
   return Math.round(clamp(Number(baseChance) + levelBonus + Number(roleBonus || 0) - (Number(difficulty || 1) * 2), 8, 88));
 }
 function calculateHeistChance(baseChance, averageLevel, participants, difficulty, roleBonuses) {
-  const levelBonus = Math.max(0, Number(averageLevel) - 1) * 1.25;
+  const levelBonus = Math.sqrt(Math.max(0, Number(averageLevel) - 1)) * 2;
   const crewBonus = Math.max(0, Number(participants) - 2) * 4;
   return Math.round(clamp(Number(baseChance) + levelBonus + crewBonus + Math.min(15, Math.max(0, Number(roleBonuses || 0))) - (Number(difficulty) * 5), 10, 85));
 }
@@ -105,7 +120,7 @@ async function claimCooldownTx(client, guildId, userId, key, durationMs, now = n
   return next;
 }
 
-module.exports = {
+module.exports = { MAX_PLAYER_LEVEL, MAX_REBIRTHS, rollSpecialAbilities, sumAbilityValue,
   DomainError, CooldownError, formatDuration, randomInt, chance, uuid, clamp,
   levelXpRequired, calculateWorkPay, calculateCrimeChance, calculateHeistChance,
   splitReward, casinoPayout, claimCooldownTx, getRebirthMultiplier, applyCooldownReduction
