@@ -266,8 +266,8 @@ test("server booster perks cover the economy, progression, operations and specia
 test("booster-only equipment cannot satisfy normal rebirth gear milestones", () => {
   const { getRebirthRequirements } = require("../src/services/economy");
   const player = {
-    wallet: 500000, bank: 0, level: 50, prestige: 3,
-    job_id: "street_runner", job_level: 30, rebirth_work_count: 30
+    wallet: 100000, bank: 0, level: 50, prestige: 5,
+    job_id: "street_runner", job_level: 10, rebirth_work_count: 3
   };
   const status = getRebirthRequirements(player, 6, [
     { item_id: "booster_crimson_katana", quantity: 1, upgrade_level: 5 }
@@ -301,54 +301,67 @@ test("final-season rebirth requirements are standardized and capped", () => {
   const { getRebirthRequirements } = require("../src/services/economy");
   const rules = balancing.rebirth;
   assert.equal(rules.startingWallet, 2500);
-  assert.equal(rules.firstWalletRequirement, 20000);
-  assert.equal(rules.walletRequirementStep, 10000);
-  assert.equal(rules.firstLevelRequirement, 12);
-  assert.equal(rules.levelRequirementGrowth, 4);
+  assert.equal(rules.firstWalletRequirement, 15000);
+  assert.equal(rules.walletRequirementStep, 5000);
+  assert.equal(rules.firstLevelRequirement, 10);
+  assert.equal(rules.levelRequirementGrowth, 2);
   assert.equal(rules.firstQuestClaimsRequirement, 1);
-  assert.equal(rules.firstJobLevelRequirement, 2);
-  assert.equal(rules.firstWorkShiftsRequirement, 3);
-  assert.equal(rules.maxWorkShiftsRequirement, 10);
-  const first = getRebirthRequirements({ wallet: 20000, bank: 0, level: 12, prestige: 0, job_id: "street_runner", job_level: 2, rebirth_work_count: 3 }, 1, [], 0);
-  assert.equal(first.walletRequired, 20000);
-  assert.equal(first.levelRequired, 12);
+  assert.equal(rules.questClaimsGrowthEvery, 20);
+  assert.equal(rules.firstJobLevelRequirement, 1);
+  assert.equal(rules.jobLevelGrowthEvery, 20);
+  assert.equal(rules.firstWorkShiftsRequirement, 1);
+  assert.equal(rules.workShiftsGrowthEvery, 25);
+  assert.equal(rules.maxWorkShiftsRequirement, 3);
+
+  const first = getRebirthRequirements({
+    wallet: 15000, bank: 0, level: 10, prestige: 0,
+    job_id: "street_runner", job_level: 1, rebirth_work_count: 1
+  }, 1, [], 0);
+  assert.equal(first.walletRequired, 15000);
+  assert.equal(first.levelRequired, 10);
   assert.equal(first.questClaimsRequired, 1);
-  assert.equal(first.jobLevelRequired, 2);
-  assert.equal(first.workShiftsRequired, 3);
+  assert.equal(first.jobLevelRequired, 1);
+  assert.equal(first.workShiftsRequired, 1);
   assert.equal(first.eligible, true);
-  const mid = getRebirthRequirements({ wallet: 60000, bank: 0, level: 28, prestige: 4, job_id: "street_runner", job_level: 3, rebirth_work_count: 4 }, 2, [
+
+  const mid = getRebirthRequirements({
+    wallet: 115000, bank: 0, level: 50, prestige: 20,
+    job_id: "street_runner", job_level: 2, rebirth_work_count: 1
+  }, 2, [
     { item_id: "reinforced_gloves", quantity: 1, upgrade_level: 1 },
     { item_id: "pumpkin_charm", quantity: 1 }
-  ], 20);
-  assert.equal(mid.walletRequired, 60000);
-  assert.equal(mid.levelRequired, 28);
+  ], 10);
+  assert.equal(mid.walletRequired, 115000);
+  assert.equal(mid.levelRequired, 50);
   assert.equal(mid.questClaimsRequired, 2);
-  assert.equal(mid.jobLevelRequired, 3);
-  assert.equal(mid.workShiftsRequired, 4);
+  assert.equal(mid.jobLevelRequired, 2);
+  assert.equal(mid.workShiftsRequired, 1);
   assert.equal(mid.gearItemsRequired, 1);
   assert.equal(mid.candyItemsRequired, 1);
-  assert.equal(mid.candyBalanceRequired, 20);
+  assert.equal(mid.candyBalanceRequired, 10);
   assert.equal(mid.gearUpgradeLevelsRequired, 1);
   assert.equal(mid.eligible, true);
+
   const inventory = [
     { item_id: "reinforced_gloves", quantity: 1, upgrade_level: 5 },
     { item_id: "urban_disguise", quantity: 1 },
     { item_id: "operator_radio", quantity: 1 },
-    { item_id: "reinforced_vest", quantity: 1 },
     { item_id: "pumpkin_charm", quantity: 1 },
-    { item_id: "ghost_token", quantity: 1 },
-    { item_id: "crimson_relic", quantity: 1 }
+    { item_id: "ghost_token", quantity: 1 }
   ];
-  const late = getRebirthRequirements({ wallet: 1020000, bank: 0, level: 600, prestige: 100, job_id: "crime_boss", job_level: 30, rebirth_work_count: 10 }, 6, inventory, 70);
-  assert.equal(late.walletRequired, 1020000);
-  assert.equal(late.levelRequired, 412);
-  assert.equal(late.questClaimsRequired, 4);
-  assert.equal(late.jobLevelRequired, 10);
-  assert.equal(late.workShiftsRequired, 10);
-  assert.equal(late.gearItemsRequired, 4);
-  assert.equal(late.candyItemsRequired, 3);
-  assert.equal(late.candyBalanceRequired, 70);
-  assert.equal(late.gearUpgradeLevelsRequired, 5);
+  const late = getRebirthRequirements({
+    wallet: 515000, bank: 0, level: 600, prestige: 100,
+    job_id: "crime_boss", job_level: 30, rebirth_work_count: 3
+  }, 6, inventory, 50);
+  assert.equal(late.walletRequired, 515000);
+  assert.equal(late.levelRequired, 210);
+  assert.equal(late.questClaimsRequired, 3);
+  assert.equal(late.jobLevelRequired, 5);
+  assert.equal(late.workShiftsRequired, 3);
+  assert.equal(late.gearItemsRequired, 3);
+  assert.equal(late.candyItemsRequired, 2);
+  assert.equal(late.candyBalanceRequired, 50);
+  assert.equal(late.gearUpgradeLevelsRequired, 3);
   assert.equal(late.checks.maxRebirth, false);
   assert.equal(late.eligible, false);
 });
@@ -366,43 +379,45 @@ test("first two rebirths do not require gear, Candy collectibles or upgrades", (
   }
 });
 
-test("permanent gear and Candy milestones are spaced and capped", () => {
+test("gear, Candy and upgrade milestones are spaced out for the finale", () => {
   const { getRebirthRequirements } = require("../src/services/economy");
-  const player = { wallet: 5000000, bank: 0, level: 600, job_id: "crime_boss", job_level: 30, rebirth_work_count: 10 };
-  const atThird = getRebirthRequirements({ ...player, prestige: 2 }, 6, [], 0);
-  assert.equal(atThird.gearItemsRequired, 1);
-  assert.equal(atThird.candyItemsRequired, 0);
-  const atFourth = getRebirthRequirements({ ...player, prestige: 3 }, 6, [], 0);
-  assert.equal(atFourth.gearItemsRequired, 1);
-  assert.equal(atFourth.candyItemsRequired, 1);
-  assert.equal(atFourth.candyBalanceRequired, 20);
-  assert.equal(atFourth.gearUpgradeLevelsRequired, 0);
+  const player = { wallet: 5000000, bank: 0, level: 600, job_id: "crime_boss", job_level: 30, rebirth_work_count: 3 };
+  const beforeGear = getRebirthRequirements({ ...player, prestige: 4 }, 6, [], 0);
+  assert.equal(beforeGear.gearItemsRequired, 0);
+  const firstGear = getRebirthRequirements({ ...player, prestige: 5 }, 6, [], 0);
+  assert.equal(firstGear.gearItemsRequired, 1);
+  assert.equal(firstGear.candyItemsRequired, 0);
+  const firstCandy = getRebirthRequirements({ ...player, prestige: 10 }, 6, [], 0);
+  assert.equal(firstCandy.candyItemsRequired, 1);
+  assert.equal(firstCandy.candyBalanceRequired, 10);
+  const firstUpgrade = getRebirthRequirements({ ...player, prestige: 20 }, 6, [], 0);
+  assert.equal(firstUpgrade.gearUpgradeLevelsRequired, 1);
   const late = getRebirthRequirements({ ...player, prestige: 100 }, 6, [], 0);
-  assert.equal(late.gearItemsRequired, 4);
-  assert.equal(late.candyItemsRequired, 3);
-  assert.equal(late.candyBalanceRequired, 70);
-  assert.equal(late.gearUpgradeLevelsRequired, 5);
+  assert.equal(late.gearItemsRequired, 3);
+  assert.equal(late.candyItemsRequired, 2);
+  assert.equal(late.candyBalanceRequired, 50);
+  assert.equal(late.gearUpgradeLevelsRequired, 3);
 });
 
-test("rebirth work-shift requirements rise gradually and cap at 10", () => {
+test("rebirth work-shift requirements stay quick and cap at three", () => {
   const { getRebirthRequirements } = require("../src/services/economy");
   const player = { wallet: 0, bank: 0, level: 1, job_id: "street_runner", job_level: 1, rebirth_work_count: 0 };
-  assert.equal(getRebirthRequirements({ ...player, prestige: 0 }).workShiftsRequired, 3);
-  assert.equal(getRebirthRequirements({ ...player, prestige: 3 }).workShiftsRequired, 4);
-  assert.equal(getRebirthRequirements({ ...player, prestige: 6 }).workShiftsRequired, 5);
-  assert.equal(getRebirthRequirements({ ...player, prestige: 100 }).workShiftsRequired, 10);
+  assert.equal(getRebirthRequirements({ ...player, prestige: 0 }).workShiftsRequired, 1);
+  assert.equal(getRebirthRequirements({ ...player, prestige: 25 }).workShiftsRequired, 2);
+  assert.equal(getRebirthRequirements({ ...player, prestige: 50 }).workShiftsRequired, 3);
+  assert.equal(getRebirthRequirements({ ...player, prestige: 100 }).workShiftsRequired, 3);
 });
 
 test("Candy-drop chances vary by earning action and equipped gear increases them", () => {
   const { calculateCandyDrop } = require("../src/services/economy");
   assert.equal(calculateCandyDrop("bank_withdrawal", 0, 0, 0), null);
   assert.equal(calculateCandyDrop("job_work", 0, 0.19, 0)?.amount, 1);
-  assert.equal(calculateCandyDrop("job_work", 0, 0.24, 0), null);
+  assert.equal(calculateCandyDrop("job_work", 0, 0.241, 0), null);
   assert.ok(Math.abs(calculateCandyDrop("job_work", 0.10, 0.25, 0)?.chance - 0.34) < 1e-9);
   assert.equal(calculateCandyDrop("job_work", 0.10, 0.25, 0)?.amount, 1);
   assert.equal(calculateCandyDrop("heist_reward", 0, 0.25, 0.99)?.amount, 3);
   assert.equal(calculateCandyDrop("casino_payout", 0, 0, 0), null);
-  assert.equal(calculateCandyDrop("casino_play", 0, 0.10, 0), null);
+  assert.equal(calculateCandyDrop("casino_play", 0, 0.101, 0), null);
   assert.equal(calculateCandyDrop("casino_play", 0, 0.079, 0)?.amount, 1);
   assert.equal(calculateCandyDrop("daily_reward", 0, 0.17, 0, 0), null);
   assert.ok(Math.abs(calculateCandyDrop("daily_reward", 0, 0.17, 0, 1)?.chance - 0.18) < 1e-9);
