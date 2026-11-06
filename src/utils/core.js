@@ -39,9 +39,9 @@ function chance(percent) {
 function uuid() { return crypto.randomUUID(); }
 function clamp(value, minimum, maximum) { return Math.min(maximum, Math.max(minimum, value)); }
 function getRebirthMultiplier(rebirths) {
-  // Each rebirth adds 10%; the 20-rebirth progression tops out at 3x without exponential growth.
+  // Each rebirth adds 70%; 20 rebirths reach 15x with linear, non-exponential growth.
   const count = Math.max(0, Math.floor(Number(rebirths) || 0));
-  return 1 + Math.min(count, 20) * 0.1;
+  return 1 + Math.min(count, 20) * 0.7;
 }
 function applyCooldownReduction(baseMs, reduction, floorMs = 1000) {
   const base = Math.max(0, Math.floor(Number(baseMs) || 0));
