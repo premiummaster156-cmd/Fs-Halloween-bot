@@ -32,3 +32,12 @@ test("recently presented work questions are avoided on the next shift", () => {
   const seen = new Set(first.questions.map((item) => item.question));
   assert.ok(second.questions.every((item) => !seen.has(item.question)));
 });
+
+
+test("hard work shifts receive more time than easier shifts", () => {
+  const { getWorkShiftTimeLimit } = require("../src/games/work-challenge");
+  assert.equal(getWorkShiftTimeLimit("easy"), 3 * 60 * 1000);
+  assert.equal(getWorkShiftTimeLimit("medium"), 6 * 60 * 1000);
+  assert.equal(getWorkShiftTimeLimit("hard"), 10 * 60 * 1000);
+  assert.equal(getWorkShiftTimeLimit("unknown"), 3 * 60 * 1000);
+});
