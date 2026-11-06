@@ -262,12 +262,14 @@ test("booster-only equipment cannot satisfy normal rebirth gear milestones", () 
   assert.equal(status.checks.gearItems, false);
 });
 
-test("rebirth multipliers grow linearly with a hard cap and cooldown cuts have a safety cap", () => {
+test("rebirth multipliers add 10% per rebirth up to 3x at 20 rebirths", () => {
   assert.equal(core.getRebirthMultiplier(0), 1);
   assert.equal(core.getRebirthMultiplier(1), 1.1);
   assert.equal(core.getRebirthMultiplier(2), 1.2);
   assert.equal(core.getRebirthMultiplier(10), 2);
-  assert.equal(core.getRebirthMultiplier(50), 2);
+  assert.equal(core.getRebirthMultiplier(15), 2.5);
+  assert.equal(core.getRebirthMultiplier(20), 3);
+  assert.equal(core.getRebirthMultiplier(50), 3);
   assert.equal(core.levelXpRequired(1), 120);
   assert.equal(core.levelXpRequired(100), 2100);
   assert.equal(core.applyCooldownReduction(10000, 0.20), 8000);
