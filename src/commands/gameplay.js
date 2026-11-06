@@ -9,7 +9,7 @@ const { randomUUID } = require("node:crypto");
 const { createEmbed } = require("../ui");
 const balancing = require("../config/game-balancing");
 const { getPlayer, getLeaderboard } = require("../services/economy");
-const { makeWorkChallenge } = require("../games/work-challenge");
+const { makeWorkChallenge, getWorkShiftTimeLimit } = require("../games/work-challenge");
 const { getRebirthMultiplier, levelXpRequired } = require("../utils/core");
 const { ACHIEVEMENTS } = require("../games/achievements");
 const { createProfileCard } = require("../utils/profile-card");
@@ -145,6 +145,8 @@ const workCommand = {
   async execute(interaction, services) {
     const shift = await services.jobs.startShift(interaction.guildId, interaction.user.id);
     const challenge = makeWorkChallenge(shift.job, shift.jobLevel, 3);
+    const timeLimitMs = getWorkShiftTimeLimit(challenge.band);
+    const timeLimitMinutes = Math.round(timeLimitMs / 60000);
     const sessionId = randomUUID().replace(/-/g, "").slice(0, 12);
     let questionIndex = 0;
     let correct = 0;
@@ -162,7 +164,7 @@ const workCommand = {
         embeds: [createEmbed({
           title: "🧠 WORK SHIFT  /  QUESTION " + (questionIndex + 1) + " OF 3",
           description: "**Career:** " + shift.job.name + " · Job level " + shift.jobLevel +
-            "\n\n" + question.question +
+            " · **" + challenge.band.toUpperCase() + " difficulty**\n**Time limit:** " + timeLimitMinutes + " minutes\n\n" + question.question +
             "\n\nChoose one answer below. Each correct answer increases your shift reward.",
           fields: [{ name: "Progress", value: questionIndex + "/3 answered · " + correct + " correct" }],
           color: 0x851E2A,
@@ -176,7 +178,7 @@ const workCommand = {
     const message = await interaction.editReply(prompt());
     const prefix = "work:" + sessionId + ":";
     const collector = message.createMessageComponentCollector({
-      time: 180000,
+      time: timeLimitMs,
       filter: (component) => component.customId.startsWith(prefix)
     });
     const ended = new Promise((resolve) => collector.once("end", (_collected, reason) => resolve(reason)));
