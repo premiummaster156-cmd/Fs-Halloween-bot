@@ -3,8 +3,33 @@
 **Repository:** https://github.com/premiummaster156-cmd/Fs-Halloween-bot  
 **Default branch:** `main`  
 **Runtime:** Node.js 20+, Discord.js 14, PostgreSQL on Neon  
-**Last updated:** 2026-11-06  
+**Last updated:** 2026-11-07  
 **Rule:** Update this file whenever a feature, balance, deployment, or architecture change is merged. The next chat must read this file and inspect the current repository before making changes.
+
+## Current feature branch — Rift Arena and active gear powers (not merged)
+
+Branch: `active-abilities-rift-arena`  
+Status: implementation committed to the feature branch; pull request and CI validation are still pending. Do not describe this as merged or live in Discord.
+
+Implemented on this branch:
+- A persistent solo **Rift Arena** with six bosses unlocked at levels 1, 25, 75, 150, 300 and 500.
+- PostgreSQL `boss_battles` records, one active encounter per player, 20-minute entry cooldown, turn locking, and server-side validation of expected turn numbers to reject stale/double-clicked controls.
+- Each equipped endgame ability can be activated once per encounter. PHASE avoids a counterstrike; DREAD weakens three boss strikes; AEGIS creates a shield; REBIRTH restores health; EXECUTE deals bonus damage based on the boss's remaining health; HASTE doubles a strike; HEX applies damage over time; ASCEND deals a large burst.
+- Boss victories grant FC and XP. FC uses the existing 3× earning multiplier and the player's rebirth multiplier; losses charge no fine. Retreats do not erase the Arena cooldown.
+- The Arena dashboard includes boss selection, attack/ability/retreat controls, health bars, status effects and encounter result messaging.
+- `src/utils/arena-card.js` renders a custom beveled, 3D-inspired HUD illustration using `@napi-rs/canvas`. This is layered 2D artwork, not a true 3D scene.
+- `tests/arena.test.js` covers boss gates, all eight active powers, damage-over-time, shielding, healing and battle end states.
+
+Files added/changed: `src/games/arena.js`, `src/utils/arena-card.js`, `tests/arena.test.js`, `src/database/schema.sql`, `src/index.js`, `src/services/economy.js`, `src/commands/dashboard.js`.
+
+Before merge:
+1. Open/inspect the pull request and wait for GitHub Actions CI to complete.
+2. Fix any syntax, test, Discord component or canvas rendering errors; do not claim success until CI is green.
+3. Check Neon schema application at startup and confirm the partial unique index prevents parallel active encounters.
+4. Test the full interaction flow in a test Discord server: start, attack, activate each equipped power once, defeat, lose, escape, cooldown, and stale controls.
+5. Tune reward amounts and fight difficulty against real player gear/loadouts.
+
+After merge, the user must pull main, run `npm install`, run `npm run db:migrate`, and restart the bot. No live Discord deployment is claimed.
 
 ## Latest completed task
 
@@ -60,7 +85,7 @@ All eight items are normal shop equipment (not booster-exclusive), use unique eq
 | Abyssal Grimoire | 400 | 4,500,000 | HEX |
 | Dragon Sovereign Halo | 500 | 6,000,000 | ASCEND |
 
-Abilities are passive item identities with real stat effects; they are not separate activated combat skills yet. The activity-log and equipment views use themed Discord embed cards; Discord embeds do not support true 3D geometry or gradients, so full 3D presentation would require separate generated artwork/assets. If adding active cooldown abilities later, implement cooldown/charge tracking, server-side validation and tests.
+Abilities retain their passive stat bonuses and, on `active-abilities-rift-arena`, also have one-use active combat effects in the Rift Arena. Each equipped ability can be used once per battle. The Arena adds a custom beveled 3D-inspired canvas HUD; it is layered 2D artwork, not true 3D geometry. More abilities/items, loot tables and richer 3D art remain possible follow-on work.
 
 ## Existing project rules
 
@@ -92,15 +117,17 @@ Abilities are passive item identities with real stat effects; they are not separ
 - #25 silent ordinary chat Candy-drop notifications
 - #26 level 600 / 100 rebirth progression, linear multiplier, eight endgame items and readable activity log embeds
 
-## Validation and deployment for the current branch
+## Validation and deployment
 
-Before merge:
-1. Run GitHub Actions CI and inspect test failures.
-2. Search all source files for hard-coded level 100 / rebirth 20 caps that refer to player progression.
-3. Validate PostgreSQL schema syntax and idempotency.
-4. Verify admin forms, profile card and rebirth dashboard display 600/100 correctly.
-5. Verify gear item effects are surfaced in Gear and Shop.
-6. Merge only after green CI.
+For the current `active-abilities-rift-arena` branch:
+1. Inspect GitHub Actions CI and fix failures before merge.
+2. Run `npm run check` / `npm test` in Node.js 20 locally when available.
+3. Validate PostgreSQL schema syntax and idempotency, including the one-active-battle partial index.
+4. Verify Arena actions, ability ownership/equip checks, one-use-per-ability, stale-turn rejection, reward balance and cooldown behavior.
+5. Verify the canvas HUD renders and Discord accepts its attachment in an edited dashboard response.
+6. Merge only after green CI and manual test-server validation.
+
+Previously merged progression validation: PR #26's post-merge CI runs 42256014897 and 42256071916 completed successfully.
 
 After merge:
 ```powershell
@@ -133,3 +160,8 @@ The schema is also applied at startup. No slash-command redeployment is required
 - Pre-merge CI on the final PR head passed: run 42255886764.
 - Post-merge CI runs 42256014897 and 42256071916 completed successfully.
 - Deployment remains the user's responsibility: pull main, run migrations, restart the bot.
+
+
+## Handoff maintenance rule
+
+This file is the living source of truth. On every future feature branch, update the current-branch section with implemented behavior, files, tests, outstanding checks, branch/PR/merge status and deployment status. When a branch merges, move its work into Latest completed task / Previously merged PRs and refresh the current status. Never leave old pending tasks presented as current once they are complete.
