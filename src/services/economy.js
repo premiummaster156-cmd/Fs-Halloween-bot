@@ -10,6 +10,7 @@ const MULTIPLIED_EARNING_REASONS = new Set([
   "heist_reward",
   "chat_activity_reward",
   "achievement_reward",
+  "boss_reward",
 ]);
 
 const LIFETIME_EARNING_REASONS = new Set([
@@ -19,7 +20,8 @@ const LIFETIME_EARNING_REASONS = new Set([
   "heist_reward",
   "casino_payout",
   "chat_activity_reward",
-  "achievement_reward"
+  "achievement_reward",
+  "boss_reward"
 ]);
 const LIFETIME_SPENDING_REASONS = new Set([
   "shop_purchase",
