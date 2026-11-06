@@ -167,6 +167,7 @@ test("existing active boosters are backfilled with the first special item exactl
   assert.ok(pool.inventory.has("booster_crimson_katana"));
   assert.ok(pool.equipped.has("booster_crimson_katana"));
 
+  service.memberSyncAt.clear();
   const second = await service.syncMember(member, guild);
   assert.equal(second.reward, null);
   assert.equal(pool.state.personalBoostCount, 1);
