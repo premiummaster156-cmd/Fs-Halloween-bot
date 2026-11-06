@@ -40,7 +40,7 @@ The existing `.env` in this project already has values configured for the requir
 
 ## Commands
 
-Only three commands are needed to use the bot:
+Four built-in slash commands are available:
 
 The bot's built-in Discord slash-command list contains four commands:
 
