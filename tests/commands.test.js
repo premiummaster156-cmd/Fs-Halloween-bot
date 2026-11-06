@@ -23,7 +23,10 @@ test("profile shows the caller's profile by default and supports another member"
     const interaction = {
       guildId: "guild-1",
       user: caller,
-      options: { getUser: () => selected },
+      options: {
+        getUser: () => selected,
+        getMember: () => ({ displayName: "𝕵𝖊𝖘𝖘𝖎" })
+      },
       editReply: async (payload) => { response = payload; return payload; }
     };
     const services = {
@@ -60,4 +63,37 @@ test("the public leaderboard reply does not request ephemeral visibility", async
   assert.equal(response.ephemeral, undefined);
   assert.equal(response.flags, undefined);
   assert.match(response.embeds[0].data.description, /No party-game results yet/);
+});
+
+
+test("profile fetches the guild member so its nickname can be displayed", async () => {
+  const user = {
+    id: "member-3", username: "bulletismygoat", globalName: "Jessi",
+    displayAvatarURL: () => null
+  };
+  let fetchedId;
+  let response;
+  const interaction = {
+    guildId: "guild-1",
+    user,
+    guild: { members: { fetch: async (id) => {
+      fetchedId = id;
+      return { displayName: "𝕵𝖊𝖘𝖘𝖎" };
+    } } },
+    options: { getUser: () => null, getMember: () => null },
+    editReply: async (payload) => { response = payload; return payload; }
+  };
+  const services = {
+    partyGames: { getStats: async () => ({}) },
+    pool: {
+      query: async (sql) => sql.includes("SELECT * FROM players")
+        ? { rowCount: 1, rows: [{ wallet: 0, bank: 0, level: 1, xp: 0, job_id: "street_runner" }] }
+        : sql.includes("SELECT candy FROM event_wallets")
+          ? { rowCount: 0, rows: [] }
+          : { rowCount: 1, rows: [{ rank: 1 }] }
+    }
+  };
+  await profileCommand.execute(interaction, services);
+  assert.equal(fetchedId, user.id);
+  assert.equal(response.files[0].name, "fukishokai-profile.png");
 });
