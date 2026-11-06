@@ -207,16 +207,16 @@ test("3x FC earnings keep meaningful progression and equipment sinks", () => {
   assert.equal(balancing.economy.earningMultiplier, 3);
   const averageLevelOneDaily = ((balancing.economy.dailyMin + balancing.economy.dailyMax) / 2 + 8) *
     balancing.economy.earningMultiplier;
-  assert.equal(averageLevelOneDaily, 1734);
-  assert.equal(balancing.rebirth.firstWalletRequirement, 500000);
+  assert.equal(averageLevelOneDaily, 2274);
+  assert.equal(balancing.rebirth.firstWalletRequirement, 20000);
   assert.equal(balancing.progression.xpMultiplier, 1);
   assert.equal(balancing.progression.roleBoosterMultiplier, 1.2);
   assert.ok(balancing.rebirth.firstWalletRequirement > averageLevelOneDaily * 5);
-  assert.deepEqual(balancing.jobs.map((job) => job.minLevel), [1, 8, 18, 32, 50, 70, 100]);
-  assert.deepEqual(balancing.jobs.map((job) => job.minWallet), [0, 10000, 50000, 200000, 750000, 2500000, 10000000]);
+  assert.deepEqual(balancing.jobs.map((job) => job.minLevel), [1, 5, 10, 16, 23, 30, 40]);
+  assert.deepEqual(balancing.jobs.map((job) => job.minWallet), [0, 5000, 12000, 25000, 50000, 90000, 150000]);
   assert.deepEqual(
     balancing.items.filter((item) => !item.boosterOnly).map((item) => item.cost),
-    [7000, 18000, 25000, 36000, 50000, 64000, 116000, 170000, 290000, 480000, 650000, 900000, 1300000, 1800000, 2500000, 3400000, 4500000, 6000000]
+    [1500, 3500, 6000, 9000, 13000, 18000, 26000, 36000, 55000, 80000, 100000, 135000, 175000, 220000, 270000, 330000, 400000, 480000]
   );
   const normalEquipment = balancing.items.filter((item) => !item.boosterOnly);
   assert.ok(normalEquipment.every((item, index, items) => index === 0 || item.cost > items[index - 1].cost));
@@ -272,7 +272,7 @@ test("booster-only equipment cannot satisfy normal rebirth gear milestones", () 
   const status = getRebirthRequirements(player, 6, [
     { item_id: "booster_crimson_katana", quantity: 1, upgrade_level: 5 }
   ], 25);
-  assert.equal(status.gearItemsRequired, 3);
+  assert.equal(status.gearItemsRequired, 1);
   assert.equal(status.gearItemsCount, 0);
   assert.equal(status.gearUpgradeLevels, 0);
   assert.equal(status.checks.gearItems, false);
@@ -397,16 +397,16 @@ test("Candy-drop chances vary by earning action and equipped gear increases them
   const { calculateCandyDrop } = require("../src/services/economy");
   assert.equal(calculateCandyDrop("bank_withdrawal", 0, 0, 0), null);
   assert.equal(calculateCandyDrop("job_work", 0, 0.19, 0)?.amount, 1);
-  assert.equal(calculateCandyDrop("job_work", 0, 0.20, 0), null);
-  assert.ok(Math.abs(calculateCandyDrop("job_work", 0.10, 0.25, 0)?.chance - 0.30) < 1e-9);
+  assert.equal(calculateCandyDrop("job_work", 0, 0.24, 0), null);
+  assert.ok(Math.abs(calculateCandyDrop("job_work", 0.10, 0.25, 0)?.chance - 0.34) < 1e-9);
   assert.equal(calculateCandyDrop("job_work", 0.10, 0.25, 0)?.amount, 1);
-  assert.equal(calculateCandyDrop("heist_reward", 0, 0.25, 0.99)?.amount, 4);
+  assert.equal(calculateCandyDrop("heist_reward", 0, 0.25, 0.99)?.amount, 3);
   assert.equal(calculateCandyDrop("casino_payout", 0, 0, 0), null);
-  assert.equal(calculateCandyDrop("casino_play", 0, 0.08, 0), null);
+  assert.equal(calculateCandyDrop("casino_play", 0, 0.10, 0), null);
   assert.equal(calculateCandyDrop("casino_play", 0, 0.079, 0)?.amount, 1);
-  assert.equal(calculateCandyDrop("daily_reward", 0, 0.13, 0, 0), null);
-  assert.ok(Math.abs(calculateCandyDrop("daily_reward", 0, 0.13, 0, 1)?.chance - 0.14) < 1e-9);
-  assert.ok(Math.abs(calculateCandyDrop("daily_reward", 0, 0.13, 0, 2)?.chance - 0.16) < 1e-9);
+  assert.equal(calculateCandyDrop("daily_reward", 0, 0.17, 0, 0), null);
+  assert.ok(Math.abs(calculateCandyDrop("daily_reward", 0, 0.17, 0, 1)?.chance - 0.18) < 1e-9);
+  assert.ok(Math.abs(calculateCandyDrop("daily_reward", 0, 0.17, 0, 2)?.chance - 0.20) < 1e-9);
   assert.equal(calculateCandyDrop("heist_reward", 0.20, 0, 0, 10)?.chance, 0.60);
 });
 
