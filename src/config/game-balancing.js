@@ -5,7 +5,7 @@ module.exports = {
   economy: {
     // Multiplies normal FC earning transactions; casino returns, transfers and admin grants are excluded.
     earningMultiplier: 3,
-    dailyMin: 420, dailyMax: 720, dailyCooldownMs: 24 * hour, dailyXp: 18,
+    dailyMin: 600, dailyMax: 900, dailyCooldownMs: 18 * hour, dailyXp: 30,
     minimumBet: 100, maximumBet: 100000,
     transferMinimum: 1, transferMaximum: 500000,
     maxWallet: 2000000000
