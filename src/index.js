@@ -243,9 +243,16 @@ async function start() {
       await serverBoosters.syncMember(message.member, message.guild)
         .catch((error) => console.warn("[boosters] Message boost sync failed:", error.message));
     }
-    await client.services.activity.trackMessage(message, roleIds).catch((error) => {
+    const activityResult = await client.services.activity.trackMessage(message, roleIds).catch((error) => {
       console.error("[activity] Message tracking failed:", error.message);
+      return null;
     });
+    if (activityResult?.candyDrop) {
+      await message.channel.send({
+        content: "🍬 <@" + message.author.id + "> found **" + activityResult.candyDrop.amount + " Candy**!",
+        allowedMentions: { users: [message.author.id] }
+      }).catch((error) => console.warn("[activity] Candy drop announcement failed:", error.message));
+    }
   });
 
   client.on(Events.GuildUpdate, (_oldGuild, newGuild) => {
