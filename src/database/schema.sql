@@ -32,7 +32,7 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'players_prestige_100_check') THEN
     ALTER TABLE players ADD CONSTRAINT players_prestige_100_check CHECK (prestige BETWEEN 0 AND 100);
   END IF;
-END $;
+END $progression$;
 CREATE INDEX IF NOT EXISTS players_balance_idx ON players (guild_id, (wallet + bank) DESC);
 CREATE INDEX IF NOT EXISTS players_level_idx ON players (guild_id, level DESC, xp DESC);
 CREATE INDEX IF NOT EXISTS players_earned_idx ON players (guild_id, lifetime_earned DESC);
