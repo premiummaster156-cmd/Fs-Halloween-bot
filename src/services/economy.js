@@ -81,8 +81,10 @@ function getRebirthRequirements(player, claimedQuestCount = 0, inventoryRows = [
   );
   const jobLevelRequired = Math.min(30,
     balancing.rebirth.firstJobLevelRequirement + Math.floor(rebirths / balancing.rebirth.jobLevelGrowthEvery));
-  const workShiftsRequired = Math.min(Number.MAX_SAFE_INTEGER,
-    balancing.rebirth.firstWorkShiftsRequirement + rebirths * balancing.rebirth.workShiftsGrowth);
+  const workShiftsRequired = Math.min(
+    balancing.rebirth.maxWorkShiftsRequirement,
+    balancing.rebirth.firstWorkShiftsRequirement + rebirths * balancing.rebirth.workShiftsGrowth
+  );
 
   // Equipment and Candy-shop milestones start only when preparing for rebirth #4.
   const itemMilestone = rebirths >= balancing.rebirth.itemRequirementsStartAt;
