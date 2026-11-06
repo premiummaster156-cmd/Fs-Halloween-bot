@@ -318,7 +318,7 @@ async function renderMenu(guildId, owner, page, s) {
       description: "Level " + j.minLevel + "+ · Wallet " + j.minWallet.toLocaleString() + " FC · " + formatCareerEffects(balancing.careerEffects[j.id]).slice(0, 45)
     }));
     const lines = data.jobs.map((j) => "**" + j.tier + ". " + j.name + "** · Level " + j.minLevel + "+\nWallet " + j.minWallet.toLocaleString() + " FC · Pay " + j.payMin.toLocaleString() + "–" + j.payMax.toLocaleString() + " FC\n**Career perk:** " + formatCareerEffects(balancing.careerEffects[j.id]) + "\n" + j.description);
-    const threshold = 180 + (Number(data.player.job_level) * Number(data.player.job_level) * 55);
+    const threshold = balancing.careerProgression.baseXp + (Number(data.player.job_level) * Number(data.player.job_level) * balancing.careerProgression.xpPerLevelSquared);
     const jobProgress = data.job ? bar(data.player.job_xp, threshold, 10) : "Apply for a career to start earning job XP.";
     return panel("CAREER DESK", "Every career has a distinct passive perk. Higher tiers unlock better work pay and more advanced operations.\n\n**Current career:** " + current,
       [
@@ -700,8 +700,8 @@ async function renderMenu(guildId, owner, page, s) {
           name: x.name + " · " + x.cost + " Candy" + (ownedIds.has(x.id) ? " · OWNED" : ""),
           value: x.description
         })),
-        { name: "How to earn Candy", value: "Complete all 5 weekly quests for **120 Candy/week**. The 280-Candy Crimson Relic is about 2.3 full weeks. You can also get random drops from Daily (12%), Work (20%), successful Crimes (14%), Heists (26%), Casino rounds (8%), chat earnings (2.5%) and Achievements (10%). Gear adds up to 20 percentage points; each rebirth adds 2 points, capped at 20. Total drop chance is capped at 60%." },
-        { name: "Extra weekly reward", value: "While the Halloween event is active, 1,000 weekly messages can earn another 75 Candy." }
+        { name: "How to earn Candy", value: "Complete all 5 weekly quests for up to **85 Candy/week**. The Crimson Relic costs **100 Candy**. You can also get random drops from Daily (16%), Work (24%), successful Crimes (18%), Heists (30%), Casino rounds (10%), chat earnings (3%) and Achievements (15%). Gear adds up to 20 percentage points; each rebirth adds 2 points, capped at 20. Total drop chance is capped at 60%." },
+        { name: "Extra weekly reward", value: "While the Halloween event is active, 250 weekly messages can earn another 45 Candy." }
       ],
       [...(options.length ? [menu(owner, "event-buy", "Choose a collectible", options)] : []), nav]);
   }
