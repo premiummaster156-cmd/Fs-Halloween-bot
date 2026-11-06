@@ -1,5 +1,5 @@
 const balancing = require("../config/game-balancing");
-const { calculateWorkPay, randomInt, uuid, DomainError, claimCooldownTx, getRebirthMultiplier, applyCooldownReduction } = require("../utils/core");
+const { calculateWorkPay, randomInt, uuid, DomainError, claimCooldownTx, getRebirthMultiplier, applyCooldownReduction, rollSpecialAbilities, sumAbilityValue } = require("../utils/core");
 const { ensurePlayerTx, getPlayer } = require("../services/economy");
 const { transaction } = require("../database/pool");
 const { trackActionTx } = require("../services/events");
@@ -64,12 +64,16 @@ class JobsGame {
       const career = balancing.careerEffects[job.id] || {};
       const workPayBonus = Math.min(0.75, (gear.workPayBonus || 0) + (career.workPayBonus || 0));
       const basePay = calculateWorkPay(job, Number(player.job_level), factor);
-      const preMultiplierPay = Math.max(1, Math.floor(basePay * (1 + workPayBonus) * correct / total));
+      const completedAbilities = rollSpecialAbilities(gear, "work_complete");
+      const perfectAbilities = correct === total ? rollSpecialAbilities(gear, "work_perfect") : [];
+      const abilityRewardBonus = sumAbilityValue(perfectAbilities, "reward_bonus");
+      const abilityXpBonus = sumAbilityValue(completedAbilities, "xp_bonus");
+      const preMultiplierPay = Math.max(1, Math.floor(basePay * (1 + workPayBonus + abilityRewardBonus) * correct / total));
       const earning = await this.economy.mutateTx(client, guildId, userId, preMultiplierPay, "job_work", uuid(), { jobId: job.id, jobLevel: Number(player.job_level) });
       const pay = earning.delta;
       const baseXpEarned = Math.max(1, Math.floor(job.xp * correct / total));
       const careerXpBonus = Math.min(0.75, (gear.xpBonus || 0) + (gear.workXpBonus || 0));
-      const xpEarned = Math.max(1, Math.floor(baseXpEarned * getRebirthMultiplier(player.prestige) * (1 + careerXpBonus)));
+      const xpEarned = Math.max(1, Math.floor(baseXpEarned * getRebirthMultiplier(player.prestige) * (1 + careerXpBonus + abilityXpBonus)));
       await client.query("UPDATE players SET work_count = work_count + 1, rebirth_work_count = rebirth_work_count + 1, job_xp = job_xp + $3, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [guildId, userId, xpEarned]);
       const updated = await client.query("SELECT job_level, job_xp FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [guildId, userId]);
       let jobLevel = Number(updated.rows[0].job_level);
@@ -82,13 +86,14 @@ class JobsGame {
         promoted = true;
         await client.query("UPDATE players SET job_level = $3, job_xp = $4 WHERE guild_id = $1 AND user_id = $2", [guildId, userId, jobLevel, jobXp]);
       }
-      const progression = await this.economy.addXpTx(client, guildId, userId, baseXpEarned, roleIds, gear.workXpBonus || 0);
+      const progression = await this.economy.addXpTx(client, guildId, userId, Math.floor(baseXpEarned * (1 + abilityXpBonus)), roleIds, gear.workXpBonus || 0);
       await trackActionTx(client, guildId, userId, "work", 1);
       await trackActionTx(client, guildId, userId, "wallet_earned", pay);
       return {
         job, pay, walletDelta: earning.walletDelta || 0, bankDelta: earning.bankDelta || 0,
         xpEarned, correctAnswers: correct, totalQuestions: total, promoted, jobLevel,
-        progression, candyDrop: earning.candyDrop || null
+        progression, candyDrop: earning.candyDrop || null,
+        triggeredAbilities: [...completedAbilities, ...perfectAbilities].map((ability) => ability.name)
       };
     });
   }
