@@ -583,13 +583,14 @@ async function renderMenu(guildId, owner, page, s) {
       .filter((x) => !x.unique || !ownedIds.has(x.id))
       .map((x) => ({ label: x.name, value: x.id, description: x.cost + " Candy · " + x.description.slice(0, 65) }));
     return panel("HALLOWEEN  /  CANDY COLLECTIBLES",
-      "Your balance: **" + Number(status.wallet.candy || 0).toLocaleString() + " Candy**. Collectibles are unique, stay in your inventory permanently and count toward later rebirth milestones. The shop stays open after the event schedule ends.",
+      "Balance: **" + Number(status.wallet.candy || 0).toLocaleString() + " Candy**. Collectibles are unique and permanent.",
       [
         ...balancing.halloween.shop.map((x) => ({
           name: x.name + " · " + x.cost + " Candy" + (ownedIds.has(x.id) ? " · OWNED" : ""),
           value: x.description
         })),
-        { name: "How to find Candy", value: "Candy drops randomly when you earn FC. The chance depends on the activity, and equipped/upgraded gear can improve it. Drops remain available after the seasonal event dates." }
+        { name: "How to earn Candy", value: "Complete all 5 weekly quests for **120 Candy/week**. The 280-Candy Crimson Relic is about 2.3 full weeks. You can also get random drops from Daily (12%), Work (20%), successful Crimes (14%), Heists (26%), Casino rounds (8%), chat earnings (2.5%) and Achievements (10%). Gear adds up to 20 percentage points; each rebirth adds 2 points, capped at 20. Total drop chance is capped at 60%." },
+        { name: "Extra weekly reward", value: "While the Halloween event is active, 1,000 weekly messages can earn another 75 Candy." }
       ],
       [...(options.length ? [menu(owner, "event-buy", "Choose a collectible", options)] : []), nav]);
   }
@@ -999,7 +1000,8 @@ async function handleSelection(i, s, scope, owner, action, parts) {
         [
           { name: "FC reward", value: "+" + result.rewardFc.toLocaleString() + " FC", inline: true },
           { name: "XP reward", value: "+" + result.rewardXp.toLocaleString() + " XP", inline: true },
-          { name: "Player level", value: String(result.level), inline: true }
+          { name: "Player level", value: String(result.level), inline: true },
+          ...(result.candyDrop ? [{ name: "Candy found", value: "+" + result.candyDrop.amount, inline: true }] : [])
         ], [row(btn(owner, "achievements", "Achievement book")), navButton(owner)], "success"));
     }
     if (action === "equip") {
