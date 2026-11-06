@@ -11,7 +11,29 @@ async function activeEventTx(client, guildId) {
   return result.rows[0] || null;
 }
 
+function getWeekStart(value = new Date()) {
+  const date = new Date(value);
+  date.setUTCHours(0, 0, 0, 0);
+  date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
+  return date.toISOString().slice(0, 10);
+}
+
+async function trackWeeklyQuestActionTx(client, guildId, userId, action, amount = 1) {
+  const weekStart = getWeekStart();
+  const quests = balancing.weeklyQuests.filter((quest) => quest.action === action);
+  for (const quest of quests) {
+    await client.query(
+      "INSERT INTO weekly_quest_progress (guild_id, user_id, week_start, quest_id, progress) " +
+      "VALUES ($1, $2, $3, $4, LEAST($5::bigint, $6::bigint)) " +
+      "ON CONFLICT (guild_id, user_id, week_start, quest_id) DO UPDATE SET " +
+      "progress = LEAST(weekly_quest_progress.progress + EXCLUDED.progress, $6::bigint), updated_at = NOW()",
+      [guildId, userId, weekStart, quest.id, Math.max(0, Math.floor(Number(amount) || 0)), quest.goal]
+    );
+  }
+}
+
 async function trackActionTx(client, guildId, userId, action, amount = 1) {
+  await trackWeeklyQuestActionTx(client, guildId, userId, action, amount);
   const event = await activeEventTx(client, guildId);
   if (!event) return;
   const quests = balancing.halloween.quests.filter((quest) => quest.action === action);
@@ -140,4 +162,4 @@ class HalloweenGame {
   }
 }
 
-module.exports = { HalloweenGame, activeEventTx, trackActionTx };
+module.exports = { HalloweenGame, activeEventTx, trackActionTx, trackWeeklyQuestActionTx, getWeekStart };
