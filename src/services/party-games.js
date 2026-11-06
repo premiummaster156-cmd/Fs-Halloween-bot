@@ -2,7 +2,7 @@ const { claimCooldownTx } = require("../utils/core");
 const balancing = require("../config/game-balancing");
 const { isActiveBooster } = require("./server-boosters");
 
-const DAILY_FORTUNE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const DAILY_FORTUNE_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 
 class PartyGameService {
   constructor(pool, economy) {
