@@ -10,16 +10,16 @@ module.exports = {
     transferMinimum: 1, transferMaximum: 500000,
     maxWallet: 2000000000
   },
-  progression: { xpMultiplier: 3, roleBoosterMultiplier: 2 },
+  progression: { xpMultiplier: 1, roleBoosterMultiplier: 1.2 },
   chat: { rewardMin: 1, rewardMax: 3, dailyRewardCap: 250, xpPerMessage: 2, dailyXpCap: 100 },
   jobs: [
     { id: "street_runner", name: "Street Runner", tier: 1, minLevel: 1, minWallet: 0, payMin: 120, payMax: 210, cooldownMs: 10 * minute, xp: 24, description: "Take small deliveries and learn the city." },
-    { id: "delivery_rider", name: "Delivery Rider", tier: 2, minLevel: 3, minWallet: 2500, payMin: 220, payMax: 380, cooldownMs: 10 * minute, xp: 30, description: "Complete risky deliveries on a tight schedule." },
-    { id: "shopkeeper", name: "Shopkeeper", tier: 3, minLevel: 6, minWallet: 9000, payMin: 330, payMax: 570, cooldownMs: 10 * minute, xp: 38, description: "Manage supplies and keep the operation running." },
-    { id: "enforcer", name: "Enforcer", tier: 4, minLevel: 10, minWallet: 25000, payMin: 520, payMax: 880, cooldownMs: 10 * minute, xp: 48, description: "Protect clan operations and handle difficult jobs." },
-    { id: "smuggler", name: "Smuggler", tier: 5, minLevel: 15, minWallet: 90000, payMin: 850, payMax: 1450, cooldownMs: 10 * minute, xp: 62, description: "Move high-value goods while managing risk." },
-    { id: "underboss", name: "Underboss", tier: 6, minLevel: 21, minWallet: 300000, payMin: 1350, payMax: 2300, cooldownMs: 10 * minute, xp: 80, description: "Coordinate valuable operations and trusted crews." },
-    { id: "crime_boss", name: "Crime Boss", tier: 7, minLevel: 30, minWallet: 1000000, payMin: 2200, payMax: 3800, cooldownMs: 10 * minute, xp: 105, description: "The highest career tier, earned through long-term progress." }
+    { id: "delivery_rider", name: "Delivery Rider", tier: 2, minLevel: 8, minWallet: 10000, payMin: 220, payMax: 380, cooldownMs: 10 * minute, xp: 30, description: "Complete risky deliveries on a tight schedule." },
+    { id: "shopkeeper", name: "Shopkeeper", tier: 3, minLevel: 18, minWallet: 50000, payMin: 330, payMax: 570, cooldownMs: 10 * minute, xp: 38, description: "Manage supplies and keep the operation running." },
+    { id: "enforcer", name: "Enforcer", tier: 4, minLevel: 32, minWallet: 200000, payMin: 520, payMax: 880, cooldownMs: 10 * minute, xp: 48, description: "Protect clan operations and handle difficult jobs." },
+    { id: "smuggler", name: "Smuggler", tier: 5, minLevel: 50, minWallet: 750000, payMin: 850, payMax: 1450, cooldownMs: 10 * minute, xp: 62, description: "Move high-value goods while managing risk." },
+    { id: "underboss", name: "Underboss", tier: 6, minLevel: 70, minWallet: 2500000, payMin: 1350, payMax: 2300, cooldownMs: 10 * minute, xp: 80, description: "Coordinate valuable operations and trusted crews." },
+    { id: "crime_boss", name: "Crime Boss", tier: 7, minLevel: 100, minWallet: 10000000, payMin: 2200, payMax: 3800, cooldownMs: 10 * minute, xp: 105, description: "The highest career tier, earned through long-term progress." }
   ],
   careerEffects: {
     street_runner: { workPayBonus: 0.03 },
@@ -71,7 +71,7 @@ module.exports = {
     { id: "booster_kitsune_wings", name: "Eternal Kitsune Wings", type: "equipment", slot: "booster_aura", cost: 400000, minLevel: 1, boosterOnly: true, boostNumber: 5, rebirthEligible: false, rarity: "MYTHIC · BOOSTER EXCLUSIVE", rewardSummary: "FC income +12% · XP +12% · Work pay +15% · Work XP +15% · Crime rewards +8% · Heist success +5 points · Fines -10% · All game cooldowns -5% · Candy drop chance +5 points", description: "Your fifth personal server boost earns these wings automatically. This is the final item in the booster collection.", effects: { moneyBonus: 0.12, xpBonus: 0.12, workPayBonus: 0.15, workXpBonus: 0.15, crimeRewardBonus: 0.08, heistChance: 5, fineReduction: 0.10, candyDropBonus: 0.05, workCooldownReduction: 0.05, crimeCooldownReduction: 0.05, heistCooldownReduction: 0.05, dailyCooldownReduction: 0.05, casinoCooldownReduction: 0.05 } }
   ],
   itemUpgrades: { maxLevel: 5, effectPerLevel: 0.15, costBaseFactor: 0.65, costGrowthFactor: 1.7, levelRequirementPerUpgrade: 2 },
-  rebirth: { startingWallet: 1000, firstWalletRequirement: 30000, firstLevelRequirement: 8, walletRequirementGrowth: 1.5, levelRequirementGrowth: 2, firstQuestClaimsRequirement: 1, questClaimsGrowth: 1, firstJobLevelRequirement: 1, jobLevelGrowthEvery: 2, firstWorkShiftsRequirement: 3, workShiftsGrowth: 2, itemRequirementsStartAt: 3, firstGearItemsRequirement: 1, gearItemsGrowth: 1, firstCandyItemsRequirement: 1, candyItemsGrowth: 1, firstCandyBalanceRequirement: 25, candyBalanceGrowth: 25, gearUpgradeRequirementsStartAt: 4, firstGearUpgradeLevelsRequirement: 1, gearUpgradeLevelsGrowth: 1 },
+  rebirth: { startingWallet: 1000, firstWalletRequirement: 500000, firstLevelRequirement: 35, walletRequirementGrowth: 2, levelRequirementGrowth: 10, firstQuestClaimsRequirement: 3, questClaimsGrowth: 1, firstJobLevelRequirement: 5, jobLevelGrowthEvery: 1, firstWorkShiftsRequirement: 20, workShiftsGrowth: 10, itemRequirementsStartAt: 2, firstGearItemsRequirement: 2, gearItemsGrowth: 1, firstCandyItemsRequirement: 2, candyItemsGrowth: 1, firstCandyBalanceRequirement: 100, candyBalanceGrowth: 75, gearUpgradeRequirementsStartAt: 3, firstGearUpgradeLevelsRequirement: 2, gearUpgradeLevelsGrowth: 1 },
   crimes: [
     { id: "pickpocket", name: "Pickpocket", minLevel: 1, baseChance: 67, rewardMin: 90, rewardMax: 220, fineMin: 35, fineMax: 100, cooldownMs: 12 * minute, xp: 12, difficulty: 1 },
     { id: "shoplift", name: "Shoplift", minLevel: 4, baseChance: 54, rewardMin: 260, rewardMax: 650, fineMin: 120, fineMax: 290, cooldownMs: 22 * minute, xp: 22, difficulty: 2 },

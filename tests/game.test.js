@@ -208,8 +208,12 @@ test("3x FC earnings keep meaningful progression and equipment sinks", () => {
   const averageLevelOneDaily = ((balancing.economy.dailyMin + balancing.economy.dailyMax) / 2 + 8) *
     balancing.economy.earningMultiplier;
   assert.equal(averageLevelOneDaily, 1734);
-  assert.equal(balancing.rebirth.firstWalletRequirement, 30000);
+  assert.equal(balancing.rebirth.firstWalletRequirement, 500000);
+  assert.equal(balancing.progression.xpMultiplier, 1);
+  assert.equal(balancing.progression.roleBoosterMultiplier, 1.2);
   assert.ok(balancing.rebirth.firstWalletRequirement > averageLevelOneDaily * 5);
+  assert.deepEqual(balancing.jobs.map((job) => job.minLevel), [1, 8, 18, 32, 50, 70, 100]);
+  assert.deepEqual(balancing.jobs.map((job) => job.minWallet), [0, 10000, 50000, 200000, 750000, 2500000, 10000000]);
   assert.deepEqual(
     balancing.items.filter((item) => !item.boosterOnly).map((item) => item.cost),
     [7000, 18000, 25000, 36000, 50000, 64000, 116000, 170000, 290000, 480000]
@@ -252,49 +256,52 @@ test("booster-only equipment cannot satisfy normal rebirth gear milestones", () 
   const status = getRebirthRequirements(player, 6, [
     { item_id: "booster_crimson_katana", quantity: 1, upgrade_level: 5 }
   ], 25);
-  assert.equal(status.gearItemsRequired, 1);
+  assert.equal(status.gearItemsRequired, 3);
   assert.equal(status.gearItemsCount, 0);
   assert.equal(status.gearUpgradeLevels, 0);
   assert.equal(status.checks.gearItems, false);
 });
 
-test("rebirth multipliers double on every cycle and cooldown cuts have a safety cap", () => {
+test("rebirth multipliers grow linearly with a hard cap and cooldown cuts have a safety cap", () => {
   assert.equal(core.getRebirthMultiplier(0), 1);
-  assert.equal(core.getRebirthMultiplier(1), 2);
-  assert.equal(core.getRebirthMultiplier(2), 4);
-  assert.equal(core.getRebirthMultiplier(3), 8);
+  assert.equal(core.getRebirthMultiplier(1), 1.1);
+  assert.equal(core.getRebirthMultiplier(2), 1.2);
+  assert.equal(core.getRebirthMultiplier(10), 2);
+  assert.equal(core.getRebirthMultiplier(50), 2);
+  assert.equal(core.levelXpRequired(1), 120);
+  assert.equal(core.levelXpRequired(100), 2100);
   assert.equal(core.applyCooldownReduction(10000, 0.20), 8000);
   assert.equal(core.applyCooldownReduction(10000, 0.60), 5500);
   assert.equal(core.applyCooldownReduction(10000, 0.45, 6000), 6000);
 });
 
-test("rebirth requirements use a balanced FC and level curve, with Candy and gear reserved for later rebirths", () => {
+test("rebirth requirements use a substantially harder level, wealth and activity curve", () => {
   assert.equal(balancing.rebirth.startingWallet, 1000);
-  assert.equal(balancing.rebirth.firstWalletRequirement, 30000);
-  assert.equal(balancing.rebirth.firstLevelRequirement, 8);
-  assert.equal(balancing.rebirth.walletRequirementGrowth, 1.5);
-  assert.equal(balancing.rebirth.levelRequirementGrowth, 2);
-  assert.equal(balancing.rebirth.firstQuestClaimsRequirement, 1);
+  assert.equal(balancing.rebirth.firstWalletRequirement, 500000);
+  assert.equal(balancing.rebirth.firstLevelRequirement, 35);
+  assert.equal(balancing.rebirth.walletRequirementGrowth, 2);
+  assert.equal(balancing.rebirth.levelRequirementGrowth, 10);
+  assert.equal(balancing.rebirth.firstQuestClaimsRequirement, 3);
   assert.equal(balancing.rebirth.questClaimsGrowth, 1);
-  assert.equal(balancing.rebirth.firstJobLevelRequirement, 1);
-  assert.equal(balancing.rebirth.jobLevelGrowthEvery, 2);
-  assert.equal(balancing.rebirth.firstWorkShiftsRequirement, 3);
-  assert.equal(balancing.rebirth.workShiftsGrowth, 2);
-  assert.equal(balancing.rebirth.itemRequirementsStartAt, 3);
-  assert.equal(balancing.rebirth.gearUpgradeRequirementsStartAt, 4);
-  assert.equal(balancing.rebirth.firstGearItemsRequirement, 1);
-  assert.equal(balancing.rebirth.firstCandyItemsRequirement, 1);
-  assert.equal(balancing.rebirth.firstCandyBalanceRequirement, 25);
-  assert.equal(balancing.rebirth.firstGearUpgradeLevelsRequirement, 1);
+  assert.equal(balancing.rebirth.firstJobLevelRequirement, 5);
+  assert.equal(balancing.rebirth.jobLevelGrowthEvery, 1);
+  assert.equal(balancing.rebirth.firstWorkShiftsRequirement, 20);
+  assert.equal(balancing.rebirth.workShiftsGrowth, 10);
+  assert.equal(balancing.rebirth.itemRequirementsStartAt, 2);
+  assert.equal(balancing.rebirth.gearUpgradeRequirementsStartAt, 3);
+  assert.equal(balancing.rebirth.firstGearItemsRequirement, 2);
+  assert.equal(balancing.rebirth.firstCandyItemsRequirement, 2);
+  assert.equal(balancing.rebirth.firstCandyBalanceRequirement, 100);
+  assert.equal(balancing.rebirth.firstGearUpgradeLevelsRequirement, 2);
 });
 
-test("Candy and gear requirements do not apply to the first three rebirths", () => {
+test("Candy and gear requirements do not apply to the first two rebirths", () => {
   const { getRebirthRequirements } = require("../src/services/economy");
   const basePlayer = {
-    wallet: 500000, bank: 0, level: 50, job_id: "street_runner",
-    job_level: 30, rebirth_work_count: 30
+    wallet: 3000000, bank: 0, level: 100, job_id: "street_runner",
+    job_level: 30, rebirth_work_count: 100
   };
-  for (const prestige of [0, 1, 2]) {
+  for (const prestige of [0, 1]) {
     const status = getRebirthRequirements({ ...basePlayer, prestige }, 6, [], 0);
     assert.equal(status.gearItemsRequired, 0);
     assert.equal(status.candyItemsRequired, 0);
@@ -308,44 +315,55 @@ test("Candy and gear requirements do not apply to the first three rebirths", () 
   }
 });
 
-test("fourth and later rebirths require unique gear, Candy collectibles, Candy balance and upgrades", () => {
+test("third and later rebirths require unique gear, Candy collectibles, Candy balance and upgrades", () => {
   const { getRebirthRequirements } = require("../src/services/economy");
   const player = {
-    wallet: 500000, bank: 0, level: 50, prestige: 3,
-    job_id: "street_runner", job_level: 30, rebirth_work_count: 30
+    wallet: 5000000, bank: 0, level: 100, prestige: 2,
+    job_id: "street_runner", job_level: 30, rebirth_work_count: 100
   };
   const oneGearAndCandyItem = [
     { item_id: "reinforced_gloves", quantity: 1, upgrade_level: 0 },
     { item_id: "pumpkin_charm", quantity: 1, upgrade_level: 0 }
   ];
-  const fourth = getRebirthRequirements(player, 6, oneGearAndCandyItem, 25);
-  assert.equal(fourth.gearItemsRequired, 1);
-  assert.equal(fourth.candyItemsRequired, 1);
-  assert.equal(fourth.candyBalanceRequired, 25);
-  assert.equal(fourth.gearUpgradeLevelsRequired, 0);
-  assert.equal(fourth.eligible, true);
+  const third = getRebirthRequirements(player, 6, oneGearAndCandyItem, 100);
+  assert.equal(third.gearItemsRequired, 2);
+  assert.equal(third.candyItemsRequired, 2);
+  assert.equal(third.candyBalanceRequired, 100);
+  assert.equal(third.gearUpgradeLevelsRequired, 0);
+  assert.equal(third.eligible, false);
 
-  const fifthPlayer = { ...player, prestige: 4, level: 50, wallet: 500000 };
-  const notEnough = getRebirthRequirements(fifthPlayer, 6, oneGearAndCandyItem, 50);
-  assert.equal(notEnough.gearItemsRequired, 2);
-  assert.equal(notEnough.candyItemsRequired, 2);
-  assert.equal(notEnough.candyBalanceRequired, 50);
-  assert.equal(notEnough.gearUpgradeLevelsRequired, 1);
+  const thirdReadyInventory = [
+    { item_id: "reinforced_gloves", quantity: 1, upgrade_level: 0 },
+    { item_id: "urban_disguise", quantity: 1, upgrade_level: 0 },
+    { item_id: "pumpkin_charm", quantity: 1, upgrade_level: 0 },
+    { item_id: "ghost_token", quantity: 1, upgrade_level: 0 }
+  ];
+  const thirdReady = getRebirthRequirements(player, 6, thirdReadyInventory, 100);
+  assert.equal(thirdReady.eligible, true);
+
+  const fourthPlayer = { ...player, prestige: 3, wallet: 10000000 };
+  const notEnough = getRebirthRequirements(fourthPlayer, 6, thirdReadyInventory, 175);
+  assert.equal(notEnough.gearItemsRequired, 3);
+  assert.equal(notEnough.candyItemsRequired, 3);
+  assert.equal(notEnough.candyBalanceRequired, 175);
+  assert.equal(notEnough.gearUpgradeLevelsRequired, 2);
   assert.equal(notEnough.checks.gearItems, false);
   assert.equal(notEnough.checks.candyItems, false);
   assert.equal(notEnough.checks.gearUpgrades, false);
   assert.equal(notEnough.eligible, false);
 
   const readyInventory = [
-    { item_id: "reinforced_gloves", quantity: 1, upgrade_level: 1 },
+    { item_id: "reinforced_gloves", quantity: 1, upgrade_level: 2 },
     { item_id: "urban_disguise", quantity: 1, upgrade_level: 0 },
+    { item_id: "operator_radio", quantity: 1, upgrade_level: 0 },
     { item_id: "pumpkin_charm", quantity: 1, upgrade_level: 0 },
-    { item_id: "ghost_token", quantity: 1, upgrade_level: 0 }
+    { item_id: "ghost_token", quantity: 1, upgrade_level: 0 },
+    { item_id: "crimson_relic", quantity: 1, upgrade_level: 0 }
   ];
-  const ready = getRebirthRequirements(fifthPlayer, 6, readyInventory, 50);
-  assert.equal(ready.gearItemsCount, 2);
-  assert.equal(ready.candyItemsCount, 2);
-  assert.equal(ready.gearUpgradeLevels, 1);
+  const ready = getRebirthRequirements(fourthPlayer, 6, readyInventory, 175);
+  assert.equal(ready.gearItemsCount, 3);
+  assert.equal(ready.candyItemsCount, 3);
+  assert.equal(ready.gearUpgradeLevels, 2);
   assert.equal(ready.eligible, true);
 });
 
