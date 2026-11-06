@@ -623,8 +623,55 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
       ], [
         row(aBtn(owner, "settings", "Server settings", ButtonStyle.Primary, "⚙️"), aBtn(owner, "event", "Event controls", ButtonStyle.Secondary, "🎃")),
         row(aBtn(owner, "player", "Player management", ButtonStyle.Secondary, "👤"), aBtn(owner, "fairness", "Leaderboard fairness", ButtonStyle.Secondary, "🏆")),
-        row(aBtn(owner, "custom-commands", "Custom commands", ButtonStyle.Primary, "🧩"), aBtn(owner, "logs", "Audit history", ButtonStyle.Secondary, "📋"), aBtn(owner, "refresh", "Refresh", ButtonStyle.Secondary, "🔄"))
+        row(aBtn(owner, "custom-commands", "Custom commands", ButtonStyle.Primary, "🧩"), aBtn(owner, "logs", "Audit history", ButtonStyle.Secondary, "📋"), aBtn(owner, "refresh", "Refresh", ButtonStyle.Secondary, "🔄")),
+        row(aBtn(owner, "special-items", "Grant Mythic items", ButtonStyle.Primary, "🌟"))
       ], "info", "FUKISHOKAI  •  Private administrator console");
+  }
+  if (page === "special-items") {
+    const specialItems = balancing.items
+      .filter((item) => item.boosterOnly)
+      .sort((a, b) => Number(a.boostNumber) - Number(b.boostNumber));
+
+    if (!targetId) {
+      return panel("MYTHIC ITEM GRANTS", "Choose any server member — including yourself — then select one of the five exclusive Mythic booster items. The item is granted for free and equipped automatically. This does not alter their personal boost count.",
+        [
+          { name: "Available items", value: specialItems.map((item) => "**#" + item.boostNumber + " · " + item.name + "**").join("\n") },
+          { name: "Grant rules", value: "Items are unique. Re-granting an item will not create duplicates or erase its upgrades. Every grant is recorded in the audit history." }
+        ],
+        [
+          row(new UserSelectMenuBuilder().setCustomId("admin:" + owner + ":special-item-target").setPlaceholder("Choose who receives the item").setMinValues(1).setMaxValues(1)),
+          row(aBtn(owner, "home", "Admin console"))
+        ]);
+    }
+
+    const inventory = await s.inventory.getInventory(guildId, targetId);
+    const ownedById = new Map(inventory.items.map((entry) => [entry.item.id, entry]));
+    const fields = specialItems.map((item) => {
+      const owned = ownedById.get(item.id);
+      const status = owned
+        ? "Owned · Upgrade " + owned.upgradeLevel + "/" + balancing.itemUpgrades.maxLevel + (owned.equipped ? " · Equipped" : " · Not equipped")
+        : "Not owned";
+      return {
+        name: "MYTHIC #" + item.boostNumber + " · " + item.name,
+        value: "**" + status + "**\n" + (item.rewardSummary || item.description)
+      };
+    });
+    const itemMenu = new StringSelectMenuBuilder()
+      .setCustomId("admin:" + owner + ":special-item-grant:" + targetId)
+      .setPlaceholder("Choose a Mythic item to grant and equip")
+      .setMinValues(1).setMaxValues(1)
+      .addOptions(specialItems.map((item) => ({
+        label: item.name,
+        value: item.id,
+        description: "Personal boost reward #" + item.boostNumber + " · Grant free and auto-equip"
+      })));
+    return panel("GRANT MYTHIC ITEM", "Recipient: <@" + targetId + ">\nChoose any item below. The grant is free, unique and automatically equipped in its slot.",
+      fields,
+      [
+        row(itemMenu),
+        row(new UserSelectMenuBuilder().setCustomId("admin:" + owner + ":special-item-target").setPlaceholder("Choose a different member").setMinValues(1).setMaxValues(1)),
+        row(aBtn(owner, "player", "Player tools", ButtonStyle.Secondary, null, targetId), aBtn(owner, "home", "Admin console"))
+      ]);
   }
   if (page === "custom-commands") {
     const commands = await s.customCommands.list(guildId);
@@ -735,6 +782,7 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
       ], [
         row(aBtn(owner, "grant-fc", "Grant FC", ButtonStyle.Success, "➕", targetId), aBtn(owner, "grant-xp", "Grant XP", ButtonStyle.Success, "⭐", targetId), aBtn(owner, "remove-fc", "Remove FC", ButtonStyle.Danger, "➖", targetId)),
         row(aBtn(owner, "set-level", "Set level", ButtonStyle.Secondary, "🎚️", targetId), aBtn(owner, "set-career", "Assign career", ButtonStyle.Secondary, "💼", targetId), aBtn(owner, "set-rebirth", "Set rebirth", ButtonStyle.Secondary, null, targetId)),
+        row(aBtn(owner, "special-items", "Grant Mythic item", ButtonStyle.Primary, "🌟", targetId)),
         row(new UserSelectMenuBuilder().setCustomId("admin:" + owner + ":player-target").setPlaceholder("Choose another member").setMinValues(1).setMaxValues(1)),
         row(aBtn(owner, "player", "Member search"), aBtn(owner, "home", "Admin console"))
       ]);
@@ -813,6 +861,38 @@ async function handleSelection(i, s, scope, owner, action, parts) {
   if (scope === "admin") {
     if (!await isAdmin(i, s)) return i.reply({ content: "Your admin access has changed. Reopen the panel after checking permissions.", flags: MessageFlags.Ephemeral });
     if (action === "player-target") return i.update(await renderAdmin(i.guildId, owner, "player", s, value));
+    if (action === "special-item-target") return i.update(await renderAdmin(i.guildId, owner, "special-items", s, value));
+    if (action === "special-item-grant") {
+      const targetId = parts[3];
+      if (!targetId) throw new Error("Choose a member before granting a Mythic item.");
+      await i.deferUpdate();
+      const result = await s.inventory.grantBoosterItem(i.guildId, targetId, value, { equip: true });
+      const details = {
+        itemId: result.item.id,
+        itemName: result.item.name,
+        boostNumber: result.item.boostNumber,
+        alreadyOwned: result.alreadyOwned,
+        autoEquipped: result.autoEquipped,
+        previousEquippedItem: result.previousItem?.id || null
+      };
+      await audit(s.pool, i.guildId, owner, "admin_mythic_item_granted", targetId, details);
+      await sendLog(i.client, i.guildId,
+        "🌟 **" + result.item.name + "** was " + (result.alreadyOwned ? "re-granted and equipped" : "granted and equipped") +
+        " for <@" + targetId + "> by <@" + owner + ">.");
+      return i.editReply(panel(
+        result.alreadyOwned ? "MYTHIC ITEM ALREADY OWNED" : "MYTHIC ITEM GRANTED",
+        "**" + result.item.name + "** " + (result.alreadyOwned ? "was already in the member's collection; no duplicate was created." : "was added to the member's inventory.") +
+        "\n\nRecipient: <@" + targetId + ">\n**It is now equipped automatically.**" +
+        (result.previousItem ? "\nReplaced in the " + result.item.slot + " slot: **" + result.previousItem.name + "**." : ""),
+        [
+          { name: "Item", value: "MYTHIC #" + result.item.boostNumber + " · " + result.item.name },
+          { name: "Bonuses", value: result.item.rewardSummary || result.item.description },
+          { name: "Upgrades", value: (result.upgradeLevel || 0) + "/" + balancing.itemUpgrades.maxLevel }
+        ],
+        [row(aBtn(owner, "special-items", "Grant another item", ButtonStyle.Primary, "🌟", targetId), aBtn(owner, "player", "Player tools", ButtonStyle.Secondary, null, targetId)), row(aBtn(owner, "home", "Admin console"))],
+        "success"
+      ));
+    }
     if (action === "custom-command-select") return i.update(await renderAdmin(i.guildId, owner, "custom-command", s, value));
     if (action === "fairness-target") {
       if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner, bot owner, or configured Admin Role can change leaderboard eligibility.", flags: MessageFlags.Ephemeral });
@@ -1210,7 +1290,7 @@ async function handleButton(i, s) {
       await safeSendLog(i, s, "Custom command /" + removed.name + " was removed from Discord by <@" + owner + ">.");
       return i.editReply(await renderAdmin(i.guildId, owner, "custom-commands", s));
     }
-    if (action === "home" || action === "refresh" || action === "settings" || action === "clear-settings" || action === "event" || action === "player" || action === "fairness" || action === "logs" || action === "event-stop-confirm") {
+    if (action === "home" || action === "refresh" || action === "settings" || action === "clear-settings" || action === "event" || action === "player" || action === "fairness" || action === "logs" || action === "event-stop-confirm" || action === "special-items") {
       return i.update(await renderAdmin(i.guildId, owner, action === "refresh" ? "home" : action, s, target));
     }
     if (["grant-fc", "grant-xp", "remove-fc", "set-level"].includes(action)) {
@@ -1553,4 +1633,4 @@ async function handleDashboardInteraction(i, s) {
     return handleSelection(i, s, p[0], p[1], p[2], p);
   }
 }
-module.exports = { openMenu, openAdmin, handleDashboardInteraction, isAdmin, buildHeistEmbed, recordMemberAction, renderMenu };
+module.exports = { openMenu, openAdmin, handleDashboardInteraction, isAdmin, buildHeistEmbed, recordMemberAction, renderMenu, renderAdmin };
