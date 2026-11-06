@@ -3,9 +3,11 @@ const assert = require("node:assert/strict");
 const core = require("../src/utils/core");
 const balancing = require("../src/config/game-balancing");
 
-test("level requirements grow with level", () => {
+test("level requirements grow through the level 600 endgame cap", () => {
   assert.ok(core.levelXpRequired(10) > core.levelXpRequired(5));
   assert.ok(core.levelXpRequired(5) > core.levelXpRequired(1));
+  assert.equal(core.levelXpRequired(600), 41493);
+  assert.equal(core.levelXpRequired(999), 41493);
 });
 
 test("career pay has bounded randomness and grows by job level", () => {
@@ -934,4 +936,34 @@ test("an active bot restriction cannot be bypassed when Discord role hierarchy l
   // The monitoring path still treats unknown hierarchy conservatively and
   // will not create incidents or apply actions when a member's rank is unknown.
   assert.equal(await security.isAboveBotRole(guild, "restricted-member"), true);
+});
+
+
+test("the 100th rebirth is terminal and grants the final 51x multiplier", () => {
+  const { getRebirthRequirements } = require("../src/services/economy");
+  const status = getRebirthRequirements({
+    wallet: 100000000, bank: 0, level: 600, prestige: 100,
+    job_id: "eternal_overlord", job_level: 30, rebirth_work_count: 30
+  }, 6, [], 0);
+  assert.equal(status.maxRebirths, 100);
+  assert.equal(status.maxLevel, 600);
+  assert.equal(status.atMaxRebirth, true);
+  assert.equal(status.checks.canRebirth, false);
+  assert.equal(status.eligible, false);
+  assert.equal(status.nextMultiplier, 51);
+  assert.equal(core.getRebirthMultiplier(100), 51);
+});
+
+test("endgame gear exposes upgrade-scaled active special abilities", () => {
+  const { combineEffects } = require("../src/services/inventory");
+  const item = balancing.items.find((entry) => entry.id === "emberfang_blade");
+  assert.ok(item && item.specialAbility);
+  const effects = combineEffects([{ ...item, upgradeLevel: 2 }]);
+  assert.equal(effects.specialAbilities.length, 1);
+  assert.equal(effects.specialAbilities[0].name, "Blood Pact");
+  assert.ok(effects.specialAbilities[0].chance > item.specialAbility.chance);
+  const triggered = core.rollSpecialAbilities(effects, "crime_success", () => 0);
+  assert.equal(triggered.length, 1);
+  assert.ok(core.sumAbilityValue(triggered, "reward_bonus") > 0);
+  assert.deepEqual(core.rollSpecialAbilities(effects, "work_complete", () => 0), []);
 });
