@@ -53,7 +53,8 @@ function applyCooldownReduction(baseMs, reduction, floorMs = 1000) {
 function levelXpRequired(level) {
   const maxLevel = require("../config/game-balancing").progression.maxLevel;
   const safeLevel = Math.max(1, Math.min(maxLevel, Math.floor(Number(level) || 1)));
-  return 100 + (safeLevel * 20);
+  const progression = require("../config/game-balancing").progression;
+  return Math.floor(Number(progression.xpPerLevelBase || 100) + safeLevel * Number(progression.xpPerLevelStep || 20));
 }
 function calculateWorkPay(job, jobLevel, randomPercent) {
   const level = Math.max(1, Math.floor(jobLevel || 1));
