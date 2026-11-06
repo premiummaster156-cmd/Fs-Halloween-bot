@@ -11,7 +11,7 @@ const { getPlayer, getLeaderboard } = require("../services/economy");
 const { getUpgradeCost } = require("../services/inventory");
 const { levelXpRequired, uuid, getRebirthMultiplier } = require("../utils/core");
 const { makeWorkChallenge } = require("../games/work-challenge");
-const { audit, sendLog } = require("../utils/logging");
+const { audit, sendLog, sendActivityLog } = require("../utils/logging");
 
 const sessions = new Map();
 
@@ -61,8 +61,9 @@ async function recordMemberAction(i, services, action, announcement, details = {
       console.warn("[activity] Could not write member audit entry:", action, error.code || error.message);
     }
     try {
-      await safeSendLog(i, services, "Member activity: " + action + " · " + displayName + " (" + actorId + ")" +
-        (Object.keys(details).length ? " · " + JSON.stringify(details).slice(0, 700) : ""));
+      await sendActivityLog(i.client, i.guildId, {
+        action, actorId, displayName, details, kind
+      });
     } catch (error) {
       console.warn("[activity] Could not send member activity log:", action, error.code || error.message);
     }
@@ -116,8 +117,11 @@ function panel(title, description, fields = [], components = [], kind = "info", 
     warning: settings.brand.warning, error: settings.brand.danger
   };
   const embed = createEmbed({
-    title, description, fields, color: palette[kind] || palette.info,
-    footer, icon: "profile"
+    title: "◆ " + String(title).toUpperCase() + " ◆",
+    description: "▰▰▰ ◈ FUKISHOKAI GAME HUD ◈ ▰▰▰\n" + description,
+    fields, color: palette[kind] || palette.info,
+    footer: footer + "  •  DEPTH HUD",
+    icon: "profile"
   });
   return { embeds: [embed], components };
 }
@@ -148,7 +152,16 @@ function formatItemEffects(effects = {}) {
     ["dailyCooldownReduction", "Daily cooldown"],
     ["casinoCooldownReduction", "Casino cooldown"]
   ]) if (effects[key]) lines.push(label + " -" + percent(effects[key]) + "%");
+  if (Array.isArray(effects.specialAbilities)) {
+    for (const ability of effects.specialAbilities) {
+      lines.push("⚡ " + ability.name + " — " + ability.short);
+    }
+  }
   return lines.length ? lines.join(" · ") : "No active bonuses";
+}
+function formatItemAbility(item) {
+  const ability = item?.specialAbility;
+  return ability ? "\n⚡ **" + ability.name + "** — " + ability.short : "";
 }
 function formatCareerEffects(effects = {}) {
   const lines = [];
@@ -408,7 +421,7 @@ async function renderMenu(guildId, owner, page, s) {
   if (page === "shop") {
     const shopItems = balancing.items.filter((item) => !item.boosterOnly);
     const options = shopItems.map((x) => ({ label: x.name, value: x.id, description: x.cost.toLocaleString() + " FC · Level " + x.minLevel + "+ · " + x.slot }));
-    const list = shopItems.map((x) => "**" + x.name + "** · " + x.cost.toLocaleString() + " FC\nLevel " + x.minLevel + "+ · " + x.slot + "\n" + x.description + "\n*Bonuses:* " + formatItemEffects(x.effects));
+    const list = shopItems.map((x) => "**" + x.name + "** · " + x.cost.toLocaleString() + " FC\nLevel " + x.minLevel + "+ · " + x.slot + "\n" + x.description + "\n*Bonuses:* " + formatItemEffects(x.effects) + formatItemAbility(x));
     return panel("NORMAL EQUIPMENT SHOP", "These are regular items bought with FC. 🌟 MYTHIC booster items are separate: your personal boosts award them automatically, and you can upgrade them from Gear.",
       [{ name: "Available equipment", value: list.join("\n\n").slice(0, 3900) }],
       [menu(owner, "shop-buy", "Select equipment to purchase", options), nav]);
@@ -420,6 +433,7 @@ async function renderMenu(guildId, owner, page, s) {
     ]);
     const mark = (passed) => passed ? "✅" : "▫️";
     const lines = [
+      mark(status.checks.canRebirth) + " **Ascension:** " + status.rebirths + "/" + status.maxRebirths + " rebirths · " + status.multiplier.toLocaleString() + "× power,
       mark(status.checks.wealth) + " **FC:** " + status.wealth.toLocaleString() + "/" + status.walletRequired.toLocaleString(),
       mark(status.checks.level) + " **Level:** " + status.level + "/" + status.levelRequired +
         " · **Job:** " + (status.currentJob ? status.currentJob.name : "None") + " (" + status.currentJobLevel + "/" + status.jobLevelRequired + ")",
@@ -435,6 +449,13 @@ async function renderMenu(guildId, owner, page, s) {
     }
     if (status.gearUpgradeLevelsRequired > 0) {
       lines.push(mark(status.checks.gearUpgrades) + " **Upgrades:** " + status.gearUpgradeLevels + "/" + status.gearUpgradeLevelsRequired);
+    }
+
+    if (page === "rebirth-confirm" && status.atMaxRebirth) {
+      return panel("ASCENSION LIMIT REACHED", "You have completed all **100 rebirths**. Your permanent power is **51× FC / XP** and cannot increase further.", [
+        { name: "Endgame status", value: "MAX REBIRTH · MAX POWER" },
+        { name: "Level journey", value: "Continue progressing up to level " + status.maxLevel + "." }
+      ], [row(btn(owner, "profile", "View profile"), btn(owner, "achievements", "Achievements")), nav], "success");
     }
 
     if (page === "rebirth-confirm") {
@@ -455,10 +476,10 @@ async function renderMenu(guildId, owner, page, s) {
         (meta.previousLevel || "?") + " · " + (Number.isFinite(timestamp) ? "<t:" + timestamp + ":R>" : "Recorded");
     });
     return panel("REBIRTH  /  " + status.multiplier.toLocaleString() + "× → " + status.nextMultiplier.toLocaleString() + "×",
-      "Complete these requirements to double your FC and XP earnings.",
+      status.atMaxRebirth ? "◆ MAX ASCENSION COMPLETE · You have reached the final rebirth tier." : "Complete the checklist to gain another permanent +0.5× FC and XP power. Maximum: 100 rebirths / 51×.",
       [
         { name: "Requirements", value: lines.join("\n") },
-        { name: "Next-run preview", value: "After this rebirth: " + status.nextWalletRequired.toLocaleString() + " FC · Level " + status.nextLevelRequired + " · " + status.nextQuestClaimsRequired + " quest claims · " + status.nextWorkShiftsRequired + " work shifts" },
+        { name: "Next-run preview", value: status.atMaxRebirth ? "No further rebirth is available. Keep climbing toward level " + status.maxLevel + "." : "After this rebirth: " + status.nextWalletRequired.toLocaleString() + " FC · Level " + status.nextLevelRequired + " · " + status.nextQuestClaimsRequired + " quest claims · " + status.nextWorkShiftsRequired + " work shifts" },
         { name: "On rebirth", value: "Reset: 1,000 FC · Bank 0 · Level 1 · No career. Keep: gear, upgrades, Candy, collectibles, event claims and lifetime records." },
         { name: "Rebirth history", value: historyLines.length ? historyLines.join("\n") : "Your completed rebirths will be recorded here." }
       ],
@@ -1340,7 +1361,7 @@ async function handleButton(i, s) {
       if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner, bot owner, or configured Admin Role can edit member currency and progression.", flags: MessageFlags.Ephemeral });
       const isLevel = action === "set-level";
       return i.showModal(modal("admin:" + owner + ":" + action + ":" + target, isLevel ? "Set player level" : action === "remove-fc" ? "Remove FS Coins" : action === "grant-xp" ? "Grant XP" : "Grant FS Coins", [
-        { id: isLevel ? "level" : "amount", label: isLevel ? "New level (1–100)" : "Amount", placeholder: isLevel ? "10" : "1000", max: 12 },
+        { id: isLevel ? "level" : "amount", label: isLevel ? "New level (1–600)" : "Amount", placeholder: isLevel ? "10" : "1000", max: 12 },
         { id: "reason", label: "Audit reason", paragraph: true, max: 500 }
       ]));
     }
@@ -1352,7 +1373,7 @@ async function handleButton(i, s) {
     }
     if (action === "set-rebirth") {
       return i.showModal(modal("admin:" + owner + ":set-rebirth:" + target, "Set rebirth count", [
-        { id: "rebirths", label: "New rebirth count (0–20)", placeholder: "4", max: 2 },
+        { id: "rebirths", label: "New rebirth count (0–100)", placeholder: "20", max: 3 },
         { id: "reason", label: "Audit reason", paragraph: true, max: 500 }
       ]));
     }
@@ -1603,8 +1624,8 @@ async function handleModal(i, s) {
           await s.economy.ensurePlayerTx(c, i.guildId, target);
           const current = await c.query("SELECT level, xp FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [i.guildId, target]);
           let level = Number(current.rows[0].level), xp = Number(current.rows[0].xp) + amount, gained = 0;
-          while (level < 100 && xp >= levelXpRequired(level)) { xp -= levelXpRequired(level); level += 1; gained += 1; }
-          if (level >= 100) xp = 0;
+          while (level < 600 && xp >= levelXpRequired(level)) { xp -= levelXpRequired(level); level += 1; gained += 1; }
+          if (level >= 600) xp = 0;
           await c.query("UPDATE players SET level = $3, xp = $4, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [i.guildId, target, level, xp]);
           return { level, gained };
         });
@@ -1619,7 +1640,7 @@ async function handleModal(i, s) {
       return i.editReply(panel(delta > 0 ? "FS COINS GRANTED" : "FS COINS REMOVED", (delta > 0 ? "Granted " : "Removed ") + "**" + amount.toLocaleString() + " FC** " + (delta > 0 ? "for " : "from ") + "<@" + target + ">.", [{ name: "Audit reason", value: reason }], [], "success"));
     }
     if (action === "set-level") {
-      const level = numberField(i, "level", 1, 100, "Level");
+      const level = numberField(i, "level", 1, 600, "Level");
       await s.economy.transact(async (c) => {
         await s.economy.ensurePlayerTx(c, i.guildId, target);
         await c.query("UPDATE players SET level = $3, xp = 0, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [i.guildId, target, level]);
@@ -1629,7 +1650,7 @@ async function handleModal(i, s) {
       return i.editReply(panel("PLAYER LEVEL UPDATED", "Set <@" + target + ">'s player level to **" + level + "**. Current-level XP was reset to zero.", [{ name: "Audit reason", value: reason }], [], "success"));
     }
     if (action === "set-rebirth") {
-      const rebirths = numberField(i, "rebirths", 0, 20, "Rebirth count");
+      const rebirths = numberField(i, "rebirths", 0, 100, "Rebirth count");
       await s.economy.transact(async (c) => {
         await s.economy.ensurePlayerTx(c, i.guildId, target);
         await c.query(
