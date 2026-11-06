@@ -489,7 +489,7 @@ async function renderMenu(guildId, owner, page, s) {
     if (page === "rebirth-confirm") {
       return panel("CONFIRM REBIRTH", "Your next multiplier will be **" + status.nextMultiplier.toLocaleString() + "× FC/XP**. This reset cannot be undone.",
         [
-          { name: "Reset", value: "1,000 FC · Bank 0 · Level 1 · Career" },
+          { name: "Reset", value: "2,500 FC · Bank 0 · Level 1 · Career" },
           { name: "Keep", value: "Gear · Upgrades · Candy · Collectibles · Event claims · Lifetime stats" }
         ],
         [row(btn(owner, "rebirth-confirm", "Confirm", ButtonStyle.Danger).setDisabled(!status.eligible), btn(owner, "rebirth", "Cancel", ButtonStyle.Secondary)), nav],
@@ -508,7 +508,7 @@ async function renderMenu(guildId, owner, page, s) {
       [
         { name: "Requirements", value: lines.join("\n") },
         { name: "Next-run preview", value: status.checks.maxRebirth ? "Maximum progression reached. No further rebirth is available." : "After this rebirth: " + status.nextWalletRequired.toLocaleString() + " FC · Level " + status.nextLevelRequired + " · " + status.nextQuestClaimsRequired + " quest claims · " + status.nextWorkShiftsRequired + " work shifts" },
-        { name: "On rebirth", value: "Reset: 1,000 FC · Bank 0 · Level 1 · No career. Keep: gear, upgrades, Candy, collectibles, event claims and lifetime records." },
+        { name: "On rebirth", value: "Reset: 2,500 FC · Bank 0 · Level 1 · No career. Keep: gear, upgrades, Candy, collectibles, event claims and lifetime records." },
         { name: "Rebirth history", value: historyLines.length ? historyLines.join("\n") : "Your completed rebirths will be recorded here." }
       ],
       [row(btn(owner, "rebirth-review", "Rebirth", ButtonStyle.Danger).setDisabled(!status.eligible), btn(owner, "event-shop", "Candy shop", ButtonStyle.Secondary)), nav]);
@@ -1585,7 +1585,7 @@ async function handleButton(i, s) {
       nextTargets.push(result.nextGearItemsRequired + " gear", result.nextCandyItemsRequired + " Candy items", result.nextCandyBalanceRequired + " Candy");
     }
     if (result.nextGearUpgradeLevelsRequired > 0) nextTargets.push(result.nextGearUpgradeLevelsRequired + " upgrade levels");
-    return i.editReply(panel("REBIRTH COMPLETE", "Rebirth #" + result.rebirths + " · **" + result.multiplier.toLocaleString() + "× FC/XP**. New run: **1,000 FC · Level 1**.",
+    return i.editReply(panel("REBIRTH COMPLETE", "Rebirth #" + result.rebirths + " · **" + result.multiplier.toLocaleString() + "× FC/XP**. New run: **2,500 FC · Level 1**.",
       [
         { name: "Next rebirth", value: nextTargets.join(" · ") },
         { name: "Kept", value: "Gear, upgrades, Candy, collectibles and lifetime stats." }
