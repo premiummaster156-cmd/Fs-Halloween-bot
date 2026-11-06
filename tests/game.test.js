@@ -262,14 +262,15 @@ test("booster-only equipment cannot satisfy normal rebirth gear milestones", () 
   assert.equal(status.checks.gearItems, false);
 });
 
-test("rebirth multipliers add 10% per rebirth up to 3x at 20 rebirths", () => {
+test("rebirth multipliers add 70% per rebirth up to 15x at 20 rebirths", () => {
   assert.equal(core.getRebirthMultiplier(0), 1);
-  assert.equal(core.getRebirthMultiplier(1), 1.1);
-  assert.equal(core.getRebirthMultiplier(2), 1.2);
-  assert.equal(core.getRebirthMultiplier(10), 2);
-  assert.equal(core.getRebirthMultiplier(15), 2.5);
-  assert.equal(core.getRebirthMultiplier(20), 3);
-  assert.equal(core.getRebirthMultiplier(50), 3);
+  assert.equal(core.getRebirthMultiplier(1), 1.7);
+  assert.equal(core.getRebirthMultiplier(2), 2.4);
+  assert.equal(core.getRebirthMultiplier(5), 4.5);
+  assert.equal(core.getRebirthMultiplier(10), 8);
+  assert.equal(core.getRebirthMultiplier(15), 11.5);
+  assert.equal(core.getRebirthMultiplier(20), 15);
+  assert.equal(core.getRebirthMultiplier(50), 15);
   assert.equal(core.levelXpRequired(1), 120);
   assert.equal(core.levelXpRequired(100), 2100);
   assert.equal(core.applyCooldownReduction(10000, 0.20), 8000);
