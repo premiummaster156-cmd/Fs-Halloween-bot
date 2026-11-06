@@ -121,6 +121,7 @@ class CasinoGame {
         payout = earning.delta;
         candyDrop = earning.candyDrop || null;
       }
+      candyDrop = await this.economy.rollCandyDropTx(client, guildId, userId, "casino_play");
       await trackActionTx(client, guildId, userId, "casino_play", 1);
       if (payout > wager) await trackActionTx(client, guildId, userId, "wallet_earned", payout - wager);
 

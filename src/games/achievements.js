@@ -114,7 +114,8 @@ class AchievementsGame {
         achievement,
         rewardFc: earning.delta,
         rewardXp: progression.gained,
-        level: progression.level
+        level: progression.level,
+        candyDrop: earning.candyDrop || null
       };
     });
   }

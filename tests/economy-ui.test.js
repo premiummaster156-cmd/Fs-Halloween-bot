@@ -77,3 +77,31 @@ test("Gear clearly separates Mythic booster items from normal gear and shows aut
   const componentRows = payload.components.map((component) => component.toJSON());
   assert.ok(componentRows.some((row) => row.components.some((button) => button.custom_id?.includes("upgrade-item"))));
 });
+
+
+test("weekly dashboard shows recurring Candy quests and a claim control", async () => {
+  const payload = await renderMenu("guild-1", "member-1", "weekly", {
+    activity: {
+      getWeekly: async () => ({ weekStart: "2026-11-02", messages: 400, goal: 1000 })
+    },
+    halloween: { getEvent: async () => null },
+    weeklyQuests: {
+      status: async () => ({
+        weekStart: "2026-11-02",
+        candyBalance: 88,
+        totalWeeklyCandy: 120,
+        quests: balancing.weeklyQuests.map((quest, index) => ({
+          ...quest, progress: index === 0 ? quest.goal : 0,
+          ready: index === 0, claimed: false
+        }))
+      })
+    }
+  });
+  const embed = payload.embeds[0].toJSON();
+  assert.equal(embed.title, "WEEKLY QUESTS");
+  assert.ok(embed.description.includes("120 Candy each week"));
+  assert.ok(embed.fields.some((field) => field.name.includes("Clock In") && field.value.includes("30 Candy")));
+  assert.ok(payload.components.some((row) => row.components.some((component) =>
+    component.toJSON().custom_id?.includes("weekly-quest-claim")
+  )));
+});

@@ -1,5 +1,6 @@
 const {
   SlashCommandBuilder,
+  AttachmentBuilder,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle
@@ -11,6 +12,7 @@ const { getPlayer, getLeaderboard } = require("../services/economy");
 const { makeWorkChallenge } = require("../games/work-challenge");
 const { getRebirthMultiplier, levelXpRequired } = require("../utils/core");
 const { ACHIEVEMENTS } = require("../games/achievements");
+const { createProfileCard } = require("../utils/profile-card");
 
 function embed(title, description, fields = [], color = 0x851E2A) {
   return {
@@ -62,7 +64,7 @@ const dailyCommand = {
 const profileCommand = {
   data: new SlashCommandBuilder()
     .setName("profile")
-    .setDescription("View your profile or another member's public game stats.")
+    .setDescription("View your profile or another member's game rank card.")
     .addUserOption((option) => option
       .setName("member")
       .setDescription("Whose profile should be shown?")
@@ -70,40 +72,20 @@ const profileCommand = {
   async execute(interaction, services) {
     const member = interaction.options.getUser("member") || interaction.user;
     const player = await getPlayer(services.pool, interaction.guildId, member.id);
-    const career = balancing.jobs.find((job) => job.id === player.job_id);
-    const wealth = Number(player.wallet) + Number(player.bank);
-    const stats = await services.partyGames.getStats(interaction.guildId, member.id);
-    const booster = services.serverBoosters
-      ? await services.serverBoosters.getStatus(interaction.guildId, member.id)
-      : null;
-    const fields = [
-      { name: "Level", value: "Level " + player.level + "\n" + bar(player.xp, levelXpRequired(Number(player.level))) + "\n" + Number(player.xp).toLocaleString() + "/" + levelXpRequired(Number(player.level)) + " XP", inline: false },
-      { name: "Total wealth", value: wealth.toLocaleString() + " FC", inline: true },
-      { name: "Wallet", value: Number(player.wallet).toLocaleString() + " FC", inline: true },
-      { name: "Bank", value: Number(player.bank).toLocaleString() + " FC", inline: true },
-      { name: "Career", value: career ? career.name + " · Job level " + player.job_level : "Not selected", inline: true },
-      { name: "Rebirths", value: Number(player.prestige) + " · " + getRebirthMultiplier(player.prestige).toLocaleString() + "× earnings", inline: true },
-      { name: "Lifetime earned", value: Number(player.lifetime_earned).toLocaleString() + " FC", inline: true },
-      { name: "Party record", value: Number(stats.wins).toLocaleString() + " wins in " + Number(stats.games).toLocaleString() + " games · " + Number(stats.points).toLocaleString() + " points", inline: false }
-    ];
-    if (booster) {
-      fields.push({
-        name: "⚡ Server Booster",
-        value: (booster.active ? "Active booster" : "Not currently boosting") +
-          " · Personal boosts recorded: " + booster.personalBoostCount +
-          " · Server total: " + booster.serverBoostCount +
-          (booster.unlockedItems.length
-            ? "\n🌟 MYTHIC items: " + booster.unlockedItems.map((item) => item.name).join(", ")
-            : "") +
-          (booster.active ? "\nPassive server-booster bonuses are active." : "\nEarned MYTHIC items and their upgrades stay in your inventory."),
-        inline: false
-      });
-    }
-    return interaction.editReply(embed(
-      "👤 " + (member.globalName || member.username) + "  /  PLAYER PROFILE",
-      "A snapshot of this member's Fukishokai progress.",
-      fields
-    ));
+    const rankResult = await services.pool.query(
+      "SELECT COUNT(*)::int + 1 AS rank FROM players p WHERE p.guild_id = $1 AND " +
+      "(p.level > $2 OR (p.level = $2 AND p.user_id < $3)) AND " +
+      "NOT EXISTS (SELECT 1 FROM leaderboard_exclusions x WHERE x.guild_id = p.guild_id AND x.user_id = p.user_id)",
+      [interaction.guildId, Number(player.level) || 1, member.id]
+    );
+    const rank = Number(rankResult.rows[0]?.rank) || 1;
+    const image = await createProfileCard({ user: member, player, rank });
+    const attachment = new AttachmentBuilder(image, { name: "fukishokai-profile.png" });
+    return interaction.editReply({
+      content: "",
+      files: [attachment],
+      allowedMentions: { parse: [] }
+    });
   }
 };
 const jobCommand = {
