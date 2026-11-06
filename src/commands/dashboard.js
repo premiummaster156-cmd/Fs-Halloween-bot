@@ -339,11 +339,11 @@ async function renderMenu(guildId, owner, page, s) {
     const standardLines = standardItems.map((entry) => {
       const current = (entry.equipped ? "🟢 " : "▫️ ") + "**" + entry.item.name + "** · Upgrade " +
         entry.upgradeLevel + "/" + balancing.itemUpgrades.maxLevel + (entry.equipped ? " · Equipped" : "");
-      if (entry.upgradeLevel >= balancing.itemUpgrades.maxLevel) return current + " · MAX";
+      if (entry.upgradeLevel >= balancing.itemUpgrades.maxLevel) return current + " · MAX" + formatItemAbility(entry.item);
       const nextLevel = entry.upgradeLevel + 1;
       const nextCost = getUpgradeCost(entry.item, nextLevel);
       const requiredLevel = entry.item.minLevel + nextLevel * balancing.itemUpgrades.levelRequirementPerUpgrade;
-      return current + " · Next: " + nextCost.toLocaleString() + " FC / Lv " + requiredLevel;
+      return current + " · Next: " + nextCost.toLocaleString() + " FC / Lv " + requiredLevel + formatItemAbility(entry.item);
     });
     const collectibleLines = collectibles.map((entry) =>
       "🎃 **" + entry.item.name + "** × " + entry.quantity + " · Candy collectible"
