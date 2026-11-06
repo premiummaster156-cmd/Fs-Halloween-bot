@@ -11,6 +11,7 @@ function getUpgradeCost(item, nextLevel) {
 
 function combineEffects(items) {
   const result = {
+    specialAbilities: [],
     crimeChance: 0, heistChance: 0, workPayBonus: 0, workXpBonus: 0,
     moneyBonus: 0, xpBonus: 0, crimeRewardBonus: 0, fineReduction: 0,
     casinoChance: 0, slotLuck: 0, candyDropBonus: 0,
@@ -25,6 +26,15 @@ function combineEffects(items) {
     const effects = item.effects || {};
     const upgradeLevel = Math.max(0, Math.min(balancing.itemUpgrades.maxLevel, Number(item.upgradeLevel ?? item.upgrade_level) || 0));
     const factor = 1 + upgradeLevel * balancing.itemUpgrades.effectPerLevel;
+    if (item.specialAbility) {
+      result.specialAbilities.push({
+        ...item.specialAbility,
+        itemId: item.id,
+        itemName: item.name,
+        chance: Math.min(0.50, Math.max(0, Number(item.specialAbility.chance) || 0) * factor),
+        value: Math.max(0, Number(item.specialAbility.value) || 0) * factor
+      });
+    }
     for (const key of ["crimeChance", "heistChance", "workPayBonus", "workXpBonus", "moneyBonus", "xpBonus", "crimeRewardBonus", "fineReduction", "casinoChance", "slotLuck", "candyDropBonus"]) {
       result[key] += Number(effects[key] || 0) * factor;
     }
