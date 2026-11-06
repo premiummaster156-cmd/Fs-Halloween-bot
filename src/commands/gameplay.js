@@ -79,7 +79,26 @@ const profileCommand = {
       [interaction.guildId, Number(player.level) || 1, member.id]
     );
     const rank = Number(rankResult.rows[0]?.rank) || 1;
-    const image = await createProfileCard({ user: member, player, rank });
+    const [candyResult, partyStats] = await Promise.all([
+      services.pool.query(
+        "SELECT candy FROM event_wallets WHERE guild_id = $1 AND user_id = $2 AND event_id = $3",
+        [interaction.guildId, member.id, balancing.halloween.eventId]
+      ),
+      services.partyGames ? services.partyGames.getStats(interaction.guildId, member.id) : Promise.resolve({})
+    ]);
+    const image = await createProfileCard({
+      user: member,
+      player,
+      rank,
+      stats: {
+        career: balancing.jobs.find((job) => job.id === player.job_id)?.name || "Unemployed",
+        candy: Number(candyResult.rows[0]?.candy) || 0,
+        rebirthMultiplier: getRebirthMultiplier(player.prestige),
+        partyWins: Number(partyStats.wins) || 0,
+        partyGames: Number(partyStats.games) || 0,
+        partyPoints: Number(partyStats.points) || 0
+      }
+    });
     const attachment = new AttachmentBuilder(image, { name: "fukishokai-profile.png" });
     return interaction.editReply({
       content: "",
