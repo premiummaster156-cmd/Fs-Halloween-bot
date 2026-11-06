@@ -9,7 +9,7 @@
 ## Current feature branch — Rift Arena and active gear powers (not merged)
 
 Branch: `active-abilities-rift-arena`  
-Status: implementation committed to the feature branch; pull request and CI validation are still pending. Do not describe this as merged or live in Discord.
+Status: PR #28 is open against `main`. GitHub Actions CI run 42283938452 completed successfully (dependency install, source syntax check, slash-command validation and full test suite). The PR is not merged; Neon migration and Discord test-server checks remain outstanding. Do not describe this as live in Discord.
 
 Implemented on this branch:
 - A persistent solo **Rift Arena** with six bosses unlocked at levels 1, 25, 75, 150, 300 and 500.
@@ -62,7 +62,7 @@ Implemented on this branch:
 - Level cap: 600.
 - Rebirth cap: 100.
 - Multiplier: 1× at 0; 1.5× at 1; 2× at 2; 2.5× at 3; 11× at 20; 51× at 100.
-- Wealth target: 500,000 FC × 1.15^currentRebirthCount.
+- Wealth target: 500,000 FC × 1.09^currentRebirthCount.
 - Level target: min(600, ceil(35 + 5.65 × currentRebirthCount)).
 - Quest claims: starts at 3 and caps at the six normal Halloween quests.
 - Career level: starts at 5 and rises by one per current rebirth, capped at 30.
