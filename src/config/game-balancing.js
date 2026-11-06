@@ -133,9 +133,17 @@ module.exports = {
     job_work: { chance: 0.20, min: 1, max: 2 },
     crime_success: { chance: 0.14, min: 1, max: 2 },
     heist_reward: { chance: 0.26, min: 2, max: 4 },
-    casino_payout: { chance: 0.06, min: 1, max: 2 },
-    chat_activity_reward: { chance: 0.025, min: 1, max: 1 }
+    casino_play: { chance: 0.08, min: 1, max: 2 },
+    chat_activity_reward: { chance: 0.025, min: 1, max: 1 },
+    achievement_reward: { chance: 0.10, min: 1, max: 2 }
   },
+  weeklyQuests: [
+    { id: "weekly_work", name: "Clock In", action: "work", goal: 5, candy: 30, description: "Complete 5 work shifts." },
+    { id: "weekly_daily", name: "Daily Routine", action: "daily", goal: 3, candy: 20, description: "Claim Daily 3 times." },
+    { id: "weekly_crime", name: "Clean Getaway", action: "crime_success", goal: 4, candy: 20, description: "Complete 4 successful crimes." },
+    { id: "weekly_casino", name: "Night at the Tables", action: "casino_play", goal: 8, candy: 15, description: "Play 8 casino rounds. Wins are not required." },
+    { id: "weekly_heists", name: "Crew Contract", action: "heist_success", goal: 1, candy: 35, description: "Complete 1 successful heist as a crew member." }
+  ],
   halloween: {
     eventId: "halloween-2026",
     finalRoleQuestCount: 5,
