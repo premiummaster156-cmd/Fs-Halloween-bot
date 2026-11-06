@@ -1,4 +1,5 @@
 const balancing = require("../config/game-balancing");
+const settings = require("../config/settings");
 const { transaction } = require("../database/pool");
 
 const GUILD_BOOST_MESSAGE_TYPE = 8; // discord.js MessageType.GuildBoost
@@ -18,9 +19,10 @@ function applyBoosterEventReward(baseAmount, isActive) {
 }
 
 class ServerBoosterService {
-  constructor(pool, transactionRunner = transaction) {
+  constructor(pool, transactionRunner = transaction, options = {}) {
     this.pool = pool;
     this.transactionRunner = transactionRunner;
+    this.boosterRoleId = options.boosterRoleId || settings.boosterRoleId || "";
     this.memberSyncAt = new Map();
     this.memberSyncCooldownMs = 30 * 1000;
   }
@@ -30,6 +32,7 @@ class ServerBoosterService {
   }
 
   getPremiumRoleId(guild) {
+    if (this.boosterRoleId) return this.boosterRoleId;
     const roles = guild?.roles?.cache;
     if (!roles) return null;
     const role = roles.find((candidate) => {
@@ -83,14 +86,45 @@ class ServerBoosterService {
       ? parsedPremiumSince.toISOString()
       : null;
 
+    let initialReward = null;
     if (active) {
-      await this.pool.query(
-        "INSERT INTO server_booster_status (guild_id, user_id, is_active, server_boost_count, boost_started_at) " +
-        "VALUES ($1, $2, TRUE, $3, $4) " +
-        "ON CONFLICT (guild_id, user_id) DO UPDATE SET is_active = TRUE, server_boost_count = EXCLUDED.server_boost_count, " +
-        "boost_started_at = COALESCE(server_booster_status.boost_started_at, EXCLUDED.boost_started_at), updated_at = NOW()",
-        [guildId, userId, guildBoostCount, startedAt]
-      );
+      // Existing boosters may have been boosting long before the reward listener was installed.
+      // Their role/premium status is enough to backfill boost #1 once, but never to infer later boosts.
+      initialReward = await this.transactionRunner(async (client) => {
+        await client.query(
+          "INSERT INTO server_booster_status (guild_id, user_id, is_active, server_boost_count, personal_boost_count, boost_started_at) " +
+          "VALUES ($1, $2, TRUE, $3, 0, $4) " +
+          "ON CONFLICT (guild_id, user_id) DO UPDATE SET is_active = TRUE, server_boost_count = EXCLUDED.server_boost_count, " +
+          "boost_started_at = COALESCE(server_booster_status.boost_started_at, EXCLUDED.boost_started_at), updated_at = NOW()",
+          [guildId, userId, guildBoostCount, startedAt]
+        );
+        const progress = await client.query(
+          "SELECT personal_boost_count FROM server_booster_status WHERE guild_id = $1 AND user_id = $2 FOR UPDATE",
+          [guildId, userId]
+        );
+        const personalBoostCount = Number(progress.rows[0]?.personal_boost_count) || 0;
+        if (personalBoostCount > 0) return null;
+
+        const firstItem = balancing.items.find((item) => item.boosterOnly && Number(item.boostNumber) === 1);
+        if (!firstItem) return null;
+
+        await client.query(
+          "INSERT INTO inventory (guild_id, user_id, item_id, quantity) VALUES ($1, $2, $3, 1) " +
+          "ON CONFLICT (guild_id, user_id, item_id) DO UPDATE SET quantity = GREATEST(inventory.quantity, 1), updated_at = NOW()",
+          [guildId, userId, firstItem.id]
+        );
+        await client.query(
+          "INSERT INTO equipped_items (guild_id, user_id, slot, item_id) VALUES ($1, $2, $3, $4) " +
+          "ON CONFLICT (guild_id, user_id, slot) DO UPDATE SET item_id = EXCLUDED.item_id, equipped_at = NOW()",
+          [guildId, userId, firstItem.slot, firstItem.id]
+        );
+        const claimed = await client.query(
+          "UPDATE server_booster_status SET personal_boost_count = 1, updated_at = NOW() " +
+          "WHERE guild_id = $1 AND user_id = $2 AND personal_boost_count = 0 RETURNING personal_boost_count",
+          [guildId, userId]
+        );
+        return claimed.rowCount ? firstItem : null;
+      });
       await this.syncGuild(guildId, guildBoostCount);
     } else {
       await this.pool.query(
@@ -101,7 +135,13 @@ class ServerBoosterService {
     }
 
     this.memberSyncAt.set(syncKey, now);
-    return { synced: true, active, serverBoostCount: guildBoostCount, granted: [] };
+    return {
+      synced: true,
+      active,
+      serverBoostCount: guildBoostCount,
+      granted: initialReward ? [initialReward] : [],
+      reward: initialReward ? { item: initialReward, personalBoostCount: 1, autoEquipped: true, backfilled: true } : null
+    };
   }
 
   async recordBoostMessage(message) {
