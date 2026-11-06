@@ -104,9 +104,15 @@ function getRebirthRequirements(player, claimedQuestCount = 0, inventoryRows = [
   const candyBalanceRequired = itemMilestone
     ? balancing.rebirth.firstCandyBalanceRequirement + itemSteps * balancing.rebirth.candyBalanceGrowth
     : 0;
+  const maxGearUpgradeLevels = balancing.items.filter((item) =>
+    item.type === "equipment" && item.rebirthEligible !== false
+  ).length * balancing.itemUpgrades.maxLevel;
   const gearUpgradeLevelsRequired = rebirths >= balancing.rebirth.gearUpgradeRequirementsStartAt
-    ? balancing.rebirth.firstGearUpgradeLevelsRequirement +
-      (rebirths - balancing.rebirth.gearUpgradeRequirementsStartAt) * balancing.rebirth.gearUpgradeLevelsGrowth
+    ? Math.min(
+      maxGearUpgradeLevels,
+      balancing.rebirth.firstGearUpgradeLevelsRequirement +
+        (rebirths - balancing.rebirth.gearUpgradeRequirementsStartAt) * balancing.rebirth.gearUpgradeLevelsGrowth
+    )
     : 0;
 
   const currentJob = balancing.jobs.find((job) => job.id === player.job_id) || null;
