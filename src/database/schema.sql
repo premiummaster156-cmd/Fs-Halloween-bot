@@ -23,6 +23,16 @@ CREATE TABLE IF NOT EXISTS players (
 );
 ALTER TABLE players ADD COLUMN IF NOT EXISTS last_rebirth_at TIMESTAMPTZ;
 ALTER TABLE players ADD COLUMN IF NOT EXISTS rebirth_work_count BIGINT NOT NULL DEFAULT 0 CHECK (rebirth_work_count >= 0);
+-- Enforce the progression ceilings at the database boundary as well as in game services.
+DO $
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'players_level_600_check') THEN
+    ALTER TABLE players ADD CONSTRAINT players_level_600_check CHECK (level BETWEEN 1 AND 600);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'players_prestige_100_check') THEN
+    ALTER TABLE players ADD CONSTRAINT players_prestige_100_check CHECK (prestige BETWEEN 0 AND 100);
+  END IF;
+END $;
 CREATE INDEX IF NOT EXISTS players_balance_idx ON players (guild_id, (wallet + bank) DESC);
 CREATE INDEX IF NOT EXISTS players_level_idx ON players (guild_id, level DESC, xp DESC);
 CREATE INDEX IF NOT EXISTS players_earned_idx ON players (guild_id, lifetime_earned DESC);
