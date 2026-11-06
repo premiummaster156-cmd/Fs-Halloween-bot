@@ -8,13 +8,13 @@
 
 ## Final-season balance update — November 7 to November 30, 2026
 
-User confirmed the bot will only be used through **November 30, 2026**. The short-season economy is intentionally achievable without a long grind. Default event end is 2026-12-01T00:00:00Z (05:00 in Tashkent), so the full local November 30 is included. This does not auto-shut down the bot.
+User confirmed the bot will only be used through **November 30, 2026**. The short-season economy is intentionally achievable without a long grind. Default event end is 2026-11-30T19:00:00Z (00:00 on December 1 in Tashkent), so the full local November 30 is included. If `HALLOWEEN_ENDS_AT` is set on the host, that value overrides the default and must be checked. This does not auto-shut down the bot.
 
-- First rebirth: 20,000 FC, level 12, one claimed event quest, career level 2, three current-run work shifts.
-- Wallet requirement adds 10,000 FC and level adds four per rebirth. Quest claims rise every four rebirths (cap 4); career level rises every four (cap 10); work shifts rise every three (cap 10).
-- No gear/Candy requirements for first two rebirths. One normal gear item from rebirth #3, one Candy-shop collectible from #4, one combined gear-upgrade level from #5. Slow increases cap at 4 gear items, 3 Candy collectibles, 70 unspent Candy and 5 total upgrade levels.
+- First rebirth: 15,000 FC, level 10, one claimed event quest, any selected career, one current-run work shift.
+- Wallet requirement adds 5,000 FC and level adds two per rebirth. Quest claims and career level rise every 20 rebirths (caps 3 and 5); work shifts rise every 25 rebirths (cap 3).
+- Normal gear begins at rebirth #5, Candy collectibles at #10 and upgrades at #20. These milestones grow slowly and cap at 3 gear items, 2 Candy collectibles, 50 unspent Candy and 3 combined upgrade levels.
 - Rebirth reset: 2,500 FC wallet, zero bank, level 1, no career. Gear, upgrades, Candy collectibles and lifetime records persist.
-- Level XP: 80 + 12 × current level. Level cap 600; rebirth cap 100. Multiplier remains +0.5× per rebirth, reaching 51× at 100.
+- Level XP: 80 + 12 × current level. Level cap 600; rebirth cap 100. At rebirth 100 the next-run checklist is 515,000 FC, level 210, three claims, career level 5, three shifts, three gear items, two Candy collectibles, 50 Candy and three upgrades. Multiplier remains +0.5× per rebirth, reaching 51× at 100.
 - Jobs, item costs/levels, upgrade costs, crimes, heists, weekly quests, Halloween quests, Candy prices/drop chances, achievements, Party Fortune and Arena unlocks are reduced for this final season.
 - Casino remains 95% theoretical return, 100 FC minimum, 10-second cooldown. Normal FC retains the 3× multiplier. Automatic personal boost rewards are untouched.
 
