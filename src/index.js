@@ -16,6 +16,7 @@ const { AchievementsGame } = require("./games/achievements");
 const { HalloweenGame } = require("./games/halloween");
 const { PartyGameService } = require("./services/party-games");
 const { ActivityService } = require("./services/activity");
+const { WeeklyQuestService } = require("./services/weekly-quests");
 const { InventoryService } = require("./services/inventory");
 const { GuildSettingsService } = require("./services/guild-settings");
 const { SecurityService } = require("./services/security");
@@ -48,7 +49,8 @@ async function start() {
     heists: new HeistsGame(pool, economy, inventory),
     achievements: new AchievementsGame(pool, economy),
     halloween: new HalloweenGame(pool, guildSettings),
-    activity: new ActivityService(pool, economy)
+    activity: new ActivityService(pool, economy),
+    weeklyQuests: new WeeklyQuestService(pool)
   };
   client.commands = loadCommands();
 
