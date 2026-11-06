@@ -502,11 +502,11 @@ async function renderMenu(guildId, owner, page, s) {
       return "**Rebirth " + (meta.rebirths || "?") + "** · " + wealth.toLocaleString() + " FC · Level " +
         (meta.previousLevel || "?") + " · " + (Number.isFinite(timestamp) ? "<t:" + timestamp + ":R>" : "Recorded");
     });
-    return panel("REBIRTH  /  " + status.multiplier.toLocaleString() + "× → " + status.nextMultiplier.toLocaleString() + "×",
-      "Complete these requirements to double your FC and XP earnings.",
+    return panel("REBIRTH  /  " + status.multiplier.toLocaleString() + "×" + (status.checks.maxRebirth ? " · MAX" : " → " + status.nextMultiplier.toLocaleString() + "×"),
+      status.checks.maxRebirth ? "You have reached the maximum of " + balancing.progression.maxRebirths + " rebirths and your final 51× multiplier." : "Each rebirth adds +0.5× to your permanent FC and XP multiplier.",
       [
         { name: "Requirements", value: lines.join("\n") },
-        { name: "Next-run preview", value: "After this rebirth: " + status.nextWalletRequired.toLocaleString() + " FC · Level " + status.nextLevelRequired + " · " + status.nextQuestClaimsRequired + " quest claims · " + status.nextWorkShiftsRequired + " work shifts" },
+        { name: "Next-run preview", value: status.checks.maxRebirth ? "Maximum progression reached. No further rebirth is available." : "After this rebirth: " + status.nextWalletRequired.toLocaleString() + " FC · Level " + status.nextLevelRequired + " · " + status.nextQuestClaimsRequired + " quest claims · " + status.nextWorkShiftsRequired + " work shifts" },
         { name: "On rebirth", value: "Reset: 1,000 FC · Bank 0 · Level 1 · No career. Keep: gear, upgrades, Candy, collectibles, event claims and lifetime records." },
         { name: "Rebirth history", value: historyLines.length ? historyLines.join("\n") : "Your completed rebirths will be recorded here." }
       ],
