@@ -47,6 +47,51 @@ async function safeSendLog(i, services, content) {
   return sendLog(i.client, i.guildId, content);
 }
 
+function formatMemberActivityLog(action, displayName, actorId, details = {}, kind = "success") {
+  const labels = {
+    crime_attempt: "CRIME OPERATION",
+    work_shift_completed: "WORK SHIFT COMPLETE",
+    daily_reward_claimed: "DAILY REWARD CLAIMED",
+    casino_round: "CASINO ROUND",
+    heist_completed: "HEIST COMPLETE",
+    bank_deposit: "BANK DEPOSIT",
+    bank_withdrawal: "BANK WITHDRAWAL",
+    member_transfer: "FC TRANSFER",
+    halloween_weekly_claimed: "WEEKLY EVENT CLAIMED"
+  };
+  const pretty = (value) => String(value).replace(/_/g, " ").replace(/\\b\\w/g, (letter) => letter.toUpperCase());
+  const fields = [];
+  const add = (name, value) => {
+    if (value === undefined || value === null || value === "") return;
+    fields.push({ name, value: String(value).slice(0, 1024), inline: true });
+  };
+  if (details.careerId) add("Career", pretty(details.careerId));
+  if (details.crimeId) add("Operation", pretty(details.crimeId));
+  if (details.game) add("Game", details.game);
+  if (typeof details.succeeded === "boolean") add("Result", details.succeeded ? "SUCCESS" : "FAILED");
+  if (Number.isFinite(Number(details.correct)) && details.total) add("Answers", details.correct + "/" + details.total);
+  if (details.pay !== undefined) add("Pay", Number(details.pay).toLocaleString() + " FC");
+  if (details.reward !== undefined) add("Reward", Number(details.reward).toLocaleString() + " FC");
+  if (details.fine !== undefined && Number(details.fine) > 0) add("Fine", Number(details.fine).toLocaleString() + " FC");
+  if (details.xp !== undefined) add("XP", "+" + Number(details.xp).toLocaleString());
+  if (details.candy !== undefined) add("Candy", "+" + Number(details.candy));
+  if (details.successChance !== undefined) add("Success chance", Number(details.successChance) + "%");
+  if (details.wager !== undefined) add("Wager", Number(details.wager).toLocaleString() + " FC");
+  if (details.payout !== undefined) add("Payout", Number(details.payout).toLocaleString() + " FC");
+  if (details.net !== undefined) add("Net", (Number(details.net) > 0 ? "+" : "") + Number(details.net).toLocaleString() + " FC");
+  if (details.amount !== undefined) add("Amount", Number(details.amount).toLocaleString() + " FC");
+  if (details.messages !== undefined) add("Messages", Number(details.messages).toLocaleString());
+  const colors = { success: settings.brand.success, warning: settings.brand.warning, info: settings.brand.primary };
+  return createEmbed({
+    title: "🎮  FUKISHOKAI  /  " + (labels[action] || pretty(action)).toUpperCase(),
+    description: "<@" + actorId + "> · **" + displayName + "**",
+    fields: fields.slice(0, 10),
+    color: colors[kind] || colors.info,
+    icon: "profile",
+    footer: "ACTIVITY RECORD  •  Full details retained in audit history"
+  });
+}
+
 async function recordMemberAction(i, services, action, announcement, details = {}, kind = "success", publicResultEmbed = null) {
   // Trusted owners and higher-ranked members are exempt from operational/security logs,
   // but their completed gameplay remains visible like every other member's gameplay.
@@ -61,8 +106,7 @@ async function recordMemberAction(i, services, action, announcement, details = {
       console.warn("[activity] Could not write member audit entry:", action, error.code || error.message);
     }
     try {
-      await safeSendLog(i, services, "Member activity: " + action + " · " + displayName + " (" + actorId + ")" +
-        (Object.keys(details).length ? " · " + JSON.stringify(details).slice(0, 700) : ""));
+      await safeSendLog(i, services, formatMemberActivityLog(action, displayName, actorId, details, kind));
     } catch (error) {
       console.warn("[activity] Could not send member activity log:", action, error.code || error.message);
     }
