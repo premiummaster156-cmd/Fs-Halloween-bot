@@ -6,7 +6,7 @@
 **Last updated:** 2026-11-06  
 **Rule:** Update this file whenever a feature, balance, deployment, or architecture change is merged. The next chat must read this file and inspect the current repository before making changes.
 
-## Current task in progress
+## Latest completed task
 
 Branch: `progression-100-rebirth-level-600-game-expansion`  
 PR #26 merged into main as commit `0bbe3271699646830e224a8a4037a85cc8c924b2`. Post-merge CI runs 42256014897 and 42256071916 both completed successfully. The user must still pull/restart the bot; no live Discord deployment is claimed.
@@ -60,7 +60,7 @@ All eight items are normal shop equipment (not booster-exclusive), use unique eq
 | Abyssal Grimoire | 400 | 4,500,000 | HEX |
 | Dragon Sovereign Halo | 500 | 6,000,000 | ASCEND |
 
-Abilities are passive item identities with real stat effects; they are not separate activated combat skills yet. If adding active cooldown abilities later, implement cooldown/charge tracking, server-side validation and tests.
+Abilities are passive item identities with real stat effects; they are not separate activated combat skills yet. The activity-log and equipment views use themed Discord embed cards; Discord embeds do not support true 3D geometry or gradients, so full 3D presentation would require separate generated artwork/assets. If adding active cooldown abilities later, implement cooldown/charge tracking, server-side validation and tests.
 
 ## Existing project rules
 
@@ -90,6 +90,7 @@ Abilities are passive item identities with real stat effects; they are not separ
 - #16 admin grant controls for Mythic booster items
 - #24 Unicode and server nickname profile-card fix
 - #25 silent ordinary chat Candy-drop notifications
+- #26 level 600 / 100 rebirth progression, linear multiplier, eight endgame items and readable activity log embeds
 
 ## Validation and deployment for the current branch
 
