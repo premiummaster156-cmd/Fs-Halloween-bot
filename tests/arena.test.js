@@ -22,7 +22,7 @@ function battle(overrides = {}) {
 const boss = { maxHp: 5000, attack: 100 };
 
 test("Rift Arena boss ladder is ordered and level-gated", () => {
-  assert.deepEqual(BOSSES.map((item) => item.minLevel), [1, 25, 75, 150, 300, 500]);
+  assert.deepEqual(BOSSES.map((item) => item.minLevel), [1, 20, 40, 60, 80, 100]);
   assert.ok(BOSSES.every((item) => item.maxHp > 0 && item.attack > 0 && item.rewardFc > 0));
 });
 
