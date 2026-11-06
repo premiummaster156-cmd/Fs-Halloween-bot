@@ -71,6 +71,17 @@ const profileCommand = {
       .setRequired(false)),
   async execute(interaction, services) {
     const member = interaction.options.getUser("member") || interaction.user;
+    let guildMember = interaction.options.getMember?.("member") || null;
+    if (!guildMember && interaction.guild?.members?.fetch) {
+      guildMember = await interaction.guild.members.fetch(member.id).catch(() => null);
+    }
+    const profileUser = {
+      id: member.id,
+      username: member.username,
+      globalName: member.globalName,
+      displayName: guildMember?.displayName || member.globalName || member.username,
+      displayAvatarURL: (options) => member.displayAvatarURL?.(options) || member.avatarURL?.(options) || null
+    };
     const player = await getPlayer(services.pool, interaction.guildId, member.id);
     const rankResult = await services.pool.query(
       "SELECT COUNT(*)::int + 1 AS rank FROM players p WHERE p.guild_id = $1 AND " +
@@ -87,7 +98,7 @@ const profileCommand = {
       services.partyGames ? services.partyGames.getStats(interaction.guildId, member.id) : Promise.resolve({})
     ]);
     const image = await createProfileCard({
-      user: member,
+      user: profileUser,
       player,
       rank,
       stats: {

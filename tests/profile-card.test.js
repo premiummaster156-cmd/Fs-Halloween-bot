@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { createProfileCard, compact } = require("../src/utils/profile-card");
+const { createProfileCard, compact, resolveProfileDisplayName } = require("../src/utils/profile-card");
 
 test("profile card renders a PNG banner with level and XP progress", async () => {
   const image = await createProfileCard({
@@ -24,4 +24,19 @@ test("profile card abbreviates large values compactly", () => {
   assert.equal(compact(3100), "3.1K");
   assert.equal(compact(8800), "8.8K");
   assert.equal(compact(2500000), "2.5M");
+});
+
+
+test("profile card prefers the server nickname and preserves decorative Unicode", () => {
+  const nickname = "𝕵𝖊𝖘𝖘𝖎";
+  assert.equal(resolveProfileDisplayName({
+    displayName: nickname,
+    globalName: "Jessi",
+    username: "bulletismygoat"
+  }), nickname);
+  assert.equal(resolveProfileDisplayName({
+    globalName: "Jessi",
+    username: "bulletismygoat"
+  }), "Jessi");
+  assert.equal(resolveProfileDisplayName({ username: "bulletismygoat" }), "bulletismygoat");
 });
