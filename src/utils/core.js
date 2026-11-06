@@ -39,9 +39,10 @@ function chance(percent) {
 function uuid() { return crypto.randomUUID(); }
 function clamp(value, minimum, maximum) { return Math.min(maximum, Math.max(minimum, value)); }
 function getRebirthMultiplier(rebirths) {
-  // Each rebirth adds 70%; 20 rebirths reach 15x with linear, non-exponential growth.
-  const count = Math.max(0, Math.floor(Number(rebirths) || 0));
-  return 1 + Math.min(count, 20) * 0.7;
+  // Clear linear progression: 0 rebirths = 1x, 1 = 1.5x, 2 = 2x ... 100 = 51x.
+  const maxRebirths = require("../config/game-balancing").progression.maxRebirths;
+  const count = Math.max(0, Math.min(maxRebirths, Math.floor(Number(rebirths) || 0)));
+  return 1 + count * 0.5;
 }
 function applyCooldownReduction(baseMs, reduction, floorMs = 1000) {
   const base = Math.max(0, Math.floor(Number(baseMs) || 0));
@@ -50,7 +51,8 @@ function applyCooldownReduction(baseMs, reduction, floorMs = 1000) {
   return Math.max(floor, Math.floor(base * (1 - safeReduction)));
 }
 function levelXpRequired(level) {
-  const safeLevel = Math.max(1, Math.floor(Number(level) || 1));
+  const maxLevel = require("../config/game-balancing").progression.maxLevel;
+  const safeLevel = Math.max(1, Math.min(maxLevel, Math.floor(Number(level) || 1)));
   return 100 + (safeLevel * 20);
 }
 function calculateWorkPay(job, jobLevel, randomPercent) {
