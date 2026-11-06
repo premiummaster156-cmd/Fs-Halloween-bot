@@ -140,3 +140,25 @@ Open **/admin-panel** to manage the server from one private interface:
 - **Security:** owner-controlled bot-access restrictions are applied from alerts in the log channel.
 
 All admin actions are restricted to the server owner, configured bot owner and configured Admin Role, and are recorded in PostgreSQL. Code Studio and the AI workspace API write `.js` files into `admin-workspace/<server-id>/`. To let an external AI chatbot create and publish command files, set `ADMIN_WORKSPACE_API_KEY` in the bot host and give the same bearer key to the AI tool. The API supports listing, reading, creating/updating and deleting command files; writes can validate, register and activate a command immediately. Keep this key private. Command files execute in `isolated-vm` with a narrow command context, not in the bot process, so they cannot access host secrets or arbitrary Node.js modules. On hosts with ephemeral disks, mount persistent storage at `ADMIN_WORKSPACE_DIR`; the workspace files are restored from PostgreSQL when the bot starts. Saving a changed command deactivates it until it is synced and activated again.
+
+
+## Rift Arena — active boss combat
+
+The Rift Arena is available from **/menu → Game Room → Rift Arena**.
+
+- Six solo bosses unlock at player levels 1, 25, 75, 150, 300 and 500, ending with the Dragon Sovereign.
+- Battles persist in PostgreSQL. A player can have only one active encounter, and starting a fresh encounter has a 20-minute cooldown.
+- Each equipped endgame item grants its named active power once per battle, in addition to its existing passive gear bonuses:
+  - **PHASE** — evade the boss's next counterstrike.
+  - **DREAD** — weaken the next three boss strikes.
+  - **AEGIS** — create a protective shield.
+  - **REBIRTH** — restore a portion of player health.
+  - **EXECUTE** — deal bonus damage based on the boss's remaining health.
+  - **HASTE** — double the damage of a strike.
+  - **HEX** — apply damage over time.
+  - **ASCEND** — unleash a large burst of damage.
+- Victory awards FC and XP. FC rewards use the normal earning and rebirth multipliers. A defeat does not charge an FC fine. Retreat ends the encounter but does not reset the entry cooldown.
+- Turn numbers are checked on the server to reject stale controls. Item ownership and equipped status are checked before a power can be used.
+- The Arena dashboard includes health bars, combat effects and a custom beveled HUD image rendered with `@napi-rs/canvas`. The image uses a 3D-inspired, layered 2D illustration; Discord embeds themselves are not true 3D scenes.
+
+**Implementation status:** Rift Arena is on feature branch `active-abilities-rift-arena`. Treat it as pending until its PR is merged and CI plus test-server validation have passed.
