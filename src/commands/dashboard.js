@@ -637,7 +637,7 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
     return panel("FUKISHOKAI  /  ADMIN CONSOLE", "One private control centre for the server. The server owner, bot owner and configured Admin Role can manage every control here.",
       [
         { name: "🔐 Bot access", value: "Server owner + OWNER_ID + the configured Admin Role. Discord Administrator alone does not grant bot control." },
-        { name: "⚙️ Server setup", value: "Admin role: " + (cfg.adminRoleId ? "<@&" + cfg.adminRoleId + ">" : "Not configured") + "\nLog channel: " + (cfg.logChannelId ? "<#" + cfg.logChannelId + ">" : "Not set") + "\nHalloween reward role: " + (cfg.halloweenRoleId ? "<@&" + cfg.halloweenRoleId + ">" : "Not set") },
+        { name: "⚙️ Server setup", value: "Admin role: " + (cfg.adminRoleId ? "<@&" + cfg.adminRoleId + ">" : "Not configured") + "\nLog channel: " + (cfg.logChannelId ? "<#" + cfg.logChannelId + ">" : "Not set") + "\nCommands + Candy drops: " + (cfg.memberCommandsChannelId ? "<#" + cfg.memberCommandsChannelId + ">" : "Not set") + "\nHalloween reward role: " + (cfg.halloweenRoleId ? "<@&" + cfg.halloweenRoleId + ">" : "Not set") },
         { name: "🎃 Halloween", value: ev ? (ev.enabled ? "Enabled" : "Disabled") + " · Ends <t:" + Math.floor(new Date(ev.ends_at).getTime() / 1000) + ":R>" : "Not configured" },
         { name: "📊 Operations overview", value: Number(totals.players).toLocaleString() + " player profiles · " + Number(totals.custom_commands).toLocaleString() + " saved custom commands · " + Number(totals.open_incidents).toLocaleString() + " open security incidents" }
       ], [
@@ -753,12 +753,14 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
       { name: "Halloween reward role", value: cfg.halloweenRoleId ? "<@&" + cfg.halloweenRoleId + ">" : "Not set" },
       { name: "2× XP role", value: cfg.xpBoosterRoleId ? "<@&" + cfg.xpBoosterRoleId + ">" : "Not set" },
       { name: "Admin role", value: cfg.adminRoleId ? "<@&" + cfg.adminRoleId + ">" : "Not configured" },
-      { name: "Admin log channel", value: cfg.logChannelId ? "<#" + cfg.logChannelId + ">" : "Not set" }
+      { name: "Admin log channel", value: cfg.logChannelId ? "<#" + cfg.logChannelId + ">" : "Not set" },
+      { name: "Member commands + Candy-drop announcements", value: cfg.memberCommandsChannelId ? "<#" + cfg.memberCommandsChannelId + ">" : "Not set" }
     ], [
       row(new RoleSelectMenuBuilder().setCustomId("admin:" + owner + ":setting-admin").setPlaceholder("Set trusted Admin Role").setMinValues(1).setMaxValues(1).setDefaultRoles(cfg.adminRoleId ? [cfg.adminRoleId] : [])),
       row(new RoleSelectMenuBuilder().setCustomId("admin:" + owner + ":setting-reward").setPlaceholder("Set Halloween reward role").setMinValues(1).setMaxValues(1).setDefaultRoles(cfg.halloweenRoleId ? [cfg.halloweenRoleId] : [])),
       row(new RoleSelectMenuBuilder().setCustomId("admin:" + owner + ":setting-xp").setPlaceholder("Set 2× XP role").setMinValues(1).setMaxValues(1).setDefaultRoles(cfg.xpBoosterRoleId ? [cfg.xpBoosterRoleId] : [])),
       row(new ChannelSelectMenuBuilder().setCustomId("admin:" + owner + ":setting-log").setPlaceholder("Set admin log channel").setChannelTypes(ChannelType.GuildText).setMinValues(1).setMaxValues(1).setDefaultChannels(cfg.logChannelId ? [cfg.logChannelId] : [])),
+      row(new ChannelSelectMenuBuilder().setCustomId("admin:" + owner + ":setting-member-channel").setPlaceholder("Set commands + Candy-drop channel").setChannelTypes(ChannelType.GuildText).setMinValues(1).setMaxValues(1).setDefaultChannels(cfg.memberCommandsChannelId ? [cfg.memberCommandsChannelId] : [])),
       row(aBtn(owner, "clear-settings", "Clear a setting", ButtonStyle.Danger, "🧹"), aBtn(owner, "home", "Admin console"))
     ]);
   }
@@ -768,7 +770,8 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
         { label: "Halloween reward role", value: "halloweenRoleId" },
         { label: "2× XP role", value: "xpBoosterRoleId" },
         { label: "Admin role", value: "adminRoleId" },
-        { label: "Admin log channel", value: "logChannelId" }
+        { label: "Admin log channel", value: "logChannelId" },
+        { label: "Member commands + Candy-drop channel", value: "memberCommandsChannelId" }
       )), row(aBtn(owner, "settings", "Back to settings"))], "warning");
   }
   if (page === "event") {
@@ -919,7 +922,7 @@ async function handleSelection(i, s, scope, owner, action, parts) {
       return i.update(await renderAdmin(i.guildId, owner, "fairness", s, value));
     }
     if (action === "clear-setting") {
-      const allowed = ["halloweenRoleId", "xpBoosterRoleId", "adminRoleId", "logChannelId"];
+      const allowed = ["halloweenRoleId", "xpBoosterRoleId", "adminRoleId", "logChannelId", "memberCommandsChannelId"];
       if (!allowed.includes(value)) throw new Error("Unknown server setting.");
       const actorWasTrusted = value === "adminRoleId" && await s.security.isAboveBotRole(i.guild, owner);
       await i.deferUpdate();
@@ -937,7 +940,8 @@ async function handleSelection(i, s, scope, owner, action, parts) {
         "setting-reward": ["halloweenRoleId", "Halloween reward role"],
         "setting-xp": ["xpBoosterRoleId", "2x XP role"],
         "setting-admin": ["adminRoleId", "Trusted Admin Role"],
-        "setting-log": ["logChannelId", "Admin log channel"]
+        "setting-log": ["logChannelId", "Admin log channel"],
+        "setting-member-channel": ["memberCommandsChannelId", "Member commands and Candy-drop channel"]
       };
       const setting = map[action];
       if (!setting) throw new Error("Unknown server setting.");
