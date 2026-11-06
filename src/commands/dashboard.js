@@ -47,6 +47,51 @@ async function safeSendLog(i, services, content) {
   return sendLog(i.client, i.guildId, content);
 }
 
+function formatMemberActivityLog(action, displayName, actorId, details = {}, kind = "success") {
+  const labels = {
+    crime_attempt: "CRIME OPERATION",
+    work_shift_completed: "WORK SHIFT COMPLETE",
+    daily_reward_claimed: "DAILY REWARD CLAIMED",
+    casino_round: "CASINO ROUND",
+    heist_completed: "HEIST COMPLETE",
+    bank_deposit: "BANK DEPOSIT",
+    bank_withdrawal: "BANK WITHDRAWAL",
+    member_transfer: "FC TRANSFER",
+    halloween_weekly_claimed: "WEEKLY EVENT CLAIMED"
+  };
+  const pretty = (value) => String(value).replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  const fields = [];
+  const add = (name, value) => {
+    if (value === undefined || value === null || value === "") return;
+    fields.push({ name, value: String(value).slice(0, 1024), inline: true });
+  };
+  if (details.careerId) add("Career", pretty(details.careerId));
+  if (details.crimeId) add("Operation", pretty(details.crimeId));
+  if (details.game) add("Game", details.game);
+  if (typeof details.succeeded === "boolean") add("Result", details.succeeded ? "SUCCESS" : "FAILED");
+  if (Number.isFinite(Number(details.correct)) && details.total) add("Answers", details.correct + "/" + details.total);
+  if (details.pay !== undefined) add("Pay", Number(details.pay).toLocaleString() + " FC");
+  if (details.reward !== undefined) add("Reward", Number(details.reward).toLocaleString() + " FC");
+  if (details.fine !== undefined && Number(details.fine) > 0) add("Fine", Number(details.fine).toLocaleString() + " FC");
+  if (details.xp !== undefined) add("XP", "+" + Number(details.xp).toLocaleString());
+  if (details.candy !== undefined) add("Candy", "+" + Number(details.candy));
+  if (details.successChance !== undefined) add("Success chance", Number(details.successChance) + "%");
+  if (details.wager !== undefined) add("Wager", Number(details.wager).toLocaleString() + " FC");
+  if (details.payout !== undefined) add("Payout", Number(details.payout).toLocaleString() + " FC");
+  if (details.net !== undefined) add("Net", (Number(details.net) > 0 ? "+" : "") + Number(details.net).toLocaleString() + " FC");
+  if (details.amount !== undefined) add("Amount", Number(details.amount).toLocaleString() + " FC");
+  if (details.messages !== undefined) add("Messages", Number(details.messages).toLocaleString());
+  const colors = { success: settings.brand.success, warning: settings.brand.warning, info: settings.brand.primary };
+  return createEmbed({
+    title: "🎮  FUKISHOKAI  /  " + (labels[action] || pretty(action)).toUpperCase(),
+    description: "<@" + actorId + "> · **" + displayName + "**",
+    fields: fields.slice(0, 10),
+    color: colors[kind] || colors.info,
+    icon: "profile",
+    footer: "ACTIVITY RECORD  •  Full details retained in audit history"
+  });
+}
+
 async function recordMemberAction(i, services, action, announcement, details = {}, kind = "success", publicResultEmbed = null) {
   // Trusted owners and higher-ranked members are exempt from operational/security logs,
   // but their completed gameplay remains visible like every other member's gameplay.
@@ -61,8 +106,7 @@ async function recordMemberAction(i, services, action, announcement, details = {
       console.warn("[activity] Could not write member audit entry:", action, error.code || error.message);
     }
     try {
-      await safeSendLog(i, services, "Member activity: " + action + " · " + displayName + " (" + actorId + ")" +
-        (Object.keys(details).length ? " · " + JSON.stringify(details).slice(0, 700) : ""));
+      await safeSendLog(i, services, formatMemberActivityLog(action, displayName, actorId, details, kind));
     } catch (error) {
       console.warn("[activity] Could not send member activity log:", action, error.code || error.message);
     }
@@ -326,11 +370,15 @@ async function renderMenu(guildId, owner, page, s) {
     const standardLines = standardItems.map((entry) => {
       const current = (entry.equipped ? "🟢 " : "▫️ ") + "**" + entry.item.name + "** · Upgrade " +
         entry.upgradeLevel + "/" + balancing.itemUpgrades.maxLevel + (entry.equipped ? " · Equipped" : "");
-      if (entry.upgradeLevel >= balancing.itemUpgrades.maxLevel) return current + " · MAX";
+      const ability = entry.item.ability
+        ? "\n*Ability — " + entry.item.ability + ":* " + entry.item.abilityDescription
+        : "";
+      const bonuses = "\n*Bonuses:* " + formatItemEffects(entry.item.effects);
+      if (entry.upgradeLevel >= balancing.itemUpgrades.maxLevel) return current + " · MAX" + ability + bonuses;
       const nextLevel = entry.upgradeLevel + 1;
       const nextCost = getUpgradeCost(entry.item, nextLevel);
       const requiredLevel = entry.item.minLevel + nextLevel * balancing.itemUpgrades.levelRequirementPerUpgrade;
-      return current + " · Next: " + nextCost.toLocaleString() + " FC / Lv " + requiredLevel;
+      return current + " · Next: " + nextCost.toLocaleString() + " FC / Lv " + requiredLevel + ability + bonuses;
     });
     const collectibleLines = collectibles.map((entry) =>
       "🎃 **" + entry.item.name + "** × " + entry.quantity + " · Candy collectible"
@@ -408,7 +456,7 @@ async function renderMenu(guildId, owner, page, s) {
   if (page === "shop") {
     const shopItems = balancing.items.filter((item) => !item.boosterOnly);
     const options = shopItems.map((x) => ({ label: x.name, value: x.id, description: x.cost.toLocaleString() + " FC · Level " + x.minLevel + "+ · " + x.slot }));
-    const list = shopItems.map((x) => "**" + x.name + "** · " + x.cost.toLocaleString() + " FC\nLevel " + x.minLevel + "+ · " + x.slot + "\n" + x.description + "\n*Bonuses:* " + formatItemEffects(x.effects));
+    const list = shopItems.map((x) => "**" + x.name + "** · " + x.cost.toLocaleString() + " FC\n" + (x.rarity ? "**" + x.rarity + "** · " : "") + "Level " + x.minLevel + "+ · " + x.slot + "\n" + x.description + (x.ability ? "\n*Ability — " + x.ability + ":* " + x.abilityDescription : "") + "\n*Bonuses:* " + formatItemEffects(x.effects));
     return panel("NORMAL EQUIPMENT SHOP", "These are regular items bought with FC. 🌟 MYTHIC booster items are separate: your personal boosts award them automatically, and you can upgrade them from Gear.",
       [{ name: "Available equipment", value: list.join("\n\n").slice(0, 3900) }],
       [menu(owner, "shop-buy", "Select equipment to purchase", options), nav]);
@@ -454,11 +502,11 @@ async function renderMenu(guildId, owner, page, s) {
       return "**Rebirth " + (meta.rebirths || "?") + "** · " + wealth.toLocaleString() + " FC · Level " +
         (meta.previousLevel || "?") + " · " + (Number.isFinite(timestamp) ? "<t:" + timestamp + ":R>" : "Recorded");
     });
-    return panel("REBIRTH  /  " + status.multiplier.toLocaleString() + "× → " + status.nextMultiplier.toLocaleString() + "×",
-      "Complete these requirements to double your FC and XP earnings.",
+    return panel("REBIRTH  /  " + status.multiplier.toLocaleString() + "×" + (status.checks.maxRebirth ? " · MAX" : " → " + status.nextMultiplier.toLocaleString() + "×"),
+      status.checks.maxRebirth ? "You have reached the maximum of " + balancing.progression.maxRebirths + " rebirths and your final 51× multiplier." : "Each rebirth adds +0.5× to your permanent FC and XP multiplier.",
       [
         { name: "Requirements", value: lines.join("\n") },
-        { name: "Next-run preview", value: "After this rebirth: " + status.nextWalletRequired.toLocaleString() + " FC · Level " + status.nextLevelRequired + " · " + status.nextQuestClaimsRequired + " quest claims · " + status.nextWorkShiftsRequired + " work shifts" },
+        { name: "Next-run preview", value: status.checks.maxRebirth ? "Maximum progression reached. No further rebirth is available." : "After this rebirth: " + status.nextWalletRequired.toLocaleString() + " FC · Level " + status.nextLevelRequired + " · " + status.nextQuestClaimsRequired + " quest claims · " + status.nextWorkShiftsRequired + " work shifts" },
         { name: "On rebirth", value: "Reset: 1,000 FC · Bank 0 · Level 1 · No career. Keep: gear, upgrades, Candy, collectibles, event claims and lifetime records." },
         { name: "Rebirth history", value: historyLines.length ? historyLines.join("\n") : "Your completed rebirths will be recorded here." }
       ],
@@ -1340,7 +1388,7 @@ async function handleButton(i, s) {
       if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner, bot owner, or configured Admin Role can edit member currency and progression.", flags: MessageFlags.Ephemeral });
       const isLevel = action === "set-level";
       return i.showModal(modal("admin:" + owner + ":" + action + ":" + target, isLevel ? "Set player level" : action === "remove-fc" ? "Remove FS Coins" : action === "grant-xp" ? "Grant XP" : "Grant FS Coins", [
-        { id: isLevel ? "level" : "amount", label: isLevel ? "New level (1–100)" : "Amount", placeholder: isLevel ? "10" : "1000", max: 12 },
+        { id: isLevel ? "level" : "amount", label: isLevel ? "New level (1–600)" : "Amount", placeholder: isLevel ? "10" : "1000", max: 12 },
         { id: "reason", label: "Audit reason", paragraph: true, max: 500 }
       ]));
     }
@@ -1352,7 +1400,7 @@ async function handleButton(i, s) {
     }
     if (action === "set-rebirth") {
       return i.showModal(modal("admin:" + owner + ":set-rebirth:" + target, "Set rebirth count", [
-        { id: "rebirths", label: "New rebirth count (0–20)", placeholder: "4", max: 2 },
+        { id: "rebirths", label: "New rebirth count (0–100)", placeholder: "4", max: 3 },
         { id: "reason", label: "Audit reason", paragraph: true, max: 500 }
       ]));
     }
@@ -1603,8 +1651,8 @@ async function handleModal(i, s) {
           await s.economy.ensurePlayerTx(c, i.guildId, target);
           const current = await c.query("SELECT level, xp FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [i.guildId, target]);
           let level = Number(current.rows[0].level), xp = Number(current.rows[0].xp) + amount, gained = 0;
-          while (level < 100 && xp >= levelXpRequired(level)) { xp -= levelXpRequired(level); level += 1; gained += 1; }
-          if (level >= 100) xp = 0;
+          while (level < balancing.progression.maxLevel && xp >= levelXpRequired(level)) { xp -= levelXpRequired(level); level += 1; gained += 1; }
+          if (level >= balancing.progression.maxLevel) xp = 0;
           await c.query("UPDATE players SET level = $3, xp = $4, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [i.guildId, target, level, xp]);
           return { level, gained };
         });
@@ -1619,7 +1667,7 @@ async function handleModal(i, s) {
       return i.editReply(panel(delta > 0 ? "FS COINS GRANTED" : "FS COINS REMOVED", (delta > 0 ? "Granted " : "Removed ") + "**" + amount.toLocaleString() + " FC** " + (delta > 0 ? "for " : "from ") + "<@" + target + ">.", [{ name: "Audit reason", value: reason }], [], "success"));
     }
     if (action === "set-level") {
-      const level = numberField(i, "level", 1, 100, "Level");
+      const level = numberField(i, "level", 1, balancing.progression.maxLevel, "Level");
       await s.economy.transact(async (c) => {
         await s.economy.ensurePlayerTx(c, i.guildId, target);
         await c.query("UPDATE players SET level = $3, xp = 0, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [i.guildId, target, level]);
@@ -1629,7 +1677,7 @@ async function handleModal(i, s) {
       return i.editReply(panel("PLAYER LEVEL UPDATED", "Set <@" + target + ">'s player level to **" + level + "**. Current-level XP was reset to zero.", [{ name: "Audit reason", value: reason }], [], "success"));
     }
     if (action === "set-rebirth") {
-      const rebirths = numberField(i, "rebirths", 0, 20, "Rebirth count");
+      const rebirths = numberField(i, "rebirths", 0, balancing.progression.maxRebirths, "Rebirth count");
       await s.economy.transact(async (c) => {
         await s.economy.ensurePlayerTx(c, i.guildId, target);
         await c.query(
@@ -1677,4 +1725,4 @@ async function handleDashboardInteraction(i, s) {
     return handleSelection(i, s, p[0], p[1], p[2], p);
   }
 }
-module.exports = { openMenu, openAdmin, handleDashboardInteraction, isAdmin, buildHeistEmbed, recordMemberAction, renderMenu, renderAdmin };
+module.exports = { openMenu, openAdmin, handleDashboardInteraction, isAdmin, buildHeistEmbed, recordMemberAction, formatMemberActivityLog, renderMenu, renderAdmin };

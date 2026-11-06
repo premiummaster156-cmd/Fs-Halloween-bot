@@ -69,12 +69,12 @@ function calculateCandyDrop(reason, gearBonus = 0, chanceRoll = Math.random(), a
 }
 
 function getRebirthRequirements(player, claimedQuestCount = 0, inventoryRows = [], candyBalance = 0) {
-  const rebirths = Math.max(0, Number(player.prestige) || 0);
+  const rebirths = Math.max(0, Math.min(balancing.progression.maxRebirths, Math.floor(Number(player.prestige) || 0)));
   const wealth = Number(player.wallet || 0) + Number(player.bank || 0);
   const walletRequired = Math.min(Number.MAX_SAFE_INTEGER,
     Math.ceil(balancing.rebirth.firstWalletRequirement * Math.pow(balancing.rebirth.walletRequirementGrowth, rebirths)));
-  const levelRequired = Math.min(100,
-    balancing.rebirth.firstLevelRequirement + rebirths * balancing.rebirth.levelRequirementGrowth);
+  const levelRequired = Math.min(balancing.progression.maxLevel,
+    Math.ceil(balancing.rebirth.firstLevelRequirement + rebirths * balancing.rebirth.levelRequirementGrowth));
   const questClaimsRequired = Math.min(
     balancing.halloween.quests.length,
     balancing.rebirth.firstQuestClaimsRequirement + rebirths * balancing.rebirth.questClaimsGrowth
@@ -138,7 +138,8 @@ function getRebirthRequirements(player, claimedQuestCount = 0, inventoryRows = [
     gearItems: ownedGearIds.size >= gearItemsRequired,
     candyItems: ownedCandyItemIds.size >= candyItemsRequired,
     candyBalance: candy >= candyBalanceRequired,
-    gearUpgrades: gearUpgradeLevels >= gearUpgradeLevelsRequired
+    gearUpgrades: gearUpgradeLevels >= gearUpgradeLevelsRequired,
+    maxRebirth: rebirths < balancing.progression.maxRebirths
   };
   return {
     rebirths, wealth, wallet: Number(player.wallet || 0), bank: Number(player.bank || 0),
@@ -153,7 +154,7 @@ function getRebirthRequirements(player, claimedQuestCount = 0, inventoryRows = [
     candyItemsCount: ownedCandyItemIds.size, candyItemsRequired,
     candyBalance: candy, candyBalanceRequired,
     gearUpgradeLevels, gearUpgradeLevelsRequired,
-    checks, eligible: Object.values(checks).every(Boolean)
+    checks, eligible: Object.values(checks).every(Boolean), maxRebirths: balancing.progression.maxRebirths
   };
 }
 
@@ -328,12 +329,12 @@ class EconomyService {
     let level = Number(result.rows[0].level);
     let xp = Number(result.rows[0].xp) + gained;
     let levelsGained = 0;
-    while (level < 100 && xp >= levelXpRequired(level)) {
+    while (level < balancing.progression.maxLevel && xp >= levelXpRequired(level)) {
       xp -= levelXpRequired(level);
       level += 1;
       levelsGained += 1;
     }
-    if (level >= 100) xp = 0;
+    if (level >= balancing.progression.maxLevel) xp = 0;
     await client.query("UPDATE players SET level = $3, xp = $4, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [guildId, userId, level, xp]);
     return { gained, multiplier, level, levelsGained, xp, nextLevelXp: levelXpRequired(level) };
   }
@@ -403,6 +404,9 @@ class EconomyService {
           [guildId, userId, balancing.halloween.eventId]
         )
       ]);
+      if (Number(player.prestige) >= balancing.progression.maxRebirths) {
+        throw new DomainError("You have reached the maximum of " + balancing.progression.maxRebirths + " rebirths.", "MAX_REBIRTHS_REACHED");
+      }
       const requirements = getRebirthRequirements(
         player,
         claims.rows[0]?.claimed_count || 0,
@@ -420,7 +424,8 @@ class EconomyService {
         ["gearItems", "Own " + requirements.gearItemsRequired + " different equipment items. You currently own " + requirements.gearItemsCount + ".", "REBIRTH_GEAR_REQUIRED"],
         ["candyItems", "Collect " + requirements.candyItemsRequired + " different Candy-shop collectibles. You currently own " + requirements.candyItemsCount + ".", "REBIRTH_CANDY_ITEMS_REQUIRED"],
         ["candyBalance", "Keep at least " + requirements.candyBalanceRequired + " unspent Candy. Your balance is " + requirements.candyBalance + ".", "REBIRTH_CANDY_REQUIRED"],
-        ["gearUpgrades", "Reach a combined " + requirements.gearUpgradeLevelsRequired + " gear upgrade levels. You currently have " + requirements.gearUpgradeLevels + ".", "REBIRTH_GEAR_UPGRADE_REQUIRED"]
+        ["gearUpgrades", "Reach a combined " + requirements.gearUpgradeLevelsRequired + " gear upgrade levels. You currently have " + requirements.gearUpgradeLevels + ".", "REBIRTH_GEAR_UPGRADE_REQUIRED"],
+        ["maxRebirth", "You have reached the maximum of " + balancing.progression.maxRebirths + " rebirths.", "MAX_REBIRTHS_REACHED"]
       ];
       for (const [key, message, code] of failures) {
         if (!requirements.checks[key]) throw new DomainError(message, code);
