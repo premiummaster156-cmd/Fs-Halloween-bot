@@ -12,24 +12,26 @@ function makeInventoryHarness() {
     query: async (sql, values = []) => {
       calls.push({ sql, values });
       if (sql.includes("SELECT quantity, upgrade_level FROM inventory")) {
-        const record = inventory.get(values[2]);
+        const key = values[1] + ":" + values[2];
+        const record = inventory.get(key);
         return {
           rowCount: record ? 1 : 0,
           rows: record ? [{ quantity: record.quantity, upgrade_level: record.upgradeLevel }] : []
         };
       }
       if (sql.includes("INSERT INTO inventory")) {
-        const record = inventory.get(values[2]) || { quantity: 0, upgradeLevel: 0 };
+        const key = values[1] + ":" + values[2];
+        const record = inventory.get(key) || { quantity: 0, upgradeLevel: 0 };
         record.quantity = Math.max(record.quantity, 1);
-        inventory.set(values[2], record);
+        inventory.set(key, record);
         return { rowCount: 1, rows: [] };
       }
       if (sql.includes("SELECT item_id FROM equipped_items")) {
-        const previousItemId = equipped.get(values[2]);
+        const previousItemId = equipped.get(values[1] + ":" + values[2]);
         return { rowCount: previousItemId ? 1 : 0, rows: previousItemId ? [{ item_id: previousItemId }] : [] };
       }
       if (sql.includes("INSERT INTO equipped_items")) {
-        equipped.set(values[2], values[3]);
+        equipped.set(values[1] + ":" + values[2], values[3]);
         return { rowCount: 1, rows: [] };
       }
       return { rowCount: 1, rows: [] };
@@ -55,10 +57,8 @@ test("administrators can grant any of the five Mythic items to any selected memb
       assert.equal(result.item.id, item.id);
       assert.equal(result.alreadyOwned, false);
       assert.equal(result.autoEquipped, true);
-      assert.equal(harness.inventory.get(userId + ":" + item.id), undefined);
-      assert.equal(harness.equipped.get(item.slot), undefined);
-      assert.equal(harness.inventory.get(item.id).quantity, 1);
-      assert.equal(harness.equipped.get(item.slot), item.id);
+      assert.equal(harness.inventory.get(userId + ":" + item.id).quantity, 1);
+      assert.equal(harness.equipped.get(userId + ":" + item.slot), item.id);
     }
   }
 });
@@ -66,14 +66,14 @@ test("administrators can grant any of the five Mythic items to any selected memb
 test("re-granting an owned Mythic item does not duplicate it or erase upgrades", async () => {
   const harness = makeInventoryHarness();
   const item = balancing.items.find((entry) => entry.boosterOnly && entry.boostNumber === 5);
-  harness.inventory.set(item.id, { quantity: 1, upgradeLevel: 4 });
+  harness.inventory.set("member-1:" + item.id, { quantity: 1, upgradeLevel: 4 });
   const result = await harness.service.grantBoosterItem("guild-1", "member-1", item.id);
 
   assert.equal(result.alreadyOwned, true);
   assert.equal(result.upgradeLevel, 4);
-  assert.equal(harness.inventory.get(item.id).quantity, 1);
-  assert.equal(harness.inventory.get(item.id).upgradeLevel, 4);
-  assert.equal(harness.equipped.get(item.slot), item.id);
+  assert.equal(harness.inventory.get("member-1:" + item.id).quantity, 1);
+  assert.equal(harness.inventory.get("member-1:" + item.id).upgradeLevel, 4);
+  assert.equal(harness.equipped.get("member-1:" + item.slot), item.id);
 });
 
 test("administrators cannot use the Mythic grant service to create normal shop items", async () => {
