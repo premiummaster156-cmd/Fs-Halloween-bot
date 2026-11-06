@@ -9,7 +9,7 @@
 ## Current task in progress
 
 Branch: `progression-100-rebirth-level-600-game-expansion`  
-PR #26 merged into main as commit `0bbe3271699646830e224a8a4037a85cc8c924b2`. Post-merge CI run 42256014897 is in progress. The user must still pull/restart the bot; no live Discord deployment is claimed.
+PR #26 merged into main as commit `0bbe3271699646830e224a8a4037a85cc8c924b2`. Post-merge CI runs 42256014897 and 42256071916 both completed successfully. The user must still pull/restart the bot; no live Discord deployment is claimed.
 
 Requested:
 - Replace raw JSON activity-log lines with readable game log cards.
@@ -22,7 +22,7 @@ Requested:
 Implemented on this branch:
 - `progression.maxLevel = 600`, `progression.maxRebirths = 100`.
 - Rebirth multiplier is `1 + 0.5 × rebirths`, capped at 100 rebirths (51×).
-- Rebirth wealth requirement growth changed from 2× to 1.15× per rebirth; level target grows by 5.5 per rebirth and caps at 600.
+- Rebirth wealth requirement growth changed from 2× to 1.09× per rebirth; level target grows by 5.65 per rebirth and caps at 600.
 - Rebirth service blocks further rebirth after 100.
 - XP progression and admin Set Level / Set Rebirth controls use the new caps.
 - Database migration adds idempotent PostgreSQL checks for level 1–600 and prestige 0–100.
@@ -38,7 +38,7 @@ Implemented on this branch:
 - Rebirth cap: 100.
 - Multiplier: 1× at 0; 1.5× at 1; 2× at 2; 2.5× at 3; 11× at 20; 51× at 100.
 - Wealth target: 500,000 FC × 1.15^currentRebirthCount.
-- Level target: min(600, ceil(35 + 5.5 × currentRebirthCount)).
+- Level target: min(600, ceil(35 + 5.65 × currentRebirthCount)).
 - Quest claims: starts at 3 and caps at the six normal Halloween quests.
 - Career level: starts at 5 and rises by one per current rebirth, capped at 30.
 - Work shifts: 20 at zero rebirths, 30 from one rebirth onward; hard cap remains 30.
@@ -130,5 +130,5 @@ The schema is also applied at startup. No slash-command redeployment is required
 
 - PR #26 is merged into `main` (merge commit `0bbe3271699646830e224a8a4037a85cc8c924b2`).
 - Pre-merge CI on the final PR head passed: run 42255886764.
-- Post-merge CI run 42256014897 is being checked.
+- Post-merge CI runs 42256014897 and 42256071916 completed successfully.
 - Deployment remains the user's responsibility: pull main, run migrations, restart the bot.
