@@ -30,15 +30,15 @@ test("profile shows the caller's profile by default and supports another member"
       pool: {
         query: async (sql) => sql.includes("SELECT * FROM players")
           ? { rowCount: 1, rows: [player] }
-          : { rowCount: 1, rows: [] }
-      },
-      partyGames: { getStats: async () => ({ wins: 2, games: 4, points: 30 }) }
+          : { rowCount: 1, rows: [{ rank: 7 }] }
+      }
     };
 
     await profileCommand.execute(interaction, services);
     assert.ok(response);
-    assert.match(response.embeds[0].data.title, new RegExp(displayed.globalName));
-    assert.match(response.embeds[0].data.fields.map((field) => field.name).join(" "), /Total wealth/);
+    assert.equal(response.content, "");
+    assert.equal(response.files.length, 1);
+    assert.equal(response.files[0].name, "fukishokai-profile.png");
   }
 });
 
