@@ -216,10 +216,26 @@ test("3x FC earnings keep meaningful progression and equipment sinks", () => {
   assert.deepEqual(balancing.jobs.map((job) => job.minWallet), [0, 10000, 50000, 200000, 750000, 2500000, 10000000]);
   assert.deepEqual(
     balancing.items.filter((item) => !item.boosterOnly).map((item) => item.cost),
-    [7000, 18000, 25000, 36000, 50000, 64000, 116000, 170000, 290000, 480000]
+    [7000, 18000, 25000, 36000, 50000, 64000, 116000, 170000, 290000, 480000, 650000, 900000, 1300000, 1800000, 2500000, 3400000, 4500000, 6000000]
   );
   const normalEquipment = balancing.items.filter((item) => !item.boosterOnly);
   assert.ok(normalEquipment.every((item, index, items) => index === 0 || item.cost > items[index - 1].cost));
+});
+
+
+test("progression hard caps are 600 levels and 100 rebirths", () => {
+  assert.equal(balancing.progression.maxLevel, 600);
+  assert.equal(balancing.progression.maxRebirths, 100);
+  assert.equal(core.getRebirthMultiplier(100), 51);
+  assert.equal(core.getRebirthMultiplier(101), 51);
+  assert.equal(core.levelXpRequired(601), core.levelXpRequired(600));
+});
+
+test("new endgame gear has a named passive ability and real gameplay effects", () => {
+  const endgame = balancing.items.filter((item) => item.ability);
+  assert.equal(endgame.length, 8);
+  assert.ok(endgame.every((item) => item.ability.length > 0 && item.abilityDescription && Object.keys(item.effects).length > 0));
+  assert.deepEqual(endgame.map((item) => item.ability), ["PHASE", "DREAD", "AEGIS", "REBIRTH", "EXECUTE", "HASTE", "HEX", "ASCEND"]);
 });
 
 test("server booster perks cover the economy, progression, operations and special gear tiers", () => {
@@ -262,17 +278,20 @@ test("booster-only equipment cannot satisfy normal rebirth gear milestones", () 
   assert.equal(status.checks.gearItems, false);
 });
 
-test("rebirth multipliers add 70% per rebirth up to 15x at 20 rebirths", () => {
+test("rebirth multipliers add 0.5x per rebirth and cap at 51x for 100 rebirths", () => {
   assert.equal(core.getRebirthMultiplier(0), 1);
-  assert.equal(core.getRebirthMultiplier(1), 1.7);
-  assert.equal(core.getRebirthMultiplier(2), 2.4);
-  assert.equal(core.getRebirthMultiplier(5), 4.5);
-  assert.equal(core.getRebirthMultiplier(10), 8);
-  assert.equal(core.getRebirthMultiplier(15), 11.5);
-  assert.equal(core.getRebirthMultiplier(20), 15);
-  assert.equal(core.getRebirthMultiplier(50), 15);
+  assert.equal(core.getRebirthMultiplier(1), 1.5);
+  assert.equal(core.getRebirthMultiplier(2), 2);
+  assert.equal(core.getRebirthMultiplier(3), 2.5);
+  assert.equal(core.getRebirthMultiplier(5), 3.5);
+  assert.equal(core.getRebirthMultiplier(10), 6);
+  assert.equal(core.getRebirthMultiplier(20), 11);
+  assert.equal(core.getRebirthMultiplier(50), 26);
+  assert.equal(core.getRebirthMultiplier(100), 51);
+  assert.equal(core.getRebirthMultiplier(150), 51);
   assert.equal(core.levelXpRequired(1), 120);
   assert.equal(core.levelXpRequired(100), 2100);
+  assert.equal(core.levelXpRequired(600), 12100);
   assert.equal(core.applyCooldownReduction(10000, 0.20), 8000);
   assert.equal(core.applyCooldownReduction(10000, 0.60), 5500);
   assert.equal(core.applyCooldownReduction(10000, 0.45, 6000), 6000);
@@ -282,8 +301,8 @@ test("rebirth requirements use a substantially harder level, wealth and activity
   assert.equal(balancing.rebirth.startingWallet, 1000);
   assert.equal(balancing.rebirth.firstWalletRequirement, 500000);
   assert.equal(balancing.rebirth.firstLevelRequirement, 35);
-  assert.equal(balancing.rebirth.walletRequirementGrowth, 2);
-  assert.equal(balancing.rebirth.levelRequirementGrowth, 10);
+  assert.equal(balancing.rebirth.walletRequirementGrowth, 1.15);
+  assert.equal(balancing.rebirth.levelRequirementGrowth, 5.5);
   assert.equal(balancing.rebirth.firstQuestClaimsRequirement, 3);
   assert.equal(balancing.rebirth.questClaimsGrowth, 1);
   assert.equal(balancing.rebirth.firstJobLevelRequirement, 5);
