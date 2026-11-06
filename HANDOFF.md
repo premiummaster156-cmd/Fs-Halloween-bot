@@ -117,3 +117,11 @@ The schema is also applied at startup. No slash-command redeployment is required
 3. Update this file whenever more work is merged.
 4. For every new gameplay system, define unlocks, costs, rewards, cooldowns, abuse prevention, logging and tests.
 5. Prefer fair progression and readable game UI over exploit-prone reward inflation.
+
+## Finalized balance correction — supersedes earlier draft values above
+
+- Rebirth wealth requirement growth is **1.09×** per rebirth, not 1.15×. This keeps the 100th rebirth target within the 4 billion combined wallet/bank capacity.
+- Rebirth level requirement growth is **5.65** per rebirth, so rebirth 100 requires level 600.
+- Multiplier remains +0.5× per rebirth (51× at rebirth 100).
+- Database caps are installed by the idempotent migration runner in `src/database/migrate.js`, not by procedural SQL in `schema.sql`.
+- GitHub Actions run 42255754565 completed successfully: dependency installation, syntax validation, slash-command validation and full test suite all passed.
