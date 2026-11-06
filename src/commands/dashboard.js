@@ -1721,4 +1721,4 @@ async function handleDashboardInteraction(i, s) {
     return handleSelection(i, s, p[0], p[1], p[2], p);
   }
 }
-module.exports = { openMenu, openAdmin, handleDashboardInteraction, isAdmin, buildHeistEmbed, recordMemberAction, renderMenu, renderAdmin };
+module.exports = { openMenu, openAdmin, handleDashboardInteraction, isAdmin, buildHeistEmbed, recordMemberAction, formatMemberActivityLog, renderMenu, renderAdmin };
