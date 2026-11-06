@@ -128,7 +128,7 @@ module.exports = {
     technician: { bonus: 5, label: "Technician" }
   },
   candyDrops: {
-    // Chance is rolled once for each genuine FC earning transaction. Gear adds percentage points.
+    // Chance is rolled on eligible earning actions and once per casino round. Gear and rebirths add percentage points.
     daily_reward: { chance: 0.12, min: 1, max: 2 },
     job_work: { chance: 0.20, min: 1, max: 2 },
     crime_success: { chance: 0.14, min: 1, max: 2 },
