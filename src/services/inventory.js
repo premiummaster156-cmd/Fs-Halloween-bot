@@ -51,13 +51,61 @@ function combineEffects(items) {
 }
 
 class InventoryService {
-  constructor(pool, economy) {
+  constructor(pool, economy, transactionRunner = transaction) {
     this.pool = pool;
     this.economy = economy;
+    this.transactionRunner = transactionRunner;
   }
 
   listShop() {
     return balancing.items.filter((item) => !item.boosterOnly).map((item) => ({ ...item }));
+  }
+
+  async grantBoosterItem(guildId, userId, itemId, options = {}) {
+    const item = balancing.items.find((entry) => entry.id === itemId && entry.boosterOnly);
+    if (!item) {
+      throw new DomainError("Choose one of the five Mythic booster-exclusive items.", "INVALID_BOOSTER_ITEM");
+    }
+    const shouldEquip = options.equip !== false;
+    return this.transactionRunner(async (client) => {
+      await ensurePlayerTx(client, guildId, userId);
+      const owned = await client.query(
+        "SELECT quantity, upgrade_level FROM inventory WHERE guild_id = $1 AND user_id = $2 AND item_id = $3 FOR UPDATE",
+        [guildId, userId, item.id]
+      );
+      const alreadyOwned = Boolean(owned.rowCount && Number(owned.rows[0].quantity) > 0);
+
+      // Booster rewards are unique collectibles: re-granting never increases quantity
+      // or resets the member's existing upgrade level.
+      await client.query(
+        "INSERT INTO inventory (guild_id, user_id, item_id, quantity) VALUES ($1, $2, $3, 1) " +
+        "ON CONFLICT (guild_id, user_id, item_id) DO UPDATE SET quantity = GREATEST(inventory.quantity, 1), updated_at = NOW()",
+        [guildId, userId, item.id]
+      );
+
+      let previousItem = null;
+      if (shouldEquip) {
+        const previous = await client.query(
+          "SELECT item_id FROM equipped_items WHERE guild_id = $1 AND user_id = $2 AND slot = $3 FOR UPDATE",
+          [guildId, userId, item.slot]
+        );
+        const previousItemId = previous.rows[0]?.item_id || null;
+        previousItem = balancing.items.find((entry) => entry.id === previousItemId) || null;
+        await client.query(
+          "INSERT INTO equipped_items (guild_id, user_id, slot, item_id) VALUES ($1, $2, $3, $4) " +
+          "ON CONFLICT (guild_id, user_id, slot) DO UPDATE SET item_id = EXCLUDED.item_id, equipped_at = NOW()",
+          [guildId, userId, item.slot, item.id]
+        );
+      }
+
+      return {
+        item,
+        alreadyOwned,
+        autoEquipped: shouldEquip,
+        previousItem,
+        upgradeLevel: alreadyOwned ? Number(owned.rows[0].upgrade_level) || 0 : 0
+      };
+    });
   }
 
   async buy(guildId, userId, itemId) {
