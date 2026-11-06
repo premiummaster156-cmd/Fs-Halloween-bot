@@ -7,7 +7,10 @@ const {
 } = require("../src/games/achievements");
 
 test("achievement milestones have unique IDs and clear one-time reward values", () => {
-  assert.ok(ACHIEVEMENTS.length >= 8);
+  assert.ok(ACHIEVEMENTS.length >= 19);
+  for (const id of ["reborn", "veteran_rebirth", "mythic_rebirth", "transcendent_rebirth", "eternal_rebirth", "level_50", "level_100", "level_200", "level_400", "level_600"]) {
+    assert.ok(ACHIEVEMENTS.some((item) => item.id === id), "missing " + id);
+  }
   assert.equal(new Set(ACHIEVEMENTS.map((item) => item.id)).size, ACHIEVEMENTS.length);
   for (const item of ACHIEVEMENTS) {
     assert.ok(item.name.length > 0);
