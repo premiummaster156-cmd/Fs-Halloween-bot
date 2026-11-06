@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const balancing = require("../src/config/game-balancing");
-const { renderMenu } = require("../src/commands/dashboard");
+const { renderMenu, renderAdmin } = require("../src/commands/dashboard");
 
 test("career dashboard explains each career perk and current promotion progress", async () => {
   const player = { job_id: "street_runner", job_level: 1, job_xp: 50 };
@@ -104,4 +104,35 @@ test("weekly dashboard shows recurring Candy quests and a claim control", async 
   assert.ok(payload.components.some((row) => row.components.some((component) =>
     component.toJSON().custom_id?.includes("weekly-quest-claim")
   )));
+});
+
+
+test("admin channel settings keep command and Candy announcements configurable without exceeding Discord row limits", async () => {
+  const services = {
+    guildSettings: {
+      getAll: async () => ({
+        adminRoleId: "admin-role",
+        halloweenRoleId: "halloween-role",
+        xpBoosterRoleId: "xp-role",
+        logChannelId: "logs-channel",
+        memberCommandsChannelId: "commands-channel"
+      })
+    }
+  };
+  const settings = await renderAdmin("guild-1", "owner-1", "settings", services);
+  assert.equal(settings.embeds[0].data.title, "SERVER SETTINGS");
+  assert.ok(settings.embeds[0].data.fields.some((field) =>
+    field.name.includes("Member commands") && field.value.includes("commands-channel")
+  ));
+  assert.ok(settings.components.length <= 5);
+  assert.ok(settings.components.some((row) => row.toJSON().components.some((component) =>
+    component.custom_id?.includes("settings-channels")
+  )));
+
+  const channels = await renderAdmin("guild-1", "owner-1", "settings-channels", services);
+  assert.equal(channels.embeds[0].data.title, "CHANNEL SETTINGS");
+  assert.equal(channels.components.length, 3);
+  const ids = channels.components.flatMap((row) => row.toJSON().components.map((component) => component.custom_id));
+  assert.ok(ids.some((id) => id.includes("setting-member-channel")));
+  assert.ok(ids.some((id) => id.includes("setting-log")));
 });

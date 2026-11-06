@@ -27,10 +27,13 @@ test("profile shows the caller's profile by default and supports another member"
       editReply: async (payload) => { response = payload; return payload; }
     };
     const services = {
+      partyGames: { getStats: async () => ({ wins: 2, games: 4, points: 30 }) },
       pool: {
         query: async (sql) => sql.includes("SELECT * FROM players")
           ? { rowCount: 1, rows: [player] }
-          : { rowCount: 1, rows: [{ rank: 7 }] }
+          : sql.includes("SELECT candy FROM event_wallets")
+            ? { rowCount: 1, rows: [{ candy: 88 }] }
+            : { rowCount: 1, rows: [{ rank: 7 }] }
       }
     };
 
