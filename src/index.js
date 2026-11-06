@@ -23,8 +23,7 @@ const { SecurityService } = require("./services/security");
 const { ServerBoosterService } = require("./services/server-boosters");
 const { CustomCommandService } = require("./services/custom-commands");
 const { respond } = require("./ui");
-
-const MEMBER_COMMANDS_CHANNEL_ID = "1566508610459271478";
+const { sendCandyDropNotification } = require("./utils/member-notifications");
 
 async function start() {
   if (!settings.discordToken) throw new Error("DISCORD_TOKEN is missing.");
@@ -164,10 +163,11 @@ async function start() {
       });
     }
 
-    if (!ownerAccess && interaction.channelId !== MEMBER_COMMANDS_CHANNEL_ID) {
+    const memberCommandsChannelId = await guildSettings.get(interaction.guildId, "memberCommandsChannelId");
+    if (!ownerAccess && memberCommandsChannelId && interaction.channelId !== memberCommandsChannelId) {
       return respond(interaction, {
         kind: "error", ephemeral: true, title: "Use the game channel",
-        description: "Open /menu in <#" + MEMBER_COMMANDS_CHANNEL_ID + ">. This notice is private."
+        description: "Use Fukishokai commands in <#" + memberCommandsChannelId + ">. This notice is private."
       });
     }
 
@@ -248,10 +248,9 @@ async function start() {
       return null;
     });
     if (activityResult?.candyDrop) {
-      await message.channel.send({
-        content: "🍬 <@" + message.author.id + "> found **" + activityResult.candyDrop.amount + " Candy**!",
-        allowedMentions: { users: [message.author.id] }
-      }).catch((error) => console.warn("[activity] Candy drop announcement failed:", error.message));
+      await sendCandyDropNotification(
+        client, guildSettings, message.guildId, message.author.id, activityResult.candyDrop.amount
+      ).catch((error) => console.warn("[activity] Candy drop announcement failed:", error.message));
     }
   });
 
