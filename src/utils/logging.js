@@ -97,14 +97,15 @@ function buildActivityLogEmbed({ action, actorId, displayName, details = {}, kin
   const abilities = Array.isArray(details.triggeredAbilities) ? details.triggeredAbilities : [];
   if (abilities.length) add("Special ability", "⚡ " + abilities.join(" · "), false);
 
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setColor(event.color)
     .setAuthor({ name: "FUKISHOKAI  //  FIELD INTELLIGENCE", iconURL: settings.brand.iconUrl })
     .setTitle(event.title)
     .setDescription("**" + String(displayName || "Player").slice(0, 80) + "** · <@" + actorId + ">")
-    .addFields(fields.slice(0, 10))
     .setFooter({ text: "◆ ACTIVITY RECORD  •  Full structured data saved to audit history" })
     .setTimestamp();
+  if (fields.length) embed.addFields(fields.slice(0, 10));
+  return embed;
 }
 
 async function sendActivityLog(client, guildId, activity) {
