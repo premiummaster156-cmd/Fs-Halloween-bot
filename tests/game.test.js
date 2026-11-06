@@ -955,6 +955,30 @@ test("the 100th rebirth is terminal and grants the final 51x multiplier", () => 
 });
 
 
+
+test("endgame careers, crime operations, heists and unique gear abilities cover levels 100 through 600", () => {
+  assert.equal(balancing.jobs.at(-1).id, "eternal_overlord");
+  assert.equal(balancing.jobs.at(-1).minLevel, 600);
+  assert.deepEqual(
+    balancing.crimes.filter((crime) => crime.minLevel >= 100).map((crime) => crime.minLevel),
+    [120, 220, 350, 500]
+  );
+  assert.deepEqual(
+    balancing.heists.filter((heist) => heist.minLevel >= 100).map((heist) => heist.minLevel),
+    [120, 250, 400, 550]
+  );
+  const endgame = balancing.items.filter((item) => [
+    "emberfang_blade", "spectral_mantle", "titan_core", "oracle_lens",
+    "revenant_sigil", "void_engine", "dragonheart_reactor", "eclipse_crown"
+  ].includes(item.id));
+  assert.equal(endgame.length, 8);
+  assert.ok(endgame.every((item) => item.specialAbility && item.specialAbility.name && item.specialAbility.short));
+  assert.deepEqual(endgame.map((item) => item.specialAbility.trigger), [
+    "crime_success", "crime_failed", "heist_failed", "work_perfect",
+    "work_complete", "heist_start", "heist_success", "daily_claim"
+  ]);
+});
+
 test("rebirth 100 upgrade requirements never exceed the actual eligible gear upgrade capacity", () => {
   const { getRebirthRequirements } = require("../src/services/economy");
   const player = {
