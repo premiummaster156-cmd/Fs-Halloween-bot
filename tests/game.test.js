@@ -954,6 +954,22 @@ test("the 100th rebirth is terminal and grants the final 51x multiplier", () => 
   assert.equal(core.getRebirthMultiplier(100), 51);
 });
 
+
+test("rebirth 100 upgrade requirements never exceed the actual eligible gear upgrade capacity", () => {
+  const { getRebirthRequirements } = require("../src/services/economy");
+  const player = {
+    wallet: 100000000, bank: 0, level: 600, prestige: 99,
+    job_id: "eternal_overlord", job_level: 30, rebirth_work_count: 30
+  };
+  const status = getRebirthRequirements(player, 6, [], 10000);
+  const capacity = balancing.items.filter((item) => item.type === "equipment" && item.rebirthEligible !== false).length *
+    balancing.itemUpgrades.maxLevel;
+  assert.equal(status.gearUpgradeLevelsRequired, capacity);
+  assert.ok(status.gearUpgradeLevelsRequired <= capacity);
+  assert.equal(status.workShiftsRequired, 30);
+  assert.equal(status.levelRequired, 530);
+});
+
 test("endgame gear exposes upgrade-scaled active special abilities", () => {
   const { combineEffects } = require("../src/services/inventory");
   const item = balancing.items.find((entry) => entry.id === "emberfang_blade");
