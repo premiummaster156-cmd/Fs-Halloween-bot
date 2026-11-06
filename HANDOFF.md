@@ -3,8 +3,20 @@
 **Repository:** https://github.com/premiummaster156-cmd/Fs-Halloween-bot  
 **Default branch:** `main`  
 **Runtime:** Node.js 20+, Discord.js 14, PostgreSQL on Neon  
-**Last updated:** 2026-11-07  
+**Last updated:** 2026-11-07 — final-season balance applied  
 **Rule:** Update this file whenever a feature, balance, deployment, or architecture change is merged. The next chat must read this file and inspect the current repository before making changes.
+
+## Final-season balance update — November 7 to November 30, 2026
+
+User confirmed the bot will only be used through **November 30, 2026**. The short-season economy is intentionally achievable without a long grind. Default event end is 2026-12-01T00:00:00Z (05:00 in Tashkent), so the full local November 30 is included. This does not auto-shut down the bot.
+
+- First rebirth: 20,000 FC, level 12, one claimed event quest, career level 2, three current-run work shifts.
+- Wallet requirement adds 10,000 FC and level adds four per rebirth. Quest claims rise every four rebirths (cap 4); career level rises every four (cap 10); work shifts rise every three (cap 10).
+- No gear/Candy requirements for first two rebirths. One normal gear item from rebirth #3, one Candy-shop collectible from #4, one combined gear-upgrade level from #5. Slow increases cap at 4 gear items, 3 Candy collectibles, 70 unspent Candy and 5 total upgrade levels.
+- Rebirth reset: 2,500 FC wallet, zero bank, level 1, no career. Gear, upgrades, Candy collectibles and lifetime records persist.
+- Level XP: 80 + 12 × current level. Level cap 600; rebirth cap 100. Multiplier remains +0.5× per rebirth, reaching 51× at 100.
+- Jobs, item costs/levels, upgrade costs, crimes, heists, weekly quests, Halloween quests, Candy prices/drop chances, achievements, Party Fortune and Arena unlocks are reduced for this final season.
+- Casino remains 95% theoretical return, 100 FC minimum, 10-second cooldown. Normal FC retains the 3× multiplier. Automatic personal boost rewards are untouched.
 
 ## Current feature branch — Rift Arena and active gear powers (not merged)
 
@@ -12,8 +24,8 @@ Branch: `active-abilities-rift-arena`
 Status: PR #28 is open against `main` and is not merged. The active gameplay code and PNG HUD render test passed CI run 42284197549 at code head 9556ea5f133a264e54dba1e78c017931e8d9b118. The subsequent documentation update passed CI run 42284303743 at head 6295f097c915c6db9d9620be5dc06c114c80ff3a. No gameplay code changed in the documentation-only follow-up. Neon migration and Discord test-server checks remain outstanding. Do not describe this as live in Discord.
 
 Implemented on this branch:
-- A persistent solo **Rift Arena** with six bosses unlocked at levels 1, 25, 75, 150, 300 and 500.
-- PostgreSQL `boss_battles` records, one active encounter per player, 20-minute entry cooldown, turn locking, and server-side validation of expected turn numbers to reject stale/double-clicked controls.
+- A persistent solo **Rift Arena** with six bosses unlocked at levels 1, 20, 40, 60, 80 and 100.
+- PostgreSQL `boss_battles` records, one active encounter per player, 10-minute entry cooldown, turn locking, and server-side validation of expected turn numbers to reject stale/double-clicked controls.
 - Each equipped endgame ability can be activated once per encounter. PHASE avoids a counterstrike; DREAD weakens three boss strikes; AEGIS creates a shield; REBIRTH restores health; EXECUTE deals bonus damage based on the boss's remaining health; HASTE doubles a strike; HEX applies damage over time; ASCEND deals a large burst.
 - Boss victories grant FC and XP. FC uses the existing 3× earning multiplier and the player's rebirth multiplier; losses charge no fine. Retreats do not erase the Arena cooldown.
 - The Arena dashboard includes boss selection, attack/ability/retreat controls, health bars, status effects and encounter result messaging.
@@ -59,18 +71,16 @@ Implemented on this branch:
 - Tests updated for the new progression and endgame equipment.
 - README progression text updated.
 
-## Balance details
+## Current final-season balance
 
-- Level cap: 600.
-- Rebirth cap: 100.
-- Multiplier: 1× at 0; 1.5× at 1; 2× at 2; 2.5× at 3; 11× at 20; 51× at 100.
-- Wealth target: 500,000 FC × 1.09^currentRebirthCount.
-- Level target: min(600, ceil(35 + 5.65 × currentRebirthCount)).
-- Quest claims: starts at 3 and caps at the six normal Halloween quests.
-- Career level: starts at 5 and rises by one per current rebirth, capped at 30.
-- Work shifts: 20 at zero rebirths, 30 from one rebirth onward; hard cap remains 30.
-- Distinct gear and Candy collectibles begin after two completed rebirths; gear upgrade levels begin after three.
-- Existing 3× normal FC earning multiplier remains. Casino payouts remain excluded.
+- Level cap 600; rebirth cap 100; multiplier +0.5× per rebirth (1×, 1.5×, 2×, 2.5× … 51×).
+- First rebirth: 20,000 FC, level 12, one event quest claim, career level 2, three work shifts.
+- Each rebirth adds 10,000 FC and four levels; quest claims/career/work shift requirements rise gradually and cap at 4/10/10.
+- Gear/Candy/upgrade requirements start at rebirths 3/4/5, grow slowly and cap at 4/3/70 Candy/5 upgrade levels.
+- Reset wallet 2,500 FC, bank 0, level 1, career cleared; owned gear, Candy collectibles and lifetime progress persist.
+- Normal FC multiplier remains 3×; Casino excluded.
+- Final event deadline is Nov 30, 2026 local time; default timestamp Dec 1 00:00 UTC.
+
 
 ## New endgame gear
 
