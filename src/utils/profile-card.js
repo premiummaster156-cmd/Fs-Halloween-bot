@@ -1,5 +1,8 @@
-const { createCanvas, loadImage } = require("@napi-rs/canvas");
+const { createCanvas, loadImage, setTextRenderer } = require("@napi-rs/canvas");
 const { levelXpRequired } = require("./core");
+
+// Let the platform fall back per character for decorative Unicode names and nicknames.
+setTextRenderer("system");
 
 function roundedRect(ctx, x, y, width, height, radius) {
   const r = Math.min(radius, width / 2, height / 2);
@@ -32,9 +35,9 @@ function fitText(ctx, value, maxWidth, font, maxSize = 16, minSize = 11) {
     ctx.font = font.replace("{size}", String(size));
   }
   if (ctx.measureText(text).width <= maxWidth) return { text, size };
-  let clipped = text;
-  while (clipped.length > 3 && ctx.measureText(clipped + "…").width > maxWidth) clipped = clipped.slice(0, -1);
-  return { text: clipped + "…", size };
+  const characters = Array.from(text);
+  while (characters.length > 3 && ctx.measureText(characters.join("") + "…").width > maxWidth) characters.pop();
+  return { text: characters.join("") + "…", size };
 }
 
 function drawPumpkin(ctx, x, y, scale, alpha = 1) {
@@ -107,6 +110,10 @@ function drawStat(ctx, x, y, label, value, width = 140) {
   ctx.fillText(fitted.text, x, y + 19, width);
 }
 
+function resolveProfileDisplayName(user) {
+  return String(user?.displayName || user?.globalName || user?.username || "Player");
+}
+
 async function createProfileCard({ user, player, rank, stats = {} }) {
   const width = 800;
   const height = 300;
@@ -161,7 +168,7 @@ async function createProfileCard({ user, player, rank, stats = {} }) {
   }
   ctx.restore();
 
-  const username = String(user?.globalName || user?.displayName || user?.username || "Player");
+  const username = resolveProfileDisplayName(user);
   const name = fitText(ctx, username, 465, "600 {size}px Arial", 32, 21);
   ctx.textAlign = "left";
   ctx.fillStyle = "#FFF8EF";
@@ -236,4 +243,4 @@ async function createProfileCard({ user, player, rank, stats = {} }) {
   return canvas.toBuffer("image/png");
 }
 
-module.exports = { createProfileCard, compact, drawStat };
+module.exports = { createProfileCard, compact, drawStat, resolveProfileDisplayName };
