@@ -9,7 +9,7 @@ const balancing = require("../config/game-balancing");
 const { createEmbed } = require("../ui");
 const { getPlayer, getLeaderboard } = require("../services/economy");
 const { getUpgradeCost } = require("../services/inventory");
-const { levelXpRequired, uuid, getRebirthMultiplier } = require("../utils/core");
+const { levelXpRequired, uuid, getRebirthMultiplier, MAX_PLAYER_LEVEL, MAX_REBIRTHS } = require("../utils/core");
 const { makeWorkChallenge } = require("../games/work-challenge");
 const { audit, sendLog, sendActivityLog } = require("../utils/logging");
 
@@ -117,7 +117,7 @@ function panel(title, description, fields = [], components = [], kind = "info", 
     warning: settings.brand.warning, error: settings.brand.danger
   };
   const embed = createEmbed({
-    title: "◆ " + String(title).toUpperCase() + " ◆",
+    title: String(title).toUpperCase(),
     description: "▰▰▰ ◈ FUKISHOKAI GAME HUD ◈ ▰▰▰\n" + description,
     fields, color: palette[kind] || palette.info,
     footer: footer + "  •  DEPTH HUD",
@@ -433,7 +433,7 @@ async function renderMenu(guildId, owner, page, s) {
     ]);
     const mark = (passed) => passed ? "✅" : "▫️";
     const lines = [
-      mark(status.checks.canRebirth) + " **Ascension:** " + status.rebirths + "/" + status.maxRebirths + " rebirths · " + status.multiplier.toLocaleString() + "× power,
+      mark(status.checks.canRebirth) + " **Ascension:** " + status.rebirths + "/" + status.maxRebirths + " rebirths · " + status.multiplier.toLocaleString() + "× power",
       mark(status.checks.wealth) + " **FC:** " + status.wealth.toLocaleString() + "/" + status.walletRequired.toLocaleString(),
       mark(status.checks.level) + " **Level:** " + status.level + "/" + status.levelRequired +
         " · **Job:** " + (status.currentJob ? status.currentJob.name : "None") + " (" + status.currentJobLevel + "/" + status.jobLevelRequired + ")",
@@ -1066,10 +1066,10 @@ async function handleSelection(i, s, scope, owner, action, parts) {
       await recordMemberAction(i, s, "crime_attempt", r.succeeded
         ? "completed **" + r.crime.name + "** and earned " + r.reward.toLocaleString() + " FC" + candyText + "."
         : "attempted **" + r.crime.name + "** and paid a " + r.fine.toLocaleString() + " FC fine.",
-        { crimeId: r.crime.id, succeeded: r.succeeded, reward: r.reward, fine: r.fine, candy: r.candyDrop?.amount || 0, successChance: r.successChance }, r.succeeded ? "success" : "warning");
+        { crimeId: r.crime.id, succeeded: r.succeeded, reward: r.reward, fine: r.fine, candy: r.candyDrop?.amount || 0, successChance: r.successChance, triggeredAbilities: r.triggeredAbilities || [] }, r.succeeded ? "success" : "warning");
       return i.editReply(panel(r.succeeded ? "OPERATION SUCCESSFUL" : "OPERATION FAILED",
         r.succeeded ? "You completed **" + r.crime.name + "** and earned **" + r.reward.toLocaleString() + " FC**." + (r.candyDrop ? "\n🍬 You found **" + r.candyDrop.amount + " Candy**!" : "") : "You were caught during **" + r.crime.name + "** and paid a fine of **" + r.fine.toLocaleString() + " FC**.",
-        [{ name: "Success chance", value: r.successChance + "%", inline: true }, { name: r.succeeded ? "Reward" : "Fine", value: (r.succeeded ? r.reward : r.fine).toLocaleString() + " FC", inline: true }, ...(r.candyDrop ? [{ name: "Candy found", value: "+" + r.candyDrop.amount, inline: true }] : [])],
+        [{ name: "Success chance", value: r.successChance + "%", inline: true }, { name: r.succeeded ? "Reward" : "Fine", value: (r.succeeded ? r.reward : r.fine).toLocaleString() + " FC", inline: true }, ...(r.candyDrop ? [{ name: "Candy found", value: "+" + r.candyDrop.amount, inline: true }] : []), ...(r.triggeredAbilities?.length ? [{ name: "⚡ Special ability", value: r.triggeredAbilities.join(" · "), inline: false }] : [])],
         [row(btn(owner, "crime", "Back to crime")), navButton(owner)], r.succeeded ? "success" : "warning"));
     }
     if (action === "event-claim") {
@@ -1455,9 +1455,9 @@ async function handleButton(i, s) {
     await i.deferUpdate();
     const r = await s.economy.daily(i.guildId, owner, memberRoleIds(i));
     const candyText = r.candyDrop ? " and found **" + r.candyDrop.amount + " Candy**" : "";
-    await recordMemberAction(i, s, "daily_reward_claimed", "claimed a daily reward and earned " + r.amount.toLocaleString() + " FC" + candyText + ".", { amount: r.amount, xp: r.progression.gained, candy: r.candyDrop?.amount || 0 });
+    await recordMemberAction(i, s, "daily_reward_claimed", "claimed a daily reward and earned " + r.amount.toLocaleString() + " FC" + candyText + ".", { amount: r.amount, xp: r.progression.gained, candy: r.candyDrop?.amount || 0, triggeredAbilities: r.triggeredAbilities || [] });
     return i.editReply(panel("DAILY REWARD CLAIMED", "You received **" + r.amount.toLocaleString() + " FC** and **" + r.progression.gained + " XP**." + (r.progression.levelsGained ? "\n🎉 You reached level " + r.progression.level + "!" : "") + (r.candyDrop ? "\n🍬 A Candy drop appeared! You found **" + r.candyDrop.amount + " Candy**." : ""),
-      [{ name: "Current level", value: String(r.progression.level), inline: true }, ...(r.candyDrop ? [{ name: "Candy found", value: "+" + r.candyDrop.amount, inline: true }] : [])],
+      [{ name: "Current level", value: String(r.progression.level), inline: true }, ...(r.candyDrop ? [{ name: "Candy found", value: "+" + r.candyDrop.amount, inline: true }] : []), ...(r.triggeredAbilities?.length ? [{ name: "⚡ Ability", value: r.triggeredAbilities.join(" · "), inline: false }] : [])],
       [row(btn(owner, "earn", "Back to Earn")), navButton(owner)], "success"));
   }
   if (action === "work") {
@@ -1483,9 +1483,9 @@ async function handleButton(i, s) {
     if (!session.correct) return i.editReply(panel("SHIFT TEST COMPLETE", "You answered 0/3 correctly. At least one correct answer is required to earn FC or XP. Your work cooldown still applies.", [], [row(btn(owner, "earn", "Back to Earn")), navButton(owner)], "warning"));
     const r = await s.jobs.completeShift(i.guildId, owner, session.shift.job.id, session.correct, 3, memberRoleIds(i));
     const candyText = r.candyDrop ? " and found **" + r.candyDrop.amount + " Candy**" : "";
-    await recordMemberAction(i, s, "work_shift_completed", "completed a **" + r.job.name + "** work shift with " + session.correct + "/3 correct answers and earned " + r.pay.toLocaleString() + " FC" + candyText + ".", { careerId: r.job.id, correct: session.correct, total: 3, pay: r.pay, xp: r.progression.gained, candy: r.candyDrop?.amount || 0 });
+    await recordMemberAction(i, s, "work_shift_completed", "completed a **" + r.job.name + "** work shift with " + session.correct + "/3 correct answers and earned " + r.pay.toLocaleString() + " FC" + candyText + ".", { careerId: r.job.id, correct: session.correct, total: 3, pay: r.pay, xp: r.progression.gained, candy: r.candyDrop?.amount || 0, triggeredAbilities: r.triggeredAbilities || [] });
     return i.editReply(panel("SHIFT COMPLETE", "You answered **" + session.correct + "/3** correctly and earned **" + r.pay.toLocaleString() + " FC** plus **" + r.progression.gained + " XP**." + (r.candyDrop ? "\n🍬 You found **" + r.candyDrop.amount + " Candy**!" : ""),
-      [{ name: "Career", value: r.job.name + " · Level " + r.jobLevel, inline: true }, { name: "Player level", value: String(r.progression.level), inline: true }, { name: "Promotion", value: r.promoted ? "Job level increased!" : "Progress saved" }, ...(r.candyDrop ? [{ name: "Candy found", value: "+" + r.candyDrop.amount, inline: true }] : [])],
+      [{ name: "Career", value: r.job.name + " · Level " + r.jobLevel, inline: true }, { name: "Player level", value: String(r.progression.level), inline: true }, { name: "Promotion", value: r.promoted ? "Job level increased!" : "Progress saved" }, ...(r.candyDrop ? [{ name: "Candy found", value: "+" + r.candyDrop.amount, inline: true }] : []), ...(r.triggeredAbilities?.length ? [{ name: "⚡ Special ability", value: r.triggeredAbilities.join(" · "), inline: false }] : [])],
       [row(btn(owner, "profile", "View profile")), navButton(owner)], "success"));
   }
   if (action === "deposit" || action === "withdraw") return i.showModal(modal("dash:" + owner + ":bank-modal:" + action, action === "deposit" ? "Deposit into bank" : "Withdraw from bank", [{ id: "amount", label: "Amount in FC", placeholder: "1000", max: 12 }]));
@@ -1624,8 +1624,8 @@ async function handleModal(i, s) {
           await s.economy.ensurePlayerTx(c, i.guildId, target);
           const current = await c.query("SELECT level, xp FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [i.guildId, target]);
           let level = Number(current.rows[0].level), xp = Number(current.rows[0].xp) + amount, gained = 0;
-          while (level < 600 && xp >= levelXpRequired(level)) { xp -= levelXpRequired(level); level += 1; gained += 1; }
-          if (level >= 600) xp = 0;
+          while (level < MAX_PLAYER_LEVEL && xp >= levelXpRequired(level)) { xp -= levelXpRequired(level); level += 1; gained += 1; }
+          if (level >= MAX_PLAYER_LEVEL) xp = 0;
           await c.query("UPDATE players SET level = $3, xp = $4, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [i.guildId, target, level, xp]);
           return { level, gained };
         });
@@ -1640,7 +1640,7 @@ async function handleModal(i, s) {
       return i.editReply(panel(delta > 0 ? "FS COINS GRANTED" : "FS COINS REMOVED", (delta > 0 ? "Granted " : "Removed ") + "**" + amount.toLocaleString() + " FC** " + (delta > 0 ? "for " : "from ") + "<@" + target + ">.", [{ name: "Audit reason", value: reason }], [], "success"));
     }
     if (action === "set-level") {
-      const level = numberField(i, "level", 1, 600, "Level");
+      const level = numberField(i, "level", 1, MAX_PLAYER_LEVEL, "Level");
       await s.economy.transact(async (c) => {
         await s.economy.ensurePlayerTx(c, i.guildId, target);
         await c.query("UPDATE players SET level = $3, xp = 0, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [i.guildId, target, level]);
@@ -1650,7 +1650,7 @@ async function handleModal(i, s) {
       return i.editReply(panel("PLAYER LEVEL UPDATED", "Set <@" + target + ">'s player level to **" + level + "**. Current-level XP was reset to zero.", [{ name: "Audit reason", value: reason }], [], "success"));
     }
     if (action === "set-rebirth") {
-      const rebirths = numberField(i, "rebirths", 0, 100, "Rebirth count");
+      const rebirths = numberField(i, "rebirths", 0, MAX_REBIRTHS, "Rebirth count");
       await s.economy.transact(async (c) => {
         await s.economy.ensurePlayerTx(c, i.guildId, target);
         await c.query(
