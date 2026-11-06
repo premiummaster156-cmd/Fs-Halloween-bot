@@ -9,7 +9,7 @@
 ## Current feature branch — Rift Arena and active gear powers (not merged)
 
 Branch: `active-abilities-rift-arena`  
-Status: PR #28 is open against `main` and is not merged. Latest GitHub Actions CI run **42284197549** passed at head `9556ea5f133a264e54dba1e78c017931e8d9b118`: dependency install, source syntax check, slash-command validation and full test suite including the PNG HUD render test. Neon migration and Discord test-server checks remain outstanding. Do not describe this as live in Discord.
+Status: PR #28 is open against `main` and is not merged. The active gameplay code and PNG HUD render test passed CI run 42284197549 at code head 9556ea5f133a264e54dba1e78c017931e8d9b118. The subsequent documentation update passed CI run 42284303743 at head 6295f097c915c6db9d9620be5dc06c114c80ff3a. No gameplay code changed in the documentation-only follow-up. Neon migration and Discord test-server checks remain outstanding. Do not describe this as live in Discord.
 
 Implemented on this branch:
 - A persistent solo **Rift Arena** with six bosses unlocked at levels 1, 25, 75, 150, 300 and 500.
@@ -29,7 +29,7 @@ Before merge:
 4. Test the full interaction flow in a test Discord server: start, attack, activate each equipped power once, defeat, lose, escape, cooldown, and stale controls.
 5. Tune reward amounts and fight difficulty against real player gear/loadouts.
 
-CI status: run 42284197549 passed on the latest branch head. PR #28 remains open pending manual Neon/Discord validation.
+CI status: runs 42284197549 and 42284303743 passed; see the branch status above. PR #28 remains open pending manual Neon/Discord validation.
 
 After merge, the user must pull main, run `npm install`, run `npm run db:migrate`, and restart the bot. No live Discord deployment is claimed.
 
