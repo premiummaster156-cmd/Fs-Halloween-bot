@@ -3,6 +3,11 @@ const { randomInt } = require("../utils/core");
 const QUESTION_POOL_SIZE = 100;
 const RECENT_QUESTION_LIMIT = 500;
 const LETTERS = ["A", "B", "C", "D"];
+const WORK_SHIFT_TIME_LIMITS = Object.freeze({ easy: 3 * 60 * 1000, medium: 6 * 60 * 1000, hard: 10 * 60 * 1000 });
+
+function getWorkShiftTimeLimit(band) {
+  return WORK_SHIFT_TIME_LIMITS[band] || WORK_SHIFT_TIME_LIMITS.easy;
+}
 
 const recentQuestions = {
   easy: [],
@@ -406,6 +411,8 @@ const questionBank = Object.freeze(Array.from({ length: QUESTION_POOL_SIZE }, (_
 module.exports = {
   makeWorkChallenge,
   getQuestionBand,
+  getWorkShiftTimeLimit,
+  WORK_SHIFT_TIME_LIMITS,
   questionBank,
   QUESTION_POOL_SIZE
 };
