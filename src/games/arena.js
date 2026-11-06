@@ -205,7 +205,7 @@ class RiftArena {
     return this.getStatus(guildId, userId);
   }
 
-  async act(guildId, userId, action, itemId = null, roleIds = []) {
+  async act(guildId, userId, action, itemId = null, roleIds = [], expectedTurn = null) {
     const result = await this.transactionRunner(async (client) => {
       const battleResult = await client.query(
         "SELECT * FROM boss_battles WHERE guild_id = $1 AND user_id = $2 AND status = 'active' ORDER BY created_at DESC LIMIT 1 FOR UPDATE",
@@ -213,6 +213,9 @@ class RiftArena {
       );
       if (!battleResult.rowCount) throw new DomainError("You do not have an active Rift battle. Open the Arena and start a boss fight.", "ARENA_NO_ACTIVE_BATTLE");
       const battle = normalizeBattle(battleResult.rows[0]);
+      if (expectedTurn !== null && Number(expectedTurn) !== battle.turn) {
+        throw new DomainError("That turn has already been resolved. Use the latest Arena controls.", "ARENA_STALE_TURN");
+      }
       const boss = BOSSES.find((entry) => entry.id === battle.bossId);
       if (!boss) throw new DomainError("This boss is no longer in the arena catalog.", "ARENA_BOSS_UNAVAILABLE");
       const playerResult = await client.query(
