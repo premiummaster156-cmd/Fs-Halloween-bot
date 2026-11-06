@@ -38,6 +38,16 @@ function chance(percent) {
 }
 function uuid() { return crypto.randomUUID(); }
 function clamp(value, minimum, maximum) { return Math.min(maximum, Math.max(minimum, value)); }
+function rollSpecialAbilities(effects, trigger, random = Math.random) {
+  const abilities = Array.isArray(effects?.specialAbilities) ? effects.specialAbilities : [];
+  return abilities.filter((ability) => ability.trigger === trigger &&
+    random() < clamp(Number(ability.chance) || 0, 0, 0.50));
+}
+function sumAbilityValue(abilities, effect) {
+  return (Array.isArray(abilities) ? abilities : [])
+    .filter((ability) => ability.effect === effect)
+    .reduce((sum, ability) => sum + Math.max(0, Number(ability.value) || 0), 0);
+}
 function getRebirthMultiplier(rebirths) {
   // Clear linear progression: 0 rebirths = 1x, 1 = 1.5x, 2 = 2x ... 100 = 51x.
   const maxRebirths = require("../config/game-balancing").progression.maxRebirths;
@@ -110,5 +120,6 @@ async function claimCooldownTx(client, guildId, userId, key, durationMs, now = n
 module.exports = {
   DomainError, CooldownError, formatDuration, randomInt, chance, uuid, clamp,
   levelXpRequired, calculateWorkPay, calculateCrimeChance, calculateHeistChance,
-  splitReward, casinoPayout, claimCooldownTx, getRebirthMultiplier, applyCooldownReduction
+  splitReward, casinoPayout, claimCooldownTx, getRebirthMultiplier, applyCooldownReduction,
+  rollSpecialAbilities, sumAbilityValue
 };
