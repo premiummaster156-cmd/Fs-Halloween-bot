@@ -100,9 +100,15 @@ function getRebirthRequirements(player, claimedQuestCount = 0, inventoryRows = [
   const candyBalanceRequired = itemMilestone
     ? balancing.rebirth.firstCandyBalanceRequirement + itemSteps * balancing.rebirth.candyBalanceGrowth
     : 0;
+  const maxEligibleGearUpgradeLevels = balancing.items.filter((item) =>
+    item.type === "equipment" && item.rebirthEligible !== false
+  ).length * balancing.itemUpgrades.maxLevel;
   const gearUpgradeLevelsRequired = rebirths >= balancing.rebirth.gearUpgradeRequirementsStartAt
-    ? balancing.rebirth.firstGearUpgradeLevelsRequirement +
-      (rebirths - balancing.rebirth.gearUpgradeRequirementsStartAt) * balancing.rebirth.gearUpgradeLevelsGrowth
+    ? Math.min(
+      maxEligibleGearUpgradeLevels,
+      balancing.rebirth.firstGearUpgradeLevelsRequirement +
+        (rebirths - balancing.rebirth.gearUpgradeRequirementsStartAt) * balancing.rebirth.gearUpgradeLevelsGrowth
+    )
     : 0;
 
   const currentJob = balancing.jobs.find((job) => job.id === player.job_id) || null;
@@ -500,13 +506,20 @@ class EconomyService {
       const row = await client.query("SELECT level FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [guildId, userId]);
       const cooldownMs = applyCooldownReduction(balancing.economy.dailyCooldownMs, gear.dailyCooldownReduction, 60 * 60 * 1000);
       await claimCooldownTx(client, guildId, userId, "daily", cooldownMs);
-      const baseAmount = randomInt(balancing.economy.dailyMin, balancing.economy.dailyMax) + Number(row.rows[0].level) * 8;
-      const earning = await this.mutateTx(client, guildId, userId, baseAmount, "daily_reward", uuid(), {});
+      const triggeredAbilities = rollSpecialAbilities(gear, "daily_claim");
+      const abilityRewardBonus = sumAbilityValue(triggeredAbilities, "reward_bonus");
+      const baseAmount = Math.floor(
+        (randomInt(balancing.economy.dailyMin, balancing.economy.dailyMax) + Number(row.rows[0].level) * 8) *
+        (1 + Math.min(0.75, abilityRewardBonus))
+      );
+      const earning = await this.mutateTx(client, guildId, userId, baseAmount, "daily_reward", uuid(), {
+        triggeredAbilities: triggeredAbilities.map((ability) => ability.name)
+      });
       const progression = await this.addXpTx(client, guildId, userId, balancing.economy.dailyXp, roleIds);
       const events = require("./events");
       await events.trackActionTx(client, guildId, userId, "daily", 1);
       await events.trackActionTx(client, guildId, userId, "wallet_earned", earning.delta);
-      return { amount: earning.delta, cooldownMs, progression, candyDrop: earning.candyDrop || null };
+      return { amount: earning.delta, cooldownMs, progression, candyDrop: earning.candyDrop || null, triggeredAbilities: triggeredAbilities.map((ability) => ability.name) };
     });
   }
 }
