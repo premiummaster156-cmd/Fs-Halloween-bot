@@ -27,7 +27,7 @@ Implemented on this branch:
 - XP progression and admin Set Level / Set Rebirth controls use the new caps.
 - Database migration adds idempotent PostgreSQL checks for level 1–600 and prestige 0–100.
 - Eight new endgame items with named passive abilities: PHASE, DREAD, AEGIS, REBIRTH, EXECUTE, HASTE, HEX, ASCEND.
-- Equipment shop displays rarity and ability descriptions.
+- Equipment shop and owned Gear inventory display rarity, ability descriptions and active passive stat effects.
 - Member activity log channel receives compact themed embeds with readable fields rather than raw JSON. Full details remain in the PostgreSQL audit log.
 - Tests updated for the new progression and endgame equipment.
 - README progression text updated.
