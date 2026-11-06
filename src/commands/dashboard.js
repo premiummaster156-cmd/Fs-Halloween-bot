@@ -371,9 +371,9 @@ async function renderMenu(guildId, owner, page, s) {
       const current = (entry.equipped ? "🟢 " : "▫️ ") + "**" + entry.item.name + "** · Upgrade " +
         entry.upgradeLevel + "/" + balancing.itemUpgrades.maxLevel + (entry.equipped ? " · Equipped" : "");
       const ability = entry.item.ability
-        ? "\\n*Ability — " + entry.item.ability + ":* " + entry.item.abilityDescription
+        ? "\n*Ability — " + entry.item.ability + ":* " + entry.item.abilityDescription
         : "";
-      const bonuses = "\\n*Bonuses:* " + formatItemEffects(entry.item.effects);
+      const bonuses = "\n*Bonuses:* " + formatItemEffects(entry.item.effects);
       if (entry.upgradeLevel >= balancing.itemUpgrades.maxLevel) return current + " · MAX" + ability + bonuses;
       const nextLevel = entry.upgradeLevel + 1;
       const nextCost = getUpgradeCost(entry.item, nextLevel);
