@@ -69,7 +69,7 @@ function calculateCandyDrop(reason, gearBonus = 0, chanceRoll = Math.random(), a
 }
 
 function getRebirthRequirements(player, claimedQuestCount = 0, inventoryRows = [], candyBalance = 0) {
-  const rebirths = Math.max(0, Number(player.prestige) || 0);
+  const rebirths = Math.max(0, Math.min(balancing.progression.maxRebirths, Math.floor(Number(player.prestige) || 0)));
   const wealth = Number(player.wallet || 0) + Number(player.bank || 0);
   const walletRequired = Math.min(Number.MAX_SAFE_INTEGER,
     Math.ceil(balancing.rebirth.firstWalletRequirement * Math.pow(balancing.rebirth.walletRequirementGrowth, rebirths)));
@@ -404,6 +404,9 @@ class EconomyService {
           [guildId, userId, balancing.halloween.eventId]
         )
       ]);
+      if (Number(player.prestige) >= balancing.progression.maxRebirths) {
+        throw new DomainError("You have reached the maximum of " + balancing.progression.maxRebirths + " rebirths.", "MAX_REBIRTHS_REACHED");
+      }
       const requirements = getRebirthRequirements(
         player,
         claims.rows[0]?.claimed_count || 0,
