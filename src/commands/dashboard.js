@@ -220,7 +220,7 @@ async function renderMenu(guildId, owner, page, s) {
       { name: "🎭 Successful crimes", value: Number(p.crime_successes).toLocaleString(), inline: true },
       { name: "🕵️ Heists completed", value: Number(p.heists_completed).toLocaleString(), inline: true },
       { name: "⭐ Reputation", value: String(p.reputation), inline: true },
-      { name: "♻️ Rebirths", value: Number(p.prestige || 0) + " · " + Math.pow(2, Math.min(Number(p.prestige || 0), 52)).toLocaleString() + "× FC / XP", inline: true },
+      { name: "♻️ Rebirths", value: Number(p.prestige || 0) + " · " + getRebirthMultiplier(p.prestige).toLocaleString() + "× FC / XP", inline: true },
       ...(booster ? [{
         name: "⚡ Server Booster",
         value: booster.active
@@ -541,7 +541,7 @@ async function renderMenu(guildId, owner, page, s) {
     return panel("HALLOWEEN  /  SEASONAL EVENT", (r.active ? "🟢 Event active" : "⚪ Event inactive") + " · Ends <t:" + Math.floor(new Date(r.event.ends_at).getTime() / 1000) + ":R>\n\n**Candy:** " + Number(r.wallet.candy || 0).toLocaleString() + " · **Event points:** " + Number(r.wallet.points || 0).toLocaleString() + "\n**Final reward:** " + r.claims.length + "/" + balancing.halloween.finalRoleQuestCount + " quests claimed.",
       [
         ...r.quests.map((q) => { const current = Math.min(q.goal, progress.get(q.id) || 0); const status = claims.has(q.id) ? " · CLAIMED" : current >= q.goal ? " · READY TO CLAIM" : ""; return { name: q.name + " · " + current + "/" + q.goal + status, value: q.description + " · Reward: " + q.candy + " Candy / " + q.points + " points" }; }),
-        { name: "Candy drop chances", value: "Daily 12% · Work 20% · Crime 14% · Heists 26% · Casino payouts 6% · Chat FC rewards 2.5%. Equipped gear adds up to 20 percentage points; upgrades improve the bonus." }
+        { name: "Candy drop chances", value: "Daily, Work, successful Crimes, Heists, Casino rounds, Chat earnings and Achievements. Gear and rebirths improve the chance (60% maximum)." }
       ], controls);
   }
   if (page === "weekly") {
@@ -572,7 +572,7 @@ async function renderMenu(guildId, owner, page, s) {
         ...questFields,
         { name: "💬 Weekly chat mission", value: bar(w.messages, w.goal, 9) + " · " + w.messages.toLocaleString() + "/" + w.goal.toLocaleString() + " messages" +
           (chatReady ? " · Ready to claim" : !eventActive ? " · Halloween event inactive" : "") +
-          (eventActive ? "\\nReward: " + balancing.halloween.weeklyMessageCandyReward + " Candy + " + balancing.halloween.weeklyMessagePointsReward + " points" : "") }
+          (eventActive ? "\nReward: " + balancing.halloween.weeklyMessageCandyReward + " Candy + " + balancing.halloween.weeklyMessagePointsReward + " points" : "") }
       ], controls);
   }
   if (page === "event-shop") {
