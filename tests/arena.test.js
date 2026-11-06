@@ -82,3 +82,19 @@ test("Rift Arena rejects unknown powers", () => {
     (error) => error.code === "ARENA_ABILITY_INVALID"
   );
 });
+
+
+test("Rift Arena renders the beveled HUD as a valid PNG", () => {
+  const { createArenaCard } = require("../src/utils/arena-card");
+  const image = createArenaCard({
+    boss: BOSSES[5],
+    battle: {
+      bossHp: 12000, bossMaxHp: 19000,
+      playerHp: 2800, playerMaxHp: 3800,
+      turn: 4
+    },
+    playerLevel: 500
+  });
+  assert.ok(Buffer.isBuffer(image));
+  assert.equal(image.subarray(1, 4).toString("ascii"), "PNG");
+});
