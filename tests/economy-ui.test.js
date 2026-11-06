@@ -18,7 +18,7 @@ test("career dashboard explains each career perk and current promotion progress"
   assert.equal(embed.title, "CAREER DESK");
   assert.ok(embed.fields.some((field) => field.name === "Active career perk" && field.value.includes("Work pay +3%")));
   assert.ok(embed.fields.some((field) => field.name === "Career paths" && field.value.includes("Heist success +4 points")));
-  assert.ok(embed.fields.some((field) => field.name === "Promotion progress" && field.value.includes("50/235 job XP")));
+  assert.ok(embed.fields.some((field) => field.name === "Promotion progress" && field.value.includes("50/60 job XP")));
 });
 
 test("casino dashboard shows lifetime performance and recent round receipts", async () => {
@@ -82,14 +82,14 @@ test("Gear clearly separates Mythic booster items from normal gear and shows aut
 test("weekly dashboard shows recurring Candy quests and a claim control", async () => {
   const payload = await renderMenu("guild-1", "member-1", "weekly", {
     activity: {
-      getWeekly: async () => ({ weekStart: "2026-11-02", messages: 400, goal: 1000 })
+      getWeekly: async () => ({ weekStart: "2026-11-02", messages: 200, goal: 250 })
     },
     halloween: { getEvent: async () => null },
     weeklyQuests: {
       status: async () => ({
         weekStart: "2026-11-02",
         candyBalance: 88,
-        totalWeeklyCandy: 120,
+        totalWeeklyCandy: 85,
         quests: balancing.weeklyQuests.map((quest, index) => ({
           ...quest, progress: index === 0 ? quest.goal : 0,
           ready: index === 0, claimed: false
@@ -99,8 +99,8 @@ test("weekly dashboard shows recurring Candy quests and a claim control", async 
   });
   const embed = payload.embeds[0].toJSON();
   assert.equal(embed.title, "WEEKLY QUESTS");
-  assert.ok(embed.description.includes("120 Candy each week"));
-  assert.ok(embed.fields.some((field) => field.name.includes("Clock In") && field.value.includes("30 Candy")));
+  assert.ok(embed.description.includes("85 Candy each week"));
+  assert.ok(embed.fields.some((field) => field.name.includes("Clock In") && field.value.includes("20 Candy")));
   assert.ok(payload.components.some((row) => row.components.some((component) =>
     component.toJSON().custom_id?.includes("weekly-quest-claim")
   )));
