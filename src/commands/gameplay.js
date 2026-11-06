@@ -80,7 +80,7 @@ const profileCommand = {
       username: member.username,
       globalName: member.globalName,
       displayName: guildMember?.displayName || member.globalName || member.username,
-      displayAvatarURL: (options) => member.displayAvatarURL(options)
+      displayAvatarURL: (options) => member.displayAvatarURL?.(options) || member.avatarURL?.(options) || null
     };
     const player = await getPlayer(services.pool, interaction.guildId, member.id);
     const rankResult = await services.pool.query(
