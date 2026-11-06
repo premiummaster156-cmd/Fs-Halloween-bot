@@ -59,7 +59,7 @@ function formatMemberActivityLog(action, displayName, actorId, details = {}, kin
     member_transfer: "FC TRANSFER",
     halloween_weekly_claimed: "WEEKLY EVENT CLAIMED"
   };
-  const pretty = (value) => String(value).replace(/_/g, " ").replace(/\\b\\w/g, (letter) => letter.toUpperCase());
+  const pretty = (value) => String(value).replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
   const fields = [];
   const add = (name, value) => {
     if (value === undefined || value === null || value === "") return;
@@ -452,7 +452,7 @@ async function renderMenu(guildId, owner, page, s) {
   if (page === "shop") {
     const shopItems = balancing.items.filter((item) => !item.boosterOnly);
     const options = shopItems.map((x) => ({ label: x.name, value: x.id, description: x.cost.toLocaleString() + " FC · Level " + x.minLevel + "+ · " + x.slot }));
-    const list = shopItems.map((x) => "**" + x.name + "** · " + x.cost.toLocaleString() + " FC\nLevel " + x.minLevel + "+ · " + x.slot + "\n" + x.description + "\n*Bonuses:* " + formatItemEffects(x.effects));
+    const list = shopItems.map((x) => "**" + x.name + "** · " + x.cost.toLocaleString() + " FC\n" + (x.rarity ? "**" + x.rarity + "** · " : "") + "Level " + x.minLevel + "+ · " + x.slot + "\n" + x.description + (x.ability ? "\n*Ability — " + x.ability + ":* " + x.abilityDescription : "") + "\n*Bonuses:* " + formatItemEffects(x.effects));
     return panel("NORMAL EQUIPMENT SHOP", "These are regular items bought with FC. 🌟 MYTHIC booster items are separate: your personal boosts award them automatically, and you can upgrade them from Gear.",
       [{ name: "Available equipment", value: list.join("\n\n").slice(0, 3900) }],
       [menu(owner, "shop-buy", "Select equipment to purchase", options), nav]);
