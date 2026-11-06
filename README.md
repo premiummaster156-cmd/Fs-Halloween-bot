@@ -42,9 +42,10 @@ The existing `.env` in this project already has values configured for the requir
 
 Only three commands are needed to use the bot:
 
-The bot's built-in Discord slash-command list is intentionally limited to these three commands:
+The bot's built-in Discord slash-command list contains four commands:
 
 - **/menu** — opens the private interactive player dashboard.
+- **/profile** — publishes the orange Halloween profile card with level, XP, rank, wallet, bank, Candy, career, rebirths and activity stats.
 - **/admin-panel** — opens the private administration console. Only the server owner, configured bot owner and configured trusted Admin Role can use it.
 - **/leaderboard ranking:** — publishes a public leaderboard for total wealth, player level, lifetime FC earned or Party Points.
 
@@ -54,7 +55,19 @@ The admin console retains its custom JavaScript command workspace. A custom slas
 
 Casino games have a 100 FC minimum bet and no maximum bet; wagers are limited only by the player's available wallet balance. The base cooldown is 15 seconds and there is no daily wager cap. Equipped casino gear can increase the frequency of winning results and shorten the cooldown, while adjusting winning payouts to keep the published long-run return fair. Coin Flip, High Dice and Slots each have a base theoretical return of 95%. Slots has a 1% Jackpot (10×), 4% Big win (4×), 20% Small win (3.45×), and 75% no-win chance.
 
-Normal FC rewards from Daily, Work, Crime, Heists, chat activity and achievements are multiplied by 3×. Rebirth and equipped gear bonuses still stack on top. Casino payouts are deliberately excluded from this boost so their published 95% theoretical return remains unchanged.
+Normal FC rewards from Daily, Work, Crime, Heists, chat activity and achievements use the 3× base FC multiplier. Rebirth bonuses and equipped gear stack on top. Casino payouts are excluded so each game's published 95% theoretical return remains unchanged.
+
+### RPG progression and endgame
+
+Player progression runs from **level 1 to level 600**. XP requirements accelerate gradually at high levels, and level 600 is enforced in game logic, admin controls and the database.
+
+Rebirth runs from **0 to 100**. Each rebirth adds **+0.5×** to FC and XP: 0 = 1×, 1 = 1.5×, 2 = 2×, 3 = 2.5×, 20 = 11×, 50 = 26× and 100 = 51×. This is linear, not exponential. The 100th rebirth is the final ascension tier. The first rebirth requires 500,000 FC, level 35, three claimed event rewards, career level 5 and 20 work shifts. Work-shift requirements cap at 30. Wealth and level targets scale across later ascensions; equipment, Candy collectibles and upgrade milestones start from rebirth #3. Rebirth resets wallet to 1,000 FC, bank to zero, level to 1 and current career. Equipment, upgrades, Candy, collectibles, event claims and lifetime records remain.
+
+The career ladder has **12 tiers**, ending with Eternal Overlord at level 600. Crime has 10 operations and cooperative heists have 9 missions, with endgame content unlocking between levels 120 and 550.
+
+The equipment shop contains 18 standard gear pieces plus five automatic Mythic Booster exclusives. Eight endgame items unlock from level 100 to 570. Each has a named special ability with a short description and a chance to trigger during its matching action: Blood Pact, Phase, Bulwark, Perfect, Echo, Rift, Overdrive and Dominion. Abilities scale with item upgrades and appear in Gear and activity reports.
+
+Candy drops from ordinary chat are silent: Candy is credited as before, but the bot no longer posts a public message for each chat drop. Candy from explicit game actions can still appear in those action results.
 
 ### Server Booster rewards
 
@@ -73,7 +86,7 @@ Equipment bonuses apply only while the item is equipped. Gear can improve work s
 3. Use **Profile** to track your level, career and wealth. Use **Bank** to protect savings and **Gear** to manage equipment.
 4. Open **Games** to review crime and casino risks, or **Heists** to create a crew. The bot posts a public crew board that updates with each member and chosen role, then publishes the final mission result when the leader starts it.
 5. Use **Gear** to equip items and upgrade each one up to five times. More expensive equipment has stronger bonuses; upgrades improve its effects. Gear can improve salary, FC and XP income, operation success, casino hit frequency, fines and cooldowns.
-6. Open **Rebirth** to see a live checklist. The first three rebirths require no gear, Candy-shop collectibles, Candy reserve or upgrades. Starting with the fourth, each rebirth adds a requirement for distinct owned equipment, unique Candy-shop collectibles and unspent Candy; gear-upgrade levels begin with the fifth. FC and player-level targets increase gently, while quest claims, job levels and work shifts grow gradually. Rebirth resets wallet to 1,000 FC, bank to zero, player level to 1 and current career. Owned equipment, upgrades, Candy, Candy-shop collectibles, event claims and lifetime records stay. Each rebirth doubles eligible FC and XP earnings: 2× after the first, 4× after the second, 8× after the third, and so on.
+6. Open **Rebirth** to see the live ascension checklist. Each rebirth adds +0.5× FC and XP, up to 51× at 100 rebirths. Work shifts never exceed 30 per run. Gear, upgrades, Candy, collectibles, event claims and lifetime records stay; wallet, bank, level and career reset.
 7. Open **Achievements** to track permanent milestones and claim each unlocked FC/XP reward once. Open **Halloween** to track quests, claim completed rewards, check the weekly activity mission and browse seasonal items.
 
 ## Quick start for members
@@ -86,7 +99,7 @@ Equipment bonuses apply only while the item is equipped. Gear can improve work s
 
 ## Achievements
 
-The private dashboard's **Achievements** page tracks ten permanent milestones across work shifts, career levels, successful operations, heists, player level, combined wealth, rebirths and Party Games. Each milestone shows live progress and its FC/XP reward. Unlocked rewards are claimed through the dashboard and can only be collected once; achievement progress does not expire.
+The private dashboard's **Achievements** page tracks permanent milestones across work shifts, career levels, successful operations, heists, player levels up to 600, combined wealth, rebirths up to 100 and Party Games. Each milestone shows live progress and its FC/XP reward. Unlocked rewards are claimed through the dashboard and can only be collected once; achievement progress does not expire.
 
 ## Bank, equipment and rebirth records
 
@@ -96,11 +109,11 @@ The Gear dashboard shows owned equipment, equipped slots, active bonuses, total 
 
 ## Careers, operations and casino
 
-All seven career tiers now have a distinct passive benefit: work pay, work cooldown, general FC income, crime success, crime rewards, or heist success. The Career Desk shows each perk and the member's job-level promotion progress. Work shifts continue to generate a fresh pool of 100 randomized questions in one of three difficulty bands, with recent questions avoided.
+All twelve career tiers now have a distinct passive benefit: work pay, work cooldown, general FC income, crime success, crime rewards, or heist success. The Career Desk shows each perk and the member's job-level promotion progress. Work shifts continue to generate a fresh pool of 100 randomized questions in one of three difficulty bands, with recent questions avoided.
 
-The Crime board contains six operations, from Pickpocket through Vault Extraction. Higher-risk operations require higher player levels and offer larger rewards, fines and cooldowns. Career perks, reputation and equipped gear influence success and rewards.
+The Crime board contains ten operations, from Pickpocket through the endgame Abyssal Extraction. Higher-risk operations require higher player levels and offer larger rewards, fines and cooldowns. Career perks, reputation and equipped gear influence success and rewards.
 
-Heists now include five cooperative missions, with crews of two to five and seven selectable roles. Unique crew roles improve team success odds; higher-tier missions require a full, coordinated crew.
+Heists now include nine cooperative missions, with crews of two to five and seven selectable roles. Unique crew roles improve team success odds; higher-tier missions require a full, coordinated crew.
 
 The Casino dashboard displays lifetime rounds, wins, win rate, total FC wagered, total payouts, net result and recent round history. The published theoretical return remains 95% for all three casino games. The 3× FC earning multiplier does not apply to casino payouts.
 
@@ -112,11 +125,11 @@ Party Games use **Party Points**, a separate non-spendable score. They do not cr
 
 Set **OWNER_ID** in `.env` to the bot owner Discord user ID. For AI-assisted command creation, also configure a long random `ADMIN_WORKSPACE_API_KEY` and give the same secret to the authorized AI agent. The server owner, configured bot owner, and members holding the Admin Role selected in **/admin-panel → Server settings** can open and operate the full administration console. Discord Administrator, Manage Server, and other admin roles do not grant bot-control access. `ADMIN_ROLE_IDS` is no longer used for bot access.
 
-Configure the trusted Admin Role, log channel, Halloween reward role and 2× XP role in **/admin-panel → Server settings**. The Admin Role must be a normal server role, not @everyone or an integration-managed role. The Halloween reward role must be a normal assignable server role, not `@everyone` or an integration-managed role.
+Configure the trusted Admin Role, log channel, member command + Candy-drop channel, Halloween reward role and 2× XP role in **/admin-panel → Server settings**. Channel options live on the separate **Channel settings** page. The Admin Role must be a normal server role, not @everyone or an integration-managed role. The Halloween reward role must be a normal assignable server role, not `@everyone` or an integration-managed role.
 
-Members open **/menu** in the configured game channel. The dashboard itself stays private; successful gameplay and economy actions are announced in that same channel. Navigation, refreshes and ordinary cooldown messages are not posted publicly.
+Members use **/menu** and **/profile** in the channel selected under **/admin-panel → Server settings → Channel settings**. The dashboard itself stays private; completed game actions publish readable receipts in the configured game channel. Routine chat Candy drops are silent. Navigation, refreshes and ordinary cooldown messages are not posted publicly.
 
-Weekly activity counts every message sent by a human server member, including rapid or spam messages; there is no message-count cooldown or anti-spam filter. Bot and webhook messages are ignored. Chat FC and XP rewards retain their daily earning caps. The bot records successful member actions, admin changes, failed actions, cooldown blocks and security incidents in PostgreSQL and the configured log channel. The configured log channel should allow the bot to view the channel and send messages. Give the bot **View Audit Log** permission if you want the security monitor to attribute bursts of channel deletions, role deletions or bans to the member who performed them. The bot uses the standard Guild Moderation gateway intent; it does not require Message Content, Guild Members or Guild Presences for these protections.
+Weekly activity counts every message sent by a human server member, including rapid or spam messages; there is no message-count cooldown or anti-spam filter. Bot and webhook messages are ignored. Chat FC and XP rewards retain their daily earning caps. The bot records successful member actions, admin changes, failed actions, cooldown blocks and security incidents in PostgreSQL. Member activity appears in the configured log channel as compact report embeds with named fields instead of raw JSON; full structured event details remain in the database audit history. The configured log channel should allow the bot to view the channel and send messages. Give the bot **View Audit Log** permission if you want the security monitor to attribute bursts of channel deletions, role deletions or bans to the member who performed them. The bot uses the standard Guild Moderation gateway intent; it does not require Message Content, Guild Members or Guild Presences for these protections.
 
 Security alerts only monitor members whose highest role is at or below the bot's highest role. Members above the bot's role hierarchy, the server owner, the configured bot owner, and members with the configured trusted Admin Role are excluded from security alerts, security logs, cooldown-abuse records, and bot restrictions. Their successful gameplay can still be announced publicly in the game channel, but it is not written to operational activity or security logs. The bot will not apply pause, block or timeout actions to them.
 
@@ -133,7 +146,7 @@ Open **/admin-panel** to manage the server from one private interface:
 
 - **Server settings:** Halloween reward role, 2× XP role, log channel, and clear-setting controls.
 - **Event controls:** start/restart or stop the Halloween event. Stopping requires confirmation.
-- **Player management:** select a member, inspect their player details, and open Grant FC, Grant XP, Remove FC, Set level, Assign career or Set rebirth forms. Setting rebirth changes only the rebirth count and earning multiplier; the member's other progress stays unchanged.
+- **Player management:** select a member, inspect their player details, and open Grant FC, Grant XP, Remove FC, Set level, Assign career or Set rebirth forms. Setting rebirth changes only the rebirth count (0–100) and earning multiplier; setting level supports levels 1–600; the member's other progress stays unchanged.
 - **Leaderboard fairness:** select a member and exclude or restore them from competitive rankings.
 - **Custom slash commands:** create and edit real `.js` files in Code Studio. Files are saved under `admin-workspace/<server-id>/<command-name>.js`, mirrored to PostgreSQL for recovery, validated, tested and synced directly to Discord without restarting the bot. JavaScript commands export `data` (name, description and slash options) and `async execute(interaction)`, then use `interaction.options.getString()`, `interaction.options.getUser()`, `interaction.reply()`, `interaction.editReply()` and `interaction.followUp()`. They use JavaScript modules and a restricted Discord.js-style interaction API. A small `require('discord.js')` shim provides `SlashCommandBuilder` and `EmbedBuilder`; arbitrary Node modules, host secrets, direct filesystem access, the live bot client and unrestricted network access are not exposed. Use `data.setVisibility('private')` for private replies.
 - **Audit history:** review the ten most recent administrative changes.
