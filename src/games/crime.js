@@ -1,5 +1,5 @@
 const balancing = require("../config/game-balancing");
-const { calculateCrimeChance, randomInt, chance, uuid, DomainError, claimCooldownTx, applyCooldownReduction } = require("../utils/core");
+const { calculateCrimeChance, randomInt, chance, uuid, DomainError, claimCooldownTx, applyCooldownReduction, rollSpecialAbilities, sumAbilityValue } = require("../utils/core");
 const { ensurePlayerTx } = require("../services/economy");
 const { transaction } = require("../database/pool");
 const { trackActionTx } = require("../services/events");
@@ -26,13 +26,19 @@ class CrimeGame {
         (career.crimeChance || 0) + reputation + (gear.crimeChance || 0)
       );
       const succeeded = chance(successChance);
+      const triggeredAbilities = succeeded
+        ? rollSpecialAbilities(gear, "crime_success")
+        : rollSpecialAbilities(gear, "crime_failed");
       const reference = uuid();
       let reward = 0;
       let fine = 0;
       let candyDrop = null;
       if (succeeded) {
         const baseReward = Math.floor(randomInt(crime.rewardMin, crime.rewardMax) * (1 + Math.min(0.3, Number(player.level) * 0.004)));
-        const earning = await this.economy.mutateTx(client, guildId, userId, Math.floor(baseReward * (1 + Math.min(0.75, (gear.crimeRewardBonus || 0) + (career.crimeRewardBonus || 0)))), "crime_success", reference, { crimeId, successChance });
+        const abilityRewardBonus = sumAbilityValue(triggeredAbilities, "reward_bonus");
+        const earning = await this.economy.mutateTx(client, guildId, userId,
+          Math.floor(baseReward * (1 + Math.min(0.95, (gear.crimeRewardBonus || 0) + (career.crimeRewardBonus || 0) + abilityRewardBonus))),
+          "crime_success", reference, { crimeId, successChance, triggeredAbilities: triggeredAbilities.map((ability) => ability.name) });
         reward = earning.delta;
         candyDrop = earning.candyDrop || null;
         await client.query("UPDATE players SET crime_successes = crime_successes + 1, reputation = LEAST(100, reputation + 1), updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [guildId, userId]);
@@ -41,12 +47,13 @@ class CrimeGame {
         await trackActionTx(client, guildId, userId, "wallet_earned", reward);
       } else {
         const rawFine = randomInt(crime.fineMin, crime.fineMax);
-        const fineReduction = Math.min(0.75, (gear.fineReduction || 0) + (career.fineReduction || 0));
-        fine = Math.min(Number(player.wallet), Math.floor(rawFine * (1 - fineReduction)));
+        const avoidsFine = triggeredAbilities.some((ability) => ability.effect === "avoid_fine");
+        const fineReduction = Math.min(0.90, (gear.fineReduction || 0) + (career.fineReduction || 0));
+        fine = avoidsFine ? 0 : Math.min(Number(player.wallet), Math.floor(rawFine * (1 - fineReduction)));
         if (fine > 0) await this.economy.mutateTx(client, guildId, userId, -fine, "crime_failed_fine", reference, { crimeId, successChance });
         await client.query("UPDATE players SET reputation = GREATEST(-100, reputation - 2), updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [guildId, userId]);
       }
-      return { crime, succeeded, successChance, reward, fine, candyDrop };
+      return { crime, succeeded, successChance, reward, fine, candyDrop, triggeredAbilities: triggeredAbilities.map((ability) => ability.name) };
     });
   }
 }
