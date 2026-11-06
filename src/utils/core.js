@@ -39,8 +39,9 @@ function chance(percent) {
 function uuid() { return crypto.randomUUID(); }
 function clamp(value, minimum, maximum) { return Math.min(maximum, Math.max(minimum, value)); }
 function getRebirthMultiplier(rebirths) {
+  // Rebirths are a modest permanent bonus, not an exponential progression exploit.
   const count = Math.max(0, Math.floor(Number(rebirths) || 0));
-  return Math.pow(2, Math.min(count, 52));
+  return 1 + Math.min(count, 10) * 0.1;
 }
 function applyCooldownReduction(baseMs, reduction, floorMs = 1000) {
   const base = Math.max(0, Math.floor(Number(baseMs) || 0));
@@ -49,8 +50,8 @@ function applyCooldownReduction(baseMs, reduction, floorMs = 1000) {
   return Math.max(floor, Math.floor(base * (1 - safeReduction)));
 }
 function levelXpRequired(level) {
-  const safeLevel = Math.max(1, Math.floor(level));
-  return 50 + (safeLevel * 10);
+  const safeLevel = Math.max(1, Math.floor(Number(level) || 1));
+  return 100 + (safeLevel * 20);
 }
 function calculateWorkPay(job, jobLevel, randomPercent) {
   const level = Math.max(1, Math.floor(jobLevel || 1));
