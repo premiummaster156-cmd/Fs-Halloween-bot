@@ -33,6 +33,7 @@ function buildActivityLogEmbed({ action, actorId, displayName, details = {}, kin
     shop_purchase: { title: "🛒 GEAR ACQUIRED", color: 0xD97724 },
     bank_deposit: { title: "🏦 VAULT DEPOSIT", color: 0x3B82A8 },
     bank_withdrawal: { title: "🏦 VAULT WITHDRAWAL", color: 0x3B82A8 },
+    heist_joined: { title: "🕵️ CREW CONTRACT ACCEPTED", color: 0x3B82A8 },
     heist_completed: { title: "🕵️ CREW OPERATION RESOLVED", color: details.succeeded ? 0xD97724 : 0xA94442 }
   }[action] || {
     title: "◆ " + String(action || "MEMBER ACTIVITY").replace(/_/g, " ").toUpperCase(),
