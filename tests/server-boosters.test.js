@@ -9,7 +9,7 @@ const {
 } = require("../src/services/server-boosters");
 const { InventoryService, getUpgradeCost } = require("../src/services/inventory");
 
-function makeBoosterPool() {
+function makeBoosterPool(options = {}) {
   const events = new Set();
   const inventory = new Set();
   const equipped = new Set();
@@ -23,11 +23,24 @@ function makeBoosterPool() {
         events.add(key);
         return { rowCount: 1, rows: [{ message_id: values[2] }] };
       }
-      if (sql.includes("INSERT INTO server_booster_status") && sql.includes("personal_boost_count")) {
+      if (sql.includes("INSERT INTO server_booster_status") && sql.includes("personal_boost_count = server_booster_status.personal_boost_count + 1")) {
         state.active = true;
         state.serverBoostCount = Number(values[2]) || 0;
         state.personalBoostCount += 1;
         return { rowCount: 1, rows: [{ personal_boost_count: state.personalBoostCount }] };
+      }
+      if (sql.includes("INSERT INTO server_booster_status") && sql.includes("personal_boost_count")) {
+        state.active = true;
+        state.serverBoostCount = Number(values[2]) || 0;
+        return { rowCount: 1, rows: [] };
+      }
+      if (sql.includes("SELECT personal_boost_count FROM server_booster_status")) {
+        return { rowCount: 1, rows: [{ personal_boost_count: state.personalBoostCount }] };
+      }
+      if (sql.includes("UPDATE server_booster_status SET personal_boost_count = 1")) {
+        if (state.personalBoostCount !== 0) return { rowCount: 0, rows: [] };
+        state.personalBoostCount = 1;
+        return { rowCount: 1, rows: [{ personal_boost_count: 1 }] };
       }
       if (sql.includes("INSERT INTO server_booster_status")) {
         state.active = true;
@@ -70,7 +83,7 @@ function makeBoosterPool() {
     }
   };
   const transactionRunner = async (callback) => callback(pool);
-  return { pool, service: new ServerBoosterService(pool, transactionRunner) };
+  return { pool, service: new ServerBoosterService(pool, transactionRunner, options) };
 }
 
 test("active boosters receive 15% extra Halloween Candy and event points", () => {
@@ -140,17 +153,37 @@ test("the sixth personal boost does not invent a sixth item and duplicate messag
   assert.equal(pool.inventory.size, 5);
 });
 
-test("server-wide boost totals never grant personal special items", async () => {
+test("existing active boosters are backfilled with the first special item exactly once", async () => {
   const { pool, service } = makeBoosterPool();
-  const result = await service.syncMember(
-    { id: "member-1", premiumSince: new Date("2026-11-05T10:00:00Z") },
-    { id: "guild-1", premiumSubscriptionCount: 25 }
-  );
+  const member = { id: "member-1", premiumSince: new Date("2025-11-05T10:00:00Z") };
+  const guild = { id: "guild-1", premiumSubscriptionCount: 25 };
+  const first = await service.syncMember(member, guild);
+  assert.equal(first.active, true);
+  assert.equal(first.serverBoostCount, 25);
+  assert.equal(first.reward.item.id, "booster_crimson_katana");
+  assert.equal(first.reward.personalBoostCount, 1);
+  assert.deepEqual(first.granted.map((item) => item.id), ["booster_crimson_katana"]);
+  assert.equal(pool.state.personalBoostCount, 1);
+  assert.ok(pool.inventory.has("booster_crimson_katana"));
+  assert.ok(pool.equipped.has("booster_crimson_katana"));
+
+  const second = await service.syncMember(member, guild);
+  assert.equal(second.reward, null);
+  assert.equal(pool.state.personalBoostCount, 1);
+  assert.equal(pool.inventory.size, 1);
+});
+
+test("the configured Booster Role ID activates existing members and backfills only item one", async () => {
+  const { pool, service } = makeBoosterPool({ boosterRoleId: "1376299577581240410" });
+  const member = {
+    id: "member-1",
+    roles: { cache: new Map([["1376299577581240410", { id: "1376299577581240410" }]]) }
+  };
+  const result = await service.syncMember(member, { id: "guild-1", premiumSubscriptionCount: 25 });
   assert.equal(result.active, true);
-  assert.equal(result.serverBoostCount, 25);
-  assert.deepEqual(result.granted, []);
-  assert.equal(pool.state.personalBoostCount, 0);
-  assert.equal(pool.inventory.size, 0);
+  assert.equal(result.reward.item.id, "booster_crimson_katana");
+  assert.equal(pool.state.personalBoostCount, 1);
+  assert.ok(pool.inventory.has("booster_crimson_katana"));
 });
 
 test("members who stop boosting lose passive status but keep their earned special items", async () => {
