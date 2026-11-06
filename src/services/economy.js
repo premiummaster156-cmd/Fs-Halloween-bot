@@ -57,11 +57,15 @@ async function getLeaderboard(pool, guildId, metric = "wealth", limit = 10) {
   return result.rows;
 }
 
-function calculateCandyDrop(reason, gearBonus = 0, chanceRoll = Math.random(), amountRoll = Math.random()) {
+function calculateCandyDrop(reason, gearBonus = 0, chanceRoll = Math.random(), amountRoll = Math.random(), rebirths = 0) {
   const rule = balancing.candyDrops[reason];
-  if (!rule || chanceRoll >= Math.min(0.5, rule.chance + Math.max(0, Math.min(0.2, Number(gearBonus) || 0)))) return null;
+  if (!rule) return null;
+  const equippedBonus = Math.max(0, Math.min(0.20, Number(gearBonus) || 0));
+  const rebirthBonus = Math.min(0.20, Math.max(0, Math.floor(Number(rebirths) || 0)) * 0.02);
+  const dropChance = Math.min(0.60, Number(rule.chance) + equippedBonus + rebirthBonus);
+  if (chanceRoll >= dropChance) return null;
   const amount = rule.min + Math.floor(amountRoll * (rule.max - rule.min + 1));
-  return { amount, chance: Math.min(0.5, rule.chance + Math.max(0, Number(gearBonus) || 0)) };
+  return { amount, chance: dropChance, baseChance: Number(rule.chance), gearBonus: equippedBonus, rebirthBonus };
 }
 
 function getRebirthRequirements(player, claimedQuestCount = 0, inventoryRows = [], candyBalance = 0) {
@@ -257,7 +261,7 @@ class EconomyService {
     if (next < 0) throw new DomainError("You do not have enough FS Coins in your wallet.", "INSUFFICIENT_FUNDS");
 
     const candyDrop = appliedAmount > 0
-      ? calculateCandyDrop(reason, gear.candyDropBonus || 0)
+      ? calculateCandyDrop(reason, gear.candyDropBonus || 0, Math.random(), Math.random(), Number(result.rows[0].prestige) || 0)
       : null;
     const lifetimeEarned = LIFETIME_EARNING_REASONS.has(reason) ? Math.max(0, appliedAmount) : 0;
     const lifetimeSpent = LIFETIME_SPENDING_REASONS.has(reason) ? Math.max(0, -appliedAmount) : 0;
@@ -284,6 +288,25 @@ class EconomyService {
       );
     }
     return { duplicate: false, balance: next, delta: appliedAmount, walletDelta, bankDelta, baseDelta: amount, candyDrop };
+  }
+
+  async rollCandyDropTx(client, guildId, userId, reason) {
+    const player = await client.query(
+      "SELECT prestige FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE",
+      [guildId, userId]
+    );
+    if (!player.rowCount) return null;
+    const gear = this.inventory ? await this.inventory.getEffectsTx(client, guildId, userId) : {};
+    const drop = calculateCandyDrop(
+      reason, gear.candyDropBonus || 0, Math.random(), Math.random(), Number(player.rows[0].prestige) || 0
+    );
+    if (!drop) return null;
+    await client.query(
+      "INSERT INTO event_wallets (guild_id, user_id, event_id, candy, points) VALUES ($1, $2, $3, $4, 0) " +
+      "ON CONFLICT (guild_id, user_id, event_id) DO UPDATE SET candy = event_wallets.candy + EXCLUDED.candy, updated_at = NOW()",
+      [guildId, userId, balancing.halloween.eventId, drop.amount]
+    );
+    return drop;
   }
 
   async addXpTx(client, guildId, userId, amount, roleIds = [], activityBonus = 0) {
