@@ -52,7 +52,7 @@ Use the dashboard for the other player features, including the permanent Achieve
 
 The admin console retains its custom JavaScript command workspace. A custom slash command appears in Discord only when an authorized administrator explicitly publishes it; the default deployment contains only the three built-in commands.
 
-Casino games have a 100 FC minimum bet and no maximum bet; wagers are limited only by the player's available wallet balance. The base cooldown is 15 seconds and there is no daily wager cap. Equipped casino gear can increase the frequency of winning results and shorten the cooldown, while adjusting winning payouts to keep the published long-run return fair. Coin Flip, High Dice and Slots each have a base theoretical return of 95%. Slots has a 1% Jackpot (10×), 4% Big win (4×), 20% Small win (3.45×), and 75% no-win chance.
+Casino games have a 100 FC minimum bet and no maximum bet; wagers are limited only by the player's available wallet balance. The base cooldown is 10 seconds and there is no daily wager cap. Equipped casino gear can increase the frequency of winning results and shorten the cooldown, while adjusting winning payouts to keep the published long-run return fair. Coin Flip, High Dice and Slots each have a base theoretical return of 95%. Slots has a 1% Jackpot (10×), 4% Big win (4×), 20% Small win (3.45×), and 75% no-win chance.
 
 Normal FC rewards from Daily, Work, Crime, Heists, chat activity and achievements are multiplied by 3×. Rebirth and equipped gear bonuses still stack on top. Casino payouts are deliberately excluded from this boost so their published 95% theoretical return remains unchanged.
 
@@ -64,7 +64,7 @@ Members actively boosting this server receive automatic passive bonuses across F
 
 **One-time server setup for automatic booster items:** in Discord, open **Server Settings → Overview → System Messages Channel** and enable **Send a message when someone boosts this server**. The bot must be able to view that channel and read its messages. Personal boost #1–#5 each grants the matching MYTHIC item automatically; if the boost notification is not delivered to a channel the bot can read, that boost cannot be counted. Older boosts from before setup are not backfilled. The bot counts Discord's personal **GUILD_BOOST** system messages and ignores the separate server-tier milestone messages. Discord's member object exposes a boost-start timestamp, not a per-member boost quantity, so personal reward progress starts with the boost notifications the bot receives after this feature is deployed.
 
-Equipment bonuses apply only while equipped. Every item can be upgraded five times, with higher tiers unlocking at higher player levels. Gear improves FC/XP income, work, crime, heists, casino odds, cooldowns and Candy drops. The endgame equipment line adds eight named passive abilities — PHASE, DREAD, AEGIS, REBIRTH, EXECUTE, HASTE, HEX and ASCEND — with each ability represented by real equipment stats. Casino gear changes hit frequency while payouts are recalculated to preserve the published long-run return. Candy drops remain available after the Halloween event schedule ends. Rebirth requires combined wallet/bank wealth, player level, claimed normal event quests, an active career at the required job level and work shifts completed in the current run. The first two rebirths do not require gear or Candy-shop collectibles; from the third rebirth onward, unique equipment, unique Candy-shop collectibles and a Candy reserve are required, with combined gear upgrades required from the fourth onward. The first rebirth requires 500,000 FC and level 35. Later wealth targets grow by 1.09× per rebirth, player-level targets grow by 5.65 levels per rebirth and cap at level 600, quest claims rise to six, career job level rises to 30, and work shifts cap at 30. Each rebirth resets wallet to 1,000 FC, bank to zero, player level to 1 and current career, while permanent earnings scale linearly: 1× at zero rebirths, 1.5× at one, 2× at two, 2.5× at three, reaching 51× at 100 rebirths. The maximums are level 600 and 100 rebirths.
+Equipment bonuses apply only while equipped. Every item can be upgraded five times, with higher tiers unlocking at higher player levels. Gear improves FC/XP income, work, crime, heists, casino odds, cooldowns and Candy drops. The endgame equipment line adds eight named passive abilities — PHASE, DREAD, AEGIS, REBIRTH, EXECUTE, HASTE, HEX and ASCEND — with each ability represented by real equipment stats. Casino gear changes hit frequency while payouts are recalculated to preserve the published long-run return. Candy drops remain available after the Halloween event schedule ends. Rebirth requires combined wallet/bank wealth, player level, claimed normal event quests, an active career at the required job level and work shifts completed in the current run. The first two rebirths do not require gear or Candy-shop collectibles; from the third rebirth onward, unique equipment, unique Candy-shop collectibles and a Candy reserve are required, with combined gear upgrades required from the fourth onward. The final season runs through November 30, 2026. The first rebirth requires 20,000 FC, level 12, one claimed event quest, career level 2 and three work shifts. Wallet targets rise by 10,000 FC and level targets by four per rebirth. Quest claims, career levels and work shifts rise gradually and cap at 4, 10 and 10. Gear/Candy/upgrade milestones begin only after the first two rebirths, are spaced out and cap at four gear items, three Candy collectibles, 70 unspent Candy and five upgrade levels. Rebirth resets wallet to 2,500 FC, bank to zero, player level to 1 and current career, while permanent earnings scale linearly: 1× at zero rebirths, 1.5× at one, 2× at two, 2.5× at three, reaching 51× at 100 rebirths. The maximums are level 600 and 100 rebirths.
 
 ### First steps
 
@@ -146,8 +146,8 @@ All admin actions are restricted to the server owner, configured bot owner and c
 
 The Rift Arena is available from **/menu → Game Room → Rift Arena**.
 
-- Six solo bosses unlock at player levels 1, 25, 75, 150, 300 and 500, ending with the Dragon Sovereign.
-- Battles persist in PostgreSQL. A player can have only one active encounter, and starting a fresh encounter has a 20-minute cooldown.
+- Six solo bosses unlock at player levels 1, 20, 40, 60, 80 and 100, ending with the Dragon Sovereign.
+- Battles persist in PostgreSQL. A player can have only one active encounter, and starting a fresh encounter has a 10-minute cooldown.
 - Each equipped endgame item grants its named active power once per battle, in addition to its existing passive gear bonuses:
   - **PHASE** — evade the boss's next counterstrike.
   - **DREAD** — weaken the next three boss strikes.
@@ -162,3 +162,17 @@ The Rift Arena is available from **/menu → Game Room → Rift Arena**.
 - The Arena dashboard includes health bars, combat effects and a custom beveled HUD image rendered with `@napi-rs/canvas`. The image uses a 3D-inspired, layered 2D illustration; Discord embeds themselves are not true 3D scenes.
 
 **Implementation status:** Rift Arena is on feature branch `active-abilities-rift-arena` under [PR #28](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/pull/28). CI runs 42284197549 (gameplay and PNG HUD test) and 42284303743 (documentation follow-up) passed. No gameplay code changed in the documentation-only follow-up. The PR remains unmerged while Neon migration and Discord test-server validation are outstanding.
+
+
+## Final-season balance — through November 30, 2026
+
+This is a short, playable finale, not a multi-month grind. The default event end is December 1, 2026 at 00:00 UTC (05:00 in Tashkent), including the full November 30 local day. The bot does not automatically shut down after the event.
+
+- Level cap 600; rebirth cap 100; XP per level: `80 + 12 × current level`.
+- First rebirth: 20,000 FC, level 12, one claimed event quest, career level 2 and three current-run work shifts.
+- Each further rebirth adds 10,000 FC and four levels. Quest claims cap at 4; career level at 10; work shifts at 10.
+- Gear milestones begin at rebirth #3, Candy collectibles at #4, and gear upgrades at #5. All are spaced out and capped.
+- Rebirth reset: 2,500 FC wallet, bank zero, level 1 and no career. Gear, upgrades, Candy collectibles and lifetime records persist.
+- Career unlocks, gear prices, crimes, heists, weekly quests, Halloween quests, Candy shop, achievements, Party Fortune and Arena boss gates are reduced for the short season.
+- Casino retains a 95% theoretical return, 100 FC minimum bet and no daily wager cap; base cooldown is 10 seconds.
+- Normal FC rewards retain the 3× multiplier. Booster-exclusive rewards and automatic boost assignment remain unchanged.
