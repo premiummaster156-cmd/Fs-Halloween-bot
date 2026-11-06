@@ -208,7 +208,7 @@ test("3x FC earnings keep meaningful progression and equipment sinks", () => {
   const averageLevelOneDaily = ((balancing.economy.dailyMin + balancing.economy.dailyMax) / 2 + 8) *
     balancing.economy.earningMultiplier;
   assert.equal(averageLevelOneDaily, 2274);
-  assert.equal(balancing.rebirth.firstWalletRequirement, 20000);
+  assert.equal(balancing.rebirth.firstWalletRequirement, 15000);
   assert.equal(balancing.progression.xpMultiplier, 1);
   assert.equal(balancing.progression.roleBoosterMultiplier, 1.2);
   assert.ok(balancing.rebirth.firstWalletRequirement > averageLevelOneDaily * 5);
