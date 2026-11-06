@@ -1,6 +1,9 @@
 const settings = require("../config/settings");
 
-const settingKeys = new Set(["adminRoleId", "logChannelId", "halloweenRoleId", "xpBoosterRoleId"]);
+const settingKeys = new Set([
+  "adminRoleId", "logChannelId", "halloweenRoleId", "xpBoosterRoleId",
+  "memberCommandsChannelId"
+]);
 
 class GuildSettingsService {
   constructor(pool) { this.pool = pool; }
@@ -11,10 +14,15 @@ class GuildSettingsService {
       "SELECT setting_value FROM guild_settings WHERE guild_id = $1 AND setting_key = $2",
       [guildId, key]
     );
-    if (result.rowCount) return result.rows[0].setting_value;
+    if (result.rowCount) {
+      const value = result.rows[0].setting_value;
+      if (key === "memberCommandsChannelId") return value || settings.memberCommandsChannelId || null;
+      return value;
+    }
     if (key === "adminRoleId") return settings.adminRoleIds[0] || null;
     if (key === "logChannelId") return settings.logChannelId || null;
     if (key === "halloweenRoleId") return settings.defaultEventRoleId || null;
+    if (key === "memberCommandsChannelId") return settings.memberCommandsChannelId || null;
     return null;
   }
 
@@ -28,7 +36,8 @@ class GuildSettingsService {
       adminRoleId: Object.hasOwn(values, "adminRoleId") ? values.adminRoleId : settings.adminRoleIds[0] || null,
       logChannelId: Object.hasOwn(values, "logChannelId") ? values.logChannelId : settings.logChannelId || null,
       halloweenRoleId: Object.hasOwn(values, "halloweenRoleId") ? values.halloweenRoleId : settings.defaultEventRoleId || null,
-      xpBoosterRoleId: Object.hasOwn(values, "xpBoosterRoleId") ? values.xpBoosterRoleId : null
+      xpBoosterRoleId: Object.hasOwn(values, "xpBoosterRoleId") ? values.xpBoosterRoleId : null,
+      memberCommandsChannelId: values.memberCommandsChannelId || settings.memberCommandsChannelId || null
     };
   }
 
