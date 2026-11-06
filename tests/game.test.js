@@ -256,7 +256,7 @@ test("booster-only equipment cannot satisfy normal rebirth gear milestones", () 
   const status = getRebirthRequirements(player, 6, [
     { item_id: "booster_crimson_katana", quantity: 1, upgrade_level: 5 }
   ], 25);
-  assert.equal(status.gearItemsRequired, 1);
+  assert.equal(status.gearItemsRequired, 3);
   assert.equal(status.gearItemsCount, 0);
   assert.equal(status.gearUpgradeLevels, 0);
   assert.equal(status.checks.gearItems, false);
