@@ -194,6 +194,28 @@ CREATE TABLE IF NOT EXISTS weekly_activity (
 CREATE INDEX IF NOT EXISTS weekly_activity_leaderboard_idx
   ON weekly_activity (guild_id, week_start, messages DESC, user_id);
 
+CREATE TABLE IF NOT EXISTS weekly_quest_progress (
+  guild_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  week_start DATE NOT NULL,
+  quest_id TEXT NOT NULL,
+  progress BIGINT NOT NULL DEFAULT 0 CHECK (progress >= 0),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (guild_id, user_id, week_start, quest_id)
+);
+CREATE INDEX IF NOT EXISTS weekly_quest_progress_user_idx
+  ON weekly_quest_progress (guild_id, user_id, week_start);
+
+CREATE TABLE IF NOT EXISTS weekly_quest_claims (
+  guild_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  week_start DATE NOT NULL,
+  quest_id TEXT NOT NULL,
+  candy BIGINT NOT NULL CHECK (candy >= 0),
+  claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (guild_id, user_id, week_start, quest_id)
+);
+
 CREATE TABLE IF NOT EXISTS daily_chat_rewards (
   guild_id TEXT NOT NULL,
   user_id TEXT NOT NULL,
