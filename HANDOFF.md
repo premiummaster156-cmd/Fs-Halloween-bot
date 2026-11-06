@@ -25,7 +25,7 @@ Implemented on this branch:
 - Rebirth wealth requirement growth changed from 2× to 1.15× per rebirth; level target grows by 5.5 per rebirth and caps at 600.
 - Rebirth service blocks further rebirth after 100.
 - XP progression and admin Set Level / Set Rebirth controls use the new caps.
-- PostgreSQL schema adds idempotent checks for level 1–600 and prestige 0–100.
+- Database migration adds idempotent PostgreSQL checks for level 1–600 and prestige 0–100.
 - Eight new endgame items with named passive abilities: PHASE, DREAD, AEGIS, REBIRTH, EXECUTE, HASTE, HEX, ASCEND.
 - Equipment shop displays rarity and ability descriptions.
 - Member activity log channel receives compact themed embeds with readable fields rather than raw JSON. Full details remain in the PostgreSQL audit log.
