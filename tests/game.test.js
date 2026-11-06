@@ -287,6 +287,7 @@ test("rebirth requirements use a substantially harder level, wealth and activity
   assert.equal(balancing.rebirth.jobLevelGrowthEvery, 1);
   assert.equal(balancing.rebirth.firstWorkShiftsRequirement, 20);
   assert.equal(balancing.rebirth.workShiftsGrowth, 10);
+  assert.equal(balancing.rebirth.maxWorkShiftsRequirement, 30);
   assert.equal(balancing.rebirth.itemRequirementsStartAt, 2);
   assert.equal(balancing.rebirth.gearUpgradeRequirementsStartAt, 3);
   assert.equal(balancing.rebirth.firstGearItemsRequirement, 2);
@@ -365,6 +366,18 @@ test("third and later rebirths require unique gear, Candy collectibles, Candy ba
   assert.equal(ready.candyItemsCount, 3);
   assert.equal(ready.gearUpgradeLevels, 2);
   assert.equal(ready.eligible, true);
+});
+
+test("rebirth work-shift requirements never exceed 30 completed shifts", () => {
+  const { getRebirthRequirements } = require("../src/services/economy");
+  const player = {
+    wallet: 0, bank: 0, level: 1, job_id: "street_runner",
+    job_level: 1, rebirth_work_count: 0
+  };
+  assert.equal(getRebirthRequirements({ ...player, prestige: 0 }).workShiftsRequired, 20);
+  assert.equal(getRebirthRequirements({ ...player, prestige: 1 }).workShiftsRequired, 30);
+  assert.equal(getRebirthRequirements({ ...player, prestige: 2 }).workShiftsRequired, 30);
+  assert.equal(getRebirthRequirements({ ...player, prestige: 8 }).workShiftsRequired, 30);
 });
 
 test("Candy-drop chances vary by earning action and equipped gear increases them", () => {
