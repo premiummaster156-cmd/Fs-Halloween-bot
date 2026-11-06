@@ -1340,7 +1340,7 @@ async function handleButton(i, s) {
       if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner, bot owner, or configured Admin Role can edit member currency and progression.", flags: MessageFlags.Ephemeral });
       const isLevel = action === "set-level";
       return i.showModal(modal("admin:" + owner + ":" + action + ":" + target, isLevel ? "Set player level" : action === "remove-fc" ? "Remove FS Coins" : action === "grant-xp" ? "Grant XP" : "Grant FS Coins", [
-        { id: isLevel ? "level" : "amount", label: isLevel ? "New level (1–100)" : "Amount", placeholder: isLevel ? "10" : "1000", max: 12 },
+        { id: isLevel ? "level" : "amount", label: isLevel ? "New level (1–600)" : "Amount", placeholder: isLevel ? "10" : "1000", max: 12 },
         { id: "reason", label: "Audit reason", paragraph: true, max: 500 }
       ]));
     }
@@ -1352,7 +1352,7 @@ async function handleButton(i, s) {
     }
     if (action === "set-rebirth") {
       return i.showModal(modal("admin:" + owner + ":set-rebirth:" + target, "Set rebirth count", [
-        { id: "rebirths", label: "New rebirth count (0–20)", placeholder: "4", max: 2 },
+        { id: "rebirths", label: "New rebirth count (0–100)", placeholder: "4", max: 3 },
         { id: "reason", label: "Audit reason", paragraph: true, max: 500 }
       ]));
     }
@@ -1603,8 +1603,8 @@ async function handleModal(i, s) {
           await s.economy.ensurePlayerTx(c, i.guildId, target);
           const current = await c.query("SELECT level, xp FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [i.guildId, target]);
           let level = Number(current.rows[0].level), xp = Number(current.rows[0].xp) + amount, gained = 0;
-          while (level < 100 && xp >= levelXpRequired(level)) { xp -= levelXpRequired(level); level += 1; gained += 1; }
-          if (level >= 100) xp = 0;
+          while (level < balancing.progression.maxLevel && xp >= levelXpRequired(level)) { xp -= levelXpRequired(level); level += 1; gained += 1; }
+          if (level >= balancing.progression.maxLevel) xp = 0;
           await c.query("UPDATE players SET level = $3, xp = $4, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [i.guildId, target, level, xp]);
           return { level, gained };
         });
@@ -1619,7 +1619,7 @@ async function handleModal(i, s) {
       return i.editReply(panel(delta > 0 ? "FS COINS GRANTED" : "FS COINS REMOVED", (delta > 0 ? "Granted " : "Removed ") + "**" + amount.toLocaleString() + " FC** " + (delta > 0 ? "for " : "from ") + "<@" + target + ">.", [{ name: "Audit reason", value: reason }], [], "success"));
     }
     if (action === "set-level") {
-      const level = numberField(i, "level", 1, 100, "Level");
+      const level = numberField(i, "level", 1, balancing.progression.maxLevel, "Level");
       await s.economy.transact(async (c) => {
         await s.economy.ensurePlayerTx(c, i.guildId, target);
         await c.query("UPDATE players SET level = $3, xp = 0, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [i.guildId, target, level]);
@@ -1629,7 +1629,7 @@ async function handleModal(i, s) {
       return i.editReply(panel("PLAYER LEVEL UPDATED", "Set <@" + target + ">'s player level to **" + level + "**. Current-level XP was reset to zero.", [{ name: "Audit reason", value: reason }], [], "success"));
     }
     if (action === "set-rebirth") {
-      const rebirths = numberField(i, "rebirths", 0, 20, "Rebirth count");
+      const rebirths = numberField(i, "rebirths", 0, balancing.progression.maxRebirths, "Rebirth count");
       await s.economy.transact(async (c) => {
         await s.economy.ensurePlayerTx(c, i.guildId, target);
         await c.query(
