@@ -18,7 +18,7 @@ module.exports = {
   logChannelId: process.env.LOG_CHANNEL_ID || "",
   memberCommandsChannelId: process.env.MEMBER_COMMANDS_CHANNEL_ID || "1566508610459271478",
   defaultEventRoleId: process.env.HALLOWEEN_ROLE_ID || "",
-  halloweenEndsAt: process.env.HALLOWEEN_ENDS_AT || "2026-11-30T00:00:00.000Z",
+  halloweenEndsAt: process.env.HALLOWEEN_ENDS_AT || "2026-12-01T00:00:00.000Z",
   startingWallet: Math.max(0, Math.floor(numberOr(process.env.STARTING_WALLET, 5000))),
   currencyName: process.env.CURRENCY_NAME || "FS Coins",
   currencySymbol: process.env.CURRENCY_SYMBOL || "FC",
