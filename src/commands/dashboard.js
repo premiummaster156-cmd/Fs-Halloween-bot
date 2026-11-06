@@ -192,7 +192,7 @@ async function renderMenu(guildId, owner, page, s) {
     const seasonal = await s.halloween.status(guildId, owner);
     const career = balancing.jobs.find((j) => j.id === p.job_id);
     const wealth = Number(p.wallet) + Number(p.bank);
-    return panel("FUKISHOKAI  /  PLAYER HUB", "NEW HERE? Start with Careers → choose a job → Earn → Daily or Work. Gear makes you stronger. Games are optional and can cost FC. Use How to play if you get stuck.",
+    return panel("FUKISHOKAI  /  PLAYER HUB", "Earn FC with Daily and Work. Complete weekly quests for Candy, then spend it on Halloween collectibles.",
       [
         { name: "💎 Total wealth", value: wealth.toLocaleString() + " FC", inline: true },
         { name: "👛 Wallet", value: Number(p.wallet).toLocaleString() + " FC", inline: true },
@@ -205,7 +205,7 @@ async function renderMenu(guildId, owner, page, s) {
       [
         row(btn(owner, "profile", "Profile", ButtonStyle.Primary, "👤"), btn(owner, "earn", "Earn", ButtonStyle.Success, "💰"), btn(owner, "career", "Careers", ButtonStyle.Secondary, "💼"), btn(owner, "gear", "Gear", ButtonStyle.Secondary, "🎒"), btn(owner, "games", "Games", ButtonStyle.Secondary, "🎮")),
         row(btn(owner, "heists", "Heists", ButtonStyle.Secondary, "🕵️"), btn(owner, "event", "Halloween", ButtonStyle.Secondary, "🎃"), btn(owner, "bank", "Bank", ButtonStyle.Secondary, "🏦"), btn(owner, "transfer", "Transfer", ButtonStyle.Secondary, "↗️"), btn(owner, "rankings", "Rankings", ButtonStyle.Secondary, "🏆")),
-        row(btn(owner, "rebirth", "Rebirth", ButtonStyle.Primary, "♻️"), btn(owner, "achievements", "Achievements", ButtonStyle.Secondary, "🏅"), btn(owner, "help", "How to play", ButtonStyle.Secondary, "📖"), btn(owner, "refresh", "Refresh", ButtonStyle.Secondary, "🔄"))
+        row(btn(owner, "rebirth", "Rebirth", ButtonStyle.Primary, "♻️"), btn(owner, "achievements", "Achievements", ButtonStyle.Secondary, "🏅"), btn(owner, "weekly", "Weekly quests", ButtonStyle.Secondary, "🍬"), btn(owner, "help", "How to play", ButtonStyle.Secondary, "📖"), btn(owner, "refresh", "Refresh", ButtonStyle.Secondary, "🔄"))
       ], "info", "FUKISHOKAI  •  Private player dashboard");
   }
   if (page === "profile") {
@@ -525,8 +525,8 @@ async function renderMenu(guildId, owner, page, s) {
       [
         { name: "🍬 Candy balance", value: Number(r.wallet.candy || 0).toLocaleString() + " Candy", inline: true },
         { name: "Weekly activity", value: bar(weekly.messages, weekly.goal) + "\nAll human-member messages count toward your weekly total, without a counting cooldown." },
-        { name: "Candy drops", value: "Daily 12% · Work 20% · Crime 14% · Heists 26% · Casino payouts 6% · Chat FC rewards 2.5%. Equipped gear adds up to 20 percentage points; upgrades strengthen the bonus." }
-      ], [row(btn(owner, "event-shop", "Candy shop", ButtonStyle.Primary), btn(owner, "weekly", "Weekly mission", ButtonStyle.Secondary)), nav]);
+        { name: "Candy drops", value: "Daily, Work, successful Crimes, Heists, Casino rounds, Chat earnings and Achievements. Equipped gear and rebirths improve the chance." }
+      ], [row(btn(owner, "event-shop", "Candy shop", ButtonStyle.Primary), btn(owner, "weekly", "Weekly quests", ButtonStyle.Secondary)), nav]);
     const progress = new Map(r.progress.map((x) => [x.quest_id, Number(x.progress)]));
     const claims = new Set(r.claims);
     const lines = r.quests.map((q) => {
@@ -545,16 +545,35 @@ async function renderMenu(guildId, owner, page, s) {
       ], controls);
   }
   if (page === "weekly") {
-    const w = await s.activity.getWeekly(guildId, owner);
+    const [w, q] = await Promise.all([
+      s.activity.getWeekly(guildId, owner),
+      s.weeklyQuests.status(guildId, owner)
+    ]);
     const ev = await s.halloween.getEvent(guildId);
-    const active = ev && ev.enabled && new Date(ev.starts_at).getTime() <= Date.now() && new Date(ev.ends_at).getTime() > Date.now();
-    const canClaim = w.messages >= w.goal && active;
-    return panel("WEEKLY ACTIVITY MISSION", "Every message from a human member counts toward your weekly total, including rapid or spam messages. Bot and webhook messages are ignored. Chat FC and XP rewards still have daily caps.", [
-      { name: "Your progress", value: bar(w.messages, w.goal) },
-      { name: "Reward", value: balancing.halloween.weeklyMessageCandyReward + " Candy · " + balancing.halloween.weeklyMessagePointsReward + " event points", inline: true },
-      { name: "Week begins", value: w.weekStart, inline: true },
-      { name: "Claim status", value: canClaim ? "Ready to claim" : active ? "Keep chatting to reach the target" : "The event must be active to claim" }
-    ], [...(canClaim ? [row(btn(owner, "weekly-claim", "Claim weekly reward", ButtonStyle.Success, "🎁"))] : []), nav]);
+    const eventActive = Boolean(ev && ev.enabled && new Date(ev.starts_at).getTime() <= Date.now() && new Date(ev.ends_at).getTime() > Date.now());
+    const chatReady = w.messages >= w.goal && eventActive;
+    const questFields = q.quests.map((quest) => ({
+      name: (quest.claimed ? "✅ " : quest.ready ? "🎁 " : "▫️ ") + quest.name + " · " + quest.progress + "/" + quest.goal,
+      value: bar(quest.progress, quest.goal, 9) + " · " + quest.candy + " Candy" +
+        (quest.claimed ? " · Claimed" : quest.ready ? " · Ready to claim" : "")
+    }));
+    const ready = q.quests.filter((quest) => quest.ready);
+    const controls = [];
+    if (ready.length) controls.push(menu(owner, "weekly-quest-claim", "Claim completed weekly quest", ready.map((quest) => ({
+      label: quest.name, value: quest.id, description: "+" + quest.candy + " Candy"
+    }))));
+    if (chatReady) controls.push(row(btn(owner, "weekly-claim", "Claim chat reward", ButtonStyle.Success, "🎁")));
+    controls.push(row(btn(owner, "event-shop", "Candy shop", ButtonStyle.Secondary), btn(owner, "event", "Halloween event", ButtonStyle.Secondary), btn(owner, "weekly", "Refresh", ButtonStyle.Primary)));
+    controls.push(nav);
+    return panel("WEEKLY QUESTS", "Resets every Monday. Finish these tasks to earn up to **" + q.totalWeeklyCandy + " Candy each week**. Candy also drops from gameplay.",
+      [
+        { name: "🍬 Candy balance", value: q.candyBalance.toLocaleString() + " Candy", inline: true },
+        { name: "Week starting", value: q.weekStart, inline: true },
+        ...questFields,
+        { name: "💬 Weekly chat mission", value: bar(w.messages, w.goal, 9) + " · " + w.messages.toLocaleString() + "/" + w.goal.toLocaleString() + " messages" +
+          (chatReady ? " · Ready to claim" : !eventActive ? " · Halloween event inactive" : "") +
+          (eventActive ? "\\nReward: " + balancing.halloween.weeklyMessageCandyReward + " Candy + " + balancing.halloween.weeklyMessagePointsReward + " points" : "") }
+      ], controls);
   }
   if (page === "event-shop") {
     const status = await s.halloween.status(guildId, owner);
@@ -960,8 +979,17 @@ async function handleSelection(i, s, scope, owner, action, parts) {
     if (value === owner) return i.reply({ content: "You cannot transfer FC to yourself.", flags: MessageFlags.Ephemeral });
     return i.showModal(modal("dash:" + owner + ":transfer-modal:" + value, "Send FS Coins", [{ id: "amount", label: "Amount in FC", placeholder: "1000", max: 12 }]));
   }
-  if (action === "equip" || action === "unequip" || action === "shop-buy" || action === "upgrade-item" || action === "crime-run" || action === "event-claim" || action === "event-buy" || action === "ranking-type" || action === "achievement-claim") {
+  if (action === "equip" || action === "unequip" || action === "shop-buy" || action === "upgrade-item" || action === "crime-run" || action === "event-claim" || action === "event-buy" || action === "ranking-type" || action === "achievement-claim" || action === "weekly-quest-claim") {
     await i.deferUpdate();
+    if (action === "weekly-quest-claim") {
+      const result = await s.weeklyQuests.claim(i.guildId, owner, value);
+      await recordMemberAction(i, s, "weekly_quest_claimed",
+        "claimed the weekly quest **" + result.quest.name + "** and received " + result.candy + " Candy.",
+        { questId: result.quest.id, weekStart: result.weekStart, candy: result.candy });
+      return i.editReply(panel("WEEKLY QUEST CLAIMED", "**" + result.quest.name + "** · +" + result.candy + " Candy",
+        [{ name: "Candy balance", value: result.candyBalance.toLocaleString() }],
+        [row(btn(owner, "weekly", "Back to weekly quests")), navButton(owner)], "success"));
+    }
     if (action === "achievement-claim") {
       const result = await s.achievements.claim(i.guildId, owner, value, memberRoleIds(i));
       await recordMemberAction(i, s, "achievement_claimed",
@@ -1451,6 +1479,7 @@ async function handleButton(i, s) {
       [row(btn(owner, "event", "Back to Halloween")), navButton(owner)], "success"));
   }
   if (action === "event-refresh") return i.update(await renderMenu(i.guildId, owner, "event", s));
+  if (action === "weekly-refresh") return i.update(await renderMenu(i.guildId, owner, "weekly", s));
 }
 
 async function handleModal(i, s) {
