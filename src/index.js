@@ -23,7 +23,6 @@ const { SecurityService } = require("./services/security");
 const { ServerBoosterService } = require("./services/server-boosters");
 const { CustomCommandService } = require("./services/custom-commands");
 const { respond } = require("./ui");
-const { sendCandyDropNotification } = require("./utils/member-notifications");
 
 async function start() {
   if (!settings.discordToken) throw new Error("DISCORD_TOKEN is missing.");
@@ -243,15 +242,11 @@ async function start() {
       await serverBoosters.syncMember(message.member, message.guild)
         .catch((error) => console.warn("[boosters] Message boost sync failed:", error.message));
     }
-    const activityResult = await client.services.activity.trackMessage(message, roleIds).catch((error) => {
+    // Chat Candy drops are credited silently. Per-message public notices became noisy;
+    // players can see their Candy balance on /profile and in the Weekly Quests dashboard.
+    await client.services.activity.trackMessage(message, roleIds).catch((error) => {
       console.error("[activity] Message tracking failed:", error.message);
-      return null;
     });
-    if (activityResult?.candyDrop) {
-      await sendCandyDropNotification(
-        client, guildSettings, message.guildId, message.author.id, activityResult.candyDrop.amount
-      ).catch((error) => console.warn("[activity] Candy drop announcement failed:", error.message));
-    }
   });
 
   client.on(Events.GuildUpdate, (_oldGuild, newGuild) => {
