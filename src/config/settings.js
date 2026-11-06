@@ -13,6 +13,8 @@ module.exports = {
   databaseUrl: process.env.DATABASE_URL || "",
   ownerId: process.env.OWNER_ID || "",
   adminRoleIds: parseList(process.env.ADMIN_ROLE_IDS),
+  // Role assigned to members who currently boost this Discord server.
+  boosterRoleId: process.env.BOOSTER_ROLE_ID || "1376299577581240410",
   logChannelId: process.env.LOG_CHANNEL_ID || "",
   defaultEventRoleId: process.env.HALLOWEEN_ROLE_ID || "",
   halloweenEndsAt: process.env.HALLOWEEN_ENDS_AT || "2026-11-30T00:00:00.000Z",
