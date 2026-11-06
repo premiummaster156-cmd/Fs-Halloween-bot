@@ -12,6 +12,7 @@ const { JobsGame } = require("./games/jobs");
 const { CrimeGame } = require("./games/crime");
 const { CasinoGame } = require("./games/casino");
 const { HeistsGame } = require("./games/heists");
+const { RiftArena } = require("./games/arena");
 const { AchievementsGame } = require("./games/achievements");
 const { HalloweenGame } = require("./games/halloween");
 const { PartyGameService } = require("./services/party-games");
@@ -45,6 +46,7 @@ async function start() {
     crime: new CrimeGame(pool, economy, inventory),
     casino: new CasinoGame(pool, economy, inventory),
     heists: new HeistsGame(pool, economy, inventory),
+    arena: new RiftArena(pool, economy, inventory),
     achievements: new AchievementsGame(pool, economy),
     halloween: new HalloweenGame(pool, guildSettings),
     activity: new ActivityService(pool, economy),
