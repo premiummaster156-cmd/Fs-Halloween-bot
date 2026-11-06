@@ -50,9 +50,9 @@ test("every career has a distinct passive perk", () => {
   assert.equal(balancing.careerEffects.underboss.heistChance, 4);
 });
 
-test("crime and heist catalogs provide a full six-operation and five-mission progression", () => {
-  assert.equal(balancing.crimes.length, 6);
-  assert.equal(balancing.heists.length, 5);
+test("crime and heist catalogs provide a ten-operation and nine-mission progression", () => {
+  assert.equal(balancing.crimes.length, 10);
+  assert.equal(balancing.heists.length, 9);
   assert.equal(new Set(balancing.crimes.map((item) => item.id)).size, balancing.crimes.length);
   assert.equal(new Set(balancing.heists.map((item) => item.id)).size, balancing.heists.length);
   assert.ok(balancing.crimes.every((item) => item.cooldownMs > 0 && item.rewardMax >= item.rewardMin));
