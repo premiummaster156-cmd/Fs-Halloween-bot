@@ -301,8 +301,8 @@ test("rebirth requirements use a substantially harder level, wealth and activity
   assert.equal(balancing.rebirth.startingWallet, 1000);
   assert.equal(balancing.rebirth.firstWalletRequirement, 500000);
   assert.equal(balancing.rebirth.firstLevelRequirement, 35);
-  assert.equal(balancing.rebirth.walletRequirementGrowth, 1.15);
-  assert.equal(balancing.rebirth.levelRequirementGrowth, 5.5);
+  assert.equal(balancing.rebirth.walletRequirementGrowth, 1.09);
+  assert.equal(balancing.rebirth.levelRequirementGrowth, 5.65);
   assert.equal(balancing.rebirth.firstQuestClaimsRequirement, 3);
   assert.equal(balancing.rebirth.questClaimsGrowth, 1);
   assert.equal(balancing.rebirth.firstJobLevelRequirement, 5);
