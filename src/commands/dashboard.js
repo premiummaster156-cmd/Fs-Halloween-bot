@@ -1590,11 +1590,22 @@ async function handleModal(i, s) {
         });
         const snapshot = board.snapshot || await s.heists.status(i.guildId, id);
         await announceHeistResult(i, snapshot, r.crew);
-        await safeAudit(i, s, "heist_completed", owner, {
-          heistId: id, missionId: r.mission.id, succeeded: r.succeeded,
-          totalPayout: r.totalPayout, successChance: r.successChance
-        });
-        await safeSendLog(i, s, "A heist mission finished with status " + (r.succeeded ? "success" : "failed") + ".");
+        const heistDetails = {
+          heistId: id,
+          missionId: r.mission.id,
+          succeeded: r.succeeded,
+          totalPayout: r.totalPayout,
+          successChance: r.successChance,
+          triggeredAbilities: [...new Set(r.crew.flatMap((member) => member.triggeredAbilities || []))]
+        };
+        await safeAudit(i, s, "heist_completed", owner, heistDetails);
+        if (!await s.security.isAboveBotRole(i.guild, owner)) {
+          await sendActivityLog(i.client, i.guildId, {
+            action: "heist_completed", actorId: owner,
+            displayName: i.member?.displayName || i.user.globalName || i.user.username,
+            details: heistDetails, kind: r.succeeded ? "success" : "warning"
+          });
+        }
         return i.editReply(panel(r.succeeded ? "HEIST SUCCESSFUL" : "HEIST FAILED",
           r.succeeded ? "Your crew completed **" + r.mission.name + "** and secured **" + r.totalPayout.toLocaleString() + " FC** in total. The result is now visible in the channel."
             : "Your crew's attempt at **" + r.mission.name + "** was unsuccessful. The final result is visible in the channel.",
