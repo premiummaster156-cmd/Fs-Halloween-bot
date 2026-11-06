@@ -9,7 +9,7 @@
 ## Current feature branch — Rift Arena and active gear powers (not merged)
 
 Branch: `active-abilities-rift-arena`  
-Status: PR #28 is open against `main`. GitHub Actions CI run 42283938452 completed successfully (dependency install, source syntax check, slash-command validation and full test suite). The PR is not merged; Neon migration and Discord test-server checks remain outstanding. Do not describe this as live in Discord.
+Status: PR #28 is open against `main` and is not merged. Latest GitHub Actions CI run **42284197549** passed at head `9556ea5f133a264e54dba1e78c017931e8d9b118`: dependency install, source syntax check, slash-command validation and full test suite including the PNG HUD render test. Neon migration and Discord test-server checks remain outstanding. Do not describe this as live in Discord.
 
 Implemented on this branch:
 - A persistent solo **Rift Arena** with six bosses unlocked at levels 1, 25, 75, 150, 300 and 500.
@@ -18,7 +18,7 @@ Implemented on this branch:
 - Boss victories grant FC and XP. FC uses the existing 3× earning multiplier and the player's rebirth multiplier; losses charge no fine. Retreats do not erase the Arena cooldown.
 - The Arena dashboard includes boss selection, attack/ability/retreat controls, health bars, status effects and encounter result messaging.
 - `src/utils/arena-card.js` renders a custom beveled, 3D-inspired HUD illustration using `@napi-rs/canvas`. This is layered 2D artwork, not a true 3D scene.
-- `tests/arena.test.js` covers boss gates, all eight active powers, damage-over-time, shielding, healing and battle end states.
+- `tests/arena.test.js` covers boss gates, all eight active powers, damage-over-time, shielding, healing, battle end states and a successful PNG render of the Arena HUD.
 
 Files added/changed: `src/games/arena.js`, `src/utils/arena-card.js`, `tests/arena.test.js`, `src/database/schema.sql`, `src/index.js`, `src/services/economy.js`, `src/commands/dashboard.js`.
 
@@ -28,6 +28,8 @@ Before merge:
 3. Check Neon schema application at startup and confirm the partial unique index prevents parallel active encounters.
 4. Test the full interaction flow in a test Discord server: start, attack, activate each equipped power once, defeat, lose, escape, cooldown, and stale controls.
 5. Tune reward amounts and fight difficulty against real player gear/loadouts.
+
+CI status: run 42284197549 passed on the latest branch head. PR #28 remains open pending manual Neon/Discord validation.
 
 After merge, the user must pull main, run `npm install`, run `npm run db:migrate`, and restart the bot. No live Discord deployment is claimed.
 
