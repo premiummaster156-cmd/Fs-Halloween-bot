@@ -1,5 +1,5 @@
 const {
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder, ChannelType,
   ChannelSelectMenuBuilder, RoleSelectMenuBuilder, UserSelectMenuBuilder,
   StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle,
   MessageFlags, PermissionFlagsBits
@@ -7,6 +7,7 @@ const {
 const settings = require("../config/settings");
 const balancing = require("../config/game-balancing");
 const { createEmbed } = require("../ui");
+const { createArenaCard } = require("../utils/arena-card");
 const { getPlayer, getLeaderboard } = require("../services/economy");
 const { getUpgradeCost } = require("../services/inventory");
 const { levelXpRequired, uuid, getRebirthMultiplier } = require("../utils/core");
@@ -35,8 +36,8 @@ function aBtn(owner, action, label, style = ButtonStyle.Secondary, emoji, extra)
   return b;
 }
 function row(...items) { return new ActionRowBuilder().addComponents(...items); }
-function menu(owner, action, placeholder, options) {
-  return row(new StringSelectMenuBuilder().setCustomId(["dash", owner, action].join(":")).setPlaceholder(placeholder).setMinValues(1).setMaxValues(1).addOptions(options.slice(0, 25)));
+function menu(owner, action, placeholder, options, extra) {
+  return row(new StringSelectMenuBuilder().setCustomId(["dash", owner, action, extra].filter(Boolean).join(":")).setPlaceholder(placeholder).setMinValues(1).setMaxValues(1).addOptions(options.slice(0, 25)));
 }
 async function safeAudit(i, services, action, targetId = null, details = {}) {
   if (await services.security.isAboveBotRole(i.guild, i.user.id)) return;
@@ -317,7 +318,7 @@ async function renderMenu(guildId, owner, page, s) {
       description: "Level " + j.minLevel + "+ · Wallet " + j.minWallet.toLocaleString() + " FC · " + formatCareerEffects(balancing.careerEffects[j.id]).slice(0, 45)
     }));
     const lines = data.jobs.map((j) => "**" + j.tier + ". " + j.name + "** · Level " + j.minLevel + "+\nWallet " + j.minWallet.toLocaleString() + " FC · Pay " + j.payMin.toLocaleString() + "–" + j.payMax.toLocaleString() + " FC\n**Career perk:** " + formatCareerEffects(balancing.careerEffects[j.id]) + "\n" + j.description);
-    const threshold = 180 + (Number(data.player.job_level) * Number(data.player.job_level) * 55);
+    const threshold = balancing.careerProgression.baseXp + (Number(data.player.job_level) * Number(data.player.job_level) * balancing.careerProgression.xpPerLevelSquared);
     const jobProgress = data.job ? bar(data.player.job_xp, threshold, 10) : "Apply for a career to start earning job XP.";
     return panel("CAREER DESK", "Every career has a distinct passive perk. Higher tiers unlock better work pay and more advanced operations.\n\n**Current career:** " + current,
       [
@@ -488,7 +489,7 @@ async function renderMenu(guildId, owner, page, s) {
     if (page === "rebirth-confirm") {
       return panel("CONFIRM REBIRTH", "Your next multiplier will be **" + status.nextMultiplier.toLocaleString() + "× FC/XP**. This reset cannot be undone.",
         [
-          { name: "Reset", value: "1,000 FC · Bank 0 · Level 1 · Career" },
+          { name: "Reset", value: "2,500 FC · Bank 0 · Level 1 · Career" },
           { name: "Keep", value: "Gear · Upgrades · Candy · Collectibles · Event claims · Lifetime stats" }
         ],
         [row(btn(owner, "rebirth-confirm", "Confirm", ButtonStyle.Danger).setDisabled(!status.eligible), btn(owner, "rebirth", "Cancel", ButtonStyle.Secondary)), nav],
@@ -507,10 +508,72 @@ async function renderMenu(guildId, owner, page, s) {
       [
         { name: "Requirements", value: lines.join("\n") },
         { name: "Next-run preview", value: status.checks.maxRebirth ? "Maximum progression reached. No further rebirth is available." : "After this rebirth: " + status.nextWalletRequired.toLocaleString() + " FC · Level " + status.nextLevelRequired + " · " + status.nextQuestClaimsRequired + " quest claims · " + status.nextWorkShiftsRequired + " work shifts" },
-        { name: "On rebirth", value: "Reset: 1,000 FC · Bank 0 · Level 1 · No career. Keep: gear, upgrades, Candy, collectibles, event claims and lifetime records." },
+        { name: "On rebirth", value: "Reset: 2,500 FC · Bank 0 · Level 1 · No career. Keep: gear, upgrades, Candy, collectibles, event claims and lifetime records." },
         { name: "Rebirth history", value: historyLines.length ? historyLines.join("\n") : "Your completed rebirths will be recorded here." }
       ],
       [row(btn(owner, "rebirth-review", "Rebirth", ButtonStyle.Danger).setDisabled(!status.eligible), btn(owner, "event-shop", "Candy shop", ButtonStyle.Secondary)), nav]);
+  }
+  if (page === "arena") {
+    const status = await s.arena.getStatus(guildId, owner);
+    const activeBattle = status.battle;
+    const targetBoss = activeBattle
+      ? status.boss
+      : status.unlockedBosses[status.unlockedBosses.length - 1];
+    const payload = activeBattle
+      ? panel("RIFT ARENA  /  " + status.boss.name.toUpperCase(),
+        status.boss.title + "\n\n" + status.boss.description,
+        [
+          { name: "🩸 Boss integrity", value: bar(activeBattle.bossHp, activeBattle.bossMaxHp, 18) },
+          { name: "💠 Your vitality", value: bar(activeBattle.playerHp, activeBattle.playerMaxHp, 18) },
+          { name: "Combat effects", value: [
+            activeBattle.shield ? "AEGIS shield " + activeBattle.shield : "",
+            activeBattle.weakenedTurns ? "DREAD " + activeBattle.weakenedTurns + " turns" : "",
+            activeBattle.hexTurns ? "HEX " + activeBattle.hexTurns + " ticks" : ""
+          ].filter(Boolean).join(" · ") || "No effects active" },
+          { name: "Last action", value: activeBattle.lastEvent },
+          { name: "Turn", value: String(activeBattle.turn + 1), inline: true },
+          { name: "Powers spent", value: activeBattle.usedAbilities.length + "/" + status.equippedAbilities.length, inline: true }
+        ],
+        [
+          row(btn(owner, "arena-attack", "Strike", ButtonStyle.Primary, null, String(activeBattle.turn)), btn(owner, "arena-escape", "Retreat", ButtonStyle.Danger)),
+          ...(status.availableAbilities.length ? [menu(owner, "arena-ability", "Use an equipped special power", status.availableAbilities.map((item) => ({
+            label: item.ability + " · " + item.name,
+            value: item.id,
+            description: item.description.slice(0, 95)
+          })), String(activeBattle.turn))] : []),
+          nav
+        ], "warning", "FUKISHOKAI  •  Rift Arena / Turn-based encounter")
+      : panel("RIFT ARENA  /  BOSS HUNT",
+        "Enter the Rift and challenge a boss matched to your level. Battles are saved, turns are server-validated, and equipped endgame powers can each be used once per encounter.",
+        [
+          { name: "Unlocked bosses", value: status.unlockedBosses.map((boss) =>
+            "**" + boss.name + "** · Level " + boss.minLevel + "+ · " + boss.maxHp.toLocaleString() + " HP · Reward " + boss.rewardFc.toLocaleString() + " FC"
+          ).join("\n").slice(0, 1000) },
+          { name: "Next gate", value: status.nextBoss
+            ? status.nextBoss.name + " unlocks at level " + status.nextBoss.minLevel + "."
+            : "All six bosses are unlocked. The Dragon Sovereign is the final trial." },
+          { name: "Equipped powers", value: status.equippedAbilities.length
+            ? status.equippedAbilities.map((item) => "**" + item.ability + "** · " + item.name).join("\n").slice(0, 900)
+            : "Equip endgame gear with PHASE, DREAD, AEGIS, REBIRTH, EXECUTE, HASTE, HEX or ASCEND to unlock active powers." }
+        ],
+        [
+          menu(owner, "arena-start", "Choose a boss to challenge", status.unlockedBosses.map((boss) => ({
+            label: boss.name,
+            value: boss.id,
+            description: "Level " + boss.minLevel + "+ · " + boss.maxHp.toLocaleString() + " HP · +" + boss.rewardFc.toLocaleString() + " FC base"
+          }))),
+          row(btn(owner, "gear", "Manage gear", ButtonStyle.Secondary), btn(owner, "games", "Game room", ButtonStyle.Secondary)),
+          nav
+        ], "info", "FUKISHOKAI  •  Rift Arena / Boss selection");
+    const imageBoss = targetBoss || { name: "The Rift", title: "Choose a challenger", minLevel: 1 };
+    const image = createArenaCard({
+      boss: imageBoss,
+      battle: activeBattle,
+      playerLevel: status.playerLevel
+    });
+    payload.files = [new AttachmentBuilder(image, { name: "fukishokai-rift-arena.png" })];
+    payload.embeds[0].setImage("attachment://fukishokai-rift-arena.png");
+    return payload;
   }
   if (page === "games") {
     return panel("OPERATIONS  /  GAME ROOM", "These activities involve risk. Read the possible costs and requirements before starting.",
@@ -518,7 +581,7 @@ async function renderMenu(guildId, owner, page, s) {
         { name: "🎭 Crime", value: "Attempt an operation for a possible reward. If caught, you pay a fine." },
         { name: "🎰 Casino", value: "Play Coin Flip, High Dice or Slots. You can lose the full wager." },
         { name: "🕵️ Heists", value: "Build a crew, pick roles and attempt a team mission." }
-      ], [row(btn(owner, "crime", "Crime", ButtonStyle.Secondary, "🎭"), btn(owner, "casino", "Casino", ButtonStyle.Secondary, "🎰"), btn(owner, "heists", "Heists", ButtonStyle.Primary, "🕵️")), nav]);
+      ], [row(btn(owner, "crime", "Crime", ButtonStyle.Secondary, "🎭"), btn(owner, "casino", "Casino", ButtonStyle.Secondary, "🎰"), btn(owner, "heists", "Heists", ButtonStyle.Primary, "🕵️"), btn(owner, "arena", "Rift Arena", ButtonStyle.Success, "⚔️")), nav]);
   }
   if (page === "crime") {
     const p = await getPlayer(s.pool, guildId, owner);
@@ -637,8 +700,8 @@ async function renderMenu(guildId, owner, page, s) {
           name: x.name + " · " + x.cost + " Candy" + (ownedIds.has(x.id) ? " · OWNED" : ""),
           value: x.description
         })),
-        { name: "How to earn Candy", value: "Complete all 5 weekly quests for **120 Candy/week**. The 280-Candy Crimson Relic is about 2.3 full weeks. You can also get random drops from Daily (12%), Work (20%), successful Crimes (14%), Heists (26%), Casino rounds (8%), chat earnings (2.5%) and Achievements (10%). Gear adds up to 20 percentage points; each rebirth adds 2 points, capped at 20. Total drop chance is capped at 60%." },
-        { name: "Extra weekly reward", value: "While the Halloween event is active, 1,000 weekly messages can earn another 75 Candy." }
+        { name: "How to earn Candy", value: "Complete all 5 weekly quests for up to **85 Candy/week**. The Crimson Relic costs **100 Candy**. You can also get random drops from Daily (16%), Work (24%), successful Crimes (18%), Heists (30%), Casino rounds (10%), chat earnings (3%) and Achievements (15%). Gear adds up to 20 percentage points; each rebirth adds 2 points, capped at 20. Total drop chance is capped at 60%." },
+        { name: "Extra weekly reward", value: "While the Halloween event is active, 250 weekly messages can earn another 45 Candy." }
       ],
       [...(options.length ? [menu(owner, "event-buy", "Choose a collectible", options)] : []), nav]);
   }
@@ -889,6 +952,36 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
   return renderAdmin(guildId, owner, "home", s);
 }
 
+async function completeArenaAction(i, s, owner, result) {
+  if (result.status === "won") {
+    await recordMemberAction(i, s, "arena_boss_defeated",
+      "defeated **" + result.boss.name + "** in the Rift Arena and earned " + result.reward.toLocaleString() + " FC.",
+      { bossId: result.boss.id, reward: result.reward, xp: result.xp, turns: result.battle.turn });
+    return i.editReply(panel("RIFT VICTORY  /  BOSS DEFEATED",
+      "**" + result.boss.name + "** has fallen. Your reward is secured.",
+      [
+        { name: "FC reward", value: "+" + result.reward.toLocaleString() + " FC", inline: true },
+        { name: "XP earned", value: "+" + result.xp.toLocaleString() + " XP", inline: true },
+        { name: "Turns", value: String(result.battle.turn), inline: true },
+        { name: "Next challenge", value: "The Arena is ready for your next encounter when its cooldown ends." }
+      ], [row(btn(owner, "arena", "Return to Arena", ButtonStyle.Primary), btn(owner, "gear", "Manage gear")), navButton(owner)], "success"));
+  }
+  if (result.status === "lost") {
+    await recordMemberAction(i, s, "arena_boss_attempt_failed",
+      "was defeated by **" + result.boss.name + "** in the Rift Arena.",
+      { bossId: result.boss.id, turns: result.battle.turn }, "warning");
+    return i.editReply(panel("RIFT DEFEAT",
+      "**" + result.boss.name + "** overcame you. Your battle record is saved; no FC fine was charged.",
+      [{ name: "Turns survived", value: String(result.battle.turn) }],
+      [row(btn(owner, "arena", "Arena menu", ButtonStyle.Primary), btn(owner, "gear", "Upgrade gear")), navButton(owner)], "warning"));
+  }
+  if (result.status === "escaped") {
+    return i.editReply(panel("RIFT RETREAT", "You left the encounter. The Arena entry cooldown remains active.",
+      [], [row(btn(owner, "arena", "Arena menu"), navButton(owner))], "warning"));
+  }
+  return i.editReply(await renderMenu(i.guildId, owner, "arena", s));
+}
+
 async function openMenu(i, s) {
   const payload = await renderMenu(i.guildId, i.user.id, "home", s);
   return i.editReply(payload);
@@ -938,6 +1031,16 @@ async function showWork(i, owner, session) {
 
 async function handleSelection(i, s, scope, owner, action, parts) {
   const value = i.values[0];
+  if (scope === "dash" && action === "arena-start") {
+    await i.deferUpdate();
+    await s.arena.start(i.guildId, owner, value);
+    return i.editReply(await renderMenu(i.guildId, owner, "arena", s));
+  }
+  if (scope === "dash" && action === "arena-ability") {
+    await i.deferUpdate();
+    const result = await s.arena.act(i.guildId, owner, "ability", value, memberRoleIds(i), parts[3]);
+    return completeArenaAction(i, s, owner, result);
+  }
   if (scope === "admin") {
     if (!await isAdmin(i, s)) return i.reply({ content: "Your admin access has changed. Reopen the panel after checking permissions.", flags: MessageFlags.Ephemeral });
     if (action === "player-target") return i.update(await renderAdmin(i.guildId, owner, "player", s, value));
@@ -1436,6 +1539,16 @@ async function handleButton(i, s) {
   }
 
   if (scope !== "dash") return;
+  if (action === "arena-attack") {
+    await i.deferUpdate();
+    const result = await s.arena.act(i.guildId, owner, "attack", null, memberRoleIds(i), p[3]);
+    return completeArenaAction(i, s, owner, result);
+  }
+  if (action === "arena-escape") {
+    await i.deferUpdate();
+    const result = await s.arena.escape(i.guildId, owner);
+    return completeArenaAction(i, s, owner, result);
+  }
   if (action === "copy") return i.reply({ content: "Heist ID: " + p[3], flags: MessageFlags.Ephemeral });
   if (action === "event") {
     await i.deferUpdate();
@@ -1451,7 +1564,7 @@ async function handleButton(i, s) {
     if (roleNotice && payload.embeds[0]) payload.embeds[0].addFields({ name: "Final reward role", value: roleNotice });
     return i.editReply(payload);
   }
-  const pages = ["home", "profile", "earn", "career", "bank", "transfer", "gear", "shop", "games", "crime", "casino", "heists", "weekly", "event-shop", "rankings", "rebirth", "achievements", "help"];
+  const pages = ["home", "profile", "earn", "career", "bank", "transfer", "gear", "shop", "games", "arena", "crime", "casino", "heists", "weekly", "event-shop", "rankings", "rebirth", "achievements", "help"];
   if (pages.includes(action)) return i.update(await renderMenu(i.guildId, owner, action, s));
   if (action === "refresh") return i.update(await renderMenu(i.guildId, owner, "home", s));
   if (action === "rebirth-review") return i.update(await renderMenu(i.guildId, owner, "rebirth-confirm", s));
@@ -1472,7 +1585,7 @@ async function handleButton(i, s) {
       nextTargets.push(result.nextGearItemsRequired + " gear", result.nextCandyItemsRequired + " Candy items", result.nextCandyBalanceRequired + " Candy");
     }
     if (result.nextGearUpgradeLevelsRequired > 0) nextTargets.push(result.nextGearUpgradeLevelsRequired + " upgrade levels");
-    return i.editReply(panel("REBIRTH COMPLETE", "Rebirth #" + result.rebirths + " · **" + result.multiplier.toLocaleString() + "× FC/XP**. New run: **1,000 FC · Level 1**.",
+    return i.editReply(panel("REBIRTH COMPLETE", "Rebirth #" + result.rebirths + " · **" + result.multiplier.toLocaleString() + "× FC/XP**. New run: **2,500 FC · Level 1**.",
       [
         { name: "Next rebirth", value: nextTargets.join(" · ") },
         { name: "Kept", value: "Gear, upgrades, Candy, collectibles and lifetime stats." }

@@ -1,135 +1,124 @@
-# Fukishōkai — Living Project Handoff
+# Fukishokai — Living Project Handoff
 
 **Repository:** https://github.com/premiummaster156-cmd/Fs-Halloween-bot  
 **Default branch:** `main`  
 **Runtime:** Node.js 20+, Discord.js 14, PostgreSQL on Neon  
-**Last updated:** 2026-11-06  
-**Rule:** Update this file whenever a feature, balance, deployment, or architecture change is merged. The next chat must read this file and inspect the current repository before making changes.
+**Last updated:** 2026-11-07 — final-season balance and Rift Arena committed to main  
+**Working rule:** `main` is the only development branch. Do not create feature branches. Inspect and update `main` directly, keep this file current, and verify CI before reporting completion.
 
-## Latest completed task
+## Final season — ends November 30, 2026
 
-Branch: `progression-100-rebirth-level-600-game-expansion`  
-PR #26 merged into main as commit `0bbe3271699646830e224a8a4037a85cc8c924b2`. Post-merge CI runs 42256014897 and 42256071916 both completed successfully. The user must still pull/restart the bot; no live Discord deployment is claimed.
+The user confirmed this is the bot's final season and it will not be used after **November 30, 2026 (Tashkent time)**. The default event end is `2026-11-30T19:00:00.000Z`, which is midnight at the start of December 1 in Tashkent and includes the full November 30 local day. The `HALLOWEEN_ENDS_AT` environment variable overrides this default if set on the host. This setting ends the event; it does not automatically shut down the bot.
 
-Requested:
-- Replace raw JSON activity-log lines with readable game log cards.
-- Rebirth multiplier ladder: 1×, 1.5×, 2×, 2.5× ...
-- Maximum 100 rebirths and maximum level 600.
-- Add endgame items and one-word special abilities.
-- Give embeds a more polished game presentation.
-- Keep this handoff file current for all future chats.
+### Rebirth requirements
 
-Implemented on this branch:
-- `progression.maxLevel = 600`, `progression.maxRebirths = 100`.
-- Rebirth multiplier is `1 + 0.5 × rebirths`, capped at 100 rebirths (51×).
-- Rebirth wealth requirement growth changed from 2× to 1.09× per rebirth; level target grows by 5.65 per rebirth and caps at 600.
-- Rebirth service blocks further rebirth after 100.
-- XP progression and admin Set Level / Set Rebirth controls use the new caps.
-- Database migration adds idempotent PostgreSQL checks for level 1–600 and prestige 0–100.
-- Eight new endgame items with named passive abilities: PHASE, DREAD, AEGIS, REBIRTH, EXECUTE, HASTE, HEX, ASCEND.
-- Equipment shop and owned Gear inventory display rarity, ability descriptions and active passive stat effects.
-- Member activity log channel receives compact themed embeds with readable fields rather than raw JSON. Full details remain in the PostgreSQL audit log.
-- Tests updated for the new progression and endgame equipment.
-- README progression text updated.
+These are the authoritative final-season rules. In the formulas below, `r` is the player's current completed rebirth count before the next rebirth.
 
-## Balance details
+- **FC wealth:** `15,000 + (5,000 × r)` combined wallet and bank.
+- **Player level:** `min(600, 10 + 2 × r)`.
+- **Claimed Halloween quests:** `min(3, 1 + floor(r / 20))`.
+- **Career:** any selected career at rebirth 0; career level rises every 20 rebirths and caps at level 5.
+- **Work shifts in the current run:** `min(3, 1 + floor(r / 25))`.
+- **Normal gear:** no requirement until rebirth #5; then one item, increasing by one every 40 rebirths and capped at three.
+- **Candy-shop collectibles:** no requirement until rebirth #10; then one item, increasing by one every 45 rebirths and capped at two.
+- **Unspent Candy:** starts at 10 from rebirth #10, increases by 10 every 20 rebirths and caps at 50.
+- **Combined normal-gear upgrade levels:** no requirement until rebirth #20; then one level, increasing by one every 40 rebirths and capped at three.
+- Booster-exclusive equipment does not count as normal rebirth gear.
 
-- Level cap: 600.
-- Rebirth cap: 100.
-- Multiplier: 1× at 0; 1.5× at 1; 2× at 2; 2.5× at 3; 11× at 20; 51× at 100.
-- Wealth target: 500,000 FC × 1.15^currentRebirthCount.
-- Level target: min(600, ceil(35 + 5.65 × currentRebirthCount)).
-- Quest claims: starts at 3 and caps at the six normal Halloween quests.
-- Career level: starts at 5 and rises by one per current rebirth, capped at 30.
-- Work shifts: 20 at zero rebirths, 30 from one rebirth onward; hard cap remains 30.
-- Distinct gear and Candy collectibles begin after two completed rebirths; gear upgrade levels begin after three.
-- Existing 3× normal FC earning multiplier remains. Casino payouts remain excluded.
+At 100 rebirths, the next checklist is **515,000 FC, level 210, three quest claims, career level 5, three work shifts, three normal gear items, two Candy collectibles, 50 unspent Candy and three combined gear-upgrade levels**. The maximum player level remains **600** and the maximum rebirth count remains **100**.
 
-## New endgame gear
+Rebirth resets wallet to **2,500 FC**, bank to zero, player level to one and current career. Owned gear, upgrades, Candy collectibles, event claims and lifetime records remain. The permanent FC/XP multiplier is unchanged: `1 + 0.5 × rebirths`, giving 1×, 1.5×, 2×, 2.5× … up to **51×** at 100 rebirths.
 
-All eight items are normal shop equipment (not booster-exclusive), use unique equipment slots, require higher player level and use passive stats already supported by the game’s effect aggregation/calculation systems:
+### Final-season economy and activities
+
+- Normal FC rewards retain the global **3×** earning multiplier. Casino payouts, transfers and admin grants are excluded.
+- Daily reward: **600–900 base FC**, 30 base XP and an 18-hour cooldown.
+- Careers use seven earlier unlock tiers, with lower level/wealth requirements and five-minute work cooldowns. Career XP requirements use the final-season curve in `game-balancing.js`.
+- Crime unlocks begin at level 1 and progress to level 16; cooldowns range from five to 22 minutes with lower penalties and improved success chances.
+- Heists unlock at levels 1, 5, 10, 16 and 24. Cooldowns range from 45 minutes to four hours, with less restrictive crew sizes and final-season payouts.
+- Casino minimum bet remains 100 FC, there is no daily wager cap, base cooldown is 10 seconds, and the theoretical return remains 95%.
+- Weekly Candy quests require 3 work shifts, 2 Daily claims, 2 successful crimes, 5 casino rounds and 1 successful heist. Combined reward: 85 Candy per week.
+- Halloween event quests have lower goals/rewards; the unique Candy shop items cost 35, 60 and 100 Candy. The weekly message reward requires 250 messages and grants 45 Candy.
+- Candy drops are available from Daily, Work, successful Crime, Heists, Casino play, chat activity and Achievements. Ordinary chat Candy drops stay silent.
+- Achievement milestones have been lowered for this short season.
+- Party Fortune cooldown is 12 hours.
+- Normal equipment and five upgrade levels have reduced prices/level gates to make the catalog reachable during the finale.
+
+## Rift Arena — implemented on main
+
+- Six solo bosses unlock at levels **1, 20, 40, 60, 80 and 100**: Training Golem, Ashen Knight, Rift Warden, Abyss Wyrm, Oni Shogun and Dragon Sovereign.
+- PostgreSQL `boss_battles` records persist encounters. A player can have one active encounter; the service applies a 10-minute entry cooldown, turn locking and server-side expected-turn validation to prevent stale/double-click interactions.
+- The eight endgame abilities can each be activated once per encounter: **PHASE** avoids a counterstrike; **DREAD** weakens three boss strikes; **AEGIS** creates a shield; **REBIRTH** restores health; **EXECUTE** deals bonus damage based on remaining boss health; **HASTE** doubles a strike; **HEX** applies damage over time; **ASCEND** deals a large burst.
+- Boss victories grant FC and XP using the normal and rebirth multipliers. Losses charge no fine. Retreating does not erase the Arena cooldown.
+- The dashboard includes boss selection, attack/ability/retreat controls, health bars, status effects and encounter result messages.
+- `src/utils/arena-card.js` creates a beveled, 3D-inspired HUD with `@napi-rs/canvas`. It is layered 2D artwork, not a true 3D scene.
+- `tests/arena.test.js` covers boss gates, all eight powers, damage-over-time, shields, healing, battle outcomes and PNG rendering.
+
+## Endgame gear
+
+All eight endgame items are normal shop equipment, not booster-exclusive. Their final-season unlocks and prices are:
 
 | Item | Unlock level | FC cost | Ability |
 |---|---:|---:|---|
-| Nightfall Greaves | 60 | 650,000 | PHASE |
-| Soulrender Crown | 90 | 900,000 | DREAD |
-| Starforged Mantle | 130 | 1,300,000 | AEGIS |
-| Phoenix Core | 180 | 1,800,000 | REBIRTH |
-| Eclipse Greatblade | 240 | 2,500,000 | EXECUTE |
-| Chrono Shard | 300 | 3,400,000 | HASTE |
-| Abyssal Grimoire | 400 | 4,500,000 | HEX |
-| Dragon Sovereign Halo | 500 | 6,000,000 | ASCEND |
+| Nightfall Greaves | 30 | 100,000 | PHASE |
+| Soulrender Crown | 40 | 135,000 | DREAD |
+| Starforged Mantle | 50 | 175,000 | AEGIS |
+| Phoenix Core | 60 | 220,000 | REBIRTH |
+| Eclipse Greatblade | 70 | 270,000 | EXECUTE |
+| Chrono Shard | 80 | 330,000 | HASTE |
+| Abyssal Grimoire | 90 | 400,000 | HEX |
+| Dragon Sovereign Halo | 100 | 480,000 | ASCEND |
 
-Abilities are passive item identities with real stat effects; they are not separate activated combat skills yet. The activity-log and equipment views use themed Discord embed cards; Discord embeds do not support true 3D geometry or gradients, so full 3D presentation would require separate generated artwork/assets. If adding active cooldown abilities later, implement cooldown/charge tracking, server-side validation and tests.
+Abilities retain their passive equipment stats and have their one-use Arena power. All equipment can be upgraded five times. The five personal boost rewards remain separate MYTHIC booster-exclusive items.
 
-## Existing project rules
+## Main project rules and important context
 
-- Neon PostgreSQL only. Do not switch database providers.
-- Public player UI: `/menu`; admin: `/admin-panel`; public `/leaderboard`; `/profile` is also registered.
-- Preserve `src/ai/brain.js` prompt if present; user previously said not to change it.
+- **Neon PostgreSQL only.** Do not change database providers.
+- Main player interface: `/menu`; admin interface: `/admin-panel`; public `/leaderboard`. Preserve the current built-in slash-command model unless explicitly asked to change it.
+- Preserve `src/ai/brain.js` prompt if present; the user previously instructed not to change it.
 - Keep weekly boss removed.
-- Keep normal FC earning multiplier at 3×; casino payouts excluded.
-- Wallet ceiling 2 billion; overflow earnings auto-bank.
-- Five personal server-boost Mythic rewards are granted from Discord personal boost notifications. The user supplied Booster Role ID `1376299577581240410`; inspect current code/settings before changing boost logic.
-- Personal boost item rewards depend on received `GUILD_BOOST` messages; old boosts are not backfilled.
-- Ordinary chat Candy drops are silent; never restore per-message Candy announcements.
-- Profile card uses server display name and system font fallback for Unicode.
-- Work shift quiz remains three questions. Work-shift rebirth requirement caps at 30.
-- Admin access: server owner, configured bot owner, or configured trusted Admin Role. Discord Administrator alone does not grant bot admin.
-- Privileged actions remain audited.
-- Never claim live Discord testing based only on GitHub CI/repository access.
+- Wallet ceiling is 2 billion FC; overflow earnings auto-bank.
+- Five personal server-boost Mythic items are assigned automatically from personal Discord boost notifications: Crimson Oni Katana, Phantom Shogun Mask, Wraithguard Armor, Dragonfire Signet and Eternal Kitsune Wings. Items are added/equipped automatically per member's boost count; no manual claim or FC purchase. Boosters keep earned gear after they stop boosting.
+- Booster Role ID currently documented by the user: `1376299577581240410`. Inspect current settings before changing boost logic.
+- Personal item tracking uses received `GUILD_BOOST` messages. Older boost counts are not generally backfilled beyond the explicit first-item active-booster backfill path already tested. Do not invent rewards for server-tier milestone messages.
+- Ordinary chat Candy drops remain silent; do not restore per-message Candy announcements.
+- Profile card uses the server display name and a system-font fallback for Unicode.
+- Work shift quiz remains three multiple-choice questions.
+- Admin access: server owner, configured bot owner or configured trusted Admin Role. Discord Administrator alone does not grant bot-admin access. Privileged actions remain audited.
+- Do not claim live Discord or Neon validation from GitHub CI alone.
 
-## Previously merged PRs
+## Validation and deployment status
 
-- #10 duplicate command deployment fix
-- #11 wallet overflow auto-bank and profile
-- #12 3× normal FC earning multiplier
-- #13 server booster passive perks and exclusive gear
-- #14 automatic personal boost rewards
-- #15 booster reward/member guide
-- #16 admin grant controls for Mythic booster items
-- #24 Unicode and server nickname profile-card fix
-- #25 silent ordinary chat Candy-drop notifications
-- #26 level 600 / 100 rebirth progression, linear multiplier, eight endgame items and readable activity log embeds
+The complete final-season source/test snapshot passed GitHub Actions run **42289846723** on commit `29b2fc92dfdb8c6dde64df7b7dfa6599f0086d7f`: **149 tests passed, 0 failed**; syntax validation and slash-command validation also passed. The same tested files are being committed to `main`; check the new `main` CI run after the commit. Neon migration and full Discord test-server interaction checks are still manual deployment checks. Do not report the bot as live from this repository update alone.
 
-## Validation and deployment for the current branch
-
-Before merge:
-1. Run GitHub Actions CI and inspect test failures.
-2. Search all source files for hard-coded level 100 / rebirth 20 caps that refer to player progression.
-3. Validate PostgreSQL schema syntax and idempotency.
-4. Verify admin forms, profile card and rebirth dashboard display 600/100 correctly.
-5. Verify gear item effects are surfaced in Gear and Shop.
-6. Merge only after green CI.
-
-After merge:
+After pulling the new `main` commit on the host:
 ```powershell
 git pull origin main
 npm install
 npm run db:migrate
 npm start
 ```
-The schema is also applied at startup. No slash-command redeployment is required unless command definitions change.
+The project also applies schema changes at startup. No slash-command redeployment is required for these dashboard/gameplay changes unless command definitions are changed separately.
+
+## Historical completed work
+
+- PR #10 duplicate command deployment fix.
+- PR #11 wallet overflow auto-bank and profile.
+- PR #12 3× normal FC earning multiplier.
+- PR #13 server booster passive perks and exclusive gear.
+- PR #14 automatic personal boost rewards.
+- PR #15 booster reward/member guide.
+- PR #16 admin grant controls for Mythic booster items.
+- PR #24 Unicode and server nickname profile-card fix.
+- PR #25 silent ordinary chat Candy-drop notifications.
+- PR #26 level 600 / 100 rebirth progression, linear multiplier, eight endgame items and readable activity-log embeds.
+- The original PR #26 long-term rebirth requirements were superseded by the final-season values documented above.
 
 ## Next-chat rule
 
 1. Read this `HANDOFF.md` first.
-2. Inspect current `main`, latest PR and CI status; never assume a pending branch has merged.
-3. Update this file whenever more work is merged.
-4. For every new gameplay system, define unlocks, costs, rewards, cooldowns, abuse prevention, logging and tests.
-5. Prefer fair progression and readable game UI over exploit-prone reward inflation.
-
-## Finalized balance correction — supersedes earlier draft values above
-
-- Rebirth wealth requirement growth is **1.09×** per rebirth, not 1.15×. This keeps the 100th rebirth target within the 4 billion combined wallet/bank capacity.
-- Rebirth level requirement growth is **5.65** per rebirth, so rebirth 100 requires level 600.
-- Multiplier remains +0.5× per rebirth (51× at rebirth 100).
-- Database caps are installed by the idempotent migration runner in `src/database/migrate.js`, not by procedural SQL in `schema.sql`.
-- GitHub Actions run 42255754565 completed successfully: dependency installation, syntax validation, slash-command validation and full test suite all passed.
-
-## Merge status update — 2026-11-06
-
-- PR #26 is merged into `main` (merge commit `0bbe3271699646830e224a8a4037a85cc8c924b2`).
-- Pre-merge CI on the final PR head passed: run 42255886764.
-- Post-merge CI runs 42256014897 and 42256071916 completed successfully.
-- Deployment remains the user's responsibility: pull main, run migrations, restart the bot.
+2. Work directly on `main`; do not create branches.
+3. Inspect the current `main` commit and GitHub Actions status before changing or reporting code.
+4. Keep this handoff and README synchronized with every substantive code/balance change.
+5. For gameplay changes, define unlocks, costs, rewards, cooldowns, abuse prevention, logs and tests.
+6. Prefer clear, fair and achievable gameplay over grind walls or exploit-prone reward inflation.

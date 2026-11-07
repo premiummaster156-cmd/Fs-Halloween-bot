@@ -30,8 +30,8 @@ test("achievement progress is capped for display but retains the actual metric",
 
 test("achievement progress remains locked until the exact target is reached", () => {
   const achievement = ACHIEVEMENTS.find((item) => item.id === "crew_veteran");
-  assert.equal(evaluateAchievement(achievement, { heists_completed: 4 }).unlocked, false);
-  assert.equal(evaluateAchievement(achievement, { heists_completed: 5 }).unlocked, true);
+  assert.equal(evaluateAchievement(achievement, { heists_completed: 2 }).unlocked, false);
+  assert.equal(evaluateAchievement(achievement, { heists_completed: 3 }).unlocked, true);
 });
 
 test("player metrics include combined wallet and bank wealth plus Party Games aliases", () => {

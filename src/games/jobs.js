@@ -75,7 +75,7 @@ class JobsGame {
       let jobLevel = Number(updated.rows[0].job_level);
       let jobXp = Number(updated.rows[0].job_xp);
       let promoted = false;
-      const threshold = 180 + (jobLevel * jobLevel * 55);
+      const threshold = balancing.careerProgression.baseXp + (jobLevel * jobLevel * balancing.careerProgression.xpPerLevelSquared);
       if (jobLevel < 30 && jobXp >= threshold) {
         jobXp -= threshold;
         jobLevel += 1;

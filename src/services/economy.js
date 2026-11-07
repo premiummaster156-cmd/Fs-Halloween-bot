@@ -10,6 +10,7 @@ const MULTIPLIED_EARNING_REASONS = new Set([
   "heist_reward",
   "chat_activity_reward",
   "achievement_reward",
+  "boss_reward",
 ]);
 
 const LIFETIME_EARNING_REASONS = new Set([
@@ -19,7 +20,8 @@ const LIFETIME_EARNING_REASONS = new Set([
   "heist_reward",
   "casino_payout",
   "chat_activity_reward",
-  "achievement_reward"
+  "achievement_reward",
+  "boss_reward"
 ]);
 const LIFETIME_SPENDING_REASONS = new Set([
   "shop_purchase",
@@ -69,65 +71,40 @@ function calculateCandyDrop(reason, gearBonus = 0, chanceRoll = Math.random(), a
 }
 
 function getRebirthRequirements(player, claimedQuestCount = 0, inventoryRows = [], candyBalance = 0) {
+  const rules = balancing.rebirth;
   const rebirths = Math.max(0, Math.min(balancing.progression.maxRebirths, Math.floor(Number(player.prestige) || 0)));
   const wealth = Number(player.wallet || 0) + Number(player.bank || 0);
-  const walletRequired = Math.min(Number.MAX_SAFE_INTEGER,
-    Math.ceil(balancing.rebirth.firstWalletRequirement * Math.pow(balancing.rebirth.walletRequirementGrowth, rebirths)));
-  const levelRequired = Math.min(balancing.progression.maxLevel,
-    Math.ceil(balancing.rebirth.firstLevelRequirement + rebirths * balancing.rebirth.levelRequirementGrowth));
-  const questClaimsRequired = Math.min(
-    balancing.halloween.quests.length,
-    balancing.rebirth.firstQuestClaimsRequirement + rebirths * balancing.rebirth.questClaimsGrowth
-  );
-  const jobLevelRequired = Math.min(30,
-    balancing.rebirth.firstJobLevelRequirement + Math.floor(rebirths / balancing.rebirth.jobLevelGrowthEvery));
-  const workShiftsRequired = Math.min(
-    balancing.rebirth.maxWorkShiftsRequirement,
-    balancing.rebirth.firstWorkShiftsRequirement + rebirths * balancing.rebirth.workShiftsGrowth
-  );
-
-  // Equipment and Candy-shop milestones start only when preparing for rebirth #4.
-  const itemMilestone = rebirths >= balancing.rebirth.itemRequirementsStartAt;
-  const itemSteps = itemMilestone ? rebirths - balancing.rebirth.itemRequirementsStartAt : 0;
-  const gearItemsRequired = itemMilestone
-    ? Math.min(balancing.items.filter((item) => item.type === "equipment" && item.rebirthEligible !== false).length,
-      balancing.rebirth.firstGearItemsRequirement + itemSteps * balancing.rebirth.gearItemsGrowth)
-    : 0;
-  const candyItemsRequired = itemMilestone
-    ? Math.min(balancing.halloween.shop.length,
-      balancing.rebirth.firstCandyItemsRequirement + itemSteps * balancing.rebirth.candyItemsGrowth)
-    : 0;
-  const candyBalanceRequired = itemMilestone
-    ? balancing.rebirth.firstCandyBalanceRequirement + itemSteps * balancing.rebirth.candyBalanceGrowth
-    : 0;
-  const gearUpgradeLevelsRequired = rebirths >= balancing.rebirth.gearUpgradeRequirementsStartAt
-    ? balancing.rebirth.firstGearUpgradeLevelsRequirement +
-      (rebirths - balancing.rebirth.gearUpgradeRequirementsStartAt) * balancing.rebirth.gearUpgradeLevelsGrowth
-    : 0;
-
+  const walletRequired = Math.ceil(rules.firstWalletRequirement + rebirths * rules.walletRequirementStep);
+  const levelRequired = Math.min(balancing.progression.maxLevel, Math.ceil(rules.firstLevelRequirement + rebirths * rules.levelRequirementGrowth));
+  const questClaimsRequired = Math.min(rules.maxQuestClaimsRequirement, rules.firstQuestClaimsRequirement + Math.floor(rebirths / rules.questClaimsGrowthEvery));
+  const jobLevelRequired = Math.min(rules.maxJobLevelRequirement, rules.firstJobLevelRequirement + Math.floor(rebirths / rules.jobLevelGrowthEvery));
+  const workShiftsRequired = Math.min(rules.maxWorkShiftsRequirement, rules.firstWorkShiftsRequirement + Math.floor(rebirths / rules.workShiftsGrowthEvery));
+  const gearMilestone = rebirths >= rules.itemRequirementsStartAt;
+  const gearItemsRequired = gearMilestone
+    ? Math.min(rules.maxGearItemsRequirement, rules.firstGearItemsRequirement + Math.floor((rebirths - rules.itemRequirementsStartAt) / rules.gearItemsGrowthEvery)) : 0;
+  const candyItemMilestone = rebirths >= rules.candyItemRequirementsStartAt;
+  const candyItemsRequired = candyItemMilestone
+    ? Math.min(rules.maxCandyItemsRequirement, rules.firstCandyItemsRequirement + Math.floor((rebirths - rules.candyItemRequirementsStartAt) / rules.candyItemsGrowthEvery)) : 0;
+  const candyBalanceMilestone = rebirths >= rules.candyBalanceRequirementsStartAt;
+  const candyBalanceRequired = candyBalanceMilestone
+    ? Math.min(rules.maxCandyBalanceRequirement, rules.firstCandyBalanceRequirement + Math.floor((rebirths - rules.candyBalanceRequirementsStartAt) / rules.candyBalanceGrowthEvery) * rules.candyBalanceGrowth) : 0;
+  const upgradeMilestone = rebirths >= rules.gearUpgradeRequirementsStartAt;
+  const gearUpgradeLevelsRequired = upgradeMilestone
+    ? Math.min(rules.maxGearUpgradeLevelsRequirement, rules.firstGearUpgradeLevelsRequirement + Math.floor((rebirths - rules.gearUpgradeRequirementsStartAt) / rules.gearUpgradeLevelsGrowthEvery)) : 0;
   const currentJob = balancing.jobs.find((job) => job.id === player.job_id) || null;
   const claimed = Math.max(0, Number(claimedQuestCount) || 0);
   const currentJobLevel = Number(player.job_level || 1);
   const workShiftsCompleted = Number(player.rebirth_work_count || 0);
   const rows = Array.isArray(inventoryRows) ? inventoryRows : [];
-  const rebirthEligibleGearIds = new Set(balancing.items
-    .filter((item) => item.type === "equipment" && item.rebirthEligible !== false)
-    .map((item) => item.id));
-  const ownedGearIds = new Set(rows
-    .filter((row) => Number(row.quantity ?? 1) > 0)
-    .map((row) => row.item_id || row.itemId)
-    .filter((id) => rebirthEligibleGearIds.has(id)));
-  const ownedCandyItemIds = new Set(rows
-    .filter((row) => Number(row.quantity ?? 1) > 0)
-    .map((row) => row.item_id || row.itemId)
-    .filter((id) => balancing.halloween.shop.some((item) => item.id === id)));
+  const gearIds = new Set(balancing.items.filter((item) => item.type === "equipment" && item.rebirthEligible !== false && !item.boosterOnly).map((item) => item.id));
+  const candyIds = new Set(balancing.halloween.shop.map((item) => item.id));
+  const ownedGearIds = new Set(rows.filter((row) => Number(row.quantity ?? 1) > 0).map((row) => row.item_id || row.itemId).filter((id) => gearIds.has(id)));
+  const ownedCandyItemIds = new Set(rows.filter((row) => Number(row.quantity ?? 1) > 0).map((row) => row.item_id || row.itemId).filter((id) => candyIds.has(id)));
   const gearUpgradeLevels = rows.reduce((sum, row) => {
     const id = row.item_id || row.itemId;
-    return sum + (rebirthEligibleGearIds.has(id)
-      ? Math.max(0, Number(row.upgrade_level ?? row.upgradeLevel) || 0) : 0);
+    return sum + (gearIds.has(id) ? Math.max(0, Number(row.upgrade_level ?? row.upgradeLevel) || 0) : 0);
   }, 0);
   const candy = Math.max(0, Number(candyBalance) || 0);
-
   const checks = {
     wealth: wealth >= walletRequired,
     level: Number(player.level || 1) >= levelRequired,
@@ -143,21 +120,14 @@ function getRebirthRequirements(player, claimedQuestCount = 0, inventoryRows = [
   };
   return {
     rebirths, wealth, wallet: Number(player.wallet || 0), bank: Number(player.bank || 0),
-    level: Number(player.level || 1),
-    multiplier: getRebirthMultiplier(rebirths),
-    nextMultiplier: getRebirthMultiplier(rebirths + 1),
-    walletRequired, levelRequired,
-    questClaimsCount: claimed, questClaimsRequired,
-    currentJob, currentJobLevel, jobLevelRequired,
-    workShiftsCompleted, workShiftsRequired,
-    gearItemsCount: ownedGearIds.size, gearItemsRequired,
-    candyItemsCount: ownedCandyItemIds.size, candyItemsRequired,
-    candyBalance: candy, candyBalanceRequired,
-    gearUpgradeLevels, gearUpgradeLevelsRequired,
+    level: Number(player.level || 1), multiplier: getRebirthMultiplier(rebirths), nextMultiplier: getRebirthMultiplier(rebirths + 1),
+    walletRequired, levelRequired, questClaimsCount: claimed, questClaimsRequired,
+    currentJob, currentJobLevel, jobLevelRequired, workShiftsCompleted, workShiftsRequired,
+    gearItemsCount: ownedGearIds.size, gearItemsRequired, candyItemsCount: ownedCandyItemIds.size, candyItemsRequired,
+    candyBalance: candy, candyBalanceRequired, gearUpgradeLevels, gearUpgradeLevelsRequired,
     checks, eligible: Object.values(checks).every(Boolean), maxRebirths: balancing.progression.maxRebirths
   };
 }
-
 
 class EconomyService {
   constructor(pool) { this.pool = pool; this.inventory = null; }

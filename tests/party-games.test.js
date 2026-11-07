@@ -47,7 +47,7 @@ test("fortune cards contain a title, vibe, mini-mission and warning", () => {
     assert.ok(card.warning);
   }
   assert.ok(party.makeFortune().title);
-  assert.equal(DAILY_FORTUNE_COOLDOWN_MS, 24 * 60 * 60 * 1000);
+  assert.equal(DAILY_FORTUNE_COOLDOWN_MS, 12 * 60 * 60 * 1000);
 });
 
 test("Rock-Paper-Scissors resolves all wins, losses and draws correctly", () => {

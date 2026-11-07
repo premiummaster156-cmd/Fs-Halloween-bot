@@ -398,3 +398,31 @@ CREATE TABLE IF NOT EXISTS server_boost_events (
 );
 CREATE INDEX IF NOT EXISTS server_boost_events_member_idx
   ON server_boost_events (guild_id, user_id, created_at DESC);
+
+
+-- Persistent solo boss encounters for the Rift Arena.
+CREATE TABLE IF NOT EXISTS boss_battles (
+  id UUID PRIMARY KEY,
+  guild_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  boss_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active'
+    CHECK (status IN ('active', 'won', 'lost', 'escaped')),
+  player_hp INTEGER NOT NULL CHECK (player_hp >= 0),
+  player_max_hp INTEGER NOT NULL CHECK (player_max_hp > 0),
+  boss_hp INTEGER NOT NULL CHECK (boss_hp >= 0),
+  boss_max_hp INTEGER NOT NULL CHECK (boss_max_hp > 0),
+  turn INTEGER NOT NULL DEFAULT 0 CHECK (turn >= 0),
+  shield INTEGER NOT NULL DEFAULT 0 CHECK (shield >= 0),
+  weakened_turns INTEGER NOT NULL DEFAULT 0 CHECK (weakened_turns >= 0),
+  hex_turns INTEGER NOT NULL DEFAULT 0 CHECK (hex_turns >= 0),
+  used_abilities JSONB NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(used_abilities) = 'array'),
+  last_event TEXT NOT NULL DEFAULT 'The encounter begins.',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  finished_at TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX IF NOT EXISTS boss_battles_one_active_per_player_idx
+  ON boss_battles (guild_id, user_id) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS boss_battles_history_idx
+  ON boss_battles (guild_id, user_id, created_at DESC);

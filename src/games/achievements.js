@@ -4,15 +4,15 @@ const { DomainError } = require("../utils/core");
 
 const ACHIEVEMENTS = [
   { id: "first_shift", name: "First Shift", description: "Complete your first work shift.", metric: "work_count", target: 1, rewardFc: 150, rewardXp: 25 },
-  { id: "steady_worker", name: "Steady Worker", description: "Complete 10 work shifts.", metric: "work_count", target: 10, rewardFc: 250, rewardXp: 35 },
-  { id: "career_pro", name: "Career Professional", description: "Reach job level 10 in your current career.", metric: "job_level", target: 10, rewardFc: 450, rewardXp: 60 },
-  { id: "operation_specialist", name: "Operation Specialist", description: "Complete 10 successful operations.", metric: "crime_successes", target: 10, rewardFc: 450, rewardXp: 60 },
-  { id: "crew_veteran", name: "Crew Veteran", description: "Complete 5 successful heists.", metric: "heists_completed", target: 5, rewardFc: 600, rewardXp: 75 },
-  { id: "level_ten", name: "Rising Star", description: "Reach player level 10.", metric: "level", target: 10, rewardFc: 350, rewardXp: 50 },
-  { id: "millionaire", name: "Millionaire", description: "Hold 1,000,000 FC across your wallet and bank.", metric: "wealth", target: 1000000, rewardFc: 1000, rewardXp: 100 },
+  { id: "steady_worker", name: "Steady Worker", description: "Complete 3 work shifts.", metric: "work_count", target: 3, rewardFc: 250, rewardXp: 35 },
+  { id: "career_pro", name: "Career Professional", description: "Reach job level 3 in your current career.", metric: "job_level", target: 3, rewardFc: 450, rewardXp: 60 },
+  { id: "operation_specialist", name: "Operation Specialist", description: "Complete 3 successful operations.", metric: "crime_successes", target: 3, rewardFc: 450, rewardXp: 60 },
+  { id: "crew_veteran", name: "Crew Veteran", description: "Complete 3 successful heists.", metric: "heists_completed", target: 3, rewardFc: 600, rewardXp: 75 },
+  { id: "level_ten", name: "Rising Star", description: "Reach player level 5.", metric: "level", target: 5, rewardFc: 350, rewardXp: 50 },
+  { id: "millionaire", name: "Wealth Builder", description: "Hold 50,000 FC across your wallet and bank.", metric: "wealth", target: 50000, rewardFc: 1000, rewardXp: 100 },
   { id: "reborn", name: "A New Beginning", description: "Complete your first rebirth.", metric: "prestige", target: 1, rewardFc: 700, rewardXp: 100 },
-  { id: "party_regular", name: "Party Regular", description: "Play 10 Party Games.", metric: "party_games", target: 10, rewardFc: 300, rewardXp: 40 },
-  { id: "party_champion", name: "Crowd Favourite", description: "Win 25 Party Games.", metric: "party_wins", target: 25, rewardFc: 650, rewardXp: 85 }
+  { id: "party_regular", name: "Party Regular", description: "Play 3 Party Games.", metric: "party_games", target: 3, rewardFc: 300, rewardXp: 40 },
+  { id: "party_champion", name: "Crowd Favourite", description: "Win 5 Party Games.", metric: "party_wins", target: 5, rewardFc: 650, rewardXp: 85 }
 ];
 
 function getMetricValue(achievement, metrics) {
