@@ -89,7 +89,7 @@ Abilities retain their passive equipment stats and have their one-use Arena powe
 
 ## Validation and deployment status
 
-The complete final-season source/test snapshot passed GitHub Actions run **42289846723** on commit `29b2fc92dfdb8c6dde64df7b7dfa6599f0086d7f`: **149 tests passed, 0 failed**; syntax validation and slash-command validation also passed. The same tested files are being committed to `main`; check the new `main` CI run after the commit. Neon migration and full Discord test-server interaction checks are still manual deployment checks. Do not report the bot as live from this repository update alone.
+The final code and balance are committed directly to `main` in commit `f8de471f1a91ab46d53ff281ea6de4c2e80ff86d`. GitHub Actions run **42331427414** passed on that exact `main` commit: dependency installation, syntax validation, slash-command validation and **149 tests passed, 0 failed**. The earlier source snapshot run 42289846723 also passed 149/149. The previous PR #28 was closed after its 20-file contents were committed directly to `main`; it is no longer an active change path. Neon migration and full Discord test-server interaction checks remain manual deployment checks. Do not report the bot as live from this repository update alone.
 
 After pulling the new `main` commit on the host:
 ```powershell
