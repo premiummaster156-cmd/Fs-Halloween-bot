@@ -977,7 +977,7 @@ async function completeArenaAction(i, s, owner, result) {
   }
   if (result.status === "escaped") {
     return i.editReply(panel("RIFT RETREAT", "You left the encounter. The Arena entry cooldown remains active.",
-      [], [row(btn(owner, "arena", "Arena menu"), navButton(owner))], "warning"));
+      [], [row(btn(owner, "arena", "Arena menu")), navButton(owner)], "warning"));
   }
   return i.editReply(await renderMenu(i.guildId, owner, "arena", s));
 }
