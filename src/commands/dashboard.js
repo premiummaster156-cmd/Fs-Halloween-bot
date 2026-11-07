@@ -504,7 +504,7 @@ async function renderMenu(guildId, owner, page, s) {
         (meta.previousLevel || "?") + " · " + (Number.isFinite(timestamp) ? "<t:" + timestamp + ":R>" : "Recorded");
     });
     return panel("REBIRTH  /  " + status.multiplier.toLocaleString() + "×" + (status.checks.maxRebirth ? " · MAX" : " → " + status.nextMultiplier.toLocaleString() + "×"),
-      status.checks.maxRebirth ? "You have reached the maximum of " + balancing.progression.maxRebirths + " rebirths and your final 51× multiplier." : "Each rebirth adds +0.5× to your permanent FC and XP multiplier.",
+      status.checks.maxRebirth ? "You have reached the maximum of " + balancing.progression.maxRebirths + " rebirths and your final 101× multiplier." : "Each rebirth adds +1× to your permanent FC and XP duplication.",
       [
         { name: "Requirements", value: lines.join("\n") },
         { name: "Next-run preview", value: status.checks.maxRebirth ? "Maximum progression reached. No further rebirth is available." : "After this rebirth: " + status.nextWalletRequired.toLocaleString() + " FC · Level " + status.nextLevelRequired + " · " + status.nextQuestClaimsRequired + " quest claims · " + status.nextWorkShiftsRequired + " work shifts" },

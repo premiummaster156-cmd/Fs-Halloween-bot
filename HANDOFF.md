@@ -27,7 +27,7 @@ These are the authoritative final-season rules. In the formulas below, `r` is th
 
 To complete the 100th rebirth (with 99 already completed), the checklist is **510,000 FC, level 208, three quest claims, career level 5, three work shifts, three normal gear items, two Candy collectibles, 50 unspent Candy and three combined gear-upgrade levels**. The maximum player level remains **600** and the maximum rebirth count remains **100**.
 
-Rebirth resets wallet to **2,500 FC**, bank to zero, player level to one and current career. Owned gear, upgrades, Candy collectibles, event claims and lifetime records remain. The permanent FC/XP multiplier is unchanged: `1 + 0.5 × rebirths`, giving 1×, 1.5×, 2×, 2.5× … up to **51×** at 100 rebirths.
+Rebirth resets wallet to **2,500 FC**, bank to zero, player level to one and current career. Owned gear, upgrades, Candy collectibles, event claims and lifetime records remain. The permanent FC/XP duplication is `1 + rebirths`: 1×, 2×, 3×, 4× … up to **101×** at 100 rebirths (+1× for every rebirth).
 
 ### Final-season economy and activities
 
@@ -111,7 +111,7 @@ The project also applies schema changes at startup. No slash-command redeploymen
 - PR #16 admin grant controls for Mythic booster items.
 - PR #24 Unicode and server nickname profile-card fix.
 - PR #25 silent ordinary chat Candy-drop notifications.
-- PR #26 level 600 / 100 rebirth progression, linear multiplier, eight endgame items and readable activity-log embeds.
+- PR #26 level 600 / 100 rebirth progression, +1× per-rebirth FC/XP duplication, eight endgame items and readable activity-log embeds.
 - The original PR #26 long-term rebirth requirements were superseded by the final-season values documented above.
 
 ## Next-chat rule

@@ -39,10 +39,10 @@ function chance(percent) {
 function uuid() { return crypto.randomUUID(); }
 function clamp(value, minimum, maximum) { return Math.min(maximum, Math.max(minimum, value)); }
 function getRebirthMultiplier(rebirths) {
-  // Clear linear progression: 0 rebirths = 1x, 1 = 1.5x, 2 = 2x ... 100 = 51x.
+  // Each rebirth adds one full multiplier: 0 = 1x, 1 = 2x, 2 = 3x ... 100 = 101x.
   const maxRebirths = require("../config/game-balancing").progression.maxRebirths;
   const count = Math.max(0, Math.min(maxRebirths, Math.floor(Number(rebirths) || 0)));
-  return 1 + count * 0.5;
+  return 1 + count;
 }
 function applyCooldownReduction(baseMs, reduction, floorMs = 1000) {
   const base = Math.max(0, Math.floor(Number(baseMs) || 0));

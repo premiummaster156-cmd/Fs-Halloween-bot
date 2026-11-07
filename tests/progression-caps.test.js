@@ -4,8 +4,8 @@ const core = require("../src/utils/core");
 const balancing = require("../src/config/game-balancing");
 const { getRebirthRequirements, EconomyService } = require("../src/services/economy");
 
-test("rebirth multiplier follows the requested half-step ladder", () => {
-  assert.deepEqual([0, 1, 2, 3, 20, 100].map(core.getRebirthMultiplier), [1, 1.5, 2, 2.5, 11, 51]);
+test("rebirth duplication increases by one full multiplier each time", () => {
+  assert.deepEqual([0, 1, 2, 3, 20, 100].map(core.getRebirthMultiplier), [1, 2, 3, 4, 21, 101]);
 });
 
 test("progression caps are level 600 and rebirth 100", () => {
@@ -16,7 +16,7 @@ test("progression caps are level 600 and rebirth 100", () => {
     wallet: 0, bank: 0, level: 600, prestige: 100,
     job_id: "crime_boss", job_level: 30, rebirth_work_count: 30
   }, 6, [], 10000);
-  assert.equal(status.multiplier, 51);
+  assert.equal(status.multiplier, 101);
   assert.equal(status.checks.maxRebirth, false);
   assert.equal(status.eligible, false);
 });

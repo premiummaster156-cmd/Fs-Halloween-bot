@@ -226,7 +226,7 @@ test("3x FC earnings keep meaningful progression and equipment sinks", () => {
 test("progression hard caps are 600 levels and 100 rebirths", () => {
   assert.equal(balancing.progression.maxLevel, 600);
   assert.equal(balancing.progression.maxRebirths, 100);
-  assert.equal(core.getRebirthMultiplier(100), 51);
+  assert.equal(core.getRebirthMultiplier(100), 101);
   assert.equal(core.getRebirthMultiplier(101), 51);
   assert.equal(core.levelXpRequired(601), core.levelXpRequired(600));
 });
@@ -278,17 +278,17 @@ test("booster-only equipment cannot satisfy normal rebirth gear milestones", () 
   assert.equal(status.checks.gearItems, false);
 });
 
-test("rebirth multipliers add 0.5x per rebirth and cap at 51x for 100 rebirths", () => {
+test("rebirth duplication adds 1x per rebirth and caps at 101x for 100 rebirths", () => {
   assert.equal(core.getRebirthMultiplier(0), 1);
-  assert.equal(core.getRebirthMultiplier(1), 1.5);
-  assert.equal(core.getRebirthMultiplier(2), 2);
-  assert.equal(core.getRebirthMultiplier(3), 2.5);
-  assert.equal(core.getRebirthMultiplier(5), 3.5);
-  assert.equal(core.getRebirthMultiplier(10), 6);
-  assert.equal(core.getRebirthMultiplier(20), 11);
-  assert.equal(core.getRebirthMultiplier(50), 26);
+  assert.equal(core.getRebirthMultiplier(1), 2);
+  assert.equal(core.getRebirthMultiplier(2), 3);
+  assert.equal(core.getRebirthMultiplier(3), 4);
+  assert.equal(core.getRebirthMultiplier(5), 6);
+  assert.equal(core.getRebirthMultiplier(10), 11);
+  assert.equal(core.getRebirthMultiplier(20), 21);
+  assert.equal(core.getRebirthMultiplier(50), 51);
   assert.equal(core.getRebirthMultiplier(100), 51);
-  assert.equal(core.getRebirthMultiplier(150), 51);
+  assert.equal(core.getRebirthMultiplier(150), 101);
   assert.equal(core.levelXpRequired(1), 92);
   assert.equal(core.levelXpRequired(100), 1280);
   assert.equal(core.levelXpRequired(600), 7280);
