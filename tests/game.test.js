@@ -227,7 +227,7 @@ test("progression hard caps are 600 levels and 100 rebirths", () => {
   assert.equal(balancing.progression.maxLevel, 600);
   assert.equal(balancing.progression.maxRebirths, 100);
   assert.equal(core.getRebirthMultiplier(100), 101);
-  assert.equal(core.getRebirthMultiplier(101), 51);
+  assert.equal(core.getRebirthMultiplier(101), 101);
   assert.equal(core.levelXpRequired(601), core.levelXpRequired(600));
 });
 
@@ -287,7 +287,7 @@ test("rebirth duplication adds 1x per rebirth and caps at 101x for 100 rebirths"
   assert.equal(core.getRebirthMultiplier(10), 11);
   assert.equal(core.getRebirthMultiplier(20), 21);
   assert.equal(core.getRebirthMultiplier(50), 51);
-  assert.equal(core.getRebirthMultiplier(100), 51);
+  assert.equal(core.getRebirthMultiplier(100), 101);
   assert.equal(core.getRebirthMultiplier(150), 101);
   assert.equal(core.levelXpRequired(1), 92);
   assert.equal(core.levelXpRequired(100), 1280);
