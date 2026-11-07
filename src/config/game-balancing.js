@@ -87,10 +87,10 @@ module.exports = {
     firstQuestClaimsRequirement: 1, questClaimsGrowthEvery: 20, maxQuestClaimsRequirement: 3,
     firstJobLevelRequirement: 1, jobLevelGrowthEvery: 20, maxJobLevelRequirement: 5,
     firstWorkShiftsRequirement: 1, workShiftsGrowthEvery: 25, maxWorkShiftsRequirement: 3,
-    itemRequirementsStartAt: 5, firstGearItemsRequirement: 1, gearItemsGrowthEvery: 40, maxGearItemsRequirement: 3,
-    candyItemRequirementsStartAt: 10, firstCandyItemsRequirement: 1, candyItemsGrowthEvery: 45, maxCandyItemsRequirement: 2,
-    candyBalanceRequirementsStartAt: 10, firstCandyBalanceRequirement: 10, candyBalanceGrowthEvery: 20, candyBalanceGrowth: 10, maxCandyBalanceRequirement: 50,
-    gearUpgradeRequirementsStartAt: 20, firstGearUpgradeLevelsRequirement: 1, gearUpgradeLevelsGrowthEvery: 40, maxGearUpgradeLevelsRequirement: 3
+    itemRequirementsStartAt: 4, firstGearItemsRequirement: 1, gearItemsGrowthEvery: 40, maxGearItemsRequirement: 3,
+    candyItemRequirementsStartAt: 9, firstCandyItemsRequirement: 1, candyItemsGrowthEvery: 45, maxCandyItemsRequirement: 2,
+    candyBalanceRequirementsStartAt: 9, firstCandyBalanceRequirement: 10, candyBalanceGrowthEvery: 20, candyBalanceGrowth: 10, maxCandyBalanceRequirement: 50,
+    gearUpgradeRequirementsStartAt: 19, firstGearUpgradeLevelsRequirement: 1, gearUpgradeLevelsGrowthEvery: 40, maxGearUpgradeLevelsRequirement: 3
   },
   crimes: [
     { id: "pickpocket", name: "Pickpocket", minLevel: 1, baseChance: 68, rewardMin: 120, rewardMax: 260, fineMin: 20, fineMax: 60, cooldownMs: 5 * minute, xp: 15, difficulty: 1 },

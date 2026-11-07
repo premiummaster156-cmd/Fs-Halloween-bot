@@ -350,11 +350,11 @@ test("final-season rebirth requirements are standardized and capped", () => {
     { item_id: "ghost_token", quantity: 1 }
   ];
   const late = getRebirthRequirements({
-    wallet: 515000, bank: 0, level: 600, prestige: 100,
-    job_id: "crime_boss", job_level: 30, rebirth_work_count: 3
+    wallet: 510000, bank: 0, level: 208, prestige: 99,
+    job_id: "crime_boss", job_level: 5, rebirth_work_count: 3
   }, 6, inventory, 50);
-  assert.equal(late.walletRequired, 515000);
-  assert.equal(late.levelRequired, 210);
+  assert.equal(late.walletRequired, 510000);
+  assert.equal(late.levelRequired, 208);
   assert.equal(late.questClaimsRequired, 3);
   assert.equal(late.jobLevelRequired, 5);
   assert.equal(late.workShiftsRequired, 3);
@@ -362,8 +362,12 @@ test("final-season rebirth requirements are standardized and capped", () => {
   assert.equal(late.candyItemsRequired, 2);
   assert.equal(late.candyBalanceRequired, 50);
   assert.equal(late.gearUpgradeLevelsRequired, 3);
-  assert.equal(late.checks.maxRebirth, false);
-  assert.equal(late.eligible, false);
+  assert.equal(late.checks.maxRebirth, true);
+  assert.equal(late.eligible, true);
+
+  const atCap = getRebirthRequirements({ wallet: 515000, bank: 0, level: 210, prestige: 100, job_id: "crime_boss", job_level: 5, rebirth_work_count: 3 }, 3, inventory, 50);
+  assert.equal(atCap.checks.maxRebirth, false);
+  assert.equal(atCap.eligible, false);
 });
 
 test("first two rebirths do not require gear, Candy collectibles or upgrades", () => {
@@ -382,15 +386,15 @@ test("first two rebirths do not require gear, Candy collectibles or upgrades", (
 test("gear, Candy and upgrade milestones are spaced out for the finale", () => {
   const { getRebirthRequirements } = require("../src/services/economy");
   const player = { wallet: 5000000, bank: 0, level: 600, job_id: "crime_boss", job_level: 30, rebirth_work_count: 3 };
-  const beforeGear = getRebirthRequirements({ ...player, prestige: 4 }, 6, [], 0);
+  const beforeGear = getRebirthRequirements({ ...player, prestige: 3 }, 6, [], 0);
   assert.equal(beforeGear.gearItemsRequired, 0);
-  const firstGear = getRebirthRequirements({ ...player, prestige: 5 }, 6, [], 0);
+  const firstGear = getRebirthRequirements({ ...player, prestige: 4 }, 6, [], 0);
   assert.equal(firstGear.gearItemsRequired, 1);
   assert.equal(firstGear.candyItemsRequired, 0);
-  const firstCandy = getRebirthRequirements({ ...player, prestige: 10 }, 6, [], 0);
+  const firstCandy = getRebirthRequirements({ ...player, prestige: 9 }, 6, [], 0);
   assert.equal(firstCandy.candyItemsRequired, 1);
   assert.equal(firstCandy.candyBalanceRequired, 10);
-  const firstUpgrade = getRebirthRequirements({ ...player, prestige: 20 }, 6, [], 0);
+  const firstUpgrade = getRebirthRequirements({ ...player, prestige: 19 }, 6, [], 0);
   assert.equal(firstUpgrade.gearUpgradeLevelsRequired, 1);
   const late = getRebirthRequirements({ ...player, prestige: 100 }, 6, [], 0);
   assert.equal(late.gearItemsRequired, 3);

@@ -19,13 +19,13 @@ These are the authoritative final-season rules. In the formulas below, `r` is th
 - **Claimed Halloween quests:** `min(3, 1 + floor(r / 20))`.
 - **Career:** any selected career at rebirth 0; career level rises every 20 rebirths and caps at level 5.
 - **Work shifts in the current run:** `min(3, 1 + floor(r / 25))`.
-- **Normal gear:** no requirement until rebirth #5; then one item, increasing by one every 40 rebirths and capped at three.
-- **Candy-shop collectibles:** no requirement until rebirth #10; then one item, increasing by one every 45 rebirths and capped at two.
-- **Unspent Candy:** starts at 10 from rebirth #10, increases by 10 every 20 rebirths and caps at 50.
-- **Combined normal-gear upgrade levels:** no requirement until rebirth #20; then one level, increasing by one every 40 rebirths and capped at three.
+- **Normal gear:** first required for rebirth #5; one item, increasing by one every 40 rebirths and capped at three.
+- **Candy-shop collectibles:** first required for rebirth #10; one item, increasing by one every 45 rebirths and capped at two.
+- **Unspent Candy:** first required for rebirth #10 at 10 Candy, increases by 10 every 20 rebirths and caps at 50.
+- **Combined normal-gear upgrade levels:** first required for rebirth #20; one level, increasing by one every 40 rebirths and capped at three.
 - Booster-exclusive equipment does not count as normal rebirth gear.
 
-At 100 rebirths, the next checklist is **515,000 FC, level 210, three quest claims, career level 5, three work shifts, three normal gear items, two Candy collectibles, 50 unspent Candy and three combined gear-upgrade levels**. The maximum player level remains **600** and the maximum rebirth count remains **100**.
+To complete the 100th rebirth (with 99 already completed), the checklist is **510,000 FC, level 208, three quest claims, career level 5, three work shifts, three normal gear items, two Candy collectibles, 50 unspent Candy and three combined gear-upgrade levels**. The maximum player level remains **600** and the maximum rebirth count remains **100**.
 
 Rebirth resets wallet to **2,500 FC**, bank to zero, player level to one and current career. Owned gear, upgrades, Candy collectibles, event claims and lifetime records remain. The permanent FC/XP multiplier is unchanged: `1 + 0.5 × rebirths`, giving 1×, 1.5×, 2×, 2.5× … up to **51×** at 100 rebirths.
 
