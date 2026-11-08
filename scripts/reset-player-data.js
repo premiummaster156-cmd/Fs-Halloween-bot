@@ -276,15 +276,11 @@ async function runReset({
   try {
     await client.query("BEGIN");
     inTransaction = true;
-    await client.query("SET LOCAL lock_timeout = '15s'");
     const dbResult = await client.query("SELECT current_database() AS database, current_schema() AS schema");
     const database = dbResult.rows[0]?.database || "unknown";
     const schema = dbResult.rows[0]?.schema || "unknown";
     const tables = await getExistingTables(client);
     if (!tables.includes("players")) throw new Error("The public.players table was not found. Run npm run db:migrate first.");
-
-    // Lock early: no player rows or related progress can change while protection is resolved.
-    if (confirm) await client.query("LOCK TABLE " + tables.map(quotePublicTable).join(", ") + " IN ACCESS EXCLUSIVE MODE");
 
     const { columns, plans, skippedTables } = await buildDeletePlans(client, tables);
     const identities = await getPlayerIdentities(client, tables, columns);

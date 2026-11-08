@@ -171,9 +171,10 @@ test("confirmed run locks and deletes only unprotected rows", async () => {
   const lockIndex = statements.findIndex((sql) => sql.startsWith("LOCK TABLE"));
   const firstDeleteIndex = statements.findIndex((sql) => sql.startsWith("DELETE FROM"));
   const commitIndex = statements.indexOf("COMMIT");
-  assert.ok(lockIndex > 0);
-  assert.ok(firstDeleteIndex > lockIndex);
+  assert.equal(lockIndex, -1, "reset must not request ACCESS EXCLUSIVE locks that block behind normal bot activity");
+  assert.ok(firstDeleteIndex > 0);
   assert.ok(commitIndex > firstDeleteIndex);
+  assert.equal(statements.some((sql) => sql.includes("lock_timeout")), false);
   const deletes = statements.filter((sql) => sql.startsWith("DELETE FROM"));
   assert.ok(deletes.length > 0);
   for (const sql of deletes) {
