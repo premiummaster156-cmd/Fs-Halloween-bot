@@ -11,7 +11,7 @@ const { createArenaCard } = require("../utils/arena-card");
 const { getPlayer, getLeaderboard } = require("../services/economy");
 const { getUpgradeCost } = require("../services/inventory");
 const { levelXpRequired, uuid, getRebirthMultiplier, getLevelEarningMultiplier } = require("../utils/core");
-const { makeWorkChallenge } = require("../games/work-challenge");
+const { makeWorkChallenge, getWorkShiftTimeLimit } = require("../games/work-challenge");
 const { audit, sendLog } = require("../utils/logging");
 
 const sessions = new Map();
@@ -1011,20 +1011,24 @@ async function rewardRole(i, roleId, reason) {
 }
 async function showWork(i, owner, session) {
   const q = session.challenge.questions[session.index];
+  const total = session.challenge.questions.length;
+  const levelMultiplier = getLevelEarningMultiplier(session.shift.playerLevel || 1);
+  const remainingMinutes = Math.ceil((session.expiresAt - Date.now()) / 60000);
   const buttons = q.options.map((x) => new ButtonBuilder()
     .setCustomId("dash:" + owner + ":work-answer:" + session.id + ":" + session.index + ":" + x.letter)
     .setLabel(x.letter + " · " + x.value).setStyle(ButtonStyle.Secondary));
   const embed = createEmbed({
-    title: "WORK SHIFT  /  QUESTION " + (session.index + 1) + " OF 3",
-    description: q.question + "\n\nChoose the correct answer below. This screen expires after 60 seconds.",
+    title: "WORK SHIFT  /  QUESTION " + (session.index + 1) + " OF " + total,
+    description: q.question + "\n\nChoose the correct answer below. This shift expires in about " + Math.max(1, remainingMinutes) + " minute(s).",
     color: settings.brand.primary, icon: "task",
     fields: [
       { name: "Career", value: session.shift.job.name + " · Level " + session.shift.jobLevel, inline: true },
       { name: "Correct so far", value: session.correct + "/" + session.index, inline: true },
       { name: "Difficulty", value: session.challenge.band.toUpperCase(), inline: true },
-      { name: "Shift progress", value: bar(session.index, 3) }
+      { name: "Level-based pay", value: "+" + ((levelMultiplier - 1) * 100).toFixed(1) + "%", inline: true },
+      { name: "Shift progress", value: bar(session.index, total) }
     ],
-    footer: "FUKISHOKAI  •  Answer all three questions to maximise your reward"
+    footer: "FUKISHOKAI  •  Three questions per shift · Better answers earn more FC and XP"
   });
   return i.editReply({ embeds: [embed], components: [row(...buttons)] });
 }
@@ -1604,7 +1608,7 @@ async function handleButton(i, s) {
     await i.deferUpdate();
     const shift = await s.jobs.startShift(i.guildId, owner);
     const challenge = makeWorkChallenge(shift.job, shift.jobLevel, 3);
-    const session = { id: uuid().slice(0, 12), shift, challenge, index: 0, correct: 0, expiresAt: Date.now() + 180000 };
+    const session = { id: uuid().slice(0, 12), shift, challenge, index: 0, correct: 0, expiresAt: Date.now() + getWorkShiftTimeLimit(challenge.band) };
     sessions.set(session.id, session);
     return showWork(i, owner, session);
   }
@@ -1620,12 +1624,12 @@ async function handleButton(i, s) {
     session.index += 1;
     if (session.index < session.challenge.questions.length) return showWork(i, owner, session);
     sessions.delete(session.id);
-    if (!session.correct) return i.editReply(panel("SHIFT TEST COMPLETE", "You answered 0/3 correctly. At least one correct answer is required to earn FC or XP. Your work cooldown still applies.", [], [row(btn(owner, "earn", "Back to Earn")), navButton(owner)], "warning"));
-    const r = await s.jobs.completeShift(i.guildId, owner, session.shift.job.id, session.correct, 3, memberRoleIds(i));
+    if (!session.correct) return i.editReply(panel("SHIFT TEST COMPLETE", "You answered 0/" + session.challenge.questions.length + " correctly. At least one correct answer is required to earn FC or XP. Your work cooldown still applies.", [], [row(btn(owner, "earn", "Back to Earn")), navButton(owner)], "warning"));
+    const r = await s.jobs.completeShift(i.guildId, owner, session.shift.job.id, session.correct, session.challenge.questions.length, memberRoleIds(i));
     const candyText = r.candyDrop ? " and found **" + r.candyDrop.amount + " Candy**" : "";
-    await recordMemberAction(i, s, "work_shift_completed", "completed a **" + r.job.name + "** work shift with " + session.correct + "/3 correct answers and earned " + r.pay.toLocaleString() + " FC" + candyText + ".", { careerId: r.job.id, correct: session.correct, total: 3, pay: r.pay, xp: r.progression.gained, candy: r.candyDrop?.amount || 0 });
-    return i.editReply(panel("SHIFT COMPLETE", "You answered **" + session.correct + "/3** correctly and earned **" + r.pay.toLocaleString() + " FC** plus **" + r.progression.gained + " XP**." + (r.candyDrop ? "\n🍬 You found **" + r.candyDrop.amount + " Candy**!" : ""),
-      [{ name: "Career", value: r.job.name + " · Level " + r.jobLevel, inline: true }, { name: "Player level", value: String(r.progression.level), inline: true }, { name: "Promotion", value: r.promoted ? "Job level increased!" : "Progress saved" }, ...(r.candyDrop ? [{ name: "Candy found", value: "+" + r.candyDrop.amount, inline: true }] : [])],
+    await recordMemberAction(i, s, "work_shift_completed", "completed a **" + r.job.name + "** work shift with " + session.correct + "/" + session.challenge.questions.length + " correct answers and earned " + r.pay.toLocaleString() + " FC" + candyText + ".", { careerId: r.job.id, correct: session.correct, total: session.challenge.questions.length, pay: r.pay, xp: r.progression.gained, candy: r.candyDrop?.amount || 0 });
+    return i.editReply(panel("SHIFT COMPLETE", "You answered **" + session.correct + "/" + session.challenge.questions.length + "** correctly and earned **" + r.pay.toLocaleString() + " FC** plus **" + r.progression.gained + " XP**." + (r.candyDrop ? "\n🍬 You found **" + r.candyDrop.amount + " Candy**!" : ""),
+      [{ name: "Career", value: r.job.name + " · Level " + r.jobLevel, inline: true }, { name: "Player level", value: String(r.progression.level), inline: true }, { name: "Level pay bonus", value: "+" + ((r.levelEarningMultiplier - 1) * 100).toFixed(1) + "%", inline: true }, { name: "Promotion", value: r.promoted ? "Job level increased!" : "Progress saved" }, ...(r.candyDrop ? [{ name: "Candy found", value: "+" + r.candyDrop.amount, inline: true }] : [])],
       [row(btn(owner, "profile", "View profile")), navButton(owner)], "success"));
   }
   if (action === "deposit" || action === "withdraw") return i.showModal(modal("dash:" + owner + ":bank-modal:" + action, action === "deposit" ? "Deposit into bank" : "Withdraw from bank", [{ id: "amount", label: "Amount in FC", placeholder: "1000", max: 12 }]));
