@@ -361,7 +361,7 @@ BEGIN
       WHERE l.guild_id = p.guild_id AND l.user_id = p.user_id
         AND l.reason IN (
           'shop_purchase', 'item_upgrade', 'casino_bet',
-          'crime_failed_fine', 'heist_failed_fine', 'member_transfer_out'
+          'crime_failed_fine', 'heist_failed_fine'
         )
     ), 0);
 
@@ -458,3 +458,24 @@ CREATE TABLE IF NOT EXISTS economy_events (
  CHECK(ends_at>starts_at)
 );
 CREATE INDEX IF NOT EXISTS economy_events_active_idx ON economy_events(guild_id,enabled,ends_at DESC);
+
+
+-- Correct lifetime spending totals from legacy one-way transfers; transfers are not gameplay spending.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM application_migrations
+    WHERE migration_id = '2026-11-08-exclude-player-transfers-from-lifetime-spending-v1'
+  ) THEN
+    UPDATE players p
+    SET lifetime_spent = GREATEST(0, p.lifetime_spent - COALESCE((
+      SELECT SUM(-l.delta) FROM economy_ledger l
+      WHERE l.guild_id = p.guild_id
+        AND l.user_id = p.user_id
+        AND l.reason = 'member_transfer_out'
+        AND l.delta < 0
+    ), 0));
+    INSERT INTO application_migrations (migration_id)
+    VALUES ('2026-11-08-exclude-player-transfers-from-lifetime-spending-v1');
+  END IF;
+END $$;
