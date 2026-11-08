@@ -1,5 +1,5 @@
 const balancing = require("../config/game-balancing");
-const { calculateWorkPay, randomInt, uuid, DomainError, claimCooldownTx, getRebirthMultiplier, applyCooldownReduction } = require("../utils/core");
+const { calculateWorkPay, randomInt, uuid, DomainError, claimCooldownTx, getRebirthMultiplier, getLevelEarningMultiplier, applyCooldownReduction } = require("../utils/core");
 const { ensurePlayerTx, getPlayer } = require("../services/economy");
 const { transaction } = require("../database/pool");
 const { trackActionTx } = require("../services/events");
@@ -44,7 +44,7 @@ class JobsGame {
         [guildId, userId, cooldownMs]
       );
       await claimCooldownTx(client, guildId, userId, "work", cooldownMs);
-      return { job, jobLevel: Number(player.job_level) };
+      return { job, jobLevel: Number(player.job_level), playerLevel: Number(player.level) };
     });
   }
 
@@ -87,6 +87,7 @@ class JobsGame {
       await trackActionTx(client, guildId, userId, "wallet_earned", pay);
       return {
         job, pay, walletDelta: earning.walletDelta || 0, bankDelta: earning.bankDelta || 0,
+        playerLevel: Number(player.level), levelEarningMultiplier: getLevelEarningMultiplier(player.level),
         xpEarned, correctAnswers: correct, totalQuestions: total, promoted, jobLevel,
         progression, candyDrop: earning.candyDrop || null
       };
