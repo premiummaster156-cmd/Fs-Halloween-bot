@@ -1,5 +1,5 @@
 const MAX_MESSAGE_LENGTH=1800;
-const MAX_BULK_RECIPIENTS=5000;
+const MAX_BULK_RECIPIENTS=1500;
 const wait=(ms)=>new Promise(resolve=>setTimeout(resolve,ms));
 function validateMessage(value){
  const message=String(value||"").trim();
@@ -8,7 +8,6 @@ function validateMessage(value){
  return message;
 }
 class AdminMessagingService{
- constructor(){ }
  async sendToMember(guild,targetId,content){
   const message=validateMessage(content);
   const member=await guild.members.fetch(targetId).catch(()=>null);
@@ -16,19 +15,28 @@ class AdminMessagingService{
   await member.send({content:message,allowedMentions:{parse:[]}});
   return {sent:1,failed:0,skipped:0};
  }
- async sendToAll(guild,content){
+ async sendToAll(guild,content,knownRecipientIds=[]){
   const message=validateMessage(content);
-  const members=await guild.members.fetch();
-  const recipients=Array.from(members.values()).filter(member=>!member.user.bot);
-  if(recipients.length>MAX_BULK_RECIPIENTS)throw new Error("This server has more than 5,000 human members. Use member-targeted DMs or split the announcement.");
-  let sent=0,failed=0;
-  for(let offset=0;offset<recipients.length;offset+=4){
-   const batch=recipients.slice(offset,offset+4);
-   const results=await Promise.allSettled(batch.map(member=>member.send({content:message,allowedMentions:{parse:[]}})));
-   for(const result of results)result.status==="fulfilled"?sent++:failed++;
-   if(offset+4<recipients.length)await wait(1000);
+  const cachedIds=Array.from(guild.members?.cache?.keys?.()||[]);
+  const ids=Array.from(new Set([...(knownRecipientIds||[]),...cachedIds].map(String))).filter(Boolean);
+  if(ids.length>MAX_BULK_RECIPIENTS)throw new Error("This campaign contains more than 1,500 tracked members. Split it into smaller campaigns.");
+  let sent=0,failed=0,skipped=0;
+  for(let offset=0;offset<ids.length;offset+=4){
+   const batch=ids.slice(offset,offset+4);
+   const results=await Promise.allSettled(batch.map(async id=>{
+    const member=guild.members.cache?.get(id)||await guild.members.fetch(id);
+    if(!member||member.user.bot)return "skipped";
+    await member.send({content:message,allowedMentions:{parse:[]}});
+    return "sent";
+   }));
+   for(const result of results){
+    if(result.status==="fulfilled"){if(result.value==="sent")sent++;else skipped++;}
+    else if(result.reason?.code===10007||result.reason?.code===10013)skipped++;
+    else failed++;
+   }
+   if(offset+4<ids.length)await wait(1000);
   }
-  return {sent,failed,skipped:members.size-recipients.length};
+  return {sent,failed,skipped,attempted:ids.length};
  }
 }
 module.exports={AdminMessagingService,validateMessage,MAX_MESSAGE_LENGTH,MAX_BULK_RECIPIENTS};
