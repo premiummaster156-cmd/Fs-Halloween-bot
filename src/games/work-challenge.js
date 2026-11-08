@@ -1,6 +1,6 @@
 const { randomInt } = require("../utils/core");
 
-const QUESTION_POOL_SIZE = 100;
+const QUESTION_POOL_SIZE = 115;
 const RECENT_QUESTION_LIMIT = 500;
 const LETTERS = ["A", "B", "C", "D"];
 const WORK_SHIFT_TIME_LIMITS = Object.freeze({ easy: 3 * 60 * 1000, medium: 6 * 60 * 1000, hard: 10 * 60 * 1000 });
@@ -28,7 +28,7 @@ function question(text, answer) {
 }
 
 function generateEasyQuestion() {
-  const type = int(0, 11);
+  const type = int(0, 16);
 
   switch (type) {
     case 0: {
@@ -113,6 +113,11 @@ function generateEasyQuestion() {
       const b = int(2, 9);
       return question(`A worker earns ${a} FC per task and completes ${b} tasks. What is the total pay?`, a * b);
     }
+    case 12: { const pay = int(2, 10) * 100; const bonus = pick([5, 10, 15, 20]); return question(`A shift pays ${pay} FC plus a ${bonus}% bonus. What is the total pay?`, pay + pay * bonus / 100); }
+    case 13: { const minutes = int(2, 8) * 15; const tasks = int(2, 9); return question(`A worker completes ${tasks} tasks every ${minutes} minutes. How many tasks are completed in ${minutes * 4} minutes?`, tasks * 4); }
+    case 14: { const total = int(4, 15) * 6; const part = pick([1, 2, 3, 4, 5]); return question(`A shipment has ${total} items. ${part}/6 are delivered first. How many items remain?`, total - total * part / 6); }
+    case 15: { const hours = int(2, 12); const rate = int(3, 12); return question(`A shift lasts ${hours} hours with ${rate} tasks completed each hour. How many tasks are completed?`, hours * rate); }
+    case 16: { const first = int(2, 8); const multiplier = int(2, 4); return question(`Find the next number in this pattern: ${first}, ${first * multiplier}, ${first * multiplier ** 2}, ?`, first * multiplier ** 3); }
     default: {
       const a = int(12, 80);
       const b = int(2, 9);
@@ -123,7 +128,7 @@ function generateEasyQuestion() {
 }
 
 function generateMediumQuestion() {
-  const type = int(0, 11);
+  const type = int(0, 16);
 
   switch (type) {
     case 0: {
@@ -193,6 +198,11 @@ function generateMediumQuestion() {
       const increase = pick([10, 15, 20, 25, 30, 40]);
       return question(`A balance of ${start} FC increases by ${increase}%. What is the new balance?`, start + start * increase / 100);
     }
+    case 12: { const base = int(10, 40) * 100; const bonus = pick([10, 20, 25]); const fee = pick([10, 20]); return question(`A project pays ${base} FC, adds a ${bonus}% bonus, then deducts a ${fee}% fee from the bonus. What is the final payout?`, base + base * bonus / 100 - (base * bonus / 100) * fee / 100); }
+    case 13: { const rateA = int(4, 12); const timeA = int(3, 8); const rateB = int(3, 10); const timeB = int(2, 7); return question(`Team A completes ${rateA} tasks per hour for ${timeA} hours. Team B completes ${rateB} tasks per hour for ${timeB} hours. How many tasks are completed together?`, rateA * timeA + rateB * timeB); }
+    case 14: { const workers = int(3, 8); const days = int(4, 12); const daily = int(8, 20); const lost = int(5, 25); return question(`${workers} workers each finish ${daily} tasks per day for ${days} days. ${lost} tasks are rejected. How many valid tasks remain?`, workers * daily * days - lost); }
+    case 15: { const denominator = pick([3, 4, 5, 6, 8]); const numerator = int(1, denominator - 1); const total = int(8, 30) * denominator; return question(`A team completes ${numerator}/${denominator} of ${total} tasks in the morning. How many tasks remain?`, total - total * numerator / denominator); }
+    case 16: { const original = int(10, 40) * 100; const increase = pick([10, 20, 25, 30]); const final = original * (100 + increase) / 100; return question(`A contract value rises by ${increase}% to ${final} FC. What was its original value?`, original); }
     default: {
       const a = int(8, 25);
       const b = int(4, 18);
@@ -203,7 +213,7 @@ function generateMediumQuestion() {
 }
 
 function generateHardQuestion() {
-  const type = int(0, 11);
+  const type = int(0, 16);
 
   switch (type) {
     case 0: {
@@ -292,6 +302,11 @@ function generateHardQuestion() {
       const secondAmount = total * secondPercent / 100;
       return question(`A project has a budget of ${total} FC. ${firstPercent}% is spent on supplies and ${secondPercent}% on transport. How much remains?`, total - firstAmount - secondAmount);
     }
+    case 12: { const budget = int(20, 80) * 1000; const supplies = pick([15, 20, 25, 30]); const transport = pick([10, 15, 20]); return question(`A project budget is ${budget} FC. ${supplies}% is spent on supplies and ${transport}% on transport. How much remains?`, budget * (100 - supplies - transport) / 100); }
+    case 13: { const a = int(8, 24); const b = int(5, 18); const hoursA = int(4, 9); const hoursB = int(3, 8); const bonus = int(40, 180); return question(`Team A completes ${a} tasks per hour for ${hoursA} hours; Team B completes ${b} per hour for ${hoursB} hours. Add ${bonus} emergency tasks. What is the total?`, a * hoursA + b * hoursB + bonus); }
+    case 14: { const original = int(20, 90) * 100; const first = pick([10, 15, 20, 25]); const second = pick([10, 20, 25]); return question(`An item costs ${original} FC. It receives a ${first}% discount and then a further ${second}% discount. What is the final price?`, Math.round(original * (100 - first) * (100 - second) / 10000)); }
+    case 15: { const total = int(20, 70) * 12; const shipped = pick([2, 3, 4, 5, 6, 7]); return question(`A warehouse has ${total} units. ${shipped}/12 are shipped, then 15 more are damaged. How many usable units remain?`, total - total * shipped / 12 - 15); }
+    case 16: { const workers = int(5, 14); const perWorker = int(3, 8) * 20; const shifts = int(4, 10); const efficiency = pick([5, 10, 15, 20]); return question(`${workers} workers complete ${perWorker} tasks each per shift for ${shifts} shifts, then improve output by ${efficiency}%. What is the new total?`, workers * perWorker * shifts * (100 + efficiency) / 100); }
     default: {
       const first = int(8, 25);
       const second = int(5, 18);
@@ -360,7 +375,7 @@ function makeWorkChallenge(job, jobLevel, count = 3) {
   const pool = [];
   const used = new Set();
 
-  // Build a fresh pool of 100 randomized questions for every work shift.
+  // Build a fresh pool of 115 randomized questions for every work shift.
   // Also avoid recently shown questions so members do not keep seeing repeats.
   let attempts = 0;
   const maxAttempts = QUESTION_POOL_SIZE * 200;
