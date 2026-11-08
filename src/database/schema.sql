@@ -459,6 +459,38 @@ CREATE TABLE IF NOT EXISTS economy_events (
 );
 CREATE INDEX IF NOT EXISTS economy_events_active_idx ON economy_events(guild_id,enabled,ends_at DESC);
 
+-- Admin-triggered live events with distinct gameplay effects and one-time player drops.
+CREATE TABLE IF NOT EXISTS admin_abuse_events (
+  id UUID PRIMARY KEY,
+  guild_id TEXT NOT NULL,
+  event_type TEXT NOT NULL CHECK (event_type IN ('blood_moon','candy_storm','rift_surge','lucky_block_rain')),
+  name TEXT NOT NULL,
+  description TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','ended')),
+  starts_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ends_at TIMESTAMPTZ NOT NULL,
+  created_by TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ended_at TIMESTAMPTZ,
+  CHECK (ends_at > starts_at)
+);
+CREATE INDEX IF NOT EXISTS admin_abuse_events_active_idx
+  ON admin_abuse_events (guild_id,status,ends_at DESC);
+
+CREATE TABLE IF NOT EXISTS admin_abuse_claims (
+  guild_id TEXT NOT NULL,
+  event_id UUID NOT NULL REFERENCES admin_abuse_events(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
+  reward_fc BIGINT NOT NULL DEFAULT 0 CHECK (reward_fc >= 0),
+  reward_candy INTEGER NOT NULL DEFAULT 0 CHECK (reward_candy >= 0),
+  item_id TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (guild_id,event_id,user_id)
+);
+CREATE INDEX IF NOT EXISTS admin_abuse_claims_member_idx
+  ON admin_abuse_claims (guild_id,user_id,created_at DESC);
+
 
 -- Correct lifetime spending totals from legacy one-way transfers; transfers are not gameplay spending.
 DO $$
