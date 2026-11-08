@@ -31,7 +31,7 @@ Rebirth resets wallet to **2,500 FC**, bank to zero, player level to one and cur
 
 ### Final-season economy and activities
 
-- Normal FC rewards retain the global **3×** earning multiplier and add **+0.1% per player level above level 1**, reaching **1.599×** at level 600. Rebirth and gear bonuses stack on top. Casino payouts, transfers and admin grants are excluded.
+- Normal FC rewards retain the global **3×** earning multiplier and add **+0.1% per player level above level 1**, reaching **1.599×** at level 600. Rebirth and gear bonuses stack on top. Casino payouts, player trades and admin grants are excluded.
 - Daily reward: **600–900 base FC**, 30 base XP and an 18-hour cooldown.
 - Careers include 22 paths: the original seven plus 15 new specialist careers with progressive level/wallet unlocks, higher salaries and distinct passive perks. Work shifts retain three questions per run from a 115-question randomized pool with 15 added templates across easy, medium and hard bands; difficulty-based time limits are used.
 - Crime unlocks begin at level 1 and progress to level 16; cooldowns range from five to 22 minutes with lower penalties and improved success chances.

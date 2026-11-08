@@ -54,7 +54,7 @@ The admin console retains its custom JavaScript command workspace. A custom slas
 
 Casino games have a 100 FC minimum bet and no maximum bet; wagers are limited only by the player's available wallet balance. The base cooldown is 10 seconds and there is no daily wager cap. Equipped casino gear can increase the frequency of winning results and shorten the cooldown, while adjusting winning payouts to keep the published long-run return fair. Coin Flip, High Dice and Slots each have a base theoretical return of 95%. Slots has a 1% Jackpot (10×), 4% Big win (4×), 20% Small win (3.45×), and 75% no-win chance.
 
-Normal FC rewards from Daily, Work, Crime, Heists, chat activity, achievements and Arena victories use the 3× season multiplier and also scale with player level: +0.1% per level above level 1, reaching +59.9% at level 600. Rebirth duplication and gear bonuses stack on top. Casino payouts, transfers and admin grants are excluded so the published 95% casino return stays unchanged.
+Normal FC rewards from Daily, Work, Crime, Heists, chat activity, achievements and Arena victories use the 3× season multiplier and also scale with player level: +0.1% per level above level 1, reaching +59.9% at level 600. Rebirth duplication and gear bonuses stack on top. Casino payouts, player trades and admin grants are excluded so the published 95% casino return stays unchanged.
 
 ### Server Booster rewards
 
@@ -114,7 +114,7 @@ The private dashboard's **Achievements** page tracks ten permanent milestones ac
 
 ## Bank, equipment and rebirth records
 
-The Bank dashboard shows wallet and savings balances, lifetime deposits and withdrawals, and recent bank transactions. Deposits and withdrawals move FC between the two balances without creating new lifetime earnings or spending. Player-to-player transfers are not counted as earned FC; the Lifetime Earned leaderboard reflects game rewards and casino payouts rather than money moved between accounts.
+The Bank dashboard shows wallet and savings balances, lifetime deposits and withdrawals, and recent bank transactions. Deposits and withdrawals move FC between the two balances without creating new lifetime earnings or spending. Player-to-player trade settlements are not counted as earned FC; the Lifetime Earned leaderboard reflects game rewards and casino payouts rather than money moved between accounts.
 
 The Gear dashboard shows owned equipment, equipped slots, active bonuses, total upgrade levels and the cheapest available next upgrade. Each upgrade adds 15% to that item's listed effects, up to five levels. Rebirth keeps equipment, upgrades, Candy, collectibles, event claims and lifetime records; it resets wallet, bank, level and current career. The dashboard previews the next rebirth requirements and records completed rebirths.
 
