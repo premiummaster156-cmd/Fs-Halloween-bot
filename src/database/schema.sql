@@ -426,3 +426,20 @@ CREATE UNIQUE INDEX IF NOT EXISTS boss_battles_one_active_per_player_idx
   ON boss_battles (guild_id, user_id) WHERE status = 'active';
 CREATE INDEX IF NOT EXISTS boss_battles_history_idx
   ON boss_battles (guild_id, user_id, created_at DESC);
+
+-- Secure, two-sided player trading with independent confirmations.
+CREATE TABLE IF NOT EXISTS player_trades (
+ id UUID PRIMARY KEY,
+ guild_id TEXT NOT NULL,
+ initiator_id TEXT NOT NULL,
+ target_id TEXT NOT NULL,
+ offers JSONB NOT NULL DEFAULT '{"initiator":{"fc":0,"items":[]},"target":{"fc":0,"items":[]}}'::jsonb,
+ confirmations JSONB NOT NULL DEFAULT '{"initiator":false,"target":false}'::jsonb,
+ status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','completed','cancelled','expired')),
+ expires_at TIMESTAMPTZ NOT NULL,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ completed_at TIMESTAMPTZ,
+ CHECK(initiator_id<>target_id)
+);
+CREATE INDEX IF NOT EXISTS player_trades_active_idx ON player_trades(guild_id,status,expires_at);
