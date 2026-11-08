@@ -379,6 +379,14 @@ async function renderMenu(guildId, owner, page, s) {
         btn(owner, "trade-cancel", "Cancel trade", ButtonStyle.Danger, null, active.id))
     ];
     if (itemOptions.length) controls.push(menu(owner, "trade-item", "Add an item to your offer", itemOptions, active.id));
+    const currentOffer = active.offers[active.initiator_id === owner ? "initiator" : "target"];
+    if (currentOffer.items.length) {
+      const removeOptions = currentOffer.items.map(entry => {
+        const item = balancing.items.find(x => x.id === entry.itemId) || balancing.halloween.shop.find(x => x.id === entry.itemId);
+        return { label: (item ? item.name : entry.itemId).slice(0, 100), value: entry.itemId, description: "Remove from your offer · Quantity " + entry.quantity };
+      }).slice(0, 25);
+      controls.push(menu(owner, "trade-remove-item", "Remove an offered item", removeOptions, active.id));
+    }
     controls.push(nav);
     return panel(card.title, card.description, card.fields, controls, "info");
   }
@@ -1106,6 +1114,15 @@ async function handleSelection(i, s, scope, owner, action, parts) {
     const trade = await s.trades.create(i.guildId, owner, value);
     await member.send("You have a Fukishokai trade invitation from <@" + owner + ">. Open /menu → Trade to review and respond. The trade expires in 30 minutes.").catch(() => null);
     await safeAudit(i, s, "player_trade_created", value, { tradeId: trade.id });
+    return i.update(await renderMenu(i.guildId, owner, "trade", s));
+  }
+  if (scope === "dash" && action === "trade-remove-item") {
+    const tradeId = parts[3];
+    const trade = await s.trades.get(i.guildId, tradeId);
+    if (!trade || trade.status !== "open") throw new Error("This trade is no longer open.");
+    const side = trade.initiator_id === owner ? "initiator" : "target";
+    const items = trade.offers[side].items.filter(entry => entry.itemId !== value);
+    await s.trades.setOffer(i.guildId, tradeId, owner, { fc: trade.offers[side].fc, items });
     return i.update(await renderMenu(i.guildId, owner, "trade", s));
   }
   if (scope === "dash" && action === "trade-item") {
