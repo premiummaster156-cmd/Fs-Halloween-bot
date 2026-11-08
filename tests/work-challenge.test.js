@@ -11,11 +11,11 @@ test("career tiers unlock progressively harder work challenge bands", () => {
   assert.equal(getQuestionBand(byId.street_runner, 31), "medium");
 });
 
-test("each work shift draws three valid questions from a fresh 100-question pool", () => {
+test("each work shift draws three valid questions from a fresh 115-question pool", () => {
   const job = balancing.jobs.find((item) => item.id === "shopkeeper");
   const shift = makeWorkChallenge(job, 4, 3);
-  assert.equal(QUESTION_POOL_SIZE, 100);
-  assert.equal(shift.questionCount, 100);
+  assert.equal(QUESTION_POOL_SIZE, 115);
+  assert.equal(shift.questionCount, 115);
   assert.equal(shift.questions.length, 3);
   for (const item of shift.questions) {
     assert.equal(item.options.length, 4);
