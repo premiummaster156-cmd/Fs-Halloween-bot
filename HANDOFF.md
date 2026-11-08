@@ -3,7 +3,7 @@
 **Repository:** https://github.com/premiummaster156-cmd/Fs-Halloween-bot  
 **Default branch:** `main`  
 **Runtime:** Node.js 20+, Discord.js 14, PostgreSQL on Neon  
-**Last updated:** 2026-11-08 — added safe, console-operated full player-data reset
+**Last updated:** 2026-11-08 — protected bot owner, guild owners and configured Admin Role accounts in player-data reset
 **Working rule:** `main` is the only development branch. Do not create feature branches. Inspect and update `main` directly, keep this file current, and verify CI before reporting completion.
 
 ## Final season — ends November 30, 2026
@@ -90,12 +90,13 @@ Abilities retain their passive equipment stats and have their one-use Arena powe
 
 ## Full player-data reset (hosting console)
 
-- Run \`npm run reset:player-data\` for a read-only preview, then run \`npm run reset:player-data -- --confirm RESET_ALL_PLAYER_DATA\` for the actual reset.
-- Stop/pause the bot before execution. The script locks the listed tables and clears all player/game state across the entire Neon database in one transaction; a failure rolls the transaction back.
-- Reset includes player wallet/bank/level/XP/rebirth/career/lifetime stats, economy ledger, inventory/equipment, cooldowns, event and Candy state, daily/weekly activity and quest records, achievements, Party Games, heists, Arena battles, archived legacy boss data and personal booster reward tracking.
-- Preserved admin/configuration and operational tables: \`guild_settings\`, \`halloween_events\`, \`custom_commands\`, \`leaderboard_exclusions\`, \`audit_logs\`, \`security_incidents\`, \`bot_user_restrictions\`, \`application_migrations\`.
-- Active boosters may receive the existing first-item backfill again when next synchronized after reset. The script does not alter Discord server roles/channels, deployment variables or the database schema.
-
+- Preview with \`npm run reset:player-data\`; execute with \`npm run reset:player-data -- --confirm RESET_ALL_PLAYER_DATA\`.
+- Back up Neon and stop the bot first. The reset requires \`DISCORD_TOKEN\` and \`OWNER_ID\` to verify Discord server owners, bot owner and currently configured Admin Role members. Any failed verification aborts without deletion.
+- Bot owner, each guild/server owner and users holding that guild's configured Admin Role are excluded from every user-scoped delete.
+- Everyone else has FC/bank, level/XP/rebirth, job/career, lifetime stats, owned/equipped items and upgrades, Candy/event records, activity/quests/achievements, party stats, heists and Arena progress reset.
+- Admin-panel settings, event configuration, custom commands, leaderboard exclusions, audit history and security restrictions remain unchanged.
+- Discord boost status and boost-message idempotency history are preserved to prevent re-granting old boost rewards; booster equipment itself is removed with inventory.
+- Tables without a recognized guild/member identity are skipped. The reset is transactional and rolls back on any error.
 ## Validation and deployment status
 
 The final code and balance are committed directly to `main` in commit `f8de471f1a91ab46d53ff281ea6de4c2e80ff86d`. GitHub Actions run **42331427414** passed on that exact `main` commit: dependency installation, syntax validation, slash-command validation and **149 tests passed, 0 failed**. The earlier source snapshot run 42289846723 also passed 149/149. The previous PR #28 was closed after its 20-file contents were committed directly to `main`; it is no longer an active change path. Neon migration and full Discord test-server interaction checks remain manual deployment checks. Do not report the bot as live from this repository update alone.

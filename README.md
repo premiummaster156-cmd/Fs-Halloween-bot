@@ -79,30 +79,27 @@ Equipment bonuses apply only while equipped. Every item can be upgraded five tim
 
 ## Reset all player/game data from the hosting console
 
-The reset utility clears player progress **across every guild using this database**. It removes wallet and bank balances, levels and XP, rebirths, careers and job progress, lifetime FC statistics, inventory and equipped gear, cooldowns, economy ledger history, event/Candy balances and claims, weekly activity and quest progress, daily chat-reward counters, achievement claims, Party Game scores, heist crews/results, Rift Arena battles, archived legacy boss data, and personal server-booster reward counters/events.
+The reset utility clears gameplay data for ordinary members across every guild using this database. It checks the Discord bot owner, each Discord server owner, and every member who currently has the **Admin Role** configured for that guild in its admin panel. Those users' records are protected in every player-data table.
 
-It deliberately preserves server/admin configuration and operational controls: \`guild_settings\` (admin role, log channel, event/XP roles and other saved settings), \`halloween_events\` (event schedule/configuration), \`custom_commands\`, \`leaderboard_exclusions\`, \`audit_logs\`, \`security_incidents\`, \`bot_user_restrictions\`, and \`application_migrations\`.
+It resets everyone else’s FC and bank balances, levels, XP, rebirths, careers and job progress, lifetime earnings/spending, inventory, equipped gear and upgrades, cooldowns, economy history, Candy/event balances and claims, daily/weekly activity, achievements, Party Game stats, heists and Arena battles. The player's row is reset, so both their selected job and all owned items are removed.
 
-**Before running:** back up Neon, then stop/pause the bot process so active in-memory work sessions cannot recreate player rows while the reset is happening.
+Admin-panel settings, event configuration, custom commands, leaderboard exclusions, audit history and security restrictions are preserved. Discord boost status and boost-message deduplication history are also preserved so old boost notifications cannot grant an already-issued item again; booster items themselves are cleared with inventory.
 
-Run these commands in the hosting service's console, from the repository folder:
+**Before running:** back up Neon and stop/pause the bot. The script requires \`DISCORD_TOKEN\` and \`OWNER_ID\`. If Discord cannot verify a guild owner or configured Admin Role membership, it aborts without deleting anything.
 
-1. Preview database/table row counts. This does not delete anything:
+Preview (no data is deleted):
 
-   \`\`\`sh
-   npm run reset:player-data
-   \`\`\`
+\`\`\`sh
+npm run reset:player-data
+\`\`\`
 
-2. Execute the irreversible reset only after checking the preview:
+Execute after checking the protected-account count and eligible rows:
 
-   \`\`\`sh
-   npm run reset:player-data -- --confirm RESET_ALL_PLAYER_DATA
-   \`\`\`
+\`\`\`sh
+npm run reset:player-data -- --confirm RESET_ALL_PLAYER_DATA
+\`\`\`
 
-The reset runs in one PostgreSQL transaction and takes exclusive locks on affected tables. If any delete fails, PostgreSQL rolls the entire reset back. Missing legacy/archived tables are skipped. It does not delete Discord roles/channels, bot tokens, environment variables, admin-panel settings, event configuration, custom commands, audit history or security restrictions.
-
-The \`server_booster_status\` and \`server_boost_events\` player reward counters are reset with the game data. A member who is still actively boosting may receive the existing first-boost backfill item again when the bot next synchronizes that member; this is the current booster system's normal behavior.
-
+The operation is transactional, locks the affected tables and excludes protected users by guild ID + Discord user ID. Any error rolls the entire reset back. Tables without a recognized guild/member identity are skipped rather than being blindly emptied.
 ## Quick start for members
 
 1. Run **/menu**.
