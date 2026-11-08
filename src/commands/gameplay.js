@@ -385,9 +385,11 @@ const leaderboardCommand = {
       )),
   async execute(interaction, services) {
     const metric = interaction.options.getString("ranking", true);
-    return interaction.editReply(await require("./leaderboard-ui").leaderboardPayload({
-      guild: interaction.guild, pool: services.pool, owner: interaction.user.id, metric, page: 0
-    }));
+    if (interaction.guild?.members?.fetch) {
+      return interaction.editReply(await require("./leaderboard-ui").leaderboardPayload({
+        guild: interaction.guild, pool: services.pool, owner: interaction.user.id, metric, page: 0
+      }));
+    }
     const medals = ["🥇", "🥈", "🥉"];
     if (metric === "party") {
       const rows = await services.partyGames.leaderboard(interaction.guildId, 10);

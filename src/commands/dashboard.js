@@ -1067,6 +1067,24 @@ async function showWork(i, owner, session) {
 
 async function handleSelection(i, s, scope, owner, action, parts) {
   const value = i.values[0];
+  if (scope === "dash" && action === "trade-target") {
+    if (value === owner) throw new Error("You cannot trade with yourself.");
+    const member = await i.guild.members.fetch(value).catch(() => null);
+    if (!member || member.user.bot) throw new Error("Choose a real server member, not a bot or departed member.");
+    const trade = await s.trades.create(i.guildId, owner, value);
+    await member.send("You have a Fukishokai trade invitation from <@" + owner + ">. Open /menu → Trade to review and respond. The trade expires in 30 minutes.").catch(() => null);
+    await safeAudit(i, s, "player_trade_created", value, { tradeId: trade.id });
+    return i.update(await renderMenu(i.guildId, owner, "trade", s));
+  }
+  if (scope === "dash" && action === "trade-item") {
+    const tradeId = parts[3];
+    const inv = await s.inventory.getInventory(i.guildId, owner);
+    const entry = inv.items.find(x => x.item.id === value && !x.item.boosterOnly);
+    if (!entry) throw new Error("You do not own that tradable item.");
+    return i.showModal(modal("dash:" + owner + ":trade-item-modal:" + tradeId + ":" + value, "Offer " + entry.item.name, [
+      { id: "quantity", label: "Quantity (max " + Math.min(99, entry.quantity) + ")", placeholder: "1", max: 2 }
+    ]));
+  }
   if (scope === "dash" && action === "arena-start") {
     await i.deferUpdate();
     await s.arena.start(i.guildId, owner, value);
@@ -1176,10 +1194,6 @@ async function handleSelection(i, s, scope, owner, action, parts) {
       { name: "Cooldown", value: Math.round(result.job.cooldownMs / 60000) + " minutes", inline: true }
     ], [row(btn(owner, "earn", "Go to Earn", ButtonStyle.Success)), navButton(owner)], "success"));
   }
-  if (action === "transfer-target") {
-    if (value === owner) return i.reply({ content: "You cannot transfer FC to yourself.", flags: MessageFlags.Ephemeral });
-    return i.showModal(modal("dash:" + owner + ":transfer-modal:" + value, "Send FS Coins", [{ id: "amount", label: "Amount in FC", placeholder: "1000", max: 12 }]));
-  }
   if (action === "equip" || action === "unequip" || action === "shop-buy" || action === "upgrade-item" || action === "crime-run" || action === "event-claim" || action === "event-buy" || action === "ranking-type" || action === "achievement-claim" || action === "weekly-quest-claim") {
     await i.deferUpdate();
     if (action === "weekly-quest-claim") {
@@ -1259,25 +1273,6 @@ async function handleSelection(i, s, scope, owner, action, parts) {
     }
     if (action === "ranking-type") {
       return i.editReply(await leaderboardPayload({ guild: i.guild, pool: s.pool, owner, metric: value, page: 0 }));
-    }
-    if (action === "trade-target") {
-      if (value === owner) throw new Error("You cannot trade with yourself.");
-      const member = await i.guild.members.fetch(value).catch(() => null);
-      if (!member || member.user.bot) throw new Error("Choose a real server member, not a bot or departed member.");
-      const trade = await s.trades.create(i.guildId, owner, value);
-      await member.send("You have a Fukishokai trade invitation from <@" + owner + ">. Open /menu → Trade to review and respond. The trade expires in 30 minutes.")
-        .catch(() => null);
-      await safeAudit(i, s, "player_trade_created", value, { tradeId: trade.id });
-      return i.update(await renderMenu(i.guildId, owner, "trade", s));
-    }
-    if (action === "trade-item") {
-      const tradeId = parts[3];
-      const inv = await s.inventory.getInventory(i.guildId, owner);
-      const entry = inv.items.find(x => x.item.id === value && !x.item.boosterOnly);
-      if (!entry) throw new Error("You do not own that tradable item.");
-      return i.showModal(modal("dash:" + owner + ":trade-item-modal:" + tradeId + ":" + value, "Offer " + entry.item.name, [
-        { id: "quantity", label: "Quantity (max " + Math.min(99, entry.quantity) + ")", placeholder: "1", max: 2 }
-      ]));
     }
   }
   if (action === "heist-create") {
