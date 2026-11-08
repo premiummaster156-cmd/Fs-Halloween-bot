@@ -29,7 +29,6 @@ const LIFETIME_SPENDING_REASONS = new Set([
   "casino_bet",
   "crime_failed_fine",
   "heist_failed_fine",
-  "member_transfer_out"
 ]);
 
 async function ensurePlayerTx(client, guildId, userId) {
@@ -446,23 +445,6 @@ class EconomyService {
         nextCandyBalanceRequired: next.candyBalanceRequired,
         nextGearUpgradeLevelsRequired: next.gearUpgradeLevelsRequired
       };
-    });
-  }
-
-  async transfer(guildId, fromUserId, toUserId, amount) {
-    const value = Math.floor(Number(amount));
-    if (!Number.isSafeInteger(value) || value < balancing.economy.transferMinimum || value > balancing.economy.transferMaximum) {
-      throw new DomainError("Transfer must be between " + balancing.economy.transferMinimum + " and " + balancing.economy.transferMaximum + " FC.", "INVALID_TRANSFER");
-    }
-    if (fromUserId === toUserId) throw new DomainError("You cannot transfer money to yourself.", "SELF_TRANSFER");
-    const reference = uuid();
-    return transaction(async (client) => {
-      await ensurePlayerTx(client, guildId, fromUserId);
-      await ensurePlayerTx(client, guildId, toUserId);
-      await client.query("SELECT user_id FROM players WHERE guild_id = $1 AND user_id = ANY($2::text[]) ORDER BY user_id FOR UPDATE", [guildId, [fromUserId, toUserId]]);
-      await this.mutateTx(client, guildId, fromUserId, -value, "member_transfer_out", reference + ":out", { to: toUserId });
-      await this.mutateTx(client, guildId, toUserId, value, "member_transfer_in", reference + ":in", { from: fromUserId });
-      return { amount: value };
     });
   }
 

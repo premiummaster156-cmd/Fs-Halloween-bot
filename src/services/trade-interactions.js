@@ -49,6 +49,9 @@ class TradeService {
     return this.transactionRunner(async (client) => {
       await ensurePlayerTx(client, guildId, initiatorId);
       await ensurePlayerTx(client, guildId, targetId);
+      for (const userId of [initiatorId, targetId].sort()) {
+        await client.query("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", [guildId, userId]);
+      }
       const active = await client.query(
         "SELECT id FROM player_trades WHERE guild_id = $1 AND status = 'open' AND expires_at > NOW() " +
         "AND (initiator_id = $2 OR target_id = $2 OR initiator_id = $3 OR target_id = $3) FOR UPDATE",
