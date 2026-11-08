@@ -152,3 +152,11 @@ The project also applies schema changes at startup. No slash-command redeploymen
 - **FC Party Events remain a separate feature** and must not be substituted for Admin Abuse.
 - **DM limitation:** Bulk DMs target tracked profiles and cached members only. The service does not call `guild.members.fetch()` without a specific ID. Never-seen members cannot be automatically discovered.
 - **Remaining deployment checks:** Confirm GitHub Actions, then validate the Neon migration and full Discord test-server interactions separately. Do not claim deployment is live from CI alone.
+
+
+## Latest code validation — November 8, 2026
+
+- **Verified code revision:** `5870cb338864ec2a5806e56f13dae1bed29dfb72` on `main`.
+- **GitHub Actions:** [CI run 42506948962](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/42506948962) passed: dependency installation, source syntax validation, slash-command validation and **171 tests passed / 0 failed**.
+- The passing suite includes Admin Abuse preset validation, tracked-profile leaderboard coverage, cached zero-stat members, bulk DM handling without privileged member enumeration, and trade eligibility checks.
+- This does not verify the live Neon migration, Discord Developer Portal settings, actual Discord DM delivery or end-to-end interactions in the live server. Those remain deployment checks.
