@@ -54,7 +54,7 @@ The admin console retains its custom JavaScript command workspace. A custom slas
 
 Casino games have a 100 FC minimum bet and no maximum bet; wagers are limited only by the player's available wallet balance. The base cooldown is 10 seconds and there is no daily wager cap. Equipped casino gear can increase the frequency of winning results and shorten the cooldown, while adjusting winning payouts to keep the published long-run return fair. Coin Flip, High Dice and Slots each have a base theoretical return of 95%. Slots has a 1% Jackpot (10×), 4% Big win (4×), 20% Small win (3.45×), and 75% no-win chance.
 
-Normal FC rewards from Daily, Work, Crime, Heists, chat activity and achievements are multiplied by 3×. Rebirth and equipped gear bonuses still stack on top. Casino payouts are deliberately excluded from this boost so their published 95% theoretical return remains unchanged.
+Normal FC rewards from Daily, Work, Crime, Heists, chat activity, achievements and Arena victories use the 3× season multiplier and also scale with player level: +0.1% per level above level 1, reaching +59.9% at level 600. Rebirth duplication and gear bonuses stack on top. Casino payouts, transfers and admin grants are excluded so the published 95% casino return stays unchanged.
 
 ### Server Booster rewards
 
@@ -69,7 +69,7 @@ Equipment bonuses apply only while equipped. Every item can be upgraded five tim
 ### First steps
 
 1. Run **/menu** and open **Careers**. Choose a career you qualify for.
-2. Open **Earn** and claim Daily or start a Work shift. Work uses three multiple-choice questions; each correct answer increases the reward.
+2. Open **Earn** and claim Daily or start a Work shift. Work keeps three multiple-choice questions per shift, selected from a 115-question randomized pool with 15 additional question templates across easy, medium and hard difficulties. Correct answers improve pay and XP, difficulty sets the shift time limit, and Work FC receives the same player-level income bonus as other normal FC rewards.
 3. Use **Profile** to track your level, career and wealth. Use **Bank** to protect savings and **Gear** to manage equipment.
 4. Open **Games** to review crime and casino risks, or **Heists** to create a crew. The bot posts a public crew board that updates with each member and chosen role, then publishes the final mission result when the leader starts it.
 5. Use **Gear** to equip items and upgrade each one up to five times. More expensive equipment has stronger bonuses; upgrades improve its effects. Gear can improve salary, FC and XP income, operation success, casino hit frequency, fines and cooldowns.
@@ -96,7 +96,7 @@ The Gear dashboard shows owned equipment, equipped slots, active bonuses, total 
 
 ## Careers, operations and casino
 
-All seven career tiers now have a distinct passive benefit: work pay, work cooldown, general FC income, crime success, crime rewards, or heist success. The Career Desk shows each perk and the member's job-level promotion progress. Work shifts continue to generate a fresh pool of 100 randomized questions in one of three difficulty bands, with recent questions avoided.
+The 22 career paths include the original seven plus 15 new specialist careers with progressive level and wallet unlocks, higher salaries and unique passive perks. The Career Desk shows each perk and the member's job-level promotion progress. Work shifts keep three questions per run from a 115-question randomized pool, including 15 added templates across three difficulty bands, with recently shown questions avoided.
 
 The Crime board contains six operations, from Pickpocket through Vault Extraction. Higher-risk operations require higher player levels and offer larger rewards, fines and cooldowns. Career perks, reputation and equipped gear influence success and rewards.
 
