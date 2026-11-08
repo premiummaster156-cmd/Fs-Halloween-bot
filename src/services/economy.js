@@ -212,6 +212,8 @@ class EconomyService {
     const gear = (dropEligible || earningEligible) && this.inventory
       ? await this.inventory.getEffectsTx(client, guildId, userId)
       : {};
+    let party = null;
+    let partyMultiplier = 1;
     if (earningEligible) {
       const incomeBonus = Math.min(0.75, (gear.moneyBonus || 0) + (career.moneyBonus || 0));
       const levelMultiplier = getLevelEarningMultiplier(result.rows[0].level);
@@ -219,8 +221,8 @@ class EconomyService {
         "SELECT name,multiplier FROM economy_events WHERE guild_id=$1 AND enabled=TRUE AND starts_at<=NOW() AND ends_at>NOW() ORDER BY created_at DESC LIMIT 1",
         [guildId]
       );
-      const party = partyResult.rows[0] || null;
-      const partyMultiplier = party ? Math.max(1, Math.min(10, Number(party.multiplier) || 1)) : 1;
+      party = partyResult.rows[0] || null;
+      partyMultiplier = party ? Math.max(1, Math.min(10, Number(party.multiplier) || 1)) : 1;
       const multiplier = Math.max(1, Number(balancing.economy.earningMultiplier) || 1) *
         getRebirthMultiplier(result.rows[0].prestige) * levelMultiplier * (1 + incomeBonus) * partyMultiplier;
       appliedAmount = Math.floor(amount * multiplier);
