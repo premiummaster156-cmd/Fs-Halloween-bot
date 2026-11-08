@@ -5,6 +5,30 @@ const { DomainError, uuid } = require("../utils/core");
 const TRADE_TTL_MS = 30 * 60 * 1000;
 const MAX_ITEM_TYPES = 10;
 const MAX_FC = Number(balancing.economy.maxWallet);
+const MIN_ACCOUNT_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const MIN_SERVER_TENURE_MS = 24 * 60 * 60 * 1000;
+const MAX_DAILY_TRADE_OPENS = 8;
+const PAIR_COOLDOWN_MS = 10 * 60 * 1000;
+function snowflakeCreatedAt(id) {
+  try { return Number((BigInt(String(id)) >> 22n) + 1420070400000n); } catch (_) { return NaN; }
+}
+function validateTradeMember(member, now = Date.now()) {
+  const user = member?.user || member;
+  const userId = user?.id || member?.id;
+  if (!userId || user?.bot) throw new DomainError("Trading is available only to human server members.", "TRADE_MEMBER_INVALID");
+  const createdAt = snowflakeCreatedAt(userId);
+  if (!Number.isFinite(createdAt) || now - createdAt < MIN_ACCOUNT_AGE_MS) {
+    throw new DomainError("Discord accounts must be at least 7 days old before trading.", "TRADE_ACCOUNT_TOO_NEW");
+  }
+  let joinedAt = NaN;
+  if (member?.joinedTimestamp != null) joinedAt = Number(member.joinedTimestamp);
+  else if (member?.joinedAt) joinedAt = new Date(member.joinedAt).getTime();
+  else if (member?.joined_at) joinedAt = Date.parse(member.joined_at);
+  if (!Number.isFinite(joinedAt) || now - joinedAt < MIN_SERVER_TENURE_MS) {
+    throw new DomainError("You must have been in this server for at least 24 hours before trading.", "TRADE_SERVER_TENURE");
+  }
+  return true;
+}
 const emptyOffer = () => ({ fc: 0, items: [] });
 function normalizeTrade(row) {
   if (!row) return null;
@@ -44,14 +68,24 @@ function validateOffer(offer) {
 }
 class TradeService {
   constructor(pool, transactionRunner = transaction) { this.pool = pool; this.transactionRunner = transactionRunner; }
-  async create(guildId, initiatorId, targetId) {
+  async create(guildId, initiatorId, targetId, initiatorMember, targetMember) {
     if (!targetId || initiatorId === targetId) throw new DomainError("Choose another member.", "TRADE_INVALID_TARGET");
+    validateTradeMember(initiatorMember);
+    validateTradeMember(targetMember);
     return this.transactionRunner(async (client) => {
       await ensurePlayerTx(client, guildId, initiatorId);
       await ensurePlayerTx(client, guildId, targetId);
       for (const userId of [initiatorId, targetId].sort()) {
         await client.query("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", [guildId, userId]);
       }
+      for (const userId of [initiatorId, targetId]) {
+        const usage = await client.query("SELECT COUNT(*)::int AS count FROM player_trades WHERE guild_id=$1 AND (initiator_id=$2 OR target_id=$2) AND created_at>NOW()-INTERVAL '24 hours'", [guildId, userId]);
+        if (Number(usage.rows[0]?.count || 0) >= MAX_DAILY_TRADE_OPENS) throw new DomainError("You have reached the daily limit of 8 trade invitations. Try again tomorrow.", "TRADE_DAILY_LIMIT");
+      }
+      const pairRecent = await client.query(
+        "SELECT id FROM player_trades WHERE guild_id=$1 AND ((initiator_id=$2 AND target_id=$3) OR (initiator_id=$3 AND target_id=$2)) AND status IN ('open','completed') AND created_at>NOW()-($4 * INTERVAL '1 millisecond') LIMIT 1",
+        [guildId, initiatorId, targetId, PAIR_COOLDOWN_MS]);
+      if (pairRecent.rowCount) throw new DomainError("You recently traded with this member. Wait 10 minutes before opening another trade together.", "TRADE_PAIR_COOLDOWN");
       const active = await client.query(
         "SELECT id FROM player_trades WHERE guild_id = $1 AND status = 'open' AND expires_at > NOW() " +
         "AND (initiator_id = $2 OR target_id = $2 OR initiator_id = $3 OR target_id = $3) FOR UPDATE",
@@ -198,4 +232,4 @@ function tradeCard(trade,viewerId) {
       {name:"Their confirmation",value:trade.confirmations[side==="initiator"?"target":"initiator"]?"Confirmed":"Waiting",inline:true}
     ]};
 }
-module.exports={TradeService,tradeCard,validateOffer,hasOffer,normalizeTrade,TRADE_TTL_MS,MAX_ITEM_TYPES};
+module.exports={TradeService,tradeCard,validateOffer,hasOffer,normalizeTrade,validateTradeMember,snowflakeCreatedAt,TRADE_TTL_MS,MAX_ITEM_TYPES,MIN_ACCOUNT_AGE_MS,MIN_SERVER_TENURE_MS,MAX_DAILY_TRADE_OPENS,PAIR_COOLDOWN_MS};
