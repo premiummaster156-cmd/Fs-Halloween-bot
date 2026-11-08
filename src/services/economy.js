@@ -245,9 +245,21 @@ class EconomyService {
     const next = normalizedWallet + walletDelta;
     if (next < 0) throw new DomainError("You do not have enough FS Coins in your wallet.", "INSUFFICIENT_FUNDS");
 
-    const candyDrop = appliedAmount > 0
+    let candyDrop = appliedAmount > 0
       ? calculateCandyDrop(reason, gear.candyDropBonus || 0, Math.random(), Math.random(), Number(result.rows[0].prestige) || 0)
       : null;
+    let adminAbuseEvent = null;
+    if (dropEligible) {
+      const eventResult = await client.query(
+        "SELECT id,event_type,name FROM admin_abuse_events WHERE guild_id=$1 AND status='active' AND starts_at<=NOW() AND ends_at>NOW() ORDER BY created_at DESC LIMIT 1",
+        [guildId]
+      );
+      adminAbuseEvent = eventResult.rows[0] || null;
+      if (adminAbuseEvent?.event_type === "candy_storm") {
+        const bonusCandy = randomInt(1, 2);
+        candyDrop = { ...(candyDrop || {}), amount: Number(candyDrop?.amount || 0) + bonusCandy, eventBonus: bonusCandy };
+      }
+    }
     const lifetimeEarned = LIFETIME_EARNING_REASONS.has(reason) ? Math.max(0, appliedAmount) : 0;
     const lifetimeSpent = LIFETIME_SPENDING_REASONS.has(reason) ? Math.max(0, -appliedAmount) : 0;
     await client.query(
@@ -266,7 +278,9 @@ class EconomyService {
         economyEventName: amount > 0 && earningEligible ? (party?.name || null) : null,
         walletCredit: walletDelta,
         bankedAmount: bankDelta,
-        candyDrop: candyDrop ? candyDrop.amount : 0
+        candyDrop: candyDrop ? candyDrop.amount : 0,
+        adminAbuseEvent: adminAbuseEvent?.name || null,
+        adminAbuseCandyBonus: candyDrop?.eventBonus || 0
       })]
     );
     if (candyDrop) {
