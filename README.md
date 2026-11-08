@@ -76,6 +76,33 @@ Equipment bonuses apply only while equipped. Every item can be upgraded five tim
 6. Open **Rebirth** to see the live checklist. Your first rebirth needs 15,000 FC, level 10, one claimed event quest, a selected career and one work shift. Wallet and level requirements rise gradually; quest claims, career levels and shifts cap at 3, 5 and 3. Gear, Candy and upgrade requirements start at rebirths 5, 10 and 20, with small caps. Rebirth resets wallet to 2,500 FC, bank to zero, player level to 1 and current career. Owned equipment, upgrades, Candy collectibles, event claims and lifetime records stay. FC/XP duplication rises by +1× per rebirth, up to 101× at 100 rebirths.
 7. Open **Achievements** to track permanent milestones and claim each unlocked FC/XP reward once. Open **Halloween** to track quests, claim completed rewards, check the weekly activity mission and browse seasonal items.
 
+
+## Reset all player/game data from the hosting console
+
+The reset utility clears player progress **across every guild using this database**. It removes wallet and bank balances, levels and XP, rebirths, careers and job progress, lifetime FC statistics, inventory and equipped gear, cooldowns, economy ledger history, event/Candy balances and claims, weekly activity and quest progress, daily chat-reward counters, achievement claims, Party Game scores, heist crews/results, Rift Arena battles, archived legacy boss data, and personal server-booster reward counters/events.
+
+It deliberately preserves server/admin configuration and operational controls: \`guild_settings\` (admin role, log channel, event/XP roles and other saved settings), \`halloween_events\` (event schedule/configuration), \`custom_commands\`, \`leaderboard_exclusions\`, \`audit_logs\`, \`security_incidents\`, \`bot_user_restrictions\`, and \`application_migrations\`.
+
+**Before running:** back up Neon, then stop/pause the bot process so active in-memory work sessions cannot recreate player rows while the reset is happening.
+
+Run these commands in the hosting service's console, from the repository folder:
+
+1. Preview database/table row counts. This does not delete anything:
+
+   \`\`\`sh
+   npm run reset:player-data
+   \`\`\`
+
+2. Execute the irreversible reset only after checking the preview:
+
+   \`\`\`sh
+   npm run reset:player-data -- --confirm RESET_ALL_PLAYER_DATA
+   \`\`\`
+
+The reset runs in one PostgreSQL transaction and takes exclusive locks on affected tables. If any delete fails, PostgreSQL rolls the entire reset back. Missing legacy/archived tables are skipped. It does not delete Discord roles/channels, bot tokens, environment variables, admin-panel settings, event configuration, custom commands, audit history or security restrictions.
+
+The \`server_booster_status\` and \`server_boost_events\` player reward counters are reset with the game data. A member who is still actively boosting may receive the existing first-boost backfill item again when the bot next synchronizes that member; this is the current booster system's normal behavior.
+
 ## Quick start for members
 
 1. Run **/menu**.

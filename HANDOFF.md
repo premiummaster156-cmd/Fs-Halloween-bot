@@ -3,7 +3,7 @@
 **Repository:** https://github.com/premiummaster156-cmd/Fs-Halloween-bot  
 **Default branch:** `main`  
 **Runtime:** Node.js 20+, Discord.js 14, PostgreSQL on Neon  
-**Last updated:** 2026-11-07 — final-season balance and Rift Arena committed to main  
+**Last updated:** 2026-11-08 — added safe, console-operated full player-data reset
 **Working rule:** `main` is the only development branch. Do not create feature branches. Inspect and update `main` directly, keep this file current, and verify CI before reporting completion.
 
 ## Final season — ends November 30, 2026
@@ -86,6 +86,15 @@ Abilities retain their passive equipment stats and have their one-use Arena powe
 - Work shift quiz remains three multiple-choice questions per shift, drawn from the 115-question pool (15 additional templates). Difficulty-based time limits and level-based FC scaling apply.
 - Admin access: server owner, configured bot owner or configured trusted Admin Role. Discord Administrator alone does not grant bot-admin access. Privileged actions remain audited.
 - Do not claim live Discord or Neon validation from GitHub CI alone.
+
+
+## Full player-data reset (hosting console)
+
+- Run \`npm run reset:player-data\` for a read-only preview, then run \`npm run reset:player-data -- --confirm RESET_ALL_PLAYER_DATA\` for the actual reset.
+- Stop/pause the bot before execution. The script locks the listed tables and clears all player/game state across the entire Neon database in one transaction; a failure rolls the transaction back.
+- Reset includes player wallet/bank/level/XP/rebirth/career/lifetime stats, economy ledger, inventory/equipment, cooldowns, event and Candy state, daily/weekly activity and quest records, achievements, Party Games, heists, Arena battles, archived legacy boss data and personal booster reward tracking.
+- Preserved admin/configuration and operational tables: \`guild_settings\`, \`halloween_events\`, \`custom_commands\`, \`leaderboard_exclusions\`, \`audit_logs\`, \`security_incidents\`, \`bot_user_restrictions\`, \`application_migrations\`.
+- Active boosters may receive the existing first-item backfill again when next synchronized after reset. The script does not alter Discord server roles/channels, deployment variables or the database schema.
 
 ## Validation and deployment status
 
