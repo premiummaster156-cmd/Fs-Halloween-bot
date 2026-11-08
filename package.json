@@ -12,7 +12,8 @@
     "deploy-commands": "node scripts/deploy-commands.js",
     "db:migrate": "node src/database/migrate.js",
     "test": "node --test",
-    "check": "node --check src/index.js && node --test"
+    "check": "node --check src/index.js && node --test",
+    "reset:player-data": "node scripts/reset-player-data.js"
   },
   "dependencies": {
     "discord.js": "^14.19.3",
