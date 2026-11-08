@@ -49,6 +49,17 @@ async function safeSendLog(i, services, content) {
   if (await services.security.isAboveBotRole(i.guild, i.user.id)) return;
   return sendLog(i.client, i.guildId, content);
 }
+async function announceAdminAbuse(i, services, event, stopped = false) {
+  const channelId = await services.guildSettings.get(i.guildId, "memberCommandsChannelId");
+  if (!channelId) return false;
+  const channel = await i.guild.channels.fetch(channelId).catch(() => null);
+  if (!channel || !channel.isTextBased()) return false;
+  const message = stopped
+    ? "⛔ **ADMIN ABUSE EVENT ENDED**\n" + event.name + " has been stopped by an administrator."
+    : "🚨 **FUKISHOKAI ADMIN ABUSE LIVE**\n**" + event.name + "**\n" + event.description + "\nEnds <t:" + Math.floor(new Date(event.ends_at).getTime() / 1000) + ":R>.";
+  await channel.send({ content: message, allowedMentions: { parse: [] } });
+  return true;
+}
 
 function formatMemberActivityLog(action, displayName, actorId, details = {}, kind = "success") {
   const labels = {
@@ -237,9 +248,10 @@ async function renderMenu(guildId, owner, page, s) {
     const p = await getPlayer(s.pool, guildId, owner);
     const seasonal = await s.halloween.status(guildId, owner);
     const fcParty = s.economyEvents ? await s.economyEvents.getActive(guildId) : null;
+    const adminAbuse = s.adminAbuse ? await s.adminAbuse.getActive(guildId) : null;
     const career = balancing.jobs.find((j) => j.id === p.job_id);
     const wealth = Number(p.wallet) + Number(p.bank);
-    return panel("FUKISHOKAI  /  PLAYER HUB", "Earn FC with Daily, Work, scavenging, delivery contracts and server events. Complete weekly quests for Candy, then spend it on seasonal collectibles." + (fcParty ? "\n\n**" + fcParty.name + " is active** · Normal eligible FC rewards are multiplied by " + fcParty.multiplier + "× until <t:" + Math.floor(new Date(fcParty.ends_at).getTime() / 1000) + ":R>." : ""),
+    return panel("FUKISHOKAI  /  PLAYER HUB", "Earn FC with Daily, Work, scavenging, delivery contracts and server events. Complete weekly quests for Candy, then spend it on seasonal collectibles." + (fcParty ? "\n\n**" + fcParty.name + " is active** · Normal eligible FC rewards are multiplied by " + fcParty.multiplier + "× until <t:" + Math.floor(new Date(fcParty.ends_at).getTime() / 1000) + ":R>." : "") + (adminAbuse ? "\n\n🚨 **ADMIN ABUSE LIVE: " + adminAbuse.name + "** · " + adminAbuse.description + " · Ends <t:" + Math.floor(new Date(adminAbuse.ends_at).getTime() / 1000) + ":R>" : ""),
       [
         { name: "💎 Total wealth", value: wealth.toLocaleString() + " FC", inline: true },
         { name: "👛 Wallet", value: Number(p.wallet).toLocaleString() + " FC", inline: true },
@@ -281,8 +293,9 @@ async function renderMenu(guildId, owner, page, s) {
     const p = await getPlayer(s.pool, guildId, owner);
     const career = balancing.jobs.find((j) => j.id === p.job_id);
     const party = s.economyEvents ? await s.economyEvents.getActive(guildId) : null;
+    const adminAbuse = s.adminAbuse ? await s.adminAbuse.getActive(guildId) : null;
     return panel("EARN  /  GET FC", "Choose from several repeatable ways to earn. Normal game rewards stack with level, rebirth, gear and any active server FC party." +
-      (party ? "\n\n**" + party.name + " active: " + party.multiplier + "× FC**" : ""),
+      (party ? "\n\n**" + party.name + " active: " + party.multiplier + "× FC**" : "") + (adminAbuse ? "\n\n🚨 **" + adminAbuse.name.toUpperCase() + "** · " + adminAbuse.description : ""),
       [
         { name: "Daily", value: "Claim a large FC and XP reward every 18 hours. Higher levels earn more FC." },
         { name: "Work shift", value: career ? "Complete a role-based question shift for FC, XP and promotion progress as a " + career.name + "." : "Choose a career first to unlock Work shifts." },
@@ -291,7 +304,7 @@ async function renderMenu(guildId, owner, page, s) {
         { name: "Weekly activity", value: "Chat normally to fill the weekly bar. Bot messages do not count; chat FC/XP have separate daily caps." }
       ], [
         row(btn(owner, "daily", "Claim Daily", ButtonStyle.Success), btn(owner, "work", "Work Shift", ButtonStyle.Primary)),
-        row(btn(owner, "scavenge", "Scavenge", ButtonStyle.Secondary), btn(owner, "delivery", "Delivery Contract", ButtonStyle.Secondary)),
+        row(btn(owner, "scavenge", "Scavenge", ButtonStyle.Secondary), btn(owner, "delivery", "Delivery Contract", ButtonStyle.Secondary), ...(adminAbuse?.event_type === "lucky_block_rain" ? [btn(owner, "admin-abuse-claim", "Open Lucky Block", ButtonStyle.Success)] : [])),
         nav
       ]);
   }
@@ -744,17 +757,23 @@ async function renderMenu(guildId, owner, page, s) {
       [...(options.length ? [menu(owner, "event-buy", "Choose a collectible", options)] : []), nav]);
   }
   if (page === "rankings") {
-    return panel("SERVER LEADERBOARDS", "Every human member is listed, including people who have never used the bot. Members with no game profile start at zero. Use the page controls to browse or search by username, display name or Discord ID.",
+    return panel("SERVER LEADERBOARDS", "Rankings include saved game profiles and members already known to the bot. No privileged member-list intent is requested; members who have never interacted with Fukishokai cannot be enumerated automatically. Search by cached username, display name or an exact Discord ID.",
       [
         { name: "Total wealth", value: "Wallet plus bank balance." },
         { name: "Player level", value: "Highest level, with XP as a tie-breaker." },
         { name: "Lifetime earned", value: "All eligible game FC earnings." },
         { name: "Party Points", value: "Points earned from Party Games." },
-        { name: "Weekly messages", value: "Human-member messages in the current week." }
+        { name: "Weekly messages", value: "Tracked-member messages in the current week." },
+        { name: "Rebirths", value: "Completed rebirth count." },
+        { name: "Career level", value: "Current job level." },
+        { name: "Successful crimes", value: "Successful crime operations." },
+        { name: "Completed heists", value: "Successfully completed heists." }
       ], [menu(owner, "ranking-type", "Choose a ranking", [
         { label: "Total wealth", value: "wealth" }, { label: "Player level", value: "level" },
         { label: "Lifetime earned", value: "earned" }, { label: "Party Points", value: "party" },
-        { label: "Weekly messages", value: "activity" }
+        { label: "Weekly messages", value: "activity" }, { label: "Rebirths", value: "rebirths" },
+        { label: "Career level", value: "career" }, { label: "Successful crimes", value: "crimes" },
+        { label: "Completed heists", value: "heists" }
       ]), nav], "info");
   }
   if (page === "help") {
@@ -795,7 +814,7 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
         row(aBtn(owner, "settings", "Server settings", ButtonStyle.Primary, "⚙️"), aBtn(owner, "event", "Event controls", ButtonStyle.Secondary, "🎃")),
         row(aBtn(owner, "player", "Player management", ButtonStyle.Secondary, "👤"), aBtn(owner, "fairness", "Leaderboard fairness", ButtonStyle.Secondary, "🏆")),
         row(aBtn(owner, "custom-commands", "Custom commands", ButtonStyle.Primary, "🧩"), aBtn(owner, "logs", "Audit history", ButtonStyle.Secondary, "📋"), aBtn(owner, "refresh", "Refresh", ButtonStyle.Secondary, "🔄")),
-        row(aBtn(owner, "economy-events", "FC Party Events", ButtonStyle.Success), aBtn(owner, "member-dms", "Member DMs", ButtonStyle.Primary)),
+        row(aBtn(owner, "economy-events", "FC Party Events", ButtonStyle.Success), aBtn(owner, "member-dms", "Member DMs", ButtonStyle.Primary), aBtn(owner, "admin-abuse", "Admin Abuse", ButtonStyle.Danger)),
         row(aBtn(owner, "special-items", "Grant Mythic items", ButtonStyle.Primary, "🌟"))
       ], "info", "FUKISHOKAI  •  Private administrator console");
   }
@@ -814,11 +833,32 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
         row(aBtn(owner, "home", "Admin console"))
       ]);
   }
+  if (page === "admin-abuse") {
+    const active = await s.adminAbuse.getActive(guildId);
+    const presets = s.adminAbuse.presets();
+    return panel("ADMIN ABUSE  /  LIVE EVENT CONTROL",
+      "Trigger short, server-wide gameplay events with distinct effects, public announcements and limited-time rewards. These are separate from FC Party Events.",
+      [
+        { name: "Live event", value: active ? "**" + active.name + "**\\n" + active.description + "\\nEnds <t:" + Math.floor(new Date(active.ends_at).getTime()/1000) + ":R>" : "No Admin Abuse event is running." },
+        { name: "Blood Moon", value: presets.blood_moon.description },
+        { name: "Candy Storm", value: presets.candy_storm.description },
+        { name: "Rift Surge", value: presets.rift_surge.description },
+        { name: "Lucky Block Rain", value: presets.lucky_block_rain.description }
+      ], [
+        row(new StringSelectMenuBuilder().setCustomId("admin:" + owner + ":admin-abuse-type").setPlaceholder("Choose a live event to start").setMinValues(1).setMaxValues(1).addOptions(
+          { label: "Blood Moon", value: "blood_moon", description: "Crime success +12 points and +25% base rewards" },
+          { label: "Candy Storm", value: "candy_storm", description: "Every eligible gameplay action gains +1–2 Candy" },
+          { label: "Rift Surge", value: "rift_surge", description: "Rift Arena victory rewards +50% FC and XP" },
+          { label: "Lucky Block Rain", value: "lucky_block_rain", description: "Every player can claim one reward block" }
+        )),
+        row(aBtn(owner, "admin-abuse-stop", "Stop live event", ButtonStyle.Danger).setDisabled(!active), aBtn(owner, "home", "Admin console"))
+      ]);
+  }
   if (page === "member-dms") {
     if (!targetId) return panel("FORCED MEMBER DMS", "Send an administrator announcement by DM to every human member or to one selected member. Discord privacy settings still apply; failed/closed DMs are counted and reported.",
       [
-        { name: "Server-wide send", value: "Sends the message to all currently cached/fetched human members, excluding bots. Delivery is paced to respect Discord rate limits." },
-        { name: "Safety", value: "Every send is attributed to the administrator in the audit log. Maximum 5,000 recipients per campaign." }
+        { name: "Server-wide send", value: "Sends to tracked game profiles and members already cached by the bot. The Members privileged intent stays disabled, so members who have never interacted with the bot cannot be automatically discovered. Each known recipient is fetched individually." },
+        { name: "Safety", value: "Every send is attributed to the administrator in the audit log. Maximum 1,500 tracked recipients per campaign; Discord privacy settings are respected." }
       ], [
         row(aBtn(owner, "dm-send-all", "Compose DM to all members", ButtonStyle.Primary)),
         row(new UserSelectMenuBuilder().setCustomId("admin:" + owner + ":dm-target").setPlaceholder("Select one member").setMinValues(1).setMaxValues(1)),
@@ -1111,7 +1151,7 @@ async function handleSelection(i, s, scope, owner, action, parts) {
     if (value === owner) throw new Error("You cannot trade with yourself.");
     const member = await i.guild.members.fetch(value).catch(() => null);
     if (!member || member.user.bot) throw new Error("Choose a real server member, not a bot or departed member.");
-    const trade = await s.trades.create(i.guildId, owner, value);
+    const trade = await s.trades.create(i.guildId, owner, value, i.member, member);
     await member.send("You have a Fukishokai trade invitation from <@" + owner + ">. Open /menu → Trade to review and respond. The trade expires in 30 minutes.").catch(() => null);
     await safeAudit(i, s, "player_trade_created", value, { tradeId: trade.id });
     return i.update(await renderMenu(i.guildId, owner, "trade", s));
@@ -1146,6 +1186,9 @@ async function handleSelection(i, s, scope, owner, action, parts) {
   }
   if (scope === "admin") {
     if (!await isAdmin(i, s)) return i.reply({ content: "Your admin access has changed. Reopen the panel after checking permissions.", flags: MessageFlags.Ephemeral });
+    if (action === "admin-abuse-type") return i.showModal(modal("admin:" + owner + ":admin-abuse-start-modal:" + value, "Start " + s.adminAbuse.presets()[value].name, [
+      { id: "duration", label: "Duration in minutes (2–60)", placeholder: String(s.adminAbuse.presets()[value].defaultMinutes), max: 2 }
+    ]));
     if (action === "player-target") return i.update(await renderAdmin(i.guildId, owner, "player", s, value));
     if (action === "dm-target") return i.update(await renderAdmin(i.guildId, owner, "member-dms", s, value));
     if (action === "special-item-target") return i.update(await renderAdmin(i.guildId, owner, "special-items", s, value));
@@ -1542,6 +1585,16 @@ async function handleButton(i, s) {
         { id: "duration", label: "Duration in minutes (5–1440)", placeholder: "30", max: 4 }
       ]));
     }
+    if (action === "admin-abuse-stop") {
+      await i.deferUpdate();
+      const stopped = await s.adminAbuse.stop(i.guildId);
+      if (stopped.length) {
+        await safeAudit(i, s, "admin_abuse_stopped", null, { events: stopped.map(x => x.id) });
+        await safeSendLog(i, s, "Admin Abuse event stopped by <@" + owner + ">.");
+        await announceAdminAbuse(i, s, stopped[0], true);
+      }
+      return i.editReply(await renderAdmin(i.guildId, owner, "admin-abuse", s));
+    }
     if (action === "fc-party-stop") {
       await i.deferUpdate();
       const stopped = await s.economyEvents.stop(i.guildId);
@@ -1600,7 +1653,7 @@ async function handleButton(i, s) {
       await safeSendLog(i, s, "Custom command /" + removed.name + " was removed from Discord by <@" + owner + ">.");
       return i.editReply(await renderAdmin(i.guildId, owner, "custom-commands", s));
     }
-    if (action === "home" || action === "refresh" || action === "settings" || action === "settings-channels" || action === "clear-settings" || action === "event" || action === "player" || action === "fairness" || action === "logs" || action === "event-stop-confirm" || action === "special-items" || action === "economy-events" || action === "member-dms") {
+    if (action === "home" || action === "refresh" || action === "settings" || action === "settings-channels" || action === "clear-settings" || action === "event" || action === "player" || action === "fairness" || action === "logs" || action === "event-stop-confirm" || action === "special-items" || action === "economy-events" || action === "member-dms" || action === "admin-abuse") {
       return i.update(await renderAdmin(i.guildId, owner, action === "refresh" ? "home" : action, s, target));
     }
     if (["grant-fc", "grant-xp", "remove-fc", "set-level"].includes(action)) {
@@ -1737,6 +1790,12 @@ async function handleButton(i, s) {
         { name: "Next rebirth", value: nextTargets.join(" · ") },
         { name: "Kept", value: "Gear, upgrades, Candy, collectibles and lifetime stats." }
       ], [row(btn(owner, "profile", "Profile"), btn(owner, "gear", "Gear")), navButton(owner)], "success"));
+  }
+  if (action === "admin-abuse-claim") {
+    await i.deferUpdate();
+    const result = await s.adminAbuse.claimLuckyDrop(i.guildId, owner);
+    await recordMemberAction(i, s, "admin_abuse_lucky_block_claimed", "opened a Lucky Block during " + result.event.name + " and received " + result.amount.toLocaleString() + " FC.", { amount: result.amount, candy: result.candy, itemId: result.item?.id || null });
+    return i.editReply(panel("LUCKY BLOCK OPENED", "You found **" + result.amount.toLocaleString() + " FC**, **" + result.candy + " Candy**" + (result.item ? " and **" + result.item.name + "**." : "."), [{ name: "Event", value: result.event.name }], [row(btn(owner, "earn", "Back to Earn")), navButton(owner)], "success"));
   }
   if (action === "scavenge" || action === "delivery") {
     await i.deferUpdate();
@@ -1936,6 +1995,14 @@ async function handleModal(i, s) {
   }
   if (scope === "admin") {
     if (!await isAdmin(i, s)) throw new Error("This action is restricted to the server owner, bot owner, or configured Admin Role.");
+    if (action === "admin-abuse-start-modal") {
+      const duration = numberField(i, "duration", 2, 60, "Duration");
+      const event = await s.adminAbuse.start(i.guildId, owner, target, duration);
+      await safeAudit(i, s, "admin_abuse_started", null, { eventId: event.id, eventType: event.event_type, durationMinutes: duration });
+      await safeSendLog(i, s, "Admin Abuse **" + event.name + "** started by <@" + owner + "> for " + duration + " minutes.");
+      await announceAdminAbuse(i, s, event, false);
+      return i.editReply(await renderAdmin(i.guildId, owner, "admin-abuse", s));
+    }
     if (action === "fc-party-start-modal") {
       const name = i.fields.getTextInputValue("name").trim();
       const multiplier = numberField(i, "multiplier", 2, 10, "Multiplier");
@@ -1947,9 +2014,13 @@ async function handleModal(i, s) {
     }
     if (action === "dm-all-modal" || action === "dm-one-modal") {
       const message = i.fields.getTextInputValue("message").trim();
-      const result = action === "dm-all-modal"
-        ? await s.adminMessaging.sendToAll(i.guild, message)
-        : await s.adminMessaging.sendToMember(i.guild, target, message);
+      let result;
+      if (action === "dm-all-modal") {
+        const tracked = await s.pool.query("SELECT user_id FROM players WHERE guild_id=$1 ORDER BY created_at ASC LIMIT 1500", [i.guildId]);
+        result = await s.adminMessaging.sendToAll(i.guild, message, tracked.rows.map(x => x.user_id));
+      } else {
+        result = await s.adminMessaging.sendToMember(i.guild, target, message);
+      }
       await safeAudit(i, s, action === "dm-all-modal" ? "admin_dm_all" : "admin_dm_member", target || null, {
         sent: result.sent, failed: result.failed, skipped: result.skipped, messageLength: message.length
       });
