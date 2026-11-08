@@ -380,10 +380,14 @@ const leaderboardCommand = {
         { name: "Total wealth", value: "wealth" },
         { name: "Player level", value: "level" },
         { name: "Lifetime FC earned", value: "earned" },
-        { name: "Party Points", value: "party" }
+        { name: "Party Points", value: "party" },
+        { name: "Weekly messages", value: "activity" }
       )),
   async execute(interaction, services) {
     const metric = interaction.options.getString("ranking", true);
+    return interaction.editReply(await require("./leaderboard-ui").leaderboardPayload({
+      guild: interaction.guild, pool: services.pool, owner: interaction.user.id, metric, page: 0
+    }));
     const medals = ["🥇", "🥈", "🥉"];
     if (metric === "party") {
       const rows = await services.partyGames.leaderboard(interaction.guildId, 10);

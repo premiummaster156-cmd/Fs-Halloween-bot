@@ -59,7 +59,6 @@ function formatMemberActivityLog(action, displayName, actorId, details = {}, kin
     heist_completed: "HEIST COMPLETE",
     bank_deposit: "BANK DEPOSIT",
     bank_withdrawal: "BANK WITHDRAWAL",
-    member_transfer: "FC TRANSFER",
     halloween_weekly_claimed: "WEEKLY EVENT CLAIMED"
   };
   const pretty = (value) => String(value).replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -359,13 +358,29 @@ async function renderMenu(guildId, owner, page, s) {
     ], [row(btn(owner, "deposit", "Deposit", ButtonStyle.Success, "⬆️"), btn(owner, "withdraw", "Withdraw", ButtonStyle.Primary, "⬇️")), nav]);
   }
   if (page === "trade") {
-    return panel("SECURE PLAYER TRADING", "Trade FS Coins and items directly with another server member. Both members must contribute FC or at least one item, and both must confirm the final offer. One-sided gifts are blocked and recorded.",
-      [
-        { name: "Two-sided offers", value: "Each player can offer FC, up to 10 item types, or both." },
-        { name: "Confirmation", value: "Either member can edit their offer. Any edit resets both confirmations. The trade only completes after both accept the same final offers." },
-        { name: "Protection", value: "Items and FC are validated and moved in one database transaction. If anything changed or is no longer owned, the trade cannot complete." },
-        { name: "Expiration", value: "Unfinished trades expire after 30 minutes." }
-      ], [row(new UserSelectMenuBuilder().setCustomId("dash:" + owner + ":trade-target").setPlaceholder("Choose a member to trade with").setMinValues(1).setMaxValues(1)), nav]);
+    const active = s.trades ? await s.trades.getActive(guildId, owner) : null;
+    if (!active) {
+      return panel("SECURE PLAYER TRADING", "Create a trade with another member. Both players must offer FC or items, and both must confirm the same final offer. Free gifts are blocked. Trades expire after 30 minutes.",
+        [
+          { name: "Trade safety", value: "FC and item ownership are checked again when both players confirm. Offers are exchanged in one database transaction." },
+          { name: "Rules", value: "Each side may offer FC and up to 10 item types. Editing an offer clears both confirmations. Booster-exclusive Mythic items cannot be traded." }
+        ], [row(new UserSelectMenuBuilder().setCustomId("dash:" + owner + ":trade-target").setPlaceholder("Choose a member to trade with").setMinValues(1).setMaxValues(1)), nav]);
+    }
+    const card = tradeCard(active, owner);
+    const inv = await s.inventory.getInventory(guildId, owner);
+    const offered = new Set(active.offers[active.initiator_id === owner ? "initiator" : "target"].items.map(x => x.itemId));
+    const itemOptions = inv.items.filter(x => !x.item.boosterOnly && !offered.has(x.item.id)).slice(0, 25).map(x => ({
+      label: x.item.name.slice(0, 100), value: x.item.id,
+      description: "Owned: " + x.quantity + (x.upgradeLevel ? " · Upgrade " + x.upgradeLevel : "")
+    }));
+    const controls = [
+      row(btn(owner, "trade-fc", "Set FC offer", ButtonStyle.Primary, null, active.id),
+        btn(owner, "trade-confirm", "Confirm offer", ButtonStyle.Success, null, active.id),
+        btn(owner, "trade-cancel", "Cancel trade", ButtonStyle.Danger, null, active.id))
+    ];
+    if (itemOptions.length) controls.push(menu(owner, "trade-item", "Add an item to your offer", itemOptions, active.id));
+    controls.push(nav);
+    return panel(card.title, card.description, card.fields, controls, "info");
   }
   if (page === "gear") {
     const inv = await s.inventory.getInventory(guildId, owner);
@@ -1243,18 +1258,26 @@ async function handleSelection(i, s, scope, owner, action, parts) {
       return i.editReply(panel("SEASONAL ITEM PURCHASED", "You bought **" + r.item.name + "**.\n" + r.item.description, [{ name: "Candy remaining", value: r.remainingCandy.toLocaleString() }], [row(btn(owner, "event", "Back to Halloween")), navButton(owner)], "success"));
     }
     if (action === "ranking-type") {
-      let lines;
-      let title;
-      if (value === "activity") {
-        const r = await s.activity.leaderboard(i.guildId, 10);
-        title = "WEEKLY ACTIVITY RANKING";
-        lines = r.rows.map((x, n) => "**" + (n + 1) + ".** <@" + x.user_id + "> · " + Number(x.messages).toLocaleString() + " messages");
-        return i.editReply(panel(title, "Week starting " + r.weekStart + "\n\n" + (lines.length ? lines.join("\n") : "No eligible activity has been recorded this week."), [], [row(btn(owner, "rankings", "Change ranking")), navButton(owner)]));
-      }
-      const r = await getLeaderboard(s.pool, i.guildId, value, 10);
-      title = "FUKISHOKAI  /  " + value.toUpperCase() + " RANKING";
-      lines = r.map((x, n) => "**" + (n + 1) + ".** <@" + x.user_id + "> · " + (value === "level" ? "Level " + x.score : Number(x.score).toLocaleString() + (value === "wealth" ? " FC" : " FC earned")));
-      return i.editReply(panel(title, lines.length ? lines.join("\n") : "No ranked players yet.", [], [row(btn(owner, "rankings", "Change ranking")), navButton(owner)]));
+      return i.editReply(await leaderboardPayload({ guild: i.guild, pool: s.pool, owner, metric: value, page: 0 }));
+    }
+    if (action === "trade-target") {
+      if (value === owner) throw new Error("You cannot trade with yourself.");
+      const member = await i.guild.members.fetch(value).catch(() => null);
+      if (!member || member.user.bot) throw new Error("Choose a real server member, not a bot or departed member.");
+      const trade = await s.trades.create(i.guildId, owner, value);
+      await member.send("You have a Fukishokai trade invitation from <@" + owner + ">. Open /menu → Trade to review and respond. The trade expires in 30 minutes.")
+        .catch(() => null);
+      await safeAudit(i, s, "player_trade_created", value, { tradeId: trade.id });
+      return i.update(await renderMenu(i.guildId, owner, "trade", s));
+    }
+    if (action === "trade-item") {
+      const tradeId = parts[3];
+      const inv = await s.inventory.getInventory(i.guildId, owner);
+      const entry = inv.items.find(x => x.item.id === value && !x.item.boosterOnly);
+      if (!entry) throw new Error("You do not own that tradable item.");
+      return i.showModal(modal("dash:" + owner + ":trade-item-modal:" + tradeId + ":" + value, "Offer " + entry.item.name, [
+        { id: "quantity", label: "Quantity (max " + Math.min(99, entry.quantity) + ")", placeholder: "1", max: 2 }
+      ]));
     }
   }
   if (action === "heist-create") {
@@ -1560,6 +1583,37 @@ async function handleButton(i, s) {
   }
 
   if (scope !== "dash") return;
+  if (action === "leaderboard-page") {
+    return i.update(await leaderboardPayload({ guild: i.guild, pool: s.pool, owner, metric: p[3], page: Number(p[4]) || 0 }));
+  }
+  if (action === "leaderboard-search") {
+    return i.showModal(modal("dash:" + owner + ":leaderboard-search-modal:" + p[3] + ":" + p[4], "Search server members", [
+      { id: "query", label: "Username, display name or Discord ID", placeholder: "Search members", max: 80 }
+    ]));
+  }
+  if (action === "trade-fc") {
+    const trade = await s.trades.get(i.guildId, p[3]);
+    if (!trade || trade.status !== "open") throw new Error("This trade is no longer open.");
+    const side = trade.initiator_id === owner ? "initiator" : "target";
+    return i.showModal(modal("dash:" + owner + ":trade-fc-modal:" + trade.id, "Set your FC offer", [
+      { id: "amount", label: "FC amount (0 removes FC from offer)", placeholder: String(trade.offers[side].fc || 0), max: 16 }
+    ]));
+  }
+  if (action === "trade-confirm") {
+    await i.deferUpdate();
+    const result = await s.trades.confirm(i.guildId, p[3], owner);
+    if (result.completed) {
+      await safeAudit(i, s, "player_trade_completed", null, { tradeId: p[3], initiatorId: result.trade.initiator_id, targetId: result.trade.target_id });
+      return i.editReply(panel("TRADE COMPLETED", "Both members confirmed. FC and items have been exchanged successfully.", [], [row(btn(owner, "trade", "Back to Trade")), navButton(owner)], "success"));
+    }
+    return i.editReply(await renderMenu(i.guildId, owner, "trade", s));
+  }
+  if (action === "trade-cancel") {
+    await i.deferUpdate();
+    await s.trades.cancel(i.guildId, p[3], owner);
+    await safeAudit(i, s, "player_trade_cancelled", null, { tradeId: p[3] });
+    return i.editReply(panel("TRADE CANCELLED", "No FC or items were exchanged.", [], [row(btn(owner, "trade", "Back to Trade")), navButton(owner)], "warning"));
+  }
   if (action === "arena-attack") {
     await i.deferUpdate();
     const result = await s.arena.act(i.guildId, owner, "attack", null, memberRoleIds(i), p[3]);
@@ -1585,7 +1639,7 @@ async function handleButton(i, s) {
     if (roleNotice && payload.embeds[0]) payload.embeds[0].addFields({ name: "Final reward role", value: roleNotice });
     return i.editReply(payload);
   }
-  const pages = ["home", "profile", "earn", "career", "bank", "transfer", "gear", "shop", "games", "arena", "crime", "casino", "heists", "weekly", "event-shop", "rankings", "rebirth", "achievements", "help"];
+  const pages = ["home", "profile", "earn", "career", "bank", "trade", "gear", "shop", "games", "arena", "crime", "casino", "heists", "weekly", "event-shop", "rankings", "rebirth", "achievements", "help"];
   if (pages.includes(action)) return i.update(await renderMenu(i.guildId, owner, action, s));
   if (action === "refresh") return i.update(await renderMenu(i.guildId, owner, "home", s));
   if (action === "rebirth-review") return i.update(await renderMenu(i.guildId, owner, "rebirth-confirm", s));
@@ -1688,6 +1742,29 @@ async function handleModal(i, s) {
   }
   await i.deferReply({ flags: MessageFlags.Ephemeral });
   if (scope === "dash") {
+    if (action === "leaderboard-search-modal") {
+      const query = i.fields.getTextInputValue("query").trim();
+      return i.editReply(await leaderboardPayload({ guild: i.guild, pool: s.pool, owner, metric: target, page: Number(p[4]) || 0, query }));
+    }
+    if (action === "trade-fc-modal") {
+      const amount = numberField(i, "amount", 0, balancing.economy.maxWallet, "FC offer");
+      const trade = await s.trades.get(i.guildId, target);
+      if (!trade) throw new Error("This trade could not be found.");
+      const side = trade.initiator_id === owner ? "initiator" : "target";
+      const updated = await s.trades.setOffer(i.guildId, target, owner, { fc: amount, items: trade.offers[side].items });
+      return i.editReply(await renderMenu(i.guildId, owner, "trade", s));
+    }
+    if (action === "trade-item-modal") {
+      const quantity = numberField(i, "quantity", 1, 99, "Quantity");
+      const itemId = p[4];
+      const trade = await s.trades.get(i.guildId, target);
+      if (!trade) throw new Error("This trade could not be found.");
+      const side = trade.initiator_id === owner ? "initiator" : "target";
+      const current = trade.offers[side].items.filter(x => x.itemId !== itemId);
+      current.push({ itemId, quantity });
+      await s.trades.setOffer(i.guildId, target, owner, { fc: trade.offers[side].fc, items: current });
+      return i.editReply(await renderMenu(i.guildId, owner, "trade", s));
+    }
     if (action === "bank-modal") {
       const amount = numberField(i, "amount", 1, 10000000, "Amount");
       await s.economy.transact(async (c) => {
@@ -1709,12 +1786,6 @@ async function handleModal(i, s) {
         (target === "deposit" ? "deposited " : "withdrew ") + amount.toLocaleString() + " FC " + (target === "deposit" ? "into the bank." : "from the bank."),
         { amount });
       return i.editReply(panel(target === "deposit" ? "DEPOSIT COMPLETE" : "WITHDRAWAL COMPLETE", amount.toLocaleString() + " FC was " + (target === "deposit" ? "moved into your bank." : "moved into your wallet."), [], [], "success"));
-    }
-    if (action === "transfer-modal") {
-      const amount = numberField(i, "amount", balancing.economy.transferMinimum, balancing.economy.transferMaximum, "Transfer");
-      await s.economy.transfer(i.guildId, owner, target, amount);
-      await recordMemberAction(i, s, "member_transfer", "sent " + amount.toLocaleString() + " FC to <@" + target + ">.", { amount, recipientId: target });
-      return i.editReply(panel("TRANSFER COMPLETE", "Sent **" + amount.toLocaleString() + " FC** to <@" + target + ">.", [], [], "success"));
     }
     if (action === "casino-modal") {
       const amount = numberField(i, "amount", balancing.casino.minBet, null, "Wager");
