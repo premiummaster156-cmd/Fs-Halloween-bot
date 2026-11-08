@@ -443,3 +443,18 @@ CREATE TABLE IF NOT EXISTS player_trades (
  CHECK(initiator_id<>target_id)
 );
 CREATE INDEX IF NOT EXISTS player_trades_active_idx ON player_trades(guild_id,status,expires_at);
+
+CREATE TABLE IF NOT EXISTS economy_events (
+ id UUID PRIMARY KEY,
+ guild_id TEXT NOT NULL,
+ name TEXT NOT NULL,
+ multiplier NUMERIC(4,2) NOT NULL CHECK(multiplier BETWEEN 2 AND 10),
+ starts_at TIMESTAMPTZ NOT NULL,
+ ends_at TIMESTAMPTZ NOT NULL,
+ enabled BOOLEAN NOT NULL DEFAULT TRUE,
+ created_by TEXT NOT NULL,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ CHECK(ends_at>starts_at)
+);
+CREATE INDEX IF NOT EXISTS economy_events_active_idx ON economy_events(guild_id,enabled,ends_at DESC);
