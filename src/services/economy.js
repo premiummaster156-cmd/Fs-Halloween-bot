@@ -33,6 +33,7 @@ const LIFETIME_SPENDING_REASONS = new Set([
   "casino_bet",
   "crime_failed_fine",
   "heist_failed_fine",
+  "member_transfer_out"
 ]);
 
 async function ensurePlayerTx(client, guildId, userId) {
