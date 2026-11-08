@@ -26,15 +26,17 @@ const { CustomCommandService } = require("./services/custom-commands");
 const { TradeService } = require("./services/trade-interactions");
 const { EconomyEventService } = require("./services/economy-events");
 const { AdminMessagingService } = require("./services/admin-messaging");
+const { AdminAbuseService } = require("./services/admin-abuse");
 const { respond } = require("./ui");
 
 async function start() {
   if (!settings.discordToken) throw new Error("DISCORD_TOKEN is missing.");
   if (!settings.clientId) throw new Error("CLIENT_ID is missing.");
   await migrate();
-  const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildMembers] });
+  const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildModeration] });
   const economy = new EconomyService(pool);
   const economyEvents = new EconomyEventService(pool);
+  const adminAbuse = new AdminAbuseService(pool, economy);
   economy.economyEvents = economyEvents;
   const inventory = new InventoryService(pool, economy);
   economy.inventory = inventory;
@@ -49,6 +51,7 @@ async function start() {
     partyGames: new PartyGameService(pool, economy),
     trades: new TradeService(pool),
     economyEvents,
+    adminAbuse,
     adminMessaging: new AdminMessagingService(),
     jobs: new JobsGame(pool, economy, inventory),
     crime: new CrimeGame(pool, economy, inventory),
