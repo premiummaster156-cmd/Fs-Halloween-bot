@@ -18,7 +18,7 @@ function scoreFor(metric,p,party,activity){
  if(metric==="party")return Number(p.points||0);
  if(metric==="activity")return Number(activity.messages||0);
  if(metric==="rebirths")return Number(p.prestige||0);
- if(metric==="career")return Number(p.job_level||0);
+ if(metric==="career")return p.job_id?Number(p.job_level||0):0;
  if(metric==="crimes")return Number(p.crime_successes||0);
  if(metric==="heists")return Number(p.heists_completed||0);
  return 0;
@@ -31,7 +31,7 @@ function cachedName(guild,id){
 async function leaderboardPayload({guild,pool,owner,metric="wealth",page=0,query=""}){
  const key=METRICS[metric]?metric:"wealth";
  const [players,party,activity,exclusions]=await Promise.all([
-  pool.query("SELECT user_id,wallet,bank,level,xp,lifetime_earned,prestige,job_level,crime_successes,heists_completed FROM players WHERE guild_id=$1",[guild.id]),
+  pool.query("SELECT user_id,wallet,bank,level,xp,lifetime_earned,prestige,job_id,job_level,crime_successes,heists_completed FROM players WHERE guild_id=$1",[guild.id]),
   pool.query("SELECT user_id,points FROM party_game_stats WHERE guild_id=$1",[guild.id]),
   pool.query("SELECT user_id,messages FROM weekly_activity WHERE guild_id=$1 AND week_start=date_trunc('week',CURRENT_DATE)::date",[guild.id]),
   pool.query("SELECT user_id FROM leaderboard_exclusions WHERE guild_id=$1",[guild.id])
@@ -39,7 +39,8 @@ async function leaderboardPayload({guild,pool,owner,metric="wealth",page=0,query
  const profileMap=new Map(players.rows.map(x=>[x.user_id,x]));
  const partyMap=new Map(party.rows.map(x=>[x.user_id,x]));
  const activityMap=new Map(activity.rows.map(x=>[x.user_id,x]));
- const ids=new Set([...profileMap.keys(),...partyMap.keys(),...activityMap.keys()]);
+ const cachedIds=Array.from(guild.members?.cache?.keys?.()||[]);
+ const ids=new Set([...profileMap.keys(),...partyMap.keys(),...activityMap.keys(),...cachedIds]);
  const excluded=new Set(exclusions.rows.map(x=>x.user_id));
  const needle=String(query||"").trim().toLocaleLowerCase();
  // Exact-ID lookup uses the non-privileged single-member endpoint only.
@@ -47,7 +48,7 @@ async function leaderboardPayload({guild,pool,owner,metric="wealth",page=0,query
   const member=await guild.members.fetch(needle).catch(()=>null);
   if(member&&!member.user.bot)ids.add(needle);
  }
- let rows=Array.from(ids).filter(id=>!excluded.has(id)).map(id=>{
+ let rows=Array.from(ids).filter(id=>!excluded.has(id)&&!guild.members?.cache?.get(id)?.user?.bot).map(id=>{
   const p=profileMap.get(id)||{},g=partyMap.get(id)||{},a=activityMap.get(id)||{};
   const identity=cachedName(guild,id);
   return {id,name:identity.name,username:identity.username,score:scoreFor(key,p,g,a),xp:Number(p.xp||0)};
