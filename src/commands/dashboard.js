@@ -787,8 +787,40 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
         row(aBtn(owner, "settings", "Server settings", ButtonStyle.Primary, "⚙️"), aBtn(owner, "event", "Event controls", ButtonStyle.Secondary, "🎃")),
         row(aBtn(owner, "player", "Player management", ButtonStyle.Secondary, "👤"), aBtn(owner, "fairness", "Leaderboard fairness", ButtonStyle.Secondary, "🏆")),
         row(aBtn(owner, "custom-commands", "Custom commands", ButtonStyle.Primary, "🧩"), aBtn(owner, "logs", "Audit history", ButtonStyle.Secondary, "📋"), aBtn(owner, "refresh", "Refresh", ButtonStyle.Secondary, "🔄")),
+        row(aBtn(owner, "economy-events", "FC Party Events", ButtonStyle.Success), aBtn(owner, "member-dms", "Member DMs", ButtonStyle.Primary)),
         row(aBtn(owner, "special-items", "Grant Mythic items", ButtonStyle.Primary, "🌟"))
       ], "info", "FUKISHOKAI  •  Private administrator console");
+  }
+  if (page === "economy-events") {
+    const active = await s.economyEvents.getActive(guildId);
+    const latest = active || await s.economyEvents.getLatest(guildId);
+    return panel("ECONOMY EVENT CONTROL", "Create a temporary FC party for the whole server. Eligible game earnings receive the event multiplier on top of the normal 3× economy, level, rebirth and gear bonuses. Casino payouts, trades and admin grants are excluded.",
+      [
+        { name: "Current status", value: active
+          ? "**" + active.name + "** · " + Number(active.multiplier).toFixed(1) + "× FC\nEnds <t:" + Math.floor(new Date(active.ends_at).getTime()/1000) + ":R>"
+          : "No FC party is currently active." },
+        { name: "Last event", value: latest ? latest.name + " · " + Number(latest.multiplier).toFixed(1) + "×" : "No previous FC party." },
+        { name: "Limits", value: "Multiplier: 2×–10× · Duration: 5 minutes–24 hours. Only eligible gameplay earnings are boosted." }
+      ], [
+        row(aBtn(owner, "fc-party-start", "Start FC party", ButtonStyle.Success), aBtn(owner, "fc-party-stop", "Stop active party", ButtonStyle.Danger).setDisabled(!active)),
+        row(aBtn(owner, "home", "Admin console"))
+      ]);
+  }
+  if (page === "member-dms") {
+    if (!targetId) return panel("FORCED MEMBER DMS", "Send an administrator announcement by DM to every human member or to one selected member. Discord privacy settings still apply; failed/closed DMs are counted and reported.",
+      [
+        { name: "Server-wide send", value: "Sends the message to all currently cached/fetched human members, excluding bots. Delivery is paced to respect Discord rate limits." },
+        { name: "Safety", value: "Every send is attributed to the administrator in the audit log. Maximum 5,000 recipients per campaign." }
+      ], [
+        row(aBtn(owner, "dm-send-all", "Compose DM to all members", ButtonStyle.Primary)),
+        row(new UserSelectMenuBuilder().setCustomId("admin:" + owner + ":dm-target").setPlaceholder("Select one member").setMinValues(1).setMaxValues(1)),
+        row(aBtn(owner, "home", "Admin console"))
+      ]);
+    return panel("SEND MEMBER DM", "Selected recipient: <@" + targetId + ">.",
+      [{ name: "Delivery", value: "The bot sends the message privately. If the member blocks DMs from server members, delivery will fail and be reported." }],
+      [row(aBtn(owner, "dm-send-one", "Compose DM", ButtonStyle.Primary, null, targetId)),
+       row(new UserSelectMenuBuilder().setCustomId("admin:" + owner + ":dm-target").setPlaceholder("Choose another member").setMinValues(1).setMaxValues(1)),
+       row(aBtn(owner, "member-dms", "Back"), aBtn(owner, "home", "Admin console"))]);
   }
   if (page === "special-items") {
     const specialItems = balancing.items
@@ -1098,6 +1130,7 @@ async function handleSelection(i, s, scope, owner, action, parts) {
   if (scope === "admin") {
     if (!await isAdmin(i, s)) return i.reply({ content: "Your admin access has changed. Reopen the panel after checking permissions.", flags: MessageFlags.Ephemeral });
     if (action === "player-target") return i.update(await renderAdmin(i.guildId, owner, "player", s, value));
+    if (action === "dm-target") return i.update(await renderAdmin(i.guildId, owner, "member-dms", s, value));
     if (action === "special-item-target") return i.update(await renderAdmin(i.guildId, owner, "special-items", s, value));
     if (action === "special-item-grant") {
       const targetId = parts[3];
@@ -1482,6 +1515,33 @@ async function handleButton(i, s) {
     if (action === "fairness" && !await isAdmin(i, s)) {
       return i.reply({ content: "Only the server owner or configured bot owner can manage leaderboard eligibility.", flags: MessageFlags.Ephemeral });
     } 
+    if (action === "economy-events" || action === "member-dms") {
+      return i.update(await renderAdmin(i.guildId, owner, action, s));
+    }
+    if (action === "fc-party-start") {
+      return i.showModal(modal("admin:" + owner + ":fc-party-start-modal", "Start an FC party", [
+        { id: "name", label: "Event name", placeholder: "Weekend FC Frenzy", max: 80 },
+        { id: "multiplier", label: "FC multiplier (2–10)", placeholder: "10", max: 2 },
+        { id: "duration", label: "Duration in minutes (5–1440)", placeholder: "30", max: 4 }
+      ]));
+    }
+    if (action === "fc-party-stop") {
+      await i.deferUpdate();
+      const stopped = await s.economyEvents.stop(i.guildId);
+      await safeAudit(i, s, "economy_event_stopped", null, { events: stopped });
+      await safeSendLog(i, s, "The active FC party was stopped by <@" + owner + ">.");
+      return i.editReply(await renderAdmin(i.guildId, owner, "economy-events", s));
+    }
+    if (action === "dm-send-all") {
+      return i.showModal(modal("admin:" + owner + ":dm-all-modal", "Send DM to all members", [
+        { id: "message", label: "Announcement message", paragraph: true, max: 1800 }
+      ]));
+    }
+    if (action === "dm-send-one") {
+      return i.showModal(modal("admin:" + owner + ":dm-one-modal:" + target, "Send DM to member", [
+        { id: "message", label: "Private message", paragraph: true, max: 1800 }
+      ]));
+    }
     if (action === "custom-commands") {
       return i.update(await renderAdmin(i.guildId, owner, "custom-commands", s));
     }
@@ -1523,7 +1583,7 @@ async function handleButton(i, s) {
       await safeSendLog(i, s, "Custom command /" + removed.name + " was removed from Discord by <@" + owner + ">.");
       return i.editReply(await renderAdmin(i.guildId, owner, "custom-commands", s));
     }
-    if (action === "home" || action === "refresh" || action === "settings" || action === "settings-channels" || action === "clear-settings" || action === "event" || action === "player" || action === "fairness" || action === "logs" || action === "event-stop-confirm" || action === "special-items") {
+    if (action === "home" || action === "refresh" || action === "settings" || action === "settings-channels" || action === "clear-settings" || action === "event" || action === "player" || action === "fairness" || action === "logs" || action === "event-stop-confirm" || action === "special-items" || action === "economy-events" || action === "member-dms") {
       return i.update(await renderAdmin(i.guildId, owner, action === "refresh" ? "home" : action, s, target));
     }
     if (["grant-fc", "grant-xp", "remove-fc", "set-level"].includes(action)) {
@@ -1660,6 +1720,23 @@ async function handleButton(i, s) {
         { name: "Next rebirth", value: nextTargets.join(" · ") },
         { name: "Kept", value: "Gear, upgrades, Candy, collectibles and lifetime stats." }
       ], [row(btn(owner, "profile", "Profile"), btn(owner, "gear", "Gear")), navButton(owner)], "success"));
+  }
+  if (action === "scavenge" || action === "delivery") {
+    await i.deferUpdate();
+    const result = action === "scavenge"
+      ? await s.economy.scavenge(i.guildId, owner, memberRoleIds(i))
+      : await s.economy.deliveryContract(i.guildId, owner, memberRoleIds(i));
+    const title = action === "scavenge" ? "SCAVENGE COMPLETE" : "DELIVERY CONTRACT COMPLETE";
+    const label = action === "scavenge" ? "District cache" : "Courier contract";
+    await recordMemberAction(i, s, action === "scavenge" ? "scavenge_completed" : "delivery_contract_completed",
+      "completed a " + label.toLowerCase() + " and earned " + result.amount.toLocaleString() + " FC.",
+      { amount: result.amount, xp: result.progression.gained, candy: result.candyDrop?.amount || 0 });
+    return i.editReply(panel(title,
+      "You earned **" + result.amount.toLocaleString() + " FC** and **" + result.progression.gained + " XP**." +
+      (result.candyDrop ? "\nYou also found **" + result.candyDrop.amount + " Candy**." : ""),
+      [{ name: "Player level", value: String(result.progression.level), inline: true },
+       { name: "Cooldown", value: Math.ceil(result.cooldownMs / 60000) + " minutes", inline: true }],
+      [row(btn(owner, "earn", "Back to Earn")), navButton(owner)], "success"));
   }
   if (action === "daily") {
     await i.deferUpdate();
@@ -1842,6 +1919,30 @@ async function handleModal(i, s) {
   }
   if (scope === "admin") {
     if (!await isAdmin(i, s)) throw new Error("This action is restricted to the server owner, bot owner, or configured Admin Role.");
+    if (action === "fc-party-start-modal") {
+      const name = i.fields.getTextInputValue("name").trim();
+      const multiplier = numberField(i, "multiplier", 2, 10, "Multiplier");
+      const duration = numberField(i, "duration", 5, 1440, "Duration");
+      const event = await s.economyEvents.start(i.guildId, owner, name, multiplier, duration);
+      await safeAudit(i, s, "economy_event_started", null, { eventId: event.id, name, multiplier, durationMinutes: duration });
+      await safeSendLog(i, s, "FC party **" + name + "** started at " + multiplier + "× for " + duration + " minutes by <@" + owner + ">.");
+      return i.editReply(await renderAdmin(i.guildId, owner, "economy-events", s));
+    }
+    if (action === "dm-all-modal" || action === "dm-one-modal") {
+      const message = i.fields.getTextInputValue("message").trim();
+      const result = action === "dm-all-modal"
+        ? await s.adminMessaging.sendToAll(i.guild, message)
+        : await s.adminMessaging.sendToMember(i.guild, target, message);
+      await safeAudit(i, s, action === "dm-all-modal" ? "admin_dm_all" : "admin_dm_member", target || null, {
+        sent: result.sent, failed: result.failed, skipped: result.skipped, messageLength: message.length
+      });
+      await safeSendLog(i, s, "Admin DM campaign by <@" + owner + ">: " + result.sent + " sent, " + result.failed + " failed, " + result.skipped + " skipped.");
+      return i.editReply(panel("DM CAMPAIGN FINISHED",
+        "Sent: **" + result.sent + "**\nFailed: **" + result.failed + "**\nSkipped: **" + result.skipped + "**",
+        [{ name: "Message preview", value: message.slice(0, 900) }],
+        [row(aBtn(owner, "member-dms", "Back to Member DMs"), aBtn(owner, "home", "Admin console"))],
+        result.failed ? "warning" : "success"));
+    }
     const reason = i.fields.getTextInputValue("reason")?.trim() || "";
     if (!reason) throw new Error("An audit reason is required.");
     if (["grant-fc", "grant-xp", "remove-fc"].includes(action)) {
