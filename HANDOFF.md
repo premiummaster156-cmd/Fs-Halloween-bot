@@ -31,9 +31,9 @@ Rebirth resets wallet to **2,500 FC**, bank to zero, player level to one and cur
 
 ### Final-season economy and activities
 
-- Normal FC rewards retain the global **3×** earning multiplier. Casino payouts, transfers and admin grants are excluded.
+- Normal FC rewards retain the global **3×** earning multiplier and add **+0.1% per player level above level 1**, reaching **1.599×** at level 600. Rebirth and gear bonuses stack on top. Casino payouts, transfers and admin grants are excluded.
 - Daily reward: **600–900 base FC**, 30 base XP and an 18-hour cooldown.
-- Careers use seven earlier unlock tiers, with lower level/wealth requirements and five-minute work cooldowns. Career XP requirements use the final-season curve in `game-balancing.js`.
+- Careers include 22 paths: the original seven plus 15 new specialist careers with progressive level/wallet unlocks, higher salaries and distinct passive perks. Work shifts retain three questions per run from a 115-question randomized pool with 15 added templates across easy, medium and hard bands; difficulty-based time limits are used.
 - Crime unlocks begin at level 1 and progress to level 16; cooldowns range from five to 22 minutes with lower penalties and improved success chances.
 - Heists unlock at levels 1, 5, 10, 16 and 24. Cooldowns range from 45 minutes to four hours, with less restrictive crew sizes and final-season payouts.
 - Casino minimum bet remains 100 FC, there is no daily wager cap, base cooldown is 10 seconds, and the theoretical return remains 95%.
@@ -51,7 +51,7 @@ Rebirth resets wallet to **2,500 FC**, bank to zero, player level to one and cur
 - The eight endgame abilities can each be activated once per encounter: **PHASE** avoids a counterstrike; **DREAD** weakens three boss strikes; **AEGIS** creates a shield; **REBIRTH** restores health; **EXECUTE** deals bonus damage based on remaining boss health; **HASTE** doubles a strike; **HEX** applies damage over time; **ASCEND** deals a large burst.
 - Boss victories grant FC and XP using the normal and rebirth multipliers. Losses charge no fine. Retreating does not erase the Arena cooldown.
 - The dashboard includes boss selection, attack/ability/retreat controls, health bars, status effects and encounter result messages.
-- `src/utils/arena-card.js` creates a beveled, 3D-inspired HUD with `@napi-rs/canvas`. It is layered 2D artwork, not a true 3D scene.
+- `src/utils/arena-card.js` renders the beveled Arena HUD with `@napi-rs/canvas`; Dragon Sovereign uses its dedicated standalone image at `assets/bosses/dragon-sovereign.webp` inside the boss card. The surrounding HUD remains layered 2D artwork, not a true 3D scene.
 - `tests/arena.test.js` covers boss gates, all eight powers, damage-over-time, shields, healing, battle outcomes and PNG rendering.
 
 ## Endgame gear
@@ -83,7 +83,7 @@ Abilities retain their passive equipment stats and have their one-use Arena powe
 - Personal item tracking uses received `GUILD_BOOST` messages. Older boost counts are not generally backfilled beyond the explicit first-item active-booster backfill path already tested. Do not invent rewards for server-tier milestone messages.
 - Ordinary chat Candy drops remain silent; do not restore per-message Candy announcements.
 - Profile card uses the server display name and a system-font fallback for Unicode.
-- Work shift quiz remains three multiple-choice questions.
+- Work shift quiz remains three multiple-choice questions per shift, drawn from the 115-question pool (15 additional templates). Difficulty-based time limits and level-based FC scaling apply.
 - Admin access: server owner, configured bot owner or configured trusted Admin Role. Discord Administrator alone does not grant bot-admin access. Privileged actions remain audited.
 - Do not claim live Discord or Neon validation from GitHub CI alone.
 
