@@ -37,10 +37,10 @@ test("economy event persists a validated party event",async()=>{
 test("forced DM sends skip bots and count closed DMs as failures",async()=>{
  const guild={members:{cache:new Map(),fetch:async(id)=>({user:{bot:id==="2"},send:async()=>{if(id==="3")throw new Error("closed DMs");}})}};
  const result=await new AdminMessagingService().sendToAll(guild,"Server announcement",["1","2","3"]);
- assert.deepEqual(result,{sent:1,failed:1,skipped:1});
+ assert.deepEqual(result,{sent:1,failed:1,skipped:1,attempted:3});
 });
 
-test("leaderboard shows all members and gives missing profiles a zero score",async()=>{
+test("leaderboard shows every tracked profile including zero-score profiles",async()=>{
  const guild={id:"g",members:{cache:new Map([
   ["u1",{id:"u1",displayName:"Alice",user:{username:"alice",globalName:"Alice"}}],
   ["u2",{id:"u2",displayName:"Bob",user:{username:"bob",globalName:"Bob"}}]
