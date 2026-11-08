@@ -13,6 +13,8 @@ const { getUpgradeCost } = require("../services/inventory");
 const { levelXpRequired, uuid, getRebirthMultiplier, getLevelEarningMultiplier } = require("../utils/core");
 const { makeWorkChallenge, getWorkShiftTimeLimit } = require("../games/work-challenge");
 const { audit, sendLog } = require("../utils/logging");
+const { tradeCard } = require("../services/trade-interactions");
+const { leaderboardPayload } = require("./leaderboard-ui");
 
 const sessions = new Map();
 
@@ -235,9 +237,10 @@ async function renderMenu(guildId, owner, page, s) {
   if (page === "home") {
     const p = await getPlayer(s.pool, guildId, owner);
     const seasonal = await s.halloween.status(guildId, owner);
+    const fcParty = s.economyEvents ? await s.economyEvents.getActive(guildId) : null;
     const career = balancing.jobs.find((j) => j.id === p.job_id);
     const wealth = Number(p.wallet) + Number(p.bank);
-    return panel("FUKISHOKAI  /  PLAYER HUB", "Earn FC with Daily and Work. Complete weekly quests for Candy, then spend it on Halloween collectibles.",
+    return panel("FUKISHOKAI  /  PLAYER HUB", "Earn FC with Daily, Work, scavenging, delivery contracts and server events. Complete weekly quests for Candy, then spend it on seasonal collectibles." + (fcParty ? "\n\n**" + fcParty.name + " is active** · Normal eligible FC rewards are multiplied by " + fcParty.multiplier + "× until <t:" + Math.floor(new Date(fcParty.ends_at).getTime() / 1000) + ":R>." : ""),
       [
         { name: "💎 Total wealth", value: wealth.toLocaleString() + " FC", inline: true },
         { name: "👛 Wallet", value: Number(p.wallet).toLocaleString() + " FC", inline: true },
@@ -249,7 +252,7 @@ async function renderMenu(guildId, owner, page, s) {
       ],
       [
         row(btn(owner, "profile", "Profile", ButtonStyle.Primary, "👤"), btn(owner, "earn", "Earn", ButtonStyle.Success, "💰"), btn(owner, "career", "Careers", ButtonStyle.Secondary, "💼"), btn(owner, "gear", "Gear", ButtonStyle.Secondary, "🎒"), btn(owner, "games", "Games", ButtonStyle.Secondary, "🎮")),
-        row(btn(owner, "heists", "Heists", ButtonStyle.Secondary, "🕵️"), btn(owner, "event", "Halloween", ButtonStyle.Secondary, "🎃"), btn(owner, "bank", "Bank", ButtonStyle.Secondary, "🏦"), btn(owner, "transfer", "Transfer", ButtonStyle.Secondary, "↗️"), btn(owner, "rankings", "Rankings", ButtonStyle.Secondary, "🏆")),
+        row(btn(owner, "heists", "Heists", ButtonStyle.Secondary, "🕵️"), btn(owner, "event", "Halloween", ButtonStyle.Secondary, "🎃"), btn(owner, "bank", "Bank", ButtonStyle.Secondary, "🏦"), btn(owner, "trade", "Trade", ButtonStyle.Secondary, "⇄"), btn(owner, "rankings", "Leaderboard", ButtonStyle.Secondary, "🏆")),
         row(btn(owner, "rebirth", "Rebirth", ButtonStyle.Primary, "♻️"), btn(owner, "achievements", "Achievements", ButtonStyle.Secondary, "🏅"), btn(owner, "weekly", "Weekly quests", ButtonStyle.Secondary, "🍬"), btn(owner, "help", "How to play", ButtonStyle.Secondary, "📖"), btn(owner, "refresh", "Refresh", ButtonStyle.Secondary, "🔄"))
       ], "info", "FUKISHOKAI  •  Private player dashboard");
   }
@@ -278,12 +281,20 @@ async function renderMenu(guildId, owner, page, s) {
   if (page === "earn") {
     const p = await getPlayer(s.pool, guildId, owner);
     const career = balancing.jobs.find((j) => j.id === p.job_id);
-    return panel("EARN  /  GET FC", "FC is the game currency. Daily is the quick reward. Work pays more: choose a career first, then answer 3 questions. More correct answers = more FC and XP.",
+    const party = s.economyEvents ? await s.economyEvents.getActive(guildId) : null;
+    return panel("EARN  /  GET FC", "Choose from several repeatable ways to earn. Normal game rewards stack with level, rebirth, gear and any active server FC party." +
+      (party ? "\n\n**" + party.name + " active: " + party.multiplier + "× FC**" : ""),
       [
-        { name: "🎁 Daily reward", value: "A quick FC and XP reward. Your player level increases the FC amount." },
-        { name: "🧠 Work shift", value: career ? "Answer three questions based on your " + career.name + " role. Each correct answer adds to your pay and XP." : "No career selected. Open Careers first, then return here." },
-        { name: "💬 Weekly activity", value: "Chat normally to fill the weekly bar and earn the event reward. Bot messages do not count. Chat FC/XP have separate daily limits." }
-      ], [row(btn(owner, "daily", "Claim Daily", ButtonStyle.Success, "🎁"), btn(owner, "work", "Start Work Shift", ButtonStyle.Primary, "🧠")), nav]);
+        { name: "Daily", value: "Claim a large FC and XP reward every 18 hours. Higher levels earn more FC." },
+        { name: "Work shift", value: career ? "Complete a role-based question shift for FC, XP and promotion progress as a " + career.name + "." : "Choose a career first to unlock Work shifts." },
+        { name: "Scavenge", value: "Search the district every 30 minutes for a variable FC cache and some XP." },
+        { name: "Delivery contract", value: "Complete a courier route every 3 hours for a larger FC payment and XP." },
+        { name: "Weekly activity", value: "Chat normally to fill the weekly bar. Bot messages do not count; chat FC/XP have separate daily caps." }
+      ], [
+        row(btn(owner, "daily", "Claim Daily", ButtonStyle.Success), btn(owner, "work", "Work Shift", ButtonStyle.Primary)),
+        row(btn(owner, "scavenge", "Scavenge", ButtonStyle.Secondary), btn(owner, "delivery", "Delivery Contract", ButtonStyle.Secondary)),
+        nav
+      ]);
   }
   if (page === "achievements") {
     const entries = await s.achievements.status(guildId, owner);
@@ -347,10 +358,14 @@ async function renderMenu(guildId, owner, page, s) {
       { name: "🧾 Recent transactions", value: recent.length ? recent.join("\n") : "Your bank deposits and withdrawals will appear here." }
     ], [row(btn(owner, "deposit", "Deposit", ButtonStyle.Success, "⬆️"), btn(owner, "withdraw", "Withdraw", ButtonStyle.Primary, "⬇️")), nav]);
   }
-  if (page === "transfer") {
-    return panel("SEND FS COINS", "Choose a member to receive money. The next form asks for the amount. Transfers come from your wallet, not your bank.",
-      [{ name: "Transfer limit", value: balancing.economy.transferMinimum.toLocaleString() + "–" + balancing.economy.transferMaximum.toLocaleString() + " FC per transfer." }],
-      [row(new UserSelectMenuBuilder().setCustomId("dash:" + owner + ":transfer-target").setPlaceholder("Choose a server member").setMinValues(1).setMaxValues(1)), nav]);
+  if (page === "trade") {
+    return panel("SECURE PLAYER TRADING", "Trade FS Coins and items directly with another server member. Both members must contribute FC or at least one item, and both must confirm the final offer. One-sided gifts are blocked and recorded.",
+      [
+        { name: "Two-sided offers", value: "Each player can offer FC, up to 10 item types, or both." },
+        { name: "Confirmation", value: "Either member can edit their offer. Any edit resets both confirmations. The trade only completes after both accept the same final offers." },
+        { name: "Protection", value: "Items and FC are validated and moved in one database transaction. If anything changed or is no longer owned, the trade cannot complete." },
+        { name: "Expiration", value: "Unfinished trades expire after 30 minutes." }
+      ], [row(new UserSelectMenuBuilder().setCustomId("dash:" + owner + ":trade-target").setPlaceholder("Choose a member to trade with").setMinValues(1).setMaxValues(1)), nav]);
   }
   if (page === "gear") {
     const inv = await s.inventory.getInventory(guildId, owner);
@@ -706,15 +721,17 @@ async function renderMenu(guildId, owner, page, s) {
       [...(options.length ? [menu(owner, "event-buy", "Choose a collectible", options)] : []), nav]);
   }
   if (page === "rankings") {
-    return panel("FUKISHOKAI  /  LEADERBOARDS", "Choose the ranking you want to view.",
+    return panel("SERVER LEADERBOARDS", "Every human member is listed, including people who have never used the bot. Members with no game profile start at zero. Use the page controls to browse or search by username, display name or Discord ID.",
       [
-        { name: "💰 Wealth", value: "Wallet plus bank balance." },
-        { name: "⭐ Level", value: "Highest player level." },
-        { name: "📈 Lifetime earned", value: "Total FC earned over time." },
-        { name: "💬 Weekly activity", value: "All human-member messages counted this week, with no count cooldown." }
+        { name: "Total wealth", value: "Wallet plus bank balance." },
+        { name: "Player level", value: "Highest level, with XP as a tie-breaker." },
+        { name: "Lifetime earned", value: "All eligible game FC earnings." },
+        { name: "Party Points", value: "Points earned from Party Games." },
+        { name: "Weekly messages", value: "Human-member messages in the current week." }
       ], [menu(owner, "ranking-type", "Choose a ranking", [
-        { label: "Wealth", value: "wealth" }, { label: "Level", value: "level" },
-        { label: "Lifetime earned", value: "earned" }, { label: "Weekly activity", value: "activity" }
+        { label: "Total wealth", value: "wealth" }, { label: "Player level", value: "level" },
+        { label: "Lifetime earned", value: "earned" }, { label: "Party Points", value: "party" },
+        { label: "Weekly messages", value: "activity" }
       ]), nav], "info");
   }
   if (page === "help") {
