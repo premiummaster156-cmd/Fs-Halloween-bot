@@ -171,7 +171,7 @@ All admin actions are restricted to the server owner, configured bot owner and c
 The Rift Arena is available from **/menu → Game Room → Rift Arena**.
 
 - Six solo bosses unlock at player levels 1, 20, 40, 60, 80 and 100, ending with the Dragon Sovereign.
-- Battles persist in PostgreSQL. A player can have only one active encounter, and starting a fresh encounter has a 10-minute cooldown.
+- Battles persist in PostgreSQL. A player can have only one active encounter, and starting a fresh encounter has a 20-minute cooldown.
 - Each equipped endgame item grants its named active power once per battle, in addition to its existing passive gear bonuses:
   - **PHASE** — evade the boss's next counterstrike.
   - **DREAD** — weaken the next three boss strikes.
@@ -185,7 +185,7 @@ The Rift Arena is available from **/menu → Game Room → Rift Arena**.
 - Turn numbers are checked on the server to reject stale controls. Item ownership and equipped status are checked before a power can be used.
 - The Arena dashboard includes health bars, combat effects and a custom beveled HUD image rendered with `@napi-rs/canvas`. The image uses a 3D-inspired, layered 2D illustration; Discord embeds themselves are not true 3D scenes.
 
-**Implementation status:** Rift Arena is on feature branch `active-abilities-rift-arena` under [PR #28](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/pull/28). CI runs 42284197549 (gameplay and PNG HUD test) and 42284303743 (documentation follow-up) passed. No gameplay code changed in the documentation-only follow-up. The PR remains unmerged while Neon migration and Discord test-server validation are outstanding.
+**Implementation status:** Rift Arena is committed to `main`. The Dragon Sovereign now uses a dedicated original creature portrait at `assets/bosses/dragon-sovereign.webp` rather than the former emblem-like art. GitHub CI validates the canvas PNG render; Neon migration and live Discord test-server interactions remain separate deployment checks.
 
 
 ## Final-season balance — through November 30, 2026
@@ -212,7 +212,23 @@ The in-game Rebirth page is the authoritative live checklist. This is a limited-
 ## Trading, leaderboards, FC activities and administration
 
 - Player-to-player one-way FC transfers have been removed. Use /menu → Trade for two-sided trading: both members must contribute FC or items, both independently confirm the final offer, and editing either offer clears both confirmations. Trades expire after 30 minutes and settle FC/items atomically. Booster-exclusive Mythic gear cannot be traded.
-- The leaderboard includes every fetched server member, including members with no game profile (zero scores). It supports wealth, level, lifetime FC, Party Points and weekly messages, with Previous/Next pagination and search by username, display name or Discord ID. The leaderboard view has no decorative rank emojis.
+- The leaderboard includes every saved player profile, including zero-stat profiles, plus tracked Party Game/activity records and members currently known in cache. Privileged Gateway intents are deliberately disabled, so Discord does not allow the bot to enumerate never-seen members. A one-off exact Discord-ID lookup is supported. Categories include wealth, level, lifetime FC, Party Points, weekly messages, rebirths, career level, successful crimes and completed heists, with Previous/Next pagination and no decorative rank emojis.
 - New repeatable earning activities: Scavenge (30-minute cooldown) and Delivery Contract (3-hour cooldown). Both award FC and XP, use the normal level/rebirth/gear multipliers and may drop Candy.
 - Trusted administrators can start a server-wide FC Party with a 2×–10× multiplier for 5 minutes–24 hours. It multiplies eligible gameplay earnings only; casino payouts, trades and admin grants are excluded.
-- The admin console includes Member DMs for sending an announcement to one member or all human server members. Delivery is paced, bots are skipped, failures are counted, and the campaign is written to audit history. Discord privacy settings still apply; the bot cannot bypass closed DMs.
+- The admin console includes Member DMs for one selected member or tracked profiles plus cached members. The privileged Members intent stays disabled, so members who have never interacted with the bot cannot be automatically discovered. Delivery is paced, bots are skipped, failures are counted, and sends are recorded in audit history. Discord privacy settings still apply; the bot cannot bypass closed DMs.
+
+
+## Admin Abuse live events
+
+**Admin Abuse is separate from FC Party Events.** Trusted administrators can trigger short, server-wide gameplay effects from **/admin-panel → Admin Abuse**:
+
+- **Blood Moon:** crime success chance +12 percentage points and crime base rewards +25%.
+- **Candy Storm:** every eligible gameplay reward grants an additional 1–2 Candy.
+- **Rift Surge:** Rift Arena victory FC and XP rewards increase by 50%.
+- **Lucky Block Rain:** each player can open one event Lucky Block for FC, Candy and a random level-eligible non-booster equipment item.
+
+Each event has a configurable 2–60 minute duration, a public announcement in the configured member-command channel, an audit record and an administrator stop control. Lucky Block claims are one-per-player-per-event and protected by a database uniqueness constraint.
+
+## Gateway intent policy
+
+The bot does not request privileged Gateway intents. Leaderboards and bulk DM campaigns operate on saved player profiles, tracked activity and cached members. Full roster enumeration is intentionally unavailable; searching a specific Discord ID uses an individual member lookup instead.
