@@ -43,12 +43,13 @@ test("forced DM sends skip bots and count closed DMs as failures",async()=>{
 test("leaderboard shows every tracked profile including zero-score profiles",async()=>{
  const guild={id:"g",members:{cache:new Map([
   ["u1",{id:"u1",displayName:"Alice",user:{username:"alice",globalName:"Alice"}}],
-  ["u2",{id:"u2",displayName:"Bob",user:{username:"bob",globalName:"Bob"}}]
+  ["u2",{id:"u2",displayName:"Bob",user:{username:"bob",globalName:"Bob"}}],
+  ["u3",{id:"u3",displayName:"Cara",user:{username:"cara",globalName:"Cara"}}]
  ])},client:{users:{cache:new Map()}}};
  const pool={query:async(sql)=>{
   if(sql.includes("FROM players"))return {rows:[
-   {user_id:"u1",wallet:50,bank:20,level:4,xp:3,lifetime_earned:100,prestige:0,job_level:1,crime_successes:0,heists_completed:0},
-   {user_id:"u2",wallet:0,bank:0,level:1,xp:0,lifetime_earned:0,prestige:0,job_level:0,crime_successes:0,heists_completed:0}
+   {user_id:"u1",wallet:50,bank:20,level:4,xp:3,lifetime_earned:100,prestige:0,job_id:"street_runner",job_level:1,crime_successes:0,heists_completed:0},
+   {user_id:"u2",wallet:0,bank:0,level:1,xp:0,lifetime_earned:0,prestige:0,job_id:null,job_level:1,crime_successes:0,heists_completed:0}
   ]};
   return {rows:[]};
  }};
@@ -56,6 +57,7 @@ test("leaderboard shows every tracked profile including zero-score profiles",asy
  const description=payload.embeds[0].data.description;
  assert.match(description,/Alice/);
  assert.match(description,/Bob/);
+ assert.match(description,/Cara/);
  assert.match(description,/70 FC/);
  assert.match(description,/0 FC/);
  assert.equal(payload.components.length,2);
