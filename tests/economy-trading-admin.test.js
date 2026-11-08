@@ -69,7 +69,7 @@ test("editing a trade offer clears both players' confirmations",async()=>{
  };
  const client={query:async(sql,values)=>{
   if(sql.startsWith("SELECT * FROM player_trades"))return {rows:[original]};
-  if(sql.startsWith("SELECT wallet FROM players"))return {rows:[{wallet:500}]};
+  if(sql.startsWith("SELECT wallet FROM players"))return {rowCount:1,rows:[{wallet:500}]};
   if(sql.startsWith("UPDATE player_trades SET offers"))return {rows:[{
    ...original,offers:JSON.parse(values[2]),confirmations:JSON.parse(values[3])
   }]};
