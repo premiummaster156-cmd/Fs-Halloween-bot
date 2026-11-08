@@ -134,8 +134,22 @@ class TradeService {
       }
       const a=trade.offers.initiator,b=trade.offers.target;
       const deltas = [[trade.initiator_id,b.fc-a.fc],[trade.target_id,a.fc-b.fc]];
-      for (const [user,delta] of deltas) if (delta) {
-        await client.query("UPDATE players SET wallet=wallet+$3,updated_at=NOW() WHERE guild_id=$1 AND user_id=$2", [guildId,user,delta]);
+      for (const [user,delta] of deltas) {
+        if (!delta) continue;
+        if (delta < 0) {
+          if (wallets.get(user) < -delta) throw new DomainError("A trader no longer has enough wallet FC.", "TRADE_FUNDS_CHANGED");
+          await client.query("UPDATE players SET wallet=wallet+$3,updated_at=NOW() WHERE guild_id=$1 AND user_id=$2", [guildId,user,delta]);
+        } else {
+          const current = wallets.get(user);
+          const normalized = Math.min(current, MAX_FC);
+          const recovered = Math.max(0, current - MAX_FC);
+          const walletCredit = Math.min(delta, Math.max(0, MAX_FC - normalized));
+          const bankCredit = recovered + delta - walletCredit;
+          await client.query(
+            "UPDATE players SET wallet=$3,bank=bank+$4,updated_at=NOW() WHERE guild_id=$1 AND user_id=$2",
+            [guildId,user,normalized + walletCredit,bankCredit]
+          );
+        }
       }
       for (const [fromSide,toUser] of [["initiator",trade.target_id],["target",trade.initiator_id]]) {
         const fromUser=trade[fromSide+"_id"];
