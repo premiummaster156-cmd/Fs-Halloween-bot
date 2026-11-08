@@ -11,6 +11,8 @@ const MULTIPLIED_EARNING_REASONS = new Set([
   "chat_activity_reward",
   "achievement_reward",
   "boss_reward",
+  "scavenge_reward",
+  "delivery_contract_reward",
 ]);
 
 const LIFETIME_EARNING_REASONS = new Set([
@@ -21,7 +23,9 @@ const LIFETIME_EARNING_REASONS = new Set([
   "casino_payout",
   "chat_activity_reward",
   "achievement_reward",
-  "boss_reward"
+  "boss_reward",
+  "scavenge_reward",
+  "delivery_contract_reward"
 ]);
 const LIFETIME_SPENDING_REASONS = new Set([
   "shop_purchase",
@@ -211,8 +215,14 @@ class EconomyService {
     if (earningEligible) {
       const incomeBonus = Math.min(0.75, (gear.moneyBonus || 0) + (career.moneyBonus || 0));
       const levelMultiplier = getLevelEarningMultiplier(result.rows[0].level);
+      const partyResult = await client.query(
+        "SELECT name,multiplier FROM economy_events WHERE guild_id=$1 AND enabled=TRUE AND starts_at<=NOW() AND ends_at>NOW() ORDER BY created_at DESC LIMIT 1",
+        [guildId]
+      );
+      const party = partyResult.rows[0] || null;
+      const partyMultiplier = party ? Math.max(1, Math.min(10, Number(party.multiplier) || 1)) : 1;
       const multiplier = Math.max(1, Number(balancing.economy.earningMultiplier) || 1) *
-        getRebirthMultiplier(result.rows[0].prestige) * levelMultiplier * (1 + incomeBonus);
+        getRebirthMultiplier(result.rows[0].prestige) * levelMultiplier * (1 + incomeBonus) * partyMultiplier;
       appliedAmount = Math.floor(amount * multiplier);
       if (!Number.isSafeInteger(appliedAmount) || appliedAmount < 1) {
         throw new DomainError("This reward is too large to process safely.", "INVALID_REWARD_AMOUNT");
@@ -250,6 +260,8 @@ class EconomyService {
         appliedMultiplier: amount > 0 && appliedAmount !== amount ? appliedAmount / amount : 1,
         playerLevel: Number(result.rows[0].level) || 1,
         levelIncomeMultiplier: amount > 0 && earningEligible ? getLevelEarningMultiplier(result.rows[0].level) : 1,
+        economyEventMultiplier: amount > 0 && earningEligible ? (partyMultiplier || 1) : 1,
+        economyEventName: amount > 0 && earningEligible ? (party?.name || null) : null,
         walletCredit: walletDelta,
         bankedAmount: bankDelta,
         candyDrop: candyDrop ? candyDrop.amount : 0
@@ -445,6 +457,39 @@ class EconomyService {
         nextCandyBalanceRequired: next.candyBalanceRequired,
         nextGearUpgradeLevelsRequired: next.gearUpgradeLevelsRequired
       };
+    });
+  }
+
+  async scavenge(guildId, userId, roleIds = []) {
+    return transaction(async (client) => {
+      await ensurePlayerTx(client, guildId, userId);
+      const player = await client.query("SELECT level FROM players WHERE guild_id=$1 AND user_id=$2 FOR UPDATE", [guildId,userId]);
+      const gear = this.inventory ? await this.inventory.getEffectsTx(client,guildId,userId) : {};
+      const cooldownMs = 30 * 60 * 1000;
+      await claimCooldownTx(client,guildId,userId,"scavenge",cooldownMs);
+      const baseAmount = randomInt(250,550) + Number(player.rows[0].level || 1) * 6;
+      const earning = await this.mutateTx(client,guildId,userId,baseAmount,"scavenge_reward",uuid(),{source:"district_scavenge"});
+      const progression = await this.addXpTx(client,guildId,userId,12,roleIds);
+      const { trackActionTx } = require("./events");
+      await trackActionTx(client,guildId,userId,"scavenge",1);
+      await trackActionTx(client,guildId,userId,"wallet_earned",earning.delta);
+      return { amount:earning.delta,cooldownMs,progression,candyDrop:earning.candyDrop||null };
+    });
+  }
+
+  async deliveryContract(guildId, userId, roleIds = []) {
+    return transaction(async (client) => {
+      await ensurePlayerTx(client,guildId,userId);
+      const player = await client.query("SELECT level FROM players WHERE guild_id=$1 AND user_id=$2 FOR UPDATE", [guildId,userId]);
+      const cooldownMs = 3 * 60 * 60 * 1000;
+      await claimCooldownTx(client,guildId,userId,"delivery_contract",cooldownMs);
+      const baseAmount = randomInt(750,1400) + Number(player.rows[0].level || 1) * 10;
+      const earning = await this.mutateTx(client,guildId,userId,baseAmount,"delivery_contract_reward",uuid(),{source:"courier_contract"});
+      const progression = await this.addXpTx(client,guildId,userId,28,roleIds);
+      const { trackActionTx } = require("./events");
+      await trackActionTx(client,guildId,userId,"delivery_contract",1);
+      await trackActionTx(client,guildId,userId,"wallet_earned",earning.delta);
+      return { amount:earning.delta,cooldownMs,progression,candyDrop:earning.candyDrop||null };
     });
   }
 

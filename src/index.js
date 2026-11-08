@@ -24,6 +24,8 @@ const { SecurityService } = require("./services/security");
 const { ServerBoosterService } = require("./services/server-boosters");
 const { CustomCommandService } = require("./services/custom-commands");
 const { TradeService } = require("./services/trade-interactions");
+const { EconomyEventService } = require("./services/economy-events");
+const { AdminMessagingService } = require("./services/admin-messaging");
 const { respond } = require("./ui");
 
 async function start() {
@@ -32,6 +34,8 @@ async function start() {
   await migrate();
   const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildMembers] });
   const economy = new EconomyService(pool);
+  const economyEvents = new EconomyEventService(pool);
+  economy.economyEvents = economyEvents;
   const inventory = new InventoryService(pool, economy);
   economy.inventory = inventory;
   const guildSettings = new GuildSettingsService(pool);
@@ -44,6 +48,8 @@ async function start() {
     pool, balancing, economy, inventory, guildSettings, security, serverBoosters, customCommands,
     partyGames: new PartyGameService(pool, economy),
     trades: new TradeService(pool),
+    economyEvents,
+    adminMessaging: new AdminMessagingService(),
     jobs: new JobsGame(pool, economy, inventory),
     crime: new CrimeGame(pool, economy, inventory),
     casino: new CasinoGame(pool, economy, inventory),

@@ -186,7 +186,9 @@ module.exports = {
     heist_reward: { chance: 0.30, min: 2, max: 3 },
     casino_play: { chance: 0.10, min: 1, max: 2 },
     chat_activity_reward: { chance: 0.03, min: 1, max: 1 },
-    achievement_reward: { chance: 0.15, min: 1, max: 2 }
+    achievement_reward: { chance: 0.15, min: 1, max: 2 },
+    scavenge_reward: { chance: 0.12, min: 1, max: 1 },
+    delivery_contract_reward: { chance: 0.18, min: 1, max: 2 }
   },
   weeklyQuests: [
     { id: "weekly_work", name: "Clock In", action: "work", goal: 3, candy: 20, description: "Complete 3 work shifts." },
