@@ -58,3 +58,42 @@ test("leaderboard shows all members and gives missing profiles a zero score",asy
  assert.match(description,/0 FC/);
  assert.equal(payload.components.length,2);
 });
+
+
+test("editing a trade offer clears both players' confirmations",async()=>{
+ const future=new Date(Date.now()+60000);
+ const original={
+  id:"trade-1",guild_id:"g",initiator_id:"a",target_id:"b",status:"open",expires_at:future,
+  offers:{initiator:{fc:100,items:[]},target:{fc:200,items:[]}},
+  confirmations:{initiator:true,target:true}
+ };
+ const client={query:async(sql,values)=>{
+  if(sql.startsWith("SELECT * FROM player_trades"))return {rows:[original]};
+  if(sql.startsWith("SELECT wallet FROM players"))return {rows:[{wallet:500}]};
+  if(sql.startsWith("UPDATE player_trades SET offers"))return {rows:[{
+   ...original,offers:JSON.parse(values[2]),confirmations:JSON.parse(values[3])
+  }]};
+  throw new Error("Unexpected SQL: "+sql);
+ }};
+ const {TradeService}=require("../src/services/trade-interactions");
+ const service=new TradeService({},async callback=>callback(client));
+ const updated=await service.setOffer("g","trade-1","a",{fc:150,items:[]});
+ assert.equal(updated.offers.initiator.fc,150);
+ assert.deepEqual(updated.confirmations,{initiator:false,target:false});
+});
+
+test("a trade cannot be confirmed until both players offer something",async()=>{
+ const trade={
+  id:"trade-2",guild_id:"g",initiator_id:"a",target_id:"b",status:"open",
+  expires_at:new Date(Date.now()+60000),
+  offers:{initiator:{fc:100,items:[]},target:{fc:0,items:[]}},
+  confirmations:{initiator:false,target:false}
+ };
+ const client={query:async(sql)=>{
+  if(sql.startsWith("SELECT * FROM player_trades"))return {rows:[trade]};
+  throw new Error("Trade should stop before settlement SQL.");
+ }};
+ const {TradeService}=require("../src/services/trade-interactions");
+ const service=new TradeService({},async callback=>callback(client));
+ await assert.rejects(service.confirm("g","trade-2","a"),/Both players must offer/);
+});
