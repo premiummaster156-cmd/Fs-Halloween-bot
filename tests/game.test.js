@@ -71,7 +71,7 @@ test("earnings above the wallet ceiling are automatically saved to the bank", as
       const updates = [];
       const client = {
         query: async (sql, values) => {
-          if (sql.includes("SELECT wallet, prestige, job_id FROM players")) {
+          if (sql.includes("SELECT wallet, prestige, job_id, level FROM players")) {
             return { rowCount: 1, rows: [{ wallet: scenario.wallet, prestige: 0, job_id: null }] };
           }
           if (sql.includes("SELECT id FROM economy_ledger")) return { rowCount: 0, rows: [] };
@@ -98,7 +98,7 @@ test("career passive income bonus stacks with the 3x FC boost", async () => {
   const service = new EconomyService({});
   const client = {
     query: async (sql) => {
-      if (sql.includes("SELECT wallet, prestige, job_id FROM players")) {
+      if (sql.includes("SELECT wallet, prestige, job_id, level FROM players")) {
         return { rowCount: 1, rows: [{ wallet: 100, prestige: 0, job_id: "shopkeeper" }] };
       }
       if (sql.includes("SELECT id FROM economy_ledger")) return { rowCount: 0, rows: [] };
@@ -182,7 +182,7 @@ test("the 3x FC multiplier applies to normal rewards but not casino payouts", as
   const service = new EconomyService({});
   const client = {
     query: async (sql) => {
-      if (sql.includes("SELECT wallet, prestige, job_id FROM players")) {
+      if (sql.includes("SELECT wallet, prestige, job_id, level FROM players")) {
         return { rowCount: 1, rows: [{ wallet: 100, prestige: 0 }] };
       }
       if (sql.includes("SELECT id FROM economy_ledger")) {
@@ -212,8 +212,8 @@ test("3x FC earnings keep meaningful progression and equipment sinks", () => {
   assert.equal(balancing.progression.xpMultiplier, 1);
   assert.equal(balancing.progression.roleBoosterMultiplier, 1.2);
   assert.ok(balancing.rebirth.firstWalletRequirement > averageLevelOneDaily * 5);
-  assert.deepEqual(balancing.jobs.map((job) => job.minLevel), [1, 5, 10, 16, 23, 30, 40]);
-  assert.deepEqual(balancing.jobs.map((job) => job.minWallet), [0, 5000, 12000, 25000, 50000, 90000, 150000]);
+  assert.deepEqual(balancing.jobs.map((job) => job.minLevel), [1, 5, 10, 16, 23, 30, 40, 45, 50, 55, 60, 70, 80, 90, 100, 110, 120, 140, 160, 180, 200, 220]);
+  assert.deepEqual(balancing.jobs.map((job) => job.minWallet), [0, 5000, 12000, 25000, 50000, 90000, 150000, 200000, 250000, 300000, 350000, 450000, 550000, 700000, 850000, 1000000, 1200000, 1500000, 1800000, 2200000, 2700000, 3300000]);
   assert.deepEqual(
     balancing.items.filter((item) => !item.boosterOnly).map((item) => item.cost),
     [1500, 3500, 6000, 9000, 13000, 18000, 26000, 36000, 55000, 80000, 100000, 135000, 175000, 220000, 270000, 330000, 400000, 480000]
