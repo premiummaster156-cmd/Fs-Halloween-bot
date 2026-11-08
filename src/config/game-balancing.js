@@ -8,7 +8,8 @@ module.exports = {
     dailyMin: 600, dailyMax: 900, dailyCooldownMs: 18 * hour, dailyXp: 30,
     minimumBet: 100, maximumBet: 100000,
     transferMinimum: 1, transferMaximum: 500000,
-    maxWallet: 2000000000
+    maxWallet: 2000000000,
+    levelIncomeBonusPerLevel: 0.001
   },
   progression: { xpMultiplier: 1, roleBoosterMultiplier: 1.2, maxLevel: 600, maxRebirths: 100, xpPerLevelBase: 80, xpPerLevelStep: 12 },
   careerProgression: { baseXp: 40, xpPerLevelSquared: 20 },
@@ -20,7 +21,22 @@ module.exports = {
     { id: "enforcer", name: "Enforcer", tier: 4, minLevel: 16, minWallet: 25000, payMin: 950, payMax: 1350, cooldownMs: 5 * minute, xp: 55, description: "Protect clan operations and handle difficult jobs." },
     { id: "smuggler", name: "Smuggler", tier: 5, minLevel: 23, minWallet: 50000, payMin: 1400, payMax: 1950, cooldownMs: 5 * minute, xp: 65, description: "Move high-value goods while managing risk." },
     { id: "underboss", name: "Underboss", tier: 6, minLevel: 30, minWallet: 90000, payMin: 2000, payMax: 2800, cooldownMs: 5 * minute, xp: 78, description: "Coordinate valuable operations and trusted crews." },
-    { id: "crime_boss", name: "Crime Boss", tier: 7, minLevel: 40, minWallet: 150000, payMin: 2800, payMax: 3800, cooldownMs: 5 * minute, xp: 90, description: "The highest career tier, earned through long-term progress." }
+    { id: "crime_boss", name: "Crime Boss", tier: 7, minLevel: 40, minWallet: 150000, payMin: 2800, payMax: 3800, cooldownMs: 5 * minute, xp: 90, description: "The highest career tier, earned through long-term progress." },
+    { id: "investigator", name: "Investigator", tier: 8, minLevel: 45, minWallet: 200000, payMin: 3500, payMax: 4700, cooldownMs: 5 * minute, xp: 100, description: "Follow evidence and solve high-value cases." },
+    { id: "medic", name: "Medic", tier: 9, minLevel: 50, minWallet: 250000, payMin: 4000, payMax: 5400, cooldownMs: 5 * minute, xp: 110, description: "Keep the crew alive through demanding operations." },
+    { id: "engineer", name: "Engineer", tier: 10, minLevel: 55, minWallet: 300000, payMin: 4600, payMax: 6200, cooldownMs: 5 * minute, xp: 120, description: "Build and maintain advanced equipment." },
+    { id: "hacker", name: "Hacker", tier: 11, minLevel: 60, minWallet: 350000, payMin: 5200, payMax: 7000, cooldownMs: 5 * minute, xp: 130, description: "Secure systems and outsmart digital threats." },
+    { id: "lawyer", name: "Lawyer", tier: 12, minLevel: 70, minWallet: 450000, payMin: 6000, payMax: 8100, cooldownMs: 5 * minute, xp: 145, description: "Negotiate complex cases and protect the organisation." },
+    { id: "scientist", name: "Scientist", tier: 13, minLevel: 80, minWallet: 550000, payMin: 7000, payMax: 9400, cooldownMs: 5 * minute, xp: 160, description: "Research rare materials and develop new technology." },
+    { id: "pilot", name: "Pilot", tier: 14, minLevel: 90, minWallet: 700000, payMin: 8200, payMax: 11000, cooldownMs: 5 * minute, xp: 175, description: "Fly high-risk routes and precision missions." },
+    { id: "bodyguard", name: "Bodyguard", tier: 15, minLevel: 100, minWallet: 850000, payMin: 9500, payMax: 12800, cooldownMs: 5 * minute, xp: 190, description: "Protect important clients and reduce operation losses." },
+    { id: "blacksmith", name: "Blacksmith", tier: 16, minLevel: 110, minWallet: 1000000, payMin: 11000, payMax: 14800, cooldownMs: 5 * minute, xp: 205, description: "Forge and reinforce equipment for elite members." },
+    { id: "merchant", name: "Merchant", tier: 17, minLevel: 120, minWallet: 1200000, payMin: 12500, payMax: 16800, cooldownMs: 5 * minute, xp: 220, description: "Trade rare goods across the city and beyond." },
+    { id: "strategist", name: "Strategist", tier: 18, minLevel: 140, minWallet: 1500000, payMin: 14500, payMax: 19500, cooldownMs: 5 * minute, xp: 240, description: "Plan coordinated operations with maximum efficiency." },
+    { id: "bounty_hunter", name: "Bounty Hunter", tier: 19, minLevel: 160, minWallet: 1800000, payMin: 16500, payMax: 22200, cooldownMs: 5 * minute, xp: 260, description: "Track dangerous targets and collect elite contracts." },
+    { id: "alchemist", name: "Alchemist", tier: 20, minLevel: 180, minWallet: 2200000, payMin: 19000, payMax: 25500, cooldownMs: 5 * minute, xp: 280, description: "Transform rare ingredients into valuable creations." },
+    { id: "diplomat", name: "Diplomat", tier: 21, minLevel: 200, minWallet: 2700000, payMin: 22000, payMax: 29500, cooldownMs: 5 * minute, xp: 305, description: "Settle rival disputes and negotiate major agreements." },
+    { id: "syndicate_director", name: "Syndicate Director", tier: 22, minLevel: 220, minWallet: 3300000, payMin: 25500, payMax: 34000, cooldownMs: 5 * minute, xp: 330, description: "Lead the highest-value operations in Fukishokai." }
   ],
   careerEffects: {
     street_runner: { workPayBonus: 0.03 },
@@ -29,7 +45,22 @@ module.exports = {
     enforcer: { crimeChance: 4, fineReduction: 0.03 },
     smuggler: { crimeRewardBonus: 0.08 },
     underboss: { heistChance: 4 },
-    crime_boss: { moneyBonus: 0.05, heistChance: 2 }
+    crime_boss: { moneyBonus: 0.05, heistChance: 2 },
+    investigator: { crimeChance: 5, crimeRewardBonus: 0.04 },
+    medic: { fineReduction: 0.08, workXpBonus: 0.06 },
+    engineer: { workPayBonus: 0.08, workCooldownReduction: 0.05 },
+    hacker: { heistChance: 5, crimeChance: 3 },
+    lawyer: { fineReduction: 0.12, moneyBonus: 0.03 },
+    scientist: { xpBonus: 0.10, candyDropBonus: 0.02 },
+    pilot: { workPayBonus: 0.12, heistCooldownReduction: 0.05 },
+    bodyguard: { fineReduction: 0.15, crimeChance: 2 },
+    blacksmith: { workPayBonus: 0.10, xpBonus: 0.05 },
+    merchant: { moneyBonus: 0.08, workPayBonus: 0.06 },
+    strategist: { heistChance: 7, heistCooldownReduction: 0.06 },
+    bounty_hunter: { crimeRewardBonus: 0.12, crimeChance: 4 },
+    alchemist: { candyDropBonus: 0.06, xpBonus: 0.08 },
+    diplomat: { fineReduction: 0.08, heistChance: 5 },
+    syndicate_director: { moneyBonus: 0.10, workPayBonus: 0.12, heistChance: 5 }
   },
   // Applied automatically while a member is actively boosting this server.
   // Casino odds are increased through the fair-play gear path, which scales payouts to preserve RTP.
