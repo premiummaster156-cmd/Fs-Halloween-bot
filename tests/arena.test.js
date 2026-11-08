@@ -84,9 +84,9 @@ test("Rift Arena rejects unknown powers", () => {
 });
 
 
-test("Rift Arena renders the beveled HUD as a valid PNG", () => {
+test("Rift Arena renders the boss art card as a valid PNG", async () => {
   const { createArenaCard } = require("../src/utils/arena-card");
-  const image = createArenaCard({
+  const image = await createArenaCard({
     boss: BOSSES[5],
     battle: {
       bossHp: 12000, bossMaxHp: 19000,

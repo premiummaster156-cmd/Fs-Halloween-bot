@@ -1,7 +1,7 @@
 const { transaction } = require("../database/pool");
 const settings = require("../config/settings");
 const balancing = require("../config/game-balancing");
-const { DomainError, uuid, randomInt, claimCooldownTx, levelXpRequired, getRebirthMultiplier, applyCooldownReduction } = require("../utils/core");
+const { DomainError, uuid, randomInt, claimCooldownTx, levelXpRequired, getRebirthMultiplier, getLevelEarningMultiplier, applyCooldownReduction } = require("../utils/core");
 
 const MULTIPLIED_EARNING_REASONS = new Set([
   "daily_reward",
@@ -195,7 +195,7 @@ class EconomyService {
     const amount = Math.trunc(Number(delta));
     if (!Number.isSafeInteger(amount) || amount === 0) throw new DomainError("Amount must be a non-zero whole number.", "INVALID_AMOUNT");
     await ensurePlayerTx(client, guildId, userId);
-    const result = await client.query("SELECT wallet, prestige, job_id FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [guildId, userId]);
+    const result = await client.query("SELECT wallet, prestige, job_id, level FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [guildId, userId]);
     const ref = reference || uuid();
     const existing = await client.query("SELECT id FROM economy_ledger WHERE guild_id = $1 AND user_id = $2 AND reference = $3", [guildId, userId, ref]);
     if (existing.rowCount) return { duplicate: true, balance: Number(result.rows[0].wallet), delta: 0, candyDrop: null };
@@ -211,8 +211,9 @@ class EconomyService {
       : {};
     if (earningEligible) {
       const incomeBonus = Math.min(0.75, (gear.moneyBonus || 0) + (career.moneyBonus || 0));
+      const levelMultiplier = getLevelEarningMultiplier(result.rows[0].level);
       const multiplier = Math.max(1, Number(balancing.economy.earningMultiplier) || 1) *
-        getRebirthMultiplier(result.rows[0].prestige) * (1 + incomeBonus);
+        getRebirthMultiplier(result.rows[0].prestige) * levelMultiplier * (1 + incomeBonus);
       appliedAmount = Math.floor(amount * multiplier);
       if (!Number.isSafeInteger(appliedAmount) || appliedAmount < 1) {
         throw new DomainError("This reward is too large to process safely.", "INVALID_REWARD_AMOUNT");
@@ -248,6 +249,8 @@ class EconomyService {
         ...metadata,
         baseAmount: amount,
         appliedMultiplier: amount > 0 && appliedAmount !== amount ? appliedAmount / amount : 1,
+        playerLevel: Number(result.rows[0].level) || 1,
+        levelIncomeMultiplier: amount > 0 && earningEligible ? getLevelEarningMultiplier(result.rows[0].level) : 1,
         walletCredit: walletDelta,
         bankedAmount: bankDelta,
         candyDrop: candyDrop ? candyDrop.amount : 0

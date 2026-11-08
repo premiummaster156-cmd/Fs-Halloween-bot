@@ -1,4 +1,6 @@
-const { createCanvas } = require("@napi-rs/canvas");
+const { createCanvas, loadImage } = require("@napi-rs/canvas");
+const path = require("node:path");
+let dragonImagePromise = null;
 
 function rounded(ctx, x, y, w, h, r) {
   ctx.beginPath();
@@ -105,7 +107,31 @@ function drawBossPortrait(ctx, boss, cx, cy) {
   ctx.restore();
 }
 
-function createArenaCard({ boss, battle = null, playerLevel = 1 }) {
+async function drawDragonPortrait(ctx) {
+  if (!dragonImagePromise) {
+    dragonImagePromise = loadImage(path.join(__dirname, "../../assets/bosses/dragon-sovereign.webp"));
+  }
+  const image = await dragonImagePromise;
+  const x = 590, y = 72, width = 332, height = 187;
+  const glow = ctx.createRadialGradient(x + width / 2, y + height / 2, 20, x + width / 2, y + height / 2, 205);
+  glow.addColorStop(0, "rgba(255, 126, 35, 0.34)");
+  glow.addColorStop(1, "rgba(255, 126, 35, 0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(x - 30, y - 25, width + 60, height + 50);
+  rounded(ctx, x - 4, y - 4, width + 8, height + 8, 14);
+  ctx.fillStyle = "#D99A42";
+  ctx.fill();
+  ctx.save();
+  rounded(ctx, x, y, width, height, 11);
+  ctx.clip();
+  ctx.drawImage(image, x, y, width, height);
+  ctx.restore();
+  rounded(ctx, x, y, width, height, 11);
+  ctx.strokeStyle = "rgba(255, 211, 126, 0.9)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+async function createArenaCard({ boss, battle = null, playerLevel = 1 }) {
   const width = 980;
   const height = 360;
   const canvas = createCanvas(width, height);
@@ -171,8 +197,10 @@ function createArenaCard({ boss, battle = null, playerLevel = 1 }) {
   ctx.fillStyle = "#AAB3D0";
   ctx.fillText(boss.title || "Rift encounter", 80, 137, 460);
 
-  // Clear, detailed illustrated boss portrait replaces the old abstract polygon placeholder.
-  drawBossPortrait(ctx, boss, 748, 183);
+  // Dragon Sovereign uses its dedicated standalone artwork inside the card.
+  // Other bosses retain their custom illustrated portraits.
+  if (boss.id === "dragon_sovereign") await drawDragonPortrait(ctx);
+  else drawBossPortrait(ctx, boss, 748, 183);
 
   ctx.font = "700 11px Arial";
   ctx.fillStyle = "#7F8AAE";

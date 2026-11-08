@@ -44,6 +44,13 @@ function getRebirthMultiplier(rebirths) {
   const count = Math.max(0, Math.min(maxRebirths, Math.floor(Number(rebirths) || 0)));
   return 1 + count;
 }
+function getLevelEarningMultiplier(level) {
+  const balancing = require("../config/game-balancing");
+  const maxLevel = balancing.progression.maxLevel;
+  const safeLevel = Math.max(1, Math.min(maxLevel, Math.floor(Number(level) || 1)));
+  const perLevel = Math.max(0, Number(balancing.economy.levelIncomeBonusPerLevel) || 0);
+  return 1 + Math.max(0, safeLevel - 1) * perLevel;
+}
 function applyCooldownReduction(baseMs, reduction, floorMs = 1000) {
   const base = Math.max(0, Math.floor(Number(baseMs) || 0));
   const floor = Math.max(0, Math.floor(Number(floorMs) || 0));
@@ -111,5 +118,5 @@ async function claimCooldownTx(client, guildId, userId, key, durationMs, now = n
 module.exports = {
   DomainError, CooldownError, formatDuration, randomInt, chance, uuid, clamp,
   levelXpRequired, calculateWorkPay, calculateCrimeChance, calculateHeistChance,
-  splitReward, casinoPayout, claimCooldownTx, getRebirthMultiplier, applyCooldownReduction
+  splitReward, casinoPayout, claimCooldownTx, getRebirthMultiplier, getLevelEarningMultiplier, applyCooldownReduction
 };

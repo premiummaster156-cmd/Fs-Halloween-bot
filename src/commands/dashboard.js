@@ -10,7 +10,7 @@ const { createEmbed } = require("../ui");
 const { createArenaCard } = require("../utils/arena-card");
 const { getPlayer, getLeaderboard } = require("../services/economy");
 const { getUpgradeCost } = require("../services/inventory");
-const { levelXpRequired, uuid, getRebirthMultiplier } = require("../utils/core");
+const { levelXpRequired, uuid, getRebirthMultiplier, getLevelEarningMultiplier } = require("../utils/core");
 const { makeWorkChallenge } = require("../games/work-challenge");
 const { audit, sendLog } = require("../utils/logging");
 
@@ -566,7 +566,7 @@ async function renderMenu(guildId, owner, page, s) {
           nav
         ], "info", "FUKISHOKAI  •  Rift Arena / Boss selection");
     const imageBoss = targetBoss || { name: "The Rift", title: "Choose a challenger", minLevel: 1 };
-    const image = createArenaCard({
+    const image = await createArenaCard({
       boss: imageBoss,
       battle: activeBattle,
       playerLevel: status.playerLevel
