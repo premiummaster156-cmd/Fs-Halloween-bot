@@ -258,13 +258,20 @@ class RiftArena {
       );
       let reward = 0;
       let progression = null;
+      let adminAbuseEvent = null;
       if (next.status === "won") {
-        const earning = await this.economy.mutateTx(client, guildId, userId, boss.rewardFc, "boss_reward", uuid(), { bossId: boss.id, battleId: battle.id });
+        const liveEventResult = await client.query(
+          "SELECT event_type,name FROM admin_abuse_events WHERE guild_id=$1 AND status='active' AND starts_at<=NOW() AND ends_at>NOW() ORDER BY created_at DESC LIMIT 1",
+          [guildId]
+        );
+        adminAbuseEvent = liveEventResult.rows[0] || null;
+        const riftBonus = adminAbuseEvent?.event_type === "rift_surge" ? 1.5 : 1;
+        const earning = await this.economy.mutateTx(client, guildId, userId, Math.floor(boss.rewardFc * riftBonus), "boss_reward", uuid(), { bossId: boss.id, battleId: battle.id, adminAbuseEvent: adminAbuseEvent?.name || null });
         reward = earning.delta;
-        progression = await this.economy.addXpTx(client, guildId, userId, boss.rewardXp, roleIds);
+        progression = await this.economy.addXpTx(client, guildId, userId, Math.floor(boss.rewardXp * riftBonus), roleIds);
         await trackActionTx(client, guildId, userId, "wallet_earned", reward);
       }
-      return { battleId: battle.id, status: next.status, boss, battle: next, reward, baseReward: boss.rewardFc, xp: progression ? progression.gained : 0, progression };
+      return { battleId: battle.id, status: next.status, boss, battle: next, reward, baseReward: boss.rewardFc, xp: progression ? progression.gained : 0, progression, adminAbuseEvent: adminAbuseEvent?.name || null };
     });
     return result;
   }
