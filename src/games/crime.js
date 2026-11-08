@@ -21,9 +21,15 @@ class CrimeGame {
       await claimCooldownTx(client, guildId, userId, "crime:" + crime.id, cooldownMs);
       const career = balancing.careerEffects[player.job_id] || {};
       const reputation = Math.max(-4, Math.min(4, Math.floor(Number(player.reputation) / 10)));
+      const liveEventResult = await client.query(
+        "SELECT event_type,name FROM admin_abuse_events WHERE guild_id=$1 AND status='active' AND starts_at<=NOW() AND ends_at>NOW() ORDER BY created_at DESC LIMIT 1",
+        [guildId]
+      );
+      const liveEvent = liveEventResult.rows[0] || null;
+      const bloodMoon = liveEvent?.event_type === "blood_moon";
       const successChance = calculateCrimeChance(
         crime.baseChance, Number(player.level), crime.difficulty,
-        (career.crimeChance || 0) + reputation + (gear.crimeChance || 0)
+        (career.crimeChance || 0) + reputation + (gear.crimeChance || 0) + (bloodMoon ? 12 : 0)
       );
       const succeeded = chance(successChance);
       const reference = uuid();
@@ -31,7 +37,7 @@ class CrimeGame {
       let fine = 0;
       let candyDrop = null;
       if (succeeded) {
-        const baseReward = Math.floor(randomInt(crime.rewardMin, crime.rewardMax) * (1 + Math.min(0.3, Number(player.level) * 0.004)));
+        const baseReward = Math.floor(randomInt(crime.rewardMin, crime.rewardMax) * (1 + Math.min(0.3, Number(player.level) * 0.004)) * (bloodMoon ? 1.25 : 1));
         const earning = await this.economy.mutateTx(client, guildId, userId, Math.floor(baseReward * (1 + Math.min(0.75, (gear.crimeRewardBonus || 0) + (career.crimeRewardBonus || 0)))), "crime_success", reference, { crimeId, successChance });
         reward = earning.delta;
         candyDrop = earning.candyDrop || null;
@@ -46,7 +52,7 @@ class CrimeGame {
         if (fine > 0) await this.economy.mutateTx(client, guildId, userId, -fine, "crime_failed_fine", reference, { crimeId, successChance });
         await client.query("UPDATE players SET reputation = GREATEST(-100, reputation - 2), updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [guildId, userId]);
       }
-      return { crime, succeeded, successChance, reward, fine, candyDrop };
+      return { crime, succeeded, successChance, reward, fine, candyDrop, adminAbuseEvent: liveEvent?.name || null };
     });
   }
 }
