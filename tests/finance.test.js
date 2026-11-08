@@ -49,7 +49,7 @@ test("bank moves and incoming transfers do not inflate lifetime earned or spent 
   const updates = [];
   const client = {};
   client.query = async (sql, values) => {
-    if (sql.includes("SELECT wallet, prestige, job_id FROM players")) {
+    if (sql.includes("SELECT wallet, prestige, job_id, level FROM players")) {
       return { rowCount: 1, rows: [{ wallet: 100, prestige: 0, job_id: null }] };
     }
     if (sql.includes("SELECT id FROM economy_ledger")) return { rowCount: 0, rows: [] };
