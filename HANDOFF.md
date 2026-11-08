@@ -3,7 +3,7 @@
 **Repository:** https://github.com/premiummaster156-cmd/Fs-Halloween-bot  
 **Default branch:** `main`  
 **Runtime:** Node.js 20+, Discord.js 14, PostgreSQL on Neon  
-**Last updated:** 2026-11-08 — added secure trading, all-member leaderboards, FC party events and admin DM controls
+**Last updated:** 2026-11-08 — no privileged intents, tracked-profile leaderboards, Admin Abuse live events, trade safeguards and Dragon Sovereign artwork
 **Working rule:** `main` is the only development branch. Do not create feature branches. Inspect and update `main` directly, keep this file current, and verify CI before reporting completion.
 
 ## Final season — ends November 30, 2026
@@ -47,7 +47,7 @@ Rebirth resets wallet to **2,500 FC**, bank to zero, player level to one and cur
 ## Rift Arena — implemented on main
 
 - Six solo bosses unlock at levels **1, 20, 40, 60, 80 and 100**: Training Golem, Ashen Knight, Rift Warden, Abyss Wyrm, Oni Shogun and Dragon Sovereign.
-- PostgreSQL `boss_battles` records persist encounters. A player can have one active encounter; the service applies a 10-minute entry cooldown, turn locking and server-side expected-turn validation to prevent stale/double-click interactions.
+- PostgreSQL `boss_battles` records persist encounters. A player can have one active encounter; the service applies a 20-minute entry cooldown, turn locking and server-side expected-turn validation to prevent stale/double-click interactions.
 - The eight endgame abilities can each be activated once per encounter: **PHASE** avoids a counterstrike; **DREAD** weakens three boss strikes; **AEGIS** creates a shield; **REBIRTH** restores health; **EXECUTE** deals bonus damage based on remaining boss health; **HASTE** doubles a strike; **HEX** applies damage over time; **ASCEND** deals a large burst.
 - Boss victories grant FC and XP using the normal and rebirth multipliers. Losses charge no fine. Retreating does not erase the Arena cooldown.
 - The dashboard includes boss selection, attack/ability/retreat controls, health bars, status effects and encounter result messages.
@@ -137,6 +137,18 @@ The project also applies schema changes at startup. No slash-command redeploymen
 ## Trading, leaderboards, economy events and admin DMs — current work
 
 - /menu → Trade replaces one-way FC transfer. Offers may contain FC and up to 10 item types. Both players must contribute; both confirm independently; changing either offer resets both confirmations. Offers are revalidated at settlement and FC/items exchange in a transaction. Booster-exclusive Mythic gear is non-tradable. Active trades expire after 30 minutes.
-- Leaderboard now fetches the full guild member roster (requires the privileged Server Members Intent to be enabled in the Discord Developer Portal), joins all game metrics and displays zero-score members. It supports Wealth, Level, Lifetime Earned, Party Points and Weekly Messages, with paging and search.
+- Leaderboards use saved player profiles, Party Game stats, weekly activity and the current non-privileged member cache. Exact Discord-ID lookup fetches one member at a time. This intentionally does not enumerate never-seen server members because the user will not enable privileged intents. Zero-score saved profiles are included. Categories: Wealth, Level, Lifetime Earned, Party Points, Weekly Messages, Rebirths, Career Level, Successful Crimes and Completed Heists; paging, search and leaderboard exclusions are supported.
 - New FC activities: Scavenge (30m) and Delivery Contract (3h). They award FC/XP and participate in normal multipliers and Candy drops.
-- Admin console has FC Party Events (2×–10×, 5m–24h) and Member DMs (one member or all human members). Party events exclude casino payouts, trades and admin grants. DM sending is paced and records sent/failed/skipped counts; Discord privacy settings are respected.
+- Admin console retains FC Party Events (2×–10×, 5m–24h) as a separate economy feature. Member DMs target one selected member or tracked profiles plus cached members only. The Guild Members privileged intent is deliberately disabled; never-seen members cannot be enumerated. Bulk DMs are capped at 1,500 known recipients; failures/skips are counted and Discord privacy settings are respected.
+
+
+## Current approved upgrade — November 8, 2026
+
+- **Privileged intents:** Do not request or enable any privileged Gateway intent. `src/index.js` uses Guilds, GuildMessages and GuildModeration only. `GatewayIntentBits.GuildMembers` must stay removed. The bot cannot enumerate every server member; leaderboards and bulk DM recipient lists are limited to saved player profiles, tracked activity and currently cached members. Exact Discord-ID search performs an individual member lookup only.
+- **Leaderboards:** Added Rebirths, Career Level, Successful Crimes and Completed Heists. Ranking pages include zero-stat saved profiles, respect exclusions and disclose the tracked-profile limitation. Search supports cached usernames/display names and exact IDs.
+- **Trading safeguards:** Both sides still contribute and independently confirm. Editing an offer clears both confirmations. New trade invitations require a 7-day-old Discord account and at least 24 hours in the server; each account can open at most eight trades per rolling 24 hours, and the same pair has a 10-minute re-open cooldown. These checks deter low-effort alt abuse but do not claim perfect alt detection.
+- **Admin Abuse:** Separate from FC Party Events. Presets: Blood Moon (+12 crime-success points and +25% crime base rewards), Candy Storm (+1–2 Candy on eligible gameplay rewards), Rift Surge (+50% Rift Arena victory FC/XP), and Lucky Block Rain (one claim per player per event; FC, Candy and a level-eligible non-booster equipment item). Admins start/stop events through `/admin-panel → Admin Abuse`; events announce in the configured member-command channel and are logged.
+- **Dragon Sovereign:** Replaced the emblem-like image at `assets/bosses/dragon-sovereign.webp` with an original dragon creature portrait, displayed in the existing right-side Arena image viewport.
+- **FC Party Events remain a separate feature** and must not be substituted for Admin Abuse.
+- **DM limitation:** Bulk DMs target tracked profiles and cached members only. The service does not call `guild.members.fetch()` without a specific ID. Never-seen members cannot be automatically discovered.
+- **Remaining deployment checks:** Confirm GitHub Actions, then validate the Neon migration and full Discord test-server interactions separately. Do not claim deployment is live from CI alone.
