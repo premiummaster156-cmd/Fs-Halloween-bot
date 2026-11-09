@@ -87,13 +87,13 @@ class TradeService {
         [guildId, initiatorId, targetId, PAIR_COOLDOWN_MS]);
       if (pairRecent.rowCount) throw new DomainError("You recently traded with this member. Wait 10 minutes before opening another trade together.", "TRADE_PAIR_COOLDOWN");
       const active = await client.query(
-        "SELECT id FROM player_trades WHERE guild_id = $1 AND status = 'open' AND expires_at > NOW() " +
+        "SELECT id FROM player_trades WHERE guild_id = $1 AND status IN ('pending','open') AND expires_at > NOW() " +
         "AND (initiator_id = $2 OR target_id = $2 OR initiator_id = $3 OR target_id = $3) FOR UPDATE",
         [guildId, initiatorId, targetId]);
-      if (active.rowCount) throw new DomainError("One of these members already has an active trade.", "TRADE_ALREADY_ACTIVE");
+      if (active.rowCount) throw new DomainError("One of these members already has a pending invitation or active trade.", "TRADE_ALREADY_ACTIVE");
       const result = await client.query(
         "INSERT INTO player_trades (id,guild_id,initiator_id,target_id,offers,confirmations,status,expires_at) " +
-        "VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,'open',NOW()+($7 * INTERVAL '1 millisecond')) RETURNING *",
+        "VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,'pending',NOW()+($7 * INTERVAL '1 millisecond')) RETURNING *",
         [uuid(), guildId, initiatorId, targetId,
           JSON.stringify({ initiator: emptyOffer(), target: emptyOffer() }),
           JSON.stringify({ initiator: false, target: false }), TRADE_TTL_MS]);
@@ -109,6 +109,60 @@ class TradeService {
       "SELECT * FROM player_trades WHERE guild_id=$1 AND status='open' AND expires_at>NOW() AND (initiator_id=$2 OR target_id=$2) ORDER BY created_at DESC LIMIT 1",
       [guildId,userId]);
     return normalizeTrade(result.rows[0]);
+  }
+  async getPendingInvitation(guildId, userId) {
+    const result = await this.pool.query(
+      "SELECT * FROM player_trades WHERE guild_id=$1 AND status='pending' AND expires_at>NOW() AND (initiator_id=$2 OR target_id=$2) ORDER BY created_at DESC LIMIT 1",
+      [guildId,userId]);
+    return normalizeTrade(result.rows[0]);
+  }
+  async respondToInvitation(guildId, id, userId, decision) {
+    if (decision !== "accept" && decision !== "deny") {
+      throw new DomainError("Choose Accept or Deny.", "TRADE_INVITATION_DECISION_INVALID");
+    }
+    const result = await this.transactionRunner(async (client) => {
+      const selected = await client.query(
+        "SELECT * FROM player_trades WHERE guild_id=$1 AND id=$2 FOR UPDATE",
+        [guildId,id]);
+      const trade = normalizeTrade(selected.rows[0]);
+      if (!trade || trade.status !== "pending") {
+        throw new DomainError("This trade invitation is no longer waiting for a response.", "TRADE_INVITATION_CLOSED");
+      }
+      if (trade.target_id !== userId) {
+        throw new DomainError("Only the invited member can accept or deny this trade.", "TRADE_INVITATION_NOT_RECIPIENT");
+      }
+      if (new Date(trade.expires_at).getTime() <= Date.now()) {
+        await client.query(
+          "UPDATE player_trades SET status='expired',updated_at=NOW() WHERE guild_id=$1 AND id=$2 AND status='pending'",
+          [guildId,id]);
+        return { __tradeInvitationExpired: true };
+      }
+      const accepted = decision === "accept";
+      const updated = await client.query(
+        accepted
+          ? "UPDATE player_trades SET status='open',expires_at=NOW()+($3 * INTERVAL '1 millisecond'),updated_at=NOW() WHERE guild_id=$1 AND id=$2 AND status='pending' RETURNING *"
+          : "UPDATE player_trades SET status='cancelled',updated_at=NOW() WHERE guild_id=$1 AND id=$2 AND status='pending' RETURNING *",
+        accepted ? [guildId,id,TRADE_TTL_MS] : [guildId,id]);
+      if (!updated.rowCount) throw new DomainError("This trade invitation has already been answered.", "TRADE_INVITATION_CLOSED");
+      return { decision: accepted ? "accepted" : "denied", trade: normalizeTrade(updated.rows[0]) };
+    });
+    if (result?.__tradeInvitationExpired) throw new DomainError("This trade invitation has expired.", "TRADE_EXPIRED");
+    return result;
+  }
+  async cancelInvitation(guildId, id, userId) {
+    return this.transactionRunner(async (client) => {
+      const selected = await client.query(
+        "SELECT * FROM player_trades WHERE guild_id=$1 AND id=$2 FOR UPDATE",
+        [guildId,id]);
+      const trade = normalizeTrade(selected.rows[0]);
+      if (!trade || trade.status !== "pending") throw new DomainError("This trade invitation is no longer pending.", "TRADE_INVITATION_CLOSED");
+      if (trade.initiator_id !== userId) throw new DomainError("Only the member who sent this invitation can cancel it.", "TRADE_INVITATION_NOT_INITIATOR");
+      const updated = await client.query(
+        "UPDATE player_trades SET status='cancelled',updated_at=NOW() WHERE guild_id=$1 AND id=$2 AND status='pending' RETURNING *",
+        [guildId,id]);
+      if (!updated.rowCount) throw new DomainError("This trade invitation has already been answered.", "TRADE_INVITATION_CLOSED");
+      return normalizeTrade(updated.rows[0]);
+    });
   }
   async setOffer(guildId, id, userId, rawOffer) {
     const offer = validateOffer(rawOffer);

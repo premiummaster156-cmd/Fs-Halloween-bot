@@ -175,3 +175,66 @@ test("expired trade confirmation updates commit before the expiry error is retur
  await assert.rejects(service.confirm("g","expired-confirm","a"),/trade has expired/i);
  assert.equal(persisted,true);
 });
+
+
+test("trade invitations stay pending until the invited member accepts or denies", async () => {
+  for (const [decision, expectedStatus, expectedDecision] of [
+    ["accept", "open", "accepted"],
+    ["deny", "cancelled", "denied"]
+  ]) {
+    const trade = {
+      id: "invite-" + decision, guild_id: "g", initiator_id: "sender", target_id: "recipient",
+      status: "pending", expires_at: new Date(Date.now() + 60000),
+      offers: { initiator: { fc: 0, items: [] }, target: { fc: 0, items: [] } },
+      confirmations: { initiator: false, target: false }
+    };
+    const client = { query: async sql => {
+      if (sql.startsWith("SELECT * FROM player_trades")) return { rows: [trade] };
+      if (sql.includes("SET status='open'")) return { rowCount: 1, rows: [{ ...trade, status: "open", expires_at: new Date(Date.now() + 1800000) }] };
+      if (sql.includes("SET status='cancelled'")) return { rowCount: 1, rows: [{ ...trade, status: "cancelled" }] };
+      throw new Error("Unexpected SQL: " + sql);
+    }};
+    const { TradeService } = require("../src/services/trade-interactions");
+    const service = new TradeService({}, async callback => callback(client));
+    const result = await service.respondToInvitation("g", trade.id, "recipient", decision);
+    assert.equal(result.decision, expectedDecision);
+    assert.equal(result.trade.status, expectedStatus);
+  }
+});
+
+test("only the invited recipient can accept or deny a pending trade", async () => {
+  const trade = {
+    id: "invite-protected", guild_id: "g", initiator_id: "sender", target_id: "recipient",
+    status: "pending", expires_at: new Date(Date.now() + 60000),
+    offers: { initiator: { fc: 0, items: [] }, target: { fc: 0, items: [] } },
+    confirmations: { initiator: false, target: false }
+  };
+  let updateAttempted = false;
+  const client = { query: async sql => {
+    if (sql.startsWith("SELECT * FROM player_trades")) return { rows: [trade] };
+    updateAttempted = true;
+    throw new Error("Unauthorized response must not update the invitation.");
+  }};
+  const { TradeService } = require("../src/services/trade-interactions");
+  const service = new TradeService({}, async callback => callback(client));
+  await assert.rejects(service.respondToInvitation("g", trade.id, "someone-else", "accept"), /Only the invited member/);
+  assert.equal(updateAttempted, false);
+});
+
+test("the sender can cancel their pending trade invitation", async () => {
+  const trade = {
+    id: "invite-cancel", guild_id: "g", initiator_id: "sender", target_id: "recipient",
+    status: "pending", expires_at: new Date(Date.now() + 60000),
+    offers: { initiator: { fc: 0, items: [] }, target: { fc: 0, items: [] } },
+    confirmations: { initiator: false, target: false }
+  };
+  const client = { query: async sql => {
+    if (sql.startsWith("SELECT * FROM player_trades")) return { rows: [trade] };
+    if (sql.includes("SET status='cancelled'")) return { rowCount: 1, rows: [{ ...trade, status: "cancelled" }] };
+    throw new Error("Unexpected SQL: " + sql);
+  }};
+  const { TradeService } = require("../src/services/trade-interactions");
+  const service = new TradeService({}, async callback => callback(client));
+  const cancelled = await service.cancelInvitation("g", trade.id, "sender");
+  assert.equal(cancelled.status, "cancelled");
+});

@@ -435,13 +435,16 @@ CREATE TABLE IF NOT EXISTS player_trades (
  target_id TEXT NOT NULL,
  offers JSONB NOT NULL DEFAULT '{"initiator":{"fc":0,"items":[]},"target":{"fc":0,"items":[]}}'::jsonb,
  confirmations JSONB NOT NULL DEFAULT '{"initiator":false,"target":false}'::jsonb,
- status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','completed','cancelled','expired')),
+ status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','open','completed','cancelled','expired')),
  expires_at TIMESTAMPTZ NOT NULL,
  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
  completed_at TIMESTAMPTZ,
  CHECK(initiator_id<>target_id)
 );
+ALTER TABLE player_trades DROP CONSTRAINT IF EXISTS player_trades_status_check;
+ALTER TABLE player_trades ADD CONSTRAINT player_trades_status_check
+  CHECK (status IN ('pending','open','completed','cancelled','expired'));
 CREATE INDEX IF NOT EXISTS player_trades_active_idx ON player_trades(guild_id,status,expires_at);
 
 CREATE TABLE IF NOT EXISTS economy_events (

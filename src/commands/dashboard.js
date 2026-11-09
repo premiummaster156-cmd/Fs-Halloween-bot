@@ -373,7 +373,34 @@ async function renderMenu(guildId, owner, page, s) {
   if (page === "trade") {
     const active = s.trades ? await s.trades.getActive(guildId, owner) : null;
     if (!active) {
-      return panel("SECURE PLAYER TRADING", "Create a trade with another member. Both players must offer FC or items, and both must confirm the same final offer. Free gifts are blocked. Trades expire after 30 minutes.",
+      const pending = s.trades ? await s.trades.getPendingInvitation(guildId, owner) : null;
+      if (pending) {
+        const sentByMe = pending.initiator_id === owner;
+        const otherId = sentByMe ? pending.target_id : pending.initiator_id;
+        const expiry = Math.floor(new Date(pending.expires_at).getTime() / 1000);
+        const inviteControls = sentByMe
+          ? [row(btn(owner, "trade-invite-cancel", "Cancel invitation", ButtonStyle.Danger, null, pending.id)), nav]
+          : [
+              row(
+                new ButtonBuilder().setCustomId("trade-invite:accept:" + guildId + ":" + pending.id).setLabel("Accept").setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId("trade-invite:deny:" + guildId + ":" + pending.id).setLabel("Deny").setStyle(ButtonStyle.Danger)
+              ),
+              nav
+            ];
+        return panel(
+          sentByMe ? "TRADE INVITATION SENT" : "TRADE INVITATION",
+          sentByMe
+            ? "Your invitation to <@" + otherId + "> is waiting for their response. The trade will only begin if they accept."
+            : "<@" + otherId + "> wants to trade with you. Accept to open the trade, or deny to cancel it. Nothing is exchanged by accepting; both players still choose offers and confirm the final trade.",
+          [
+            { name: "Invitation expires", value: "<t:" + expiry + ":R>", inline: true },
+            { name: "Next step", value: sentByMe ? "The invited member must accept before you can make offers." : "After accepting, open the Trade page to make your offer." }
+          ],
+          inviteControls,
+          sentByMe ? "warning" : "info"
+        );
+      }
+      return panel("SECURE PLAYER TRADING", "Create a trade with another member. Both players must offer FC or items, and both must confirm the same final offer. Free gifts are blocked. Invitations and active trades expire after 30 minutes.",
         [
           { name: "Trade safety", value: "FC and item ownership are checked again when both players confirm. Offers are exchanged in one database transaction." },
           { name: "Rules", value: "Each side may offer FC and up to 10 item types. Editing an offer clears both confirmations. Booster-exclusive Mythic items cannot be traded." }
@@ -1152,8 +1179,45 @@ async function handleSelection(i, s, scope, owner, action, parts) {
     const member = await i.guild.members.fetch(value).catch(() => null);
     if (!member || member.user.bot) throw new Error("Choose a real server member, not a bot or departed member.");
     const trade = await s.trades.create(i.guildId, owner, value, i.member, member);
-    await member.send("You have a Fukishokai trade invitation from <@" + owner + ">. Open /menu → Trade to review and respond. The trade expires in 30 minutes.").catch(() => null);
-    await safeAudit(i, s, "player_trade_created", value, { tradeId: trade.id });
+    const invitationRow = () => row(
+      new ButtonBuilder().setCustomId("trade-invite:accept:" + i.guildId + ":" + trade.id).setLabel("Accept").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId("trade-invite:deny:" + i.guildId + ":" + trade.id).setLabel("Deny").setStyle(ButtonStyle.Danger)
+    );
+    const invitationMessage = {
+      content: "🎃 **Fukishokai trade invitation**\n<@" + owner + "> wants to trade with you. Accept to open a trade, or deny to cancel it. Accepting does not exchange anything; both players must still make offers and confirm. This invitation expires in 30 minutes.",
+      components: [invitationRow()],
+      allowedMentions: { users: [owner] }
+    };
+    let notified = false;
+    try {
+      await member.send(invitationMessage);
+      notified = true;
+    } catch (dmError) {
+      console.warn("[trade] Could not DM invitation recipient; trying the current channel:", dmError.message);
+    }
+    if (!notified && i.channel?.send) {
+      try {
+        await i.channel.send({
+          ...invitationMessage,
+          content: "<@" + value + "> " + invitationMessage.content,
+          allowedMentions: { users: [value] }
+        });
+        notified = true;
+      } catch (channelError) {
+        console.warn("[trade] Could not post invitation fallback:", channelError.message);
+      }
+    }
+    if (!notified) {
+      await s.trades.cancelInvitation(i.guildId, trade.id, owner);
+      return i.update(panel(
+        "INVITATION NOT DELIVERED",
+        "Discord blocked both the recipient's DM and the channel notification. No trade was opened. Ask them to enable DMs or try again in a channel where the bot can send messages.",
+        [],
+        [navButton(owner)],
+        "warning"
+      ));
+    }
+    await safeAudit(i, s, "player_trade_invitation_sent", value, { tradeId: trade.id, delivery: "dm_or_channel" });
     return i.update(await renderMenu(i.guildId, owner, "trade", s));
   }
   if (scope === "dash" && action === "trade-remove-item") {
@@ -1715,6 +1779,12 @@ async function handleButton(i, s) {
     return i.showModal(modal("dash:" + owner + ":leaderboard-search-modal:" + p[3] + ":" + p[4], "Search server members", [
       { id: "query", label: "Username, display name or Discord ID", placeholder: "Search members", max: 80 }
     ]));
+  }
+  if (action === "trade-invite-cancel") {
+    await i.deferUpdate();
+    await s.trades.cancelInvitation(i.guildId, p[3], owner);
+    await safeAudit(i, s, "player_trade_invitation_cancelled", null, { tradeId: p[3] });
+    return i.editReply(await renderMenu(i.guildId, owner, "trade", s));
   }
   if (action === "trade-fc") {
     const trade = await s.trades.get(i.guildId, p[3]);

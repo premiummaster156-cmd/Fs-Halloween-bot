@@ -29,6 +29,50 @@ const { AdminMessagingService } = require("./services/admin-messaging");
 const { AdminAbuseService } = require("./services/admin-abuse");
 const { respond } = require("./ui");
 
+async function handleTradeInvitationButton(interaction, client) {
+  const [, decision, guildId, tradeId] = interaction.customId.split(":");
+  if (!["accept", "deny"].includes(decision) || !guildId || !tradeId) {
+    return interaction.reply({ content: "This trade invitation button is invalid.", flags: MessageFlags.Ephemeral });
+  }
+  const current = await client.services.trades.get(guildId, tradeId);
+  if (!current || current.status !== "pending") {
+    return interaction.reply({ content: "This invitation has already been answered or has expired.", flags: MessageFlags.Ephemeral });
+  }
+  if (current.target_id !== interaction.user.id) {
+    return interaction.reply({ content: "Only the member invited to this trade can accept or deny it.", flags: MessageFlags.Ephemeral });
+  }
+  await interaction.deferUpdate();
+  try {
+    const result = await client.services.trades.respondToInvitation(guildId, tradeId, interaction.user.id, decision);
+    const accepted = result.decision === "accepted";
+    const guildName = client.guilds.cache.get(guildId)?.name || "Fukishokai";
+    await interaction.editReply({
+      content: accepted
+        ? "✅ You accepted the trade invitation from <@" + result.trade.initiator_id + "> in **" + guildName + "**. The trade is now open. Run `/menu` in the server and choose **Trade** to make your offer."
+        : "❌ You denied the trade invitation from <@" + result.trade.initiator_id + "> in **" + guildName + "**. The trade has been cancelled; no FC or items were exchanged.",
+      components: []
+    });
+    const initiator = await client.users.fetch(result.trade.initiator_id).catch(() => null);
+    if (initiator) {
+      const notice = accepted
+        ? "✅ <@" + interaction.user.id + "> accepted your Fukishokai trade invitation in **" + guildName + "**. The trade is now open. Run `/menu` → **Trade** to start making offers."
+        : "❌ <@" + interaction.user.id + "> denied your Fukishokai trade invitation in **" + guildName + "**. The trade was cancelled; no FC or items were exchanged.";
+      await initiator.send({ content: notice, allowedMentions: { users: [interaction.user.id] } })
+        .catch(error => console.warn("[trade] Could not DM invitation sender:", error.message));
+    }
+    await require("./utils/logging").audit(
+      pool, guildId, interaction.user.id,
+      accepted ? "player_trade_invitation_accepted" : "player_trade_invitation_denied",
+      result.trade.initiator_id, { tradeId }
+    ).catch(error => console.warn("[trade] Could not log invitation response:", error.message));
+  } catch (error) {
+    const message = error.code === "TRADE_EXPIRED"
+      ? "⌛ This trade invitation has expired. No trade was opened."
+      : error.message || "This invitation could not be processed. Please reopen /menu → Trade.";
+    await interaction.editReply({ content: message, components: [] }).catch(() => null);
+  }
+}
+
 async function start() {
   if (!settings.discordToken) throw new Error("DISCORD_TOKEN is missing.");
   if (!settings.clientId) throw new Error("CLIENT_ID is missing.");
@@ -70,6 +114,18 @@ async function start() {
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
+    if (interaction.isButton() && interaction.customId.startsWith("trade-invite:")) {
+      try {
+        await handleTradeInvitationButton(interaction, client);
+      } catch (error) {
+        console.error("[trade] Invitation response failed:", error.code || error.name, error.message);
+        try {
+          await interaction.reply({ content: "The trade invitation could not be processed. Please reopen /menu → Trade and check its status.", flags: MessageFlags.Ephemeral });
+        } catch (_) {}
+      }
+      return;
+    }
+
     if (interaction.isButton() && interaction.customId.startsWith("security:")) {
       try {
         await security.handleAlertInteraction(interaction);

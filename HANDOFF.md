@@ -218,3 +218,12 @@ Keep Neon PostgreSQL, no privileged intents, no destructive player reset, preser
 
 - `src/database/migrate.js` now also records a SHA-256 checksum for `schema.sql` in a dedicated `schema_migrations` table and only reapplies the idempotent schema when the file content changes. It still verifies the level/rebirth constraints on startup. This is an intermediate safe migration improvement; it is not a substitute for a fully ordered per-release migration directory, which should be introduced with PostgreSQL integration coverage.
 - CI run for this schema-checksum change: [42615869661](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/42615869661). Verify its final result.
+
+
+## Trade invitation acceptance flow — November 9, 2026
+
+- Selecting a trading partner now creates a `pending` invitation, not an active trade. The recipient receives a Discord DM with **Accept** and **Deny** buttons. If DMs are closed, the bot posts a mention plus the same buttons in the channel where the invitation was created.
+- The recipient can also open `/menu → Trade` and respond there if they missed the DM. Only the invited recipient can accept or deny; the sender can cancel a still-pending invitation from their Trade page.
+- Accepting changes the status to `open` and starts the 30-minute trade window. The sender is notified by DM; the recipient is told to open `/menu → Trade` to make offers. Both sides still need to offer something and independently confirm before any FC or items move.
+- Denying changes the status to `cancelled` and notifies the sender. No assets are exchanged. Pending invitations reserve both participants so they cannot start overlapping trades.
+- The PostgreSQL status constraint now includes `pending`. The schema checksum migration path applies the updated constraint on the next deployment/startup. CI and the live DM/channel interaction still need verification; no live Discord or Neon validation is implied by code changes alone.
