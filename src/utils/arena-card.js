@@ -1,6 +1,4 @@
-const { createCanvas, loadImage } = require("@napi-rs/canvas");
-const path = require("node:path");
-let dragonImagePromise = null;
+const { createCanvas } = require("@napi-rs/canvas");
 
 function rounded(ctx, x, y, w, h, r) {
   ctx.beginPath();
@@ -107,30 +105,77 @@ function drawBossPortrait(ctx, boss, cx, cy) {
   ctx.restore();
 }
 
-async function drawDragonPortrait(ctx) {
-  if (!dragonImagePromise) {
-    dragonImagePromise = loadImage(path.join(__dirname, "../../assets/bosses/dragon-sovereign.webp"));
-  }
-  const image = await dragonImagePromise;
+function drawDragonPortrait(ctx) {
   const x = 590, y = 72, width = 332, height = 187;
-  const glow = ctx.createRadialGradient(x + width / 2, y + height / 2, 20, x + width / 2, y + height / 2, 205);
-  glow.addColorStop(0, "rgba(255, 126, 35, 0.34)");
-  glow.addColorStop(1, "rgba(255, 126, 35, 0)");
-  ctx.fillStyle = glow;
-  ctx.fillRect(x - 30, y - 25, width + 60, height + 50);
-  rounded(ctx, x - 4, y - 4, width + 8, height + 8, 14);
-  ctx.fillStyle = "#D99A42";
-  ctx.fill();
   ctx.save();
-  rounded(ctx, x, y, width, height, 11);
-  ctx.clip();
-  ctx.drawImage(image, x, y, width, height);
+  rounded(ctx,x,y,width,height,11); ctx.clip();
+  const bg=ctx.createLinearGradient(x,y,x+width,y+height);
+  bg.addColorStop(0,"#090D18"); bg.addColorStop(.55,"#26151B"); bg.addColorStop(1,"#080B13");
+  ctx.fillStyle=bg; ctx.fillRect(x,y,width,height);
+
+  // Blood moon and distant Rift fortress.
+  ctx.save();
+  ctx.shadowColor="#E65A36"; ctx.shadowBlur=24;
+  const moon=ctx.createRadialGradient(x+210,y+53,4,x+210,y+53,37);
+  moon.addColorStop(0,"#F7B16A"); moon.addColorStop(.7,"#B83C36"); moon.addColorStop(1,"rgba(92,24,34,0)");
+  ctx.fillStyle=moon; ctx.beginPath(); ctx.arc(x+210,y+53,38,0,Math.PI*2); ctx.fill();
   ctx.restore();
-  rounded(ctx, x, y, width, height, 11);
-  ctx.strokeStyle = "rgba(255, 211, 126, 0.9)";
-  ctx.lineWidth = 2;
-  ctx.stroke();
+  ctx.fillStyle="#111522";
+  ctx.beginPath(); ctx.moveTo(x,y+132); ctx.lineTo(x+38,y+105); ctx.lineTo(x+60,y+115); ctx.lineTo(x+84,y+78);
+  ctx.lineTo(x+103,y+111); ctx.lineTo(x+132,y+90); ctx.lineTo(x+154,y+125); ctx.lineTo(x+185,y+103);
+  ctx.lineTo(x+214,y+130); ctx.lineTo(x+246,y+111); ctx.lineTo(x+width,y+133); ctx.lineTo(x+width,y+height); ctx.lineTo(x,y+height); ctx.closePath(); ctx.fill();
+  ctx.fillStyle="#080D18";
+  for(let i=0;i<7;i++){ const bx=x+55+i*17; ctx.fillRect(bx,y+93-(i%3)*8,7,42+(i%3)*8); ctx.beginPath(); ctx.moveTo(bx-4,y+94-(i%3)*8); ctx.lineTo(bx+3.5,y+78-(i%3)*8); ctx.lineTo(bx+11,y+94-(i%3)*8); ctx.fill(); }
+
+  // Dragon wing, silhouette and neck.
+  ctx.fillStyle="#090C14"; ctx.strokeStyle="#6D3B2E"; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(x+205,y+118); ctx.quadraticCurveTo(x+160,y+16,x+247,y+7);
+  ctx.quadraticCurveTo(x+273,y+31,x+316,y+13); ctx.quadraticCurveTo(x+284,y+78,x+270,y+126);
+  ctx.quadraticCurveTo(x+247,y+152,x+205,y+118); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle="rgba(190,103,65,.7)"; ctx.lineWidth=1.5;
+  for(const p of [[235,25,248,91],[260,26,264,95],[285,30,278,100]]){ctx.beginPath();ctx.moveTo(x+p[0]-210,y+p[1]);ctx.quadraticCurveTo(x+p[2]-210,y+p[3]/2,x+p[2]-210,y+p[3]);ctx.stroke();}
+
+  // Neck and armored head, facing left.
+  const armor=ctx.createLinearGradient(x+155,y+35,x+315,y+165);
+  armor.addColorStop(0,"#8C6950"); armor.addColorStop(.25,"#242630"); armor.addColorStop(.62,"#080D16"); armor.addColorStop(1,"#A45D35");
+  ctx.fillStyle=armor; ctx.strokeStyle="#B77A48"; ctx.lineWidth=2.2;
+  ctx.beginPath(); ctx.moveTo(x+270,y+181); ctx.quadraticCurveTo(x+231,y+141,x+234,y+107);
+  ctx.quadraticCurveTo(x+209,y+86,x+216,y+62); ctx.quadraticCurveTo(x+234,y+26,x+283,y+27);
+  ctx.quadraticCurveTo(x+311,y+32,x+319,y+61); ctx.lineTo(x+332,y+91); ctx.lineTo(x+292,y+102);
+  ctx.quadraticCurveTo(x+300,y+143,x+270,y+181); ctx.closePath(); ctx.fill(); ctx.stroke();
+
+  // Brow, snout and jaw.
+  ctx.fillStyle="#171A22"; ctx.beginPath(); ctx.moveTo(x+224,y+69); ctx.quadraticCurveTo(x+191,y+68,x+171,y+91);
+  ctx.quadraticCurveTo(x+188,y+103,x+224,y+104); ctx.quadraticCurveTo(x+245,y+96,x+251,y+79); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle="#080B12"; ctx.beginPath(); ctx.moveTo(x+190,y+95); ctx.quadraticCurveTo(x+209,y+119,x+250,y+111);
+  ctx.quadraticCurveTo(x+239,y+139,x+211,y+136); ctx.quadraticCurveTo(x+192,y+124,x+190,y+95); ctx.fill();
+  ctx.strokeStyle="#C18A58"; ctx.lineWidth=1.3; ctx.beginPath(); ctx.moveTo(x+191,y+96); ctx.quadraticCurveTo(x+215,y+108,x+245,y+103); ctx.stroke();
+
+  // Horns and crown spines.
+  ctx.fillStyle="#D0A477"; ctx.strokeStyle="#5A392D"; ctx.lineWidth=1.5;
+  for(const pts of [
+    [[x+243,y+44],[x+226,y+5],[x+256,y+28],[x+269,y+43]],
+    [[x+278,y+40],[x+304,y+2],[x+295,y+49],[x+281,y+58]],
+    [[x+306,y+57],[x+329,y+29],[x+318,y+71],[x+306,y+77]]
+  ]){ctx.beginPath();ctx.moveTo(...pts[0]);ctx.quadraticCurveTo(...pts[1],...pts[2]);ctx.lineTo(...pts[3]);ctx.closePath();ctx.fill();ctx.stroke();}
+
+  // Eye, nostril and teeth.
+  ctx.shadowColor="#FF9C37"; ctx.shadowBlur=14; ctx.fillStyle="#FFB84F";
+  ctx.beginPath();ctx.ellipse(x+222,y+76,7,3.2,-.12,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+  ctx.fillStyle="#101018";ctx.beginPath();ctx.arc(x+222,y+76,1.3,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle="#F1D6B2"; for(let i=0;i<4;i++){ctx.beginPath();ctx.moveTo(x+198+i*9,y+105);ctx.lineTo(x+202+i*9,y+115);ctx.lineTo(x+206+i*9,y+105);ctx.fill();}
+  ctx.fillStyle="#E98A45";ctx.beginPath();ctx.ellipse(x+184,y+93,3,1.8,0,0,Math.PI*2);ctx.fill();
+
+  // Etched scale plates and ember flecks.
+  ctx.strokeStyle="rgba(205,151,102,.58)";ctx.lineWidth=1;
+  for(let i=0;i<5;i++){ctx.beginPath();ctx.moveTo(x+252+i*9,y+89+i*5);ctx.lineTo(x+260+i*8,y+96+i*5);ctx.stroke();}
+  ctx.fillStyle="#F58A3B"; for(const p of [[30,35],[92,58],[145,26],[170,145],[305,145],[118,164]]){ctx.globalAlpha=.45;ctx.beginPath();ctx.arc(x+p[0],y+p[1],1.5,0,Math.PI*2);ctx.fill();} ctx.globalAlpha=1;
+  ctx.restore();
+
+  rounded(ctx,x,y,width,height,11);
+  ctx.strokeStyle="rgba(219,155,86,.95)";ctx.lineWidth=2;ctx.stroke();
 }
+
 async function createArenaCard({ boss, battle = null, playerLevel = 1 }) {
   const width = 980;
   const height = 360;
@@ -199,7 +244,7 @@ async function createArenaCard({ boss, battle = null, playerLevel = 1 }) {
 
   // Dragon Sovereign uses its dedicated standalone artwork inside the card.
   // Other bosses retain their custom illustrated portraits.
-  if (boss.id === "dragon_sovereign") await drawDragonPortrait(ctx);
+  if (boss.id === "dragon_sovereign") drawDragonPortrait(ctx);
   else drawBossPortrait(ctx, boss, 748, 183);
 
   ctx.font = "700 11px Arial";
