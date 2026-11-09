@@ -140,3 +140,38 @@ test("leaderboard search can look up one exact Discord ID without privileged ros
  assert.equal(fetched,"123456789012345678");
  assert.match(payload.embeds[0].data.description,/Member 5678/);
 });
+
+
+test("expired trade offer updates commit before the expiry error is returned",async()=>{
+ const trade={id:"expired-offer",guild_id:"g",initiator_id:"a",target_id:"b",status:"open",
+  expires_at:new Date(Date.now()-1000),
+  offers:{initiator:{fc:0,items:[]},target:{fc:0,items:[]}},
+  confirmations:{initiator:false,target:false}};
+ let persisted=false;
+ const client={query:async(sql)=>{
+  if(sql.startsWith("SELECT * FROM player_trades"))return {rows:[trade]};
+  if(sql.startsWith("UPDATE player_trades SET status='expired'")){persisted=true;return {rowCount:1,rows:[]};}
+  throw new Error("Unexpected SQL: "+sql);
+ }};
+ const {TradeService}=require("../src/services/trade-interactions");
+ const service=new TradeService({},async callback=>callback(client));
+ await assert.rejects(service.setOffer("g","expired-offer","a",{fc:10,items:[]}),/trade has expired/i);
+ assert.equal(persisted,true);
+});
+
+test("expired trade confirmation updates commit before the expiry error is returned",async()=>{
+ const trade={id:"expired-confirm",guild_id:"g",initiator_id:"a",target_id:"b",status:"open",
+  expires_at:new Date(Date.now()-1000),
+  offers:{initiator:{fc:100,items:[]},target:{fc:100,items:[]}},
+  confirmations:{initiator:false,target:false}};
+ let persisted=false;
+ const client={query:async(sql)=>{
+  if(sql.startsWith("SELECT * FROM player_trades"))return {rows:[trade]};
+  if(sql.startsWith("UPDATE player_trades SET status='expired'")){persisted=true;return {rowCount:1,rows:[]};}
+  throw new Error("Unexpected SQL: "+sql);
+ }};
+ const {TradeService}=require("../src/services/trade-interactions");
+ const service=new TradeService({},async callback=>callback(client));
+ await assert.rejects(service.confirm("g","expired-confirm","a"),/trade has expired/i);
+ assert.equal(persisted,true);
+});
