@@ -215,3 +215,6 @@ Keep Neon PostgreSQL, no privileged intents, no destructive player reset, preser
 
 - `src/database/migrate.js`: added a PostgreSQL transaction-scoped advisory lock before applying the idempotent schema/backfills. This serializes concurrent startup migration attempts across multiple bot instances. It does not yet replace the schema file with fully versioned migration files; that remains a planned database-hardening task.
 - CI run for the latest migration-lock commit: [42615755679](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/42615755679). Check its final status before reporting the latest commit as validated.
+
+- `src/database/migrate.js` now also records a SHA-256 checksum for `schema.sql` in a dedicated `schema_migrations` table and only reapplies the idempotent schema when the file content changes. It still verifies the level/rebirth constraints on startup. This is an intermediate safe migration improvement; it is not a substitute for a fully ordered per-release migration directory, which should be introduced with PostgreSQL integration coverage.
+- CI run for this schema-checksum change: [42615869661](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/42615869661). Verify its final result.
