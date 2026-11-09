@@ -227,3 +227,6 @@ Keep Neon PostgreSQL, no privileged intents, no destructive player reset, preser
 - Accepting changes the status to `open` and starts the 30-minute trade window. The sender is notified by DM; the recipient is told to open `/menu → Trade` to make offers. Both sides still need to offer something and independently confirm before any FC or items move.
 - Denying changes the status to `cancelled` and notifies the sender. No assets are exchanged. Pending invitations reserve both participants so they cannot start overlapping trades.
 - The PostgreSQL status constraint now includes `pending`. The schema checksum migration path applies the updated constraint on the next deployment/startup. CI and the live DM/channel interaction still need verification; no live Discord or Neon validation is implied by code changes alone.
+
+
+- **Invitation control security:** Accept/Deny buttons from DMs now resolve the originating server, verify the recipient is still a member through one targeted member lookup, and apply the existing bot-access restriction and component rate-limit checks before changing invitation status. No privileged intents or whole-member fetches are used. If a sender's DM is closed, the bot attempts a mention notification in the current server channel (or the server system channel when the response came from a DM).

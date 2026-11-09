@@ -41,6 +41,29 @@ async function handleTradeInvitationButton(interaction, client) {
   if (current.target_id !== interaction.user.id) {
     return interaction.reply({ content: "Only the member invited to this trade can accept or deny it.", flags: MessageFlags.Ephemeral });
   }
+  const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+  if (!guild) {
+    return interaction.reply({ content: "The server for this invitation is unavailable. Contact a server owner.", flags: MessageFlags.Ephemeral });
+  }
+  const member = await guild.members.fetch(interaction.user.id).catch(() => null);
+  if (!member) {
+    return interaction.reply({ content: "You must still be a member of that server to respond to its trade invitations.", flags: MessageFlags.Ephemeral });
+  }
+  const securityContext = { guild, guildId, user: interaction.user, client };
+  const access = await client.services.security.checkAccess(securityContext);
+  if (!access.allowed) {
+    const until = access.expiresAt
+      ? " until <t:" + Math.floor(new Date(access.expiresAt).getTime() / 1000) + ":R>"
+      : "";
+    return interaction.reply({
+      content: "Your Fukishokai access is restricted" + until + ". Contact a server owner if you think this is a mistake.",
+      flags: MessageFlags.Ephemeral
+    });
+  }
+  const rate = await client.services.security.checkComponentRate(securityContext);
+  if (!rate.allowed) {
+    return interaction.reply({ content: "You're clicking controls too quickly. Please pause and try again.", flags: MessageFlags.Ephemeral });
+  }
   await interaction.deferUpdate();
   try {
     const result = await client.services.trades.respondToInvitation(guildId, tradeId, interaction.user.id, decision);
@@ -53,12 +76,28 @@ async function handleTradeInvitationButton(interaction, client) {
       components: []
     });
     const initiator = await client.users.fetch(result.trade.initiator_id).catch(() => null);
+    const notice = accepted
+      ? "✅ <@" + interaction.user.id + "> accepted your Fukishokai trade invitation in **" + guildName + "**. The trade is now open. Run `/menu` → **Trade** to start making offers."
+      : "❌ <@" + interaction.user.id + "> denied your Fukishokai trade invitation in **" + guildName + "**. The trade was cancelled; no FC or items were exchanged.";
+    let senderNotified = false;
     if (initiator) {
-      const notice = accepted
-        ? "✅ <@" + interaction.user.id + "> accepted your Fukishokai trade invitation in **" + guildName + "**. The trade is now open. Run `/menu` → **Trade** to start making offers."
-        : "❌ <@" + interaction.user.id + "> denied your Fukishokai trade invitation in **" + guildName + "**. The trade was cancelled; no FC or items were exchanged.";
-      await initiator.send({ content: notice, allowedMentions: { users: [interaction.user.id] } })
-        .catch(error => console.warn("[trade] Could not DM invitation sender:", error.message));
+      try {
+        await initiator.send({ content: notice, allowedMentions: { users: [interaction.user.id] } });
+        senderNotified = true;
+      } catch (error) {
+        console.warn("[trade] Could not DM invitation sender; trying a server channel:", error.message);
+      }
+    }
+    if (!senderNotified) {
+      const fallbackChannel = interaction.guildId === guildId && interaction.channel?.guildId === guildId
+        ? interaction.channel
+        : guild.systemChannel;
+      if (fallbackChannel?.isTextBased?.()) {
+        await fallbackChannel.send({
+          content: "<@" + result.trade.initiator_id + "> " + notice,
+          allowedMentions: { users: [result.trade.initiator_id] }
+        }).catch(error => console.warn("[trade] Could not post sender notification fallback:", error.message));
+      }
     }
     await require("./utils/logging").audit(
       pool, guildId, interaction.user.id,
