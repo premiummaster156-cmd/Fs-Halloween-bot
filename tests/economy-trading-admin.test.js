@@ -113,3 +113,30 @@ test("trade eligibility blocks new Discord accounts and recent server joins",()=
  assert.throws(()=>validateTradeMember({user:oldUser,joinedTimestamp:now-2*60*60*1000},now),/24 hours/);
  assert.ok(Number.isFinite(snowflakeCreatedAt(oldUser.id)));
 });
+
+
+test("leaderboard member search matches cached names and usernames",async()=>{
+ const guild={id:"g",members:{cache:new Map([
+  ["u1",{id:"u1",displayName:"Alice Example",user:{username:"alice",globalName:"Alice Example"}}],
+  ["u2",{id:"u2",displayName:"Bob",user:{username:"bobby",globalName:"Bob"}}]
+ ])},client:{users:{cache:new Map()}}};
+ const pool={query:async(sql)=>{
+  if(sql.includes("FROM players"))return {rows:[
+   {user_id:"u1",wallet:10,bank:0,level:1,xp:0,lifetime_earned:10,prestige:0,job_id:null,job_level:0,crime_successes:0,heists_completed:0},
+   {user_id:"u2",wallet:20,bank:0,level:1,xp:0,lifetime_earned:20,prestige:0,job_id:null,job_level:0,crime_successes:0,heists_completed:0}
+  ]};
+  return {rows:[]};
+ }};
+ const payload=await leaderboardPayload({guild,pool,owner:"u1",metric:"wealth",query:"bobb"});
+ assert.match(payload.embeds[0].data.description,/Bob/);
+ assert.doesNotMatch(payload.embeds[0].data.description,/Alice Example/);
+});
+
+test("leaderboard search can look up one exact Discord ID without privileged roster fetch",async()=>{
+ let fetched="";
+ const guild={id:"g",members:{cache:new Map(),fetch:async(id)=>{fetched=id;return {id,user:{bot:false,username:"singleuser"}}}},client:{users:{cache:new Map()}}};
+ const pool={query:async(sql)=>sql.includes("FROM players")?{rows:[]}:{rows:[]}};
+ const payload=await leaderboardPayload({guild,pool,owner:"u1",metric:"wealth",query:"123456789012345678"});
+ assert.equal(fetched,"123456789012345678");
+ assert.match(payload.embeds[0].data.description,/Member 5678/);
+});
