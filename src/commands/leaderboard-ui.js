@@ -43,6 +43,7 @@ async function leaderboardPayload({guild,pool,owner,metric="wealth",page=0,query
  const ids=new Set([...profileMap.keys(),...partyMap.keys(),...activityMap.keys(),...cachedIds]);
  const excluded=new Set(exclusions.rows.map(x=>x.user_id));
  const needle=String(query||"").trim().toLocaleLowerCase();
+ if (!guild?.id || !pool?.query) throw new Error("Leaderboard is only available inside a server.");
  // Exact-ID lookup uses the non-privileged single-member endpoint only.
  if(/^\d{17,20}$/.test(needle)&&!ids.has(needle)){
   const member=await guild.members.fetch(needle).catch(()=>null);
@@ -50,10 +51,10 @@ async function leaderboardPayload({guild,pool,owner,metric="wealth",page=0,query
  }
  let rows=Array.from(ids).filter(id=>!excluded.has(id)&&!guild.members?.cache?.get(id)?.user?.bot).map(id=>{
   const p=profileMap.get(id)||{},g=partyMap.get(id)||{},a=activityMap.get(id)||{};
-  const identity=cachedName(guild,id);
+  const identity=cachedName(guild,String(id));
   return {id,name:identity.name,username:identity.username,score:scoreFor(key,p,g,a),xp:Number(p.xp||0)};
  });
- if(needle)rows=rows.filter(x=>x.name.toLocaleLowerCase().includes(needle)||x.username.toLocaleLowerCase().includes(needle)||x.id.includes(needle));
+ if(needle)rows=rows.filter(x=>String(x.name||"").toLocaleLowerCase().includes(needle)||String(x.username||"").toLocaleLowerCase().includes(needle)||String(x.id).includes(needle));
  rows.sort((a,b)=>b.score-a.score||(key==="level"?b.xp-a.xp:0)||a.name.localeCompare(b.name)||a.id.localeCompare(b.id));
  const pages=Math.max(1,Math.ceil(rows.length/PAGE_SIZE));
  const current=Math.max(0,Math.min(pages-1,Math.floor(Number(page)||0)));
