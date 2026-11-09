@@ -170,3 +170,38 @@ The project also applies schema changes at startup. No slash-command redeploymen
 - `src/commands/dashboard.js` validates modal context and ranking metric and returns a safe, actionable message if a search fails.
 - Added regression tests for cached username search and exact Discord-ID lookup in `tests/economy-trading-admin.test.js`.
 - Latest code commit: `dfe7acd15ea093fb281dc581ac349727d55ad8c5`. CI run 42578940881 was queued/in progress at handoff update time; confirm its final status before claiming validation.
+
+## Approved full upgrade — November 9, 2026
+
+The user approved a full reliability, security, database, gameplay, dashboard and testing upgrade. Continue on `main`, inspect current CI before reporting status, and update this handoff with every substantive change.
+
+### External repository review
+
+- Reviewed [Alexis-katabump/bot-protect-v3](https://github.com/Alexis-katabump/bot-protect-v3). It is a Python/discord.py bot with CAPTCHA, anti-spam, tickets, and activity statistics. Do not merge its code or run it as a second moderator. It uses `discord.Intents.all()`, global JSON files, and includes risky behavior such as an anti-join mode that kicks every new member and mass role assignment. Reimplement only suitable ideas in this project's Discord.js + Neon architecture, with explicit opt-in configuration, safe defaults, audit logs, and tests.
+- Reviewed [Alexis-katabump/bot-status](https://github.com/Alexis-katabump/bot-status). Do not integrate its custom-status role automation because it requires both `GuildMembers` and `GuildPresences`, fetches the full member roster with presences, and conflicts with the user's hard rule against privileged Gateway intents.
+- Never enable `GuildMembers`, `GuildPresences`, or `MessageContent` as part of this work.
+
+### First verified fix in this upgrade
+
+- `src/services/trade-interactions.js`: expired trade operations previously updated `player_trades.status='expired'` and then threw inside the transaction. The transaction helper rolls back on thrown errors, so the expired status was not persisted. The methods now return an expiry sentinel from the transaction (allowing the status update to commit) and raise the user-facing domain error after the transaction completes. Updates are scoped by both guild ID and trade ID.
+- `tests/economy-trading-admin.test.js`: added regression tests for expired offer edits and expired confirmations to assert that the expiry status update occurs before the error is surfaced.
+
+### Verified issue still to fix
+
+- `package.json` declares `isolated-vm` and `@napi-rs/canvas`, but the root dependencies in `package-lock.json` omit both, and no corresponding `node_modules` lock entries were found. CI currently runs `npm install`, which can update the lock during installation and mask the mismatch. Regenerate and commit the lockfile using a supported Node/npm environment before changing CI to `npm ci`.
+- Node.js 20 reached end-of-life on 2026-03-24. Latest official Node.js release schedule marks Node 26 as Active LTS and Node 24 as Maintenance LTS as of 2026-11-09. Select the target Node version after validating compatibility of `discord.js`, `isolated-vm`, `@napi-rs/canvas`, and the hosting provider; do not perform a blind runtime bump.
+- The migration script currently re-runs the full `schema.sql` on every startup and then adds constraints manually. Design ordered, versioned migrations with a migration lock and PostgreSQL integration tests before changing production database behavior.
+- The interaction flow performs some database/access checks before acknowledgement. Refactor in small steps so potentially slow interactions defer/reply before long operations while preserving ephemeral/public response behavior and avoiding duplicate replies.
+- The bearer-key AI workspace API needs explicit draft-by-default/publish authorization and rate limits before being considered production-hardened.
+
+### Upgrade workflow and guardrails
+
+1. Repair dependency/CI reproducibility and interaction acknowledgement.
+2. Add safe, versioned Neon migrations and real PostgreSQL integration tests.
+3. Harden admin workspace and custom-command publishing/execution.
+4. Improve anti-abuse/security and transaction correctness.
+5. Audit and balance every existing gameplay system while preserving documented season rules.
+6. Modularize dashboard/UI gradually; do not rewrite the 156 KB dashboard in one step.
+7. Complete regression, security and release checks. Never claim live Discord/Neon validation from CI alone.
+
+Keep Neon PostgreSQL, no privileged intents, no destructive player reset, preserve server/bot owner and configured Admin Role protections, keep FC Party Events separate from Admin Abuse, and preserve the November 30, 2026 final-season date unless the user changes it.
