@@ -12,6 +12,7 @@ const { audit, sendLog } = require("../utils/logging");
 
 const sessions = new Map();
 const oauthStates = new Map();
+const workspaceApiAttempts = new Map();
 const WINDOW_MS = 60_000;
 const SESSION_MS = 8 * 60 * 60 * 1000;
 const MAX_BODY = 96 * 1024;
@@ -147,6 +148,20 @@ function verifyMutation(req, session) {
   if (origin && origin !== baseUrl()) return false;
   return Boolean(req.headers["x-csrf-token"] && req.headers["x-csrf-token"] === session.csrf);
 }
+function rateLimitWorkspaceApi(req) {
+  const now = Date.now();
+  const key = req.socket?.remoteAddress || "unknown";
+  const recent = (workspaceApiAttempts.get(key) || []).filter((stamp) => now - stamp < WINDOW_MS);
+  if (recent.length >= 60) return false;
+  recent.push(now);
+  workspaceApiAttempts.set(key, recent);
+  if (workspaceApiAttempts.size > 5000) {
+    for (const [address, stamps] of workspaceApiAttempts) {
+      if (!stamps.length || now - stamps[stamps.length - 1] >= WINDOW_MS) workspaceApiAttempts.delete(address);
+    }
+  }
+  return true;
+}
 function safeCommandRecord(record, guildId = settings.ideGuildId) {
   return {
     id: record.id,
@@ -277,6 +292,7 @@ function createIdeServer(client, services) {
         const authorized = actualKey.length === expectedKey.length &&
           crypto.timingSafeEqual(actualKey, expectedKey);
         if (!authorized) return json(res, 401, { error: "Workspace API key is missing or invalid." });
+        if (!rateLimitWorkspaceApi(req)) return json(res, 429, { error: "Workspace API rate limit reached. Wait a minute and try again." });
 
         // The bearer-key integration is server-scoped; it does not use a browser OAuth session.
         const guildId = String(settings.ideGuildId || "");
@@ -306,6 +322,9 @@ function createIdeServer(client, services) {
 
         if (req.method === "POST" && url.pathname === filesPath) {
           const body = await readBody(req);
+          if (body.publish === true) {
+            return json(res, 403, { error: "The AI workspace API can save drafts only. An authorized owner or configured Admin Role member must publish through Code Studio." });
+          }
           const fileName = String(body.fileName || "").trim();
           const match = fileName.match(/^([a-z0-9_-]{1,32})\.js$/);
           if (!match) return json(res, 400, { error: "fileName must be a simple command name ending in .js." });
@@ -315,14 +334,11 @@ function createIdeServer(client, services) {
           }
           const existing = await services.customCommands.getByName(guildId, inspected.name);
           const input = { id: existing?.id || null, sourceCode: body.sourceCode };
-          const saved = body.publish === false
-            ? await services.customCommands.saveSource(guildId, actorId, input)
-            : await services.customCommands.publishSource(guildId, actorId, input);
-          await audit(services.pool, guildId, actorId, body.publish === false ? "ai_workspace_file_saved" : "ai_workspace_file_published", saved.id, {
+          const saved = await services.customCommands.saveSource(guildId, actorId, input);
+          await audit(services.pool, guildId, actorId, "ai_workspace_file_saved", saved.id, {
             name: saved.name, file: "admin-workspace/" + guildId + "/" + saved.name + ".js"
           });
-          await sendLog(client, guildId, "JavaScript command file " + saved.name + ".js was " +
-            (body.publish === false ? "saved as a draft" : "published and activated") + " by the authorized AI workspace agent.");
+          await sendLog(client, guildId, "JavaScript command file " + saved.name + ".js was saved as a draft by the authorized AI workspace agent.");
           return json(res, 200, {
             ok: true,
             file: { name: saved.name + ".js", path: "admin-workspace/" + guildId + "/" + saved.name + ".js" },
@@ -341,6 +357,9 @@ function createIdeServer(client, services) {
           });
         }
 
+        if (req.method === "DELETE" && fileRoute) {
+          return json(res, 403, { error: "The AI workspace API cannot delete command files. Use authorized Code Studio to review and delete commands." });
+        }
         if (req.method === "DELETE" && fileRoute) {
           const name = fileRoute[1].slice(0, -3);
           const record = await services.customCommands.getByName(guildId, name);
