@@ -3,7 +3,7 @@ const settings = require("./config/settings");
 
 function createEmbed(options = {}) {
   const brand = settings.brand;
-  const thumbnail = options.thumbnail || options.iconUrl || brand.icons[options.icon] || null;
+  const thumbnail = options.thumbnail || options.iconUrl || null;
   const title = options.title ? String(options.title).trim().slice(0, 256) : "";
   const description = options.description ? String(options.description).trim().slice(0, 4096) : "";
   const footerText = options.footer === false
