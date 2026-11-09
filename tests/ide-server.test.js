@@ -214,3 +214,58 @@ test("AI workspace bearer-key API cannot publish or delete executable commands",
     settings.ideGuildId = previous.ideGuildId;
   }
 });
+
+
+test("AI workspace bearer-key API saves valid JavaScript as an inactive draft by default", async () => {
+  const { createIdeServer } = require("../src/web/ide-server");
+  const previous = {
+    adminWorkspaceApiKey: settings.adminWorkspaceApiKey,
+    ideGuildId: settings.ideGuildId
+  };
+  settings.adminWorkspaceApiKey = "test-workspace-key-".padEnd(48, "x");
+  settings.ideGuildId = "123456789012345678";
+  let savedInput = null;
+  let publishCalled = false;
+  const sourceCode = `module.exports = {
+    data: { name: "draft_hello", description: "A draft command" },
+    async execute(interaction) { await interaction.reply({ content: "Hello" }); }
+  };`;
+  const server = createIdeServer({}, {
+    pool: { query: async () => ({ rows: [], rowCount: 0 }) },
+    customCommands: {
+      getByName: async () => null,
+      saveSource: async (guildId, actorId, input) => {
+        savedInput = { guildId, actorId, input };
+        return { id: "draft-1", name: "draft_hello", description: "A draft command", is_active: false };
+      },
+      publishSource: async () => { publishCalled = true; }
+    }
+  });
+
+  try {
+    await new Promise((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", resolve);
+    });
+    const address = server.address();
+    const response = await fetch("http://127.0.0.1:" + address.port + "/api/ai/workspace/files", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + settings.adminWorkspaceApiKey,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ fileName: "draft_hello.js", sourceCode })
+    });
+    assert.equal(response.status, 200);
+    const result = await response.json();
+    assert.equal(result.ok, true);
+    assert.equal(savedInput.guildId, settings.ideGuildId);
+    assert.equal(savedInput.input.sourceCode, sourceCode);
+    assert.equal(publishCalled, false);
+    assert.equal(result.command.isActive, false);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    settings.adminWorkspaceApiKey = previous.adminWorkspaceApiKey;
+    settings.ideGuildId = previous.ideGuildId;
+  }
+});
