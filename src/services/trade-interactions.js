@@ -112,13 +112,13 @@ class TradeService {
   }
   async setOffer(guildId, id, userId, rawOffer) {
     const offer = validateOffer(rawOffer);
-    return this.transactionRunner(async (client) => {
+    const result = await this.transactionRunner(async (client) => {
       const result = await client.query("SELECT * FROM player_trades WHERE guild_id=$1 AND id=$2 FOR UPDATE", [guildId,id]);
       const trade = normalizeTrade(result.rows[0]);
       if (!trade || trade.status !== "open") throw new DomainError("This trade is no longer open.", "TRADE_CLOSED");
       if (new Date(trade.expires_at).getTime() <= Date.now()) {
-        await client.query("UPDATE player_trades SET status='expired',updated_at=NOW() WHERE id=$1", [id]);
-        throw new DomainError("This trade has expired.", "TRADE_EXPIRED");
+        await client.query("UPDATE player_trades SET status='expired',updated_at=NOW() WHERE guild_id=$1 AND id=$2", [guildId, id]);
+        return { __tradeExpired: true };
       }
       const side = sideFor(trade,userId);
       if (offer.fc) {
@@ -136,15 +136,17 @@ class TradeService {
         [guildId,id,JSON.stringify(trade.offers),JSON.stringify(trade.confirmations)]);
       return normalizeTrade(updated.rows[0]);
     });
+    if (result?.__tradeExpired) throw new DomainError("This trade has expired.", "TRADE_EXPIRED");
+    return result;
   }
   async confirm(guildId,id,userId) {
-    return this.transactionRunner(async (client) => {
+    const result = await this.transactionRunner(async (client) => {
       const result = await client.query("SELECT * FROM player_trades WHERE guild_id=$1 AND id=$2 FOR UPDATE", [guildId,id]);
       const trade = normalizeTrade(result.rows[0]);
       if (!trade || trade.status !== "open") throw new DomainError("This trade is no longer open.", "TRADE_CLOSED");
       if (new Date(trade.expires_at).getTime() <= Date.now()) {
-        await client.query("UPDATE player_trades SET status='expired',updated_at=NOW() WHERE id=$1", [id]);
-        throw new DomainError("This trade has expired.", "TRADE_EXPIRED");
+        await client.query("UPDATE player_trades SET status='expired',updated_at=NOW() WHERE guild_id=$1 AND id=$2", [guildId, id]);
+        return { __tradeExpired: true };
       }
       const side = sideFor(trade,userId);
       if (!hasOffer(trade.offers.initiator) || !hasOffer(trade.offers.target)) throw new DomainError("Both players must offer FC or at least one item. Free gifts are disabled.", "TRADE_BOTH_SIDES_REQUIRED");
@@ -204,6 +206,8 @@ class TradeService {
         [guildId,id,JSON.stringify(trade.confirmations)]);
       return { completed:true,trade:normalizeTrade(completed.rows[0]) };
     });
+    if (result?.__tradeExpired) throw new DomainError("This trade has expired.", "TRADE_EXPIRED");
+    return result;
   }
   async cancel(guildId,id,userId) {
     return this.transactionRunner(async (client) => {
