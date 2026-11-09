@@ -3,7 +3,7 @@ const settings = require("./config/settings");
 
 function createEmbed(options = {}) {
   const brand = settings.brand;
-  const thumbnail = options.thumbnail || options.iconUrl || brand.icons[options.icon] || brand.iconUrl;
+  const thumbnail = options.thumbnail || options.iconUrl || brand.icons[options.icon] || null;
   const title = options.title ? String(options.title).trim().slice(0, 256) : "";
   const description = options.description ? String(options.description).trim().slice(0, 4096) : "";
   const footerText = options.footer === false
@@ -11,9 +11,9 @@ function createEmbed(options = {}) {
     : String(options.footer ?? "FUKISHOKAI  •  Interactive game centre").slice(0, 2000);
   const embed = new EmbedBuilder()
     .setColor(options.color ?? brand.primary)
-    .setAuthor({ name: brand.name, iconURL: brand.iconUrl });
+    .setAuthor({ name: brand.name });
   if (options.footer !== false) {
-    embed.setFooter({ text: footerText, iconURL: brand.iconUrl });
+    embed.setFooter({ text: footerText });
   }
 
   if (title) embed.setTitle(title);
