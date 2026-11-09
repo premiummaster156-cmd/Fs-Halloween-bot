@@ -8,6 +8,8 @@ async function migrate() {
   if (!settings.databaseUrl) throw new Error("DATABASE_URL is missing. Configure PostgreSQL before migration or startup.");
   const sql = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf8");
   await transaction(async (client) => {
+    // Serialize startup migrations so multiple bot instances cannot race through DDL/backfills.
+    await client.query("SELECT pg_advisory_xact_lock($1)", [734921604]);
     await client.query(sql);
     const constraints = await client.query(
       "SELECT conname FROM pg_constraint WHERE conrelid = 'players'::regclass " +
