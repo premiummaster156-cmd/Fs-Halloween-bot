@@ -205,3 +205,10 @@ The user approved a full reliability, security, database, gameplay, dashboard an
 7. Complete regression, security and release checks. Never claim live Discord/Neon validation from CI alone.
 
 Keep Neon PostgreSQL, no privileged intents, no destructive player reset, preserve server/bot owner and configured Admin Role protections, keep FC Party Events separate from Admin Abuse, and preserve the November 30, 2026 final-season date unless the user changes it.
+
+### Additional fixes in progress — November 9, 2026
+
+- `src/web/ide-server.js`: added an in-memory per-source-address rolling rate limit to the bearer-key AI workspace API (60 requests per 60 seconds). The API now saves valid command source as an inactive draft by default, rejects `publish: true` with HTTP 403, and blocks command-file deletion through the bearer-key API. Publishing/activation/deletion remains in the OAuth-authenticated Code Studio for the server owner, bot owner or configured Admin Role. This intentionally narrows the agent API's permissions.
+- `tests/ide-server.test.js`: added regression coverage for blocked bearer-key publish/delete operations and saving JavaScript as an inactive draft by default.
+- CI runs triggered by these changes are tracked at [run 42615623367](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/42615623367); confirm the latest run result before claiming all changes passed. The previous commit-specific CI runs for the trade expiry fix and initial API hardening completed successfully.
+- The Bot Protect V3 repository has no declared license in its GitHub repository metadata. Do not copy or transplant its source code; use only independently implemented feature ideas. Its `Intents.all()`, global JSON persistence and destructive anti-join/mass-role behavior remain reasons not to merge it.
