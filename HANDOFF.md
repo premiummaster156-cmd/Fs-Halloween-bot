@@ -160,3 +160,13 @@ The project also applies schema changes at startup. No slash-command redeploymen
 - **GitHub Actions:** [CI run 42506948962](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/42506948962) passed: dependency installation, source syntax validation, slash-command validation and **171 tests passed / 0 failed**.
 - The passing suite includes Admin Abuse preset validation, tracked-profile leaderboard coverage, cached zero-stat members, bulk DM handling without privileged member enumeration, and trade eligibility checks.
 - This does not verify the live Neon migration, Discord Developer Portal settings, actual Discord DM delivery or end-to-end interactions in the live server. Those remain deployment checks.
+
+
+## Latest visual and leaderboard fixes — November 9, 2026
+
+- Replaced the Dragon Sovereign's external WebP bitmap renderer with an original Canvas-drawn dragon portrait in `src/utils/arena-card.js`. This removes the corrupted image decode path and avoids embedding AI-generated text/artwork in the boss card.
+- Shared embeds in `src/ui.js` no longer attach remote custom Discord emoji images automatically as author/footer icons or default thumbnails. Explicit caller-supplied thumbnails remain supported.
+- Hardened `src/commands/leaderboard-ui.js` search handling for missing guild/member managers and string-safe ID matching. Exact Discord IDs use one-member lookup only; no privileged member-list intent or full roster fetch.
+- `src/commands/dashboard.js` validates modal context and ranking metric and returns a safe, actionable message if a search fails.
+- Added regression tests for cached username search and exact Discord-ID lookup in `tests/economy-trading-admin.test.js`.
+- Latest code commit: `dfe7acd15ea093fb281dc581ac349727d55ad8c5`. CI run 42578940881 was queued/in progress at handoff update time; confirm its final status before claiming validation.
