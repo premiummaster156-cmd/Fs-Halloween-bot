@@ -162,3 +162,55 @@ test("AI workspace bearer-key API refuses to run without a valid configured serv
     settings.ideGuildId = previous.ideGuildId;
   }
 });
+
+
+test("AI workspace bearer-key API cannot publish or delete executable commands", async () => {
+  const { createIdeServer } = require("../src/web/ide-server");
+  const previous = {
+    adminWorkspaceApiKey: settings.adminWorkspaceApiKey,
+    ideGuildId: settings.ideGuildId
+  };
+  settings.adminWorkspaceApiKey = "test-workspace-key-".padEnd(48, "x");
+  settings.ideGuildId = "123456789012345678";
+  let published = false;
+  let deleted = false;
+  const server = createIdeServer({}, {
+    customCommands: {
+      getByName: async () => ({ id: "command-1", name: "safe_command" }),
+      publishSource: async () => { published = true; },
+      remove: async () => { deleted = true; }
+    }
+  });
+
+  try {
+    await new Promise((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", resolve);
+    });
+    const address = server.address();
+    const headers = {
+      Authorization: "Bearer " + settings.adminWorkspaceApiKey,
+      "Content-Type": "application/json"
+    };
+    const publish = await fetch("http://127.0.0.1:" + address.port + "/api/ai/workspace/files", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ publish: true })
+    });
+    assert.equal(publish.status, 403);
+    assert.match((await publish.json()).error, /drafts only/i);
+
+    const remove = await fetch("http://127.0.0.1:" + address.port + "/api/ai/workspace/files/safe_command.js", {
+      method: "DELETE",
+      headers
+    });
+    assert.equal(remove.status, 403);
+    assert.match((await remove.json()).error, /cannot delete/i);
+    assert.equal(published, false);
+    assert.equal(deleted, false);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    settings.adminWorkspaceApiKey = previous.adminWorkspaceApiKey;
+    settings.ideGuildId = previous.ideGuildId;
+  }
+});
