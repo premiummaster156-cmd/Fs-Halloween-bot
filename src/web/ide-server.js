@@ -360,16 +360,6 @@ function createIdeServer(client, services) {
         if (req.method === "DELETE" && fileRoute) {
           return json(res, 403, { error: "The AI workspace API cannot delete command files. Use authorized Code Studio to review and delete commands." });
         }
-        if (req.method === "DELETE" && fileRoute) {
-          const name = fileRoute[1].slice(0, -3);
-          const record = await services.customCommands.getByName(guildId, name);
-          if (!record) return json(res, 404, { error: "That JavaScript command file does not exist." });
-          await services.customCommands.remove(guildId, record.id, actorId);
-          const deployment = await services.customCommands.deployGuild(guildId);
-          await audit(services.pool, guildId, actorId, "ai_workspace_file_deleted", record.id, { name });
-          await sendLog(client, guildId, "JavaScript command file " + name + ".js was deleted by the authorized AI workspace agent.");
-          return json(res, 200, { ok: true, deployment });
-        }
         return json(res, 404, { error: "AI workspace route not found." });
       }
 
