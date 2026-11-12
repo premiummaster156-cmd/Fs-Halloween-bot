@@ -1671,7 +1671,7 @@ async function handleButton(i, s) {
     if (["grant-fc", "grant-xp", "remove-fc", "set-level"].includes(action)) {
       if (!await isAdmin(i, s)) return i.reply({ content: "Only the server owner, bot owner, or configured Admin Role can edit member currency and progression.", flags: MessageFlags.Ephemeral });
       const isLevel = action === "set-level";
-      if (target === owner && ["grant-fc","grant-xp","set-level"].includes(action)) {
+      if (target === owner && ["grant-fc","grant-xp","remove-fc","set-level"].includes(action)) {
         return i.reply({ content: "Administrators cannot grant FC, XP or levels to their own account.", flags: MessageFlags.Ephemeral });
       }
       return i.showModal(modal("admin:" + owner + ":" + action + ":" + target, isLevel ? "Set player level" : action === "remove-fc" ? "Remove FS Coins" : action === "grant-xp" ? "Grant XP" : "Grant FS Coins", [
@@ -2024,7 +2024,7 @@ async function handleModal(i, s) {
     if (!reason) throw new Error("An audit reason is required.");
     if (["grant-fc", "grant-xp", "remove-fc"].includes(action)) {
       const amount = numberField(i, "amount", 1, action === "grant-xp" ? 50000 : 10000000, "Amount");
-      if (target === owner && ["grant-fc","grant-xp"].includes(action)) throw new Error("Administrators cannot grant FC or XP to their own account.");
+      if (target === owner && ["grant-fc","grant-xp","remove-fc"].includes(action)) throw new Error("Administrators cannot change FC or XP on their own account.");
       if (action === "grant-xp") {
         const r = await s.economy.transact(async (c) => {
           await s.economy.ensurePlayerTx(c, i.guildId, target);

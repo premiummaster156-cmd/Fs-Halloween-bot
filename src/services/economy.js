@@ -161,7 +161,7 @@ class EconomyService {
   }
 
   async mutateTx(client, guildId, userId, delta, reason, reference, metadata = {}) {
-    const amount = Math.trunc(Number(delta));
+    const amount = Number(delta);
     const policy = inspectEconomyMutation({ userId, delta: amount, reason, metadata });
     if (!policy.allowed) {
       await this.reportEconomyIncident(guildId,userId,"economy_tampering",
@@ -346,7 +346,7 @@ class EconomyService {
   }
 
   async addXpTx(client, guildId, userId, amount, roleIds = [], activityBonus = 0) {
-    const baseXp = Math.trunc(Number(amount));
+    const baseXp = Number(amount);
     if (!Number.isSafeInteger(baseXp) || baseXp < 0 || baseXp > MAX_BASE_XP_PER_ACTION) {
       await this.reportEconomyIncident(guildId,userId,"economy_xp_manipulation",
         "An XP award fell outside the approved per-action range and was blocked.",

@@ -7,11 +7,13 @@ test("economy mutations require an approved reason, sign and safe amount",()=>{
  assert.equal(inspectEconomyMutation({userId:"u",delta:-500,reason:"daily_reward"}).code,"ECONOMY_DIRECTION_INVALID");
  assert.equal(inspectEconomyMutation({userId:"u",delta:1,reason:"unknown_reason"}).code,"ECONOMY_REASON_INVALID");
  assert.equal(inspectEconomyMutation({userId:"u",delta:50001,reason:"crime_success"}).code,"ECONOMY_AMOUNT_LIMIT");
+ assert.equal(inspectEconomyMutation({userId:"u",delta:50.5,reason:"daily_reward"}).code,"ECONOMY_AMOUNT_INVALID");
 });
 
 test("administrator grants require an audit actor and reason and cannot target the actor",()=>{
  assert.equal(inspectEconomyMutation({userId:"target",delta:100,reason:"admin_grant"}).code,"ECONOMY_ADMIN_AUDIT_REQUIRED");
  assert.equal(inspectEconomyMutation({userId:"actor",delta:100,reason:"admin_grant",metadata:{actorId:"actor",reason:"test"}}).code,"ECONOMY_SELF_GRANT");
+ assert.equal(inspectEconomyMutation({userId:"actor",delta:-100,reason:"admin_remove",metadata:{actorId:"actor",reason:"cleanup"}}).code,"ECONOMY_SELF_GRANT");
  assert.equal(inspectEconomyMutation({userId:"target",delta:100,reason:"admin_grant",metadata:{actorId:"actor",reason:"approved reward"}}).allowed,true);
 });
 
