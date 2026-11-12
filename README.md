@@ -54,7 +54,7 @@ The admin console retains its custom JavaScript command workspace. A custom slas
 
 Casino games have a 100 FC minimum bet and no maximum bet; wagers are limited only by the player's available wallet balance. The base cooldown is 10 seconds and there is no daily wager cap. Equipped casino gear can increase the frequency of winning results and shorten the cooldown, while adjusting winning payouts to keep the published long-run return fair. Coin Flip, High Dice and Slots each have a base theoretical return of 95%. Slots has a 1% Jackpot (10×), 4% Big win (4×), 20% Small win (3.45×), and 75% no-win chance.
 
-Normal FC rewards from Daily, Work, Crime, Heists, chat activity, achievements and Arena victories use the 3× season multiplier and also scale with player level: +0.1% per level above level 1, reaching +59.9% at level 600. Rebirth duplication and gear bonuses stack on top. Casino payouts, player trades and admin grants are excluded so the published 95% casino return stays unchanged.
+Normal FC rewards from Daily, Work, Crime, Heists, chat activity, achievements and Arena victories use the 3× season multiplier and a level-based earning factor: **+0.5% per level above level 1**, reaching **3.995× at level 600**. Equipped gear and active FC Party events apply only where the reward rules allow them. Casino payouts, player trades and admin grants are excluded from the normal earning multiplier so the published 95% casino return stays unchanged.
 
 ### Server Booster rewards
 
@@ -64,7 +64,7 @@ Members actively boosting this server receive automatic passive bonuses across F
 
 **One-time server setup for automatic booster items:** in Discord, open **Server Settings → Overview → System Messages Channel** and enable **Send a message when someone boosts this server**. The bot must be able to view that channel and read its messages. Personal boost #1–#5 each grants the matching MYTHIC item automatically; if the boost notification is not delivered to a channel the bot can read, that boost cannot be counted. Older boosts from before setup are not backfilled. The bot counts Discord's personal **GUILD_BOOST** system messages and ignores the separate server-tier milestone messages. Discord's member object exposes a boost-start timestamp, not a per-member boost quantity, so personal reward progress starts with the boost notifications the bot receives after this feature is deployed.
 
-Equipment bonuses apply only while equipped. Every item can be upgraded five times; the final-season cost curve is reduced so the gear catalogue is reachable before November 30. The eight endgame abilities — PHASE, DREAD, AEGIS, REBIRTH, EXECUTE, HASTE, HEX and ASCEND — retain their passive gear effects and each has a one-use active Arena power. Casino gear changes hit frequency while keeping the published 95% return fair. The final season runs through **November 30, 2026 in Tashkent** (default end: **November 30 at 19:00 UTC**, the start of December 1 locally). Daily rewards are 600–900 base FC every 18 hours. The first rebirth requires **15,000 FC, level 10, one claimed event quest, a selected career and one current-run work shift**. Each rebirth adds 5,000 FC and two player levels. Quest claims and career level rise every 20 rebirths and cap at three claims and career level five; work shifts start at one, rise every 25 rebirths and cap at three. The first gear requirement applies to the fifth rebirth, Candy collectibles to the tenth, and upgrades to the twentieth. These collection targets rise slowly and cap at three normal gear items, two Candy collectibles, 50 unspent Candy and three combined upgrade levels. Rebirth resets wallet to 2,500 FC, bank to zero, player level to one and career; equipment, upgrades, Candy collectibles, event claims and lifetime records stay. The permanent FC/XP duplication increases by **+1× per rebirth**: 1×, 2×, 3×, 4× … to **101× at 100 rebirths**. The level cap remains 600.
+Equipment bonuses apply only while equipped. Every item can be upgraded five times; the final-season cost curve is reduced so the gear catalogue is reachable before November 30. The eight endgame abilities — PHASE, DREAD, AEGIS, PHOENIX, EXECUTE, HASTE, HEX and ASCEND — retain their passive gear effects and each has a one-use active Arena power. Phoenix Core's healing power is now named **PHOENIX**. Casino gear changes hit frequency while keeping the published 95% return fair. The final season runs through **November 30, 2026 in Tashkent** (default end: **November 30 at 19:00 UTC**, the start of December 1 locally). Daily rewards are 600–900 base FC every 18 hours. Rebirth has been retired. Existing player wallets, banks, levels, careers, gear, Candy, collectibles and historical stats are preserved; old rebirth counters remain only as inert legacy columns and are no longer read by gameplay.
 
 ### First steps
 
@@ -73,7 +73,7 @@ Equipment bonuses apply only while equipped. Every item can be upgraded five tim
 3. Use **Profile** to track your level, career and wealth. Use **Bank** to protect savings and **Gear** to manage equipment.
 4. Open **Games** to review crime and casino risks, or **Heists** to create a crew. The bot posts a public crew board that updates with each member and chosen role, then publishes the final mission result when the leader starts it.
 5. Use **Gear** to equip items and upgrade each one up to five times. More expensive equipment has stronger bonuses; upgrades improve its effects. Gear can improve salary, FC and XP income, operation success, casino hit frequency, fines and cooldowns.
-6. Open **Rebirth** to see the live checklist. Your first rebirth needs 15,000 FC, level 10, one claimed event quest, a selected career and one work shift. Wallet and level requirements rise gradually; quest claims, career levels and shifts cap at 3, 5 and 3. Gear, Candy and upgrade requirements start at rebirths 5, 10 and 20, with small caps. Rebirth resets wallet to 2,500 FC, bank to zero, player level to 1 and current career. Owned equipment, upgrades, Candy collectibles, event claims and lifetime records stay. FC/XP duplication rises by +1× per rebirth, up to 101× at 100 rebirths.
+6. Level up to increase eligible FC earnings by **0.5% per level above level 1**. At level 600, the level factor reaches **3.995×**. Your wallet, bank, current level, career, equipment, upgrades and seasonal collectibles continue without rebirth resets.
 7. Open **Achievements** to track permanent milestones and claim each unlocked FC/XP reward once. Open **Halloween** to track quests, claim completed rewards, check the weekly activity mission and browse seasonal items.
 
 
@@ -81,7 +81,7 @@ Equipment bonuses apply only while equipped. Every item can be upgraded five tim
 
 The reset utility clears gameplay data for ordinary members across every guild using this database. It checks the Discord bot owner, each Discord server owner, and every member who currently has the **Admin Role** configured for that guild in its admin panel. Those users' records are protected in every player-data table.
 
-It resets everyone else’s FC and bank balances, levels, XP, rebirths, careers and job progress, lifetime earnings/spending, inventory, equipped gear and upgrades, cooldowns, economy history, Candy/event balances and claims, daily/weekly activity, achievements, Party Game stats, heists and Arena battles. The player's row is reset, so both their selected job and all owned items are removed.
+It resets everyone else’s FC and bank balances, levels, XP, careers and job progress, lifetime earnings/spending, inventory, equipped gear and upgrades, cooldowns, economy history, Candy/event balances and claims, daily/weekly activity, achievements, Party Game stats, heists and Arena battles. The player's row is reset, so both their selected job and all owned items are removed.
 
 Admin-panel settings, event configuration, custom commands, leaderboard exclusions, audit history and security restrictions are preserved. Discord boost status and boost-message deduplication history are also preserved so old boost notifications cannot grant an already-issued item again; booster items themselves are cleared with inventory.
 
@@ -106,17 +106,17 @@ The operation is transactional, locks the affected tables and excludes protected
 2. Choose **Careers** and select the first job you qualify for.
 3. Open **Earn** and claim Daily or complete a Work shift.
 4. Open **Gear** to equip items. Normal gear is bought with FC; 🌟 MYTHIC booster gear is awarded automatically for your personal server boosts.
-5. Use **How to play** inside the menu whenever you need a plain-language explanation. You can ignore Rebirth, Casino and Heists until you want them.
+5. Use **How to play** inside the menu whenever you need a plain-language explanation. You can ignore Casino and Heists until you want them.
 
 ## Achievements
 
-The private dashboard's **Achievements** page tracks ten permanent milestones across work shifts, career levels, successful operations, heists, player level, combined wealth, rebirths and Party Games. Each milestone shows live progress and its FC/XP reward. Unlocked rewards are claimed through the dashboard and can only be collected once; achievement progress does not expire.
+The private dashboard's **Achievements** page tracks ten permanent milestones across work shifts, career levels, successful operations, heists, player level, combined wealth and Party Games. Each milestone shows live progress and its FC/XP reward. Unlocked rewards are claimed through the dashboard and can only be collected once; achievement progress does not expire.
 
-## Bank, equipment and rebirth records
+## Bank, equipment and audited economy
 
 The Bank dashboard shows wallet and savings balances, lifetime deposits and withdrawals, and recent bank transactions. Deposits and withdrawals move FC between the two balances without creating new lifetime earnings or spending. Player-to-player trade settlements are not counted as earned FC; the Lifetime Earned leaderboard reflects game rewards and casino payouts rather than money moved between accounts.
 
-The Gear dashboard shows owned equipment, equipped slots, active bonuses, total upgrade levels and the cheapest available next upgrade. Each upgrade adds 15% to that item's listed effects, up to five levels. Rebirth keeps equipment, upgrades, Candy, collectibles, event claims and lifetime records; it resets wallet, bank, level and current career. The dashboard previews the next rebirth requirements and records completed rebirths.
+The Gear dashboard shows owned equipment, equipped slots, active bonuses, total upgrade levels and the cheapest available next upgrade. Each upgrade adds 15% to that item's listed effects, up to five levels. The level-based FC factor is displayed in the player profile. The economy guard keeps a last-verified balance/level snapshot and flags values changed outside bot transactions.
 
 ## Careers, operations and casino
 
@@ -157,7 +157,7 @@ Open **/admin-panel** to manage the server from one private interface:
 
 - **Server settings:** Halloween reward role, 2× XP role, log channel, and clear-setting controls.
 - **Event controls:** start/restart or stop the Halloween event. Stopping requires confirmation.
-- **Player management:** select a member, inspect their player details, and open Grant FC, Grant XP, Remove FC, Set level, Assign career or Set rebirth forms. Setting rebirth changes only the rebirth count and earning multiplier; the member's other progress stays unchanged.
+- **Player management:** select a member, inspect their player details, and open Grant FC, Grant XP, Remove FC, Set level or Assign career forms. Currency grants require an audit reason; the panel blocks self-grants and records administrator actions.
 - **Leaderboard fairness:** select a member and exclude or restore them from competitive rankings.
 - **Custom slash commands:** create and edit real `.js` files in Code Studio. Files are saved under `admin-workspace/<server-id>/<command-name>.js`, mirrored to PostgreSQL for recovery, validated, tested and synced directly to Discord without restarting the bot. JavaScript commands export `data` (name, description and slash options) and `async execute(interaction)`, then use `interaction.options.getString()`, `interaction.options.getUser()`, `interaction.reply()`, `interaction.editReply()` and `interaction.followUp()`. They use JavaScript modules and a restricted Discord.js-style interaction API. A small `require('discord.js')` shim provides `SlashCommandBuilder` and `EmbedBuilder`; arbitrary Node modules, host secrets, direct filesystem access, the live bot client and unrestricted network access are not exposed. Use `data.setVisibility('private')` for private replies.
 - **Audit history:** review the ten most recent administrative changes.
@@ -176,12 +176,12 @@ The Rift Arena is available from **/menu → Game Room → Rift Arena**.
   - **PHASE** — evade the boss's next counterstrike.
   - **DREAD** — weaken the next three boss strikes.
   - **AEGIS** — create a protective shield.
-  - **REBIRTH** — restore a portion of player health.
+  - **PHOENIX** — restore a portion of player health.
   - **EXECUTE** — deal bonus damage based on the boss's remaining health.
   - **HASTE** — double the damage of a strike.
   - **HEX** — apply damage over time.
   - **ASCEND** — unleash a large burst of damage.
-- Victory awards FC and XP. FC rewards use the normal earning and rebirth multipliers. A defeat does not charge an FC fine. Retreat ends the encounter but does not reset the entry cooldown.
+- Victory awards FC and XP. FC rewards use the normal 3× season multiplier, level-based factor, and eligible gear/event bonuses. A defeat does not charge an FC fine. Retreat ends the encounter but does not reset the entry cooldown.
 - Turn numbers are checked on the server to reject stale controls. Item ownership and equipped status are checked before a power can be used.
 - The Arena dashboard includes health bars, combat effects and a custom beveled HUD image rendered with `@napi-rs/canvas`. The image uses a 3D-inspired, layered 2D illustration; Discord embeds themselves are not true 3D scenes.
 
@@ -192,7 +192,7 @@ The Rift Arena is available from **/menu → Game Room → Rift Arena**.
 
 This is a short, playable finale, not a multi-month grind. The default event end is December 1, 2026 at 00:00 UTC (05:00 in Tashkent), including the full November 30 local day. The bot does not automatically shut down after the event.
 
-- Level cap 600; rebirth cap 100; XP per level: `80 + 12 × current level`.
+- Level cap 600; XP per level: `80 + 12 × current level`. Rebirth progression is retired.
 - First rebirth: 20,000 FC, level 12, one claimed event quest, career level 2 and three current-run work shifts.
 - Each further rebirth adds 10,000 FC and four levels. Quest claims cap at 4; career level at 10; work shifts at 10.
 - Gear milestones begin at rebirth #3, Candy collectibles at #4, and gear upgrades at #5. All are spaced out and capped.
@@ -202,18 +202,11 @@ This is a short, playable finale, not a multi-month grind. The default event end
 - Normal FC rewards retain the 3× multiplier. Booster-exclusive rewards and automatic boost assignment remain unchanged.
 
 
-## Final rebirth checklist — November 30 finale
-
-The first rebirth is deliberately quick: 15,000 FC, level 10, one claimed Halloween quest, any selected career and one current-run shift. Each later rebirth adds 5,000 FC and two levels. Quest claims and career level each rise once every 20 rebirths, capped at three claims and career level five. Work shifts start at one, rise once every 25 rebirths and cap at three. Normal gear is first required for rebirth five (one item, then +1 every 40 rebirths, cap three); Candy collectibles for rebirth ten (one, then +1 every 45, cap two); unspent Candy from rebirth ten rises to a 50-Candy cap; gear-upgrade levels are first required for rebirth twenty and cap at three. To complete the 100th rebirth (at 99 completed rebirths), the checklist is 510,000 FC, level 208, three quest claims, career level five, three work shifts, three normal gear items, two Candy collectibles, 50 Candy and three upgrade levels. The level cap remains 600 and FC/XP duplication reaches 101×.
-
-The in-game Rebirth page is the authoritative live checklist. This is a limited-time finale balance, not a permanent long-term progression curve.
-
-
 ## Trading, leaderboards, FC activities and administration
 
 - Player-to-player one-way FC transfers have been removed. Use /menu → Trade for two-sided trading: both members must contribute FC or items, both independently confirm the final offer, and editing either offer clears both confirmations. Trades expire after 30 minutes and settle FC/items atomically. Booster-exclusive Mythic gear cannot be traded.
-- The leaderboard includes every saved player profile, including zero-stat profiles, plus tracked Party Game/activity records and members currently known in cache. Privileged Gateway intents are deliberately disabled, so Discord does not allow the bot to enumerate never-seen members. A one-off exact Discord-ID lookup is supported. Categories include wealth, level, lifetime FC, Party Points, weekly messages, rebirths, career level, successful crimes and completed heists, with Previous/Next pagination and no decorative rank emojis.
-- New repeatable earning activities: Scavenge (30-minute cooldown) and Delivery Contract (3-hour cooldown). Both award FC and XP, use the normal level/rebirth/gear multipliers and may drop Candy.
+- The leaderboard includes every saved player profile, including zero-stat profiles, plus tracked Party Game/activity records and members currently known in cache. Privileged Gateway intents are deliberately disabled, so Discord does not allow the bot to enumerate never-seen members. A one-off exact Discord-ID lookup is supported. Categories include wealth, level, lifetime FC, Party Points, weekly messages, career level, successful crimes and completed heists, with Previous/Next pagination and no decorative rank emojis.
+- New repeatable earning activities: Scavenge (30-minute cooldown) and Delivery Contract (3-hour cooldown). Both award FC and XP, use the normal level/gear multipliers and may drop Candy.
 - Trusted administrators can start a server-wide FC Party with a 2×–10× multiplier for 5 minutes–24 hours. It multiplies eligible gameplay earnings only; casino payouts, trades and admin grants are excluded.
 - The admin console includes Member DMs for one selected member or tracked profiles plus cached members. The privileged Members intent stays disabled, so members who have never interacted with the bot cannot be automatically discovered. Delivery is paced, bots are skipped, failures are counted, and sends are recorded in audit history. Discord privacy settings still apply; the bot cannot bypass closed DMs.
 
