@@ -27,6 +27,22 @@ CREATE INDEX IF NOT EXISTS players_balance_idx ON players (guild_id, (wallet + b
 CREATE INDEX IF NOT EXISTS players_level_idx ON players (guild_id, level DESC, xp DESC);
 CREATE INDEX IF NOT EXISTS players_earned_idx ON players (guild_id, lifetime_earned DESC);
 
+-- Last verified player-economy state. Direct edits outside bot transactions are detected on next use.
+CREATE TABLE IF NOT EXISTS player_economy_snapshots (
+  guild_id TEXT NOT NULL, user_id TEXT NOT NULL,
+  wallet BIGINT NOT NULL CHECK (wallet >= 0), bank BIGINT NOT NULL CHECK (bank >= 0),
+  lifetime_earned BIGINT NOT NULL DEFAULT 0 CHECK (lifetime_earned >= 0),
+  lifetime_spent BIGINT NOT NULL DEFAULT 0 CHECK (lifetime_spent >= 0),
+  level INTEGER NOT NULL DEFAULT 1 CHECK (level BETWEEN 1 AND 600),
+  xp BIGINT NOT NULL DEFAULT 0 CHECK (xp >= 0),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (guild_id,user_id)
+);
+INSERT INTO player_economy_snapshots (guild_id,user_id,wallet,bank,lifetime_earned,lifetime_spent,level,xp)
+SELECT guild_id,user_id,wallet,bank,lifetime_earned,lifetime_spent,level,xp FROM players
+ON CONFLICT (guild_id,user_id) DO NOTHING;
+
+
 CREATE TABLE IF NOT EXISTS economy_ledger (
   id BIGSERIAL PRIMARY KEY,
   guild_id TEXT NOT NULL,
@@ -39,17 +55,6 @@ CREATE TABLE IF NOT EXISTS economy_ledger (
   UNIQUE (guild_id, user_id, reference)
 );
 CREATE INDEX IF NOT EXISTS economy_ledger_user_time_idx ON economy_ledger (guild_id, user_id, created_at DESC);
--- Backfill current-run work shifts for players from the previous counter rollout.
-UPDATE players p
-SET rebirth_work_count = (
-  SELECT COUNT(*)::bigint
-  FROM economy_ledger l
-  WHERE l.guild_id = p.guild_id
-    AND l.user_id = p.user_id
-    AND l.reason = 'job_work'
-    AND (p.last_rebirth_at IS NULL OR l.created_at > p.last_rebirth_at)
-)
-WHERE p.rebirth_work_count = 0 AND p.work_count > 0;
 
 CREATE TABLE IF NOT EXISTS cooldowns (
   guild_id TEXT NOT NULL,

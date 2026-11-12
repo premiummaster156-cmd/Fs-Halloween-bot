@@ -1,7 +1,8 @@
 const { transaction } = require("../database/pool");
 const settings = require("../config/settings");
 const balancing = require("../config/game-balancing");
-const { DomainError, uuid, randomInt, claimCooldownTx, levelXpRequired, getRebirthMultiplier, getLevelEarningMultiplier, applyCooldownReduction } = require("../utils/core");
+const { DomainError, uuid, randomInt, claimCooldownTx, levelXpRequired, getLevelEarningMultiplier, applyCooldownReduction } = require("../utils/core");
+const { MAX_BASE_XP_PER_ACTION, MAX_SINGLE_XP_GAIN, MAX_EARNING_MULTIPLIER, MAX_SINGLE_MUTATION_FC, inspectEconomyMutation, inspectRewardBurst } = require("./economy-guard");
 
 const MULTIPLIED_EARNING_REASONS = new Set([
   "daily_reward",
@@ -62,81 +63,55 @@ async function getLeaderboard(pool, guildId, metric = "wealth", limit = 10) {
   return result.rows;
 }
 
-function calculateCandyDrop(reason, gearBonus = 0, chanceRoll = Math.random(), amountRoll = Math.random(), rebirths = 0) {
+function calculateCandyDrop(reason, gearBonus = 0, chanceRoll = Math.random(), amountRoll = Math.random(), level = 1) {
   const rule = balancing.candyDrops[reason];
   if (!rule) return null;
   const equippedBonus = Math.max(0, Math.min(0.20, Number(gearBonus) || 0));
-  const rebirthBonus = Math.min(0.20, Math.max(0, Math.floor(Number(rebirths) || 0)) * 0.02);
-  const dropChance = Math.min(0.60, Number(rule.chance) + equippedBonus + rebirthBonus);
+  const safeLevel = Math.max(1, Math.min(balancing.progression.maxLevel, Math.floor(Number(level) || 1)));
+  const levelBonus = ((safeLevel - 1) / (balancing.progression.maxLevel - 1)) * 0.20;
+  const dropChance = Math.min(0.60, Number(rule.chance) + equippedBonus + levelBonus);
   if (chanceRoll >= dropChance) return null;
   const amount = rule.min + Math.floor(amountRoll * (rule.max - rule.min + 1));
-  return { amount, chance: dropChance, baseChance: Number(rule.chance), gearBonus: equippedBonus, rebirthBonus };
-}
-
-function getRebirthRequirements(player, claimedQuestCount = 0, inventoryRows = [], candyBalance = 0) {
-  const rules = balancing.rebirth;
-  const rebirths = Math.max(0, Math.min(balancing.progression.maxRebirths, Math.floor(Number(player.prestige) || 0)));
-  const wealth = Number(player.wallet || 0) + Number(player.bank || 0);
-  const walletRequired = Math.ceil(rules.firstWalletRequirement + rebirths * rules.walletRequirementStep);
-  const levelRequired = Math.min(balancing.progression.maxLevel, Math.ceil(rules.firstLevelRequirement + rebirths * rules.levelRequirementGrowth));
-  const questClaimsRequired = Math.min(rules.maxQuestClaimsRequirement, rules.firstQuestClaimsRequirement + Math.floor(rebirths / rules.questClaimsGrowthEvery));
-  const jobLevelRequired = Math.min(rules.maxJobLevelRequirement, rules.firstJobLevelRequirement + Math.floor(rebirths / rules.jobLevelGrowthEvery));
-  const workShiftsRequired = Math.min(rules.maxWorkShiftsRequirement, rules.firstWorkShiftsRequirement + Math.floor(rebirths / rules.workShiftsGrowthEvery));
-  const gearMilestone = rebirths >= rules.itemRequirementsStartAt;
-  const gearItemsRequired = gearMilestone
-    ? Math.min(rules.maxGearItemsRequirement, rules.firstGearItemsRequirement + Math.floor((rebirths - rules.itemRequirementsStartAt) / rules.gearItemsGrowthEvery)) : 0;
-  const candyItemMilestone = rebirths >= rules.candyItemRequirementsStartAt;
-  const candyItemsRequired = candyItemMilestone
-    ? Math.min(rules.maxCandyItemsRequirement, rules.firstCandyItemsRequirement + Math.floor((rebirths - rules.candyItemRequirementsStartAt) / rules.candyItemsGrowthEvery)) : 0;
-  const candyBalanceMilestone = rebirths >= rules.candyBalanceRequirementsStartAt;
-  const candyBalanceRequired = candyBalanceMilestone
-    ? Math.min(rules.maxCandyBalanceRequirement, rules.firstCandyBalanceRequirement + Math.floor((rebirths - rules.candyBalanceRequirementsStartAt) / rules.candyBalanceGrowthEvery) * rules.candyBalanceGrowth) : 0;
-  const upgradeMilestone = rebirths >= rules.gearUpgradeRequirementsStartAt;
-  const gearUpgradeLevelsRequired = upgradeMilestone
-    ? Math.min(rules.maxGearUpgradeLevelsRequirement, rules.firstGearUpgradeLevelsRequirement + Math.floor((rebirths - rules.gearUpgradeRequirementsStartAt) / rules.gearUpgradeLevelsGrowthEvery)) : 0;
-  const currentJob = balancing.jobs.find((job) => job.id === player.job_id) || null;
-  const claimed = Math.max(0, Number(claimedQuestCount) || 0);
-  const currentJobLevel = Number(player.job_level || 1);
-  const workShiftsCompleted = Number(player.rebirth_work_count || 0);
-  const rows = Array.isArray(inventoryRows) ? inventoryRows : [];
-  const gearIds = new Set(balancing.items.filter((item) => item.type === "equipment" && item.rebirthEligible !== false && !item.boosterOnly).map((item) => item.id));
-  const candyIds = new Set(balancing.halloween.shop.map((item) => item.id));
-  const ownedGearIds = new Set(rows.filter((row) => Number(row.quantity ?? 1) > 0).map((row) => row.item_id || row.itemId).filter((id) => gearIds.has(id)));
-  const ownedCandyItemIds = new Set(rows.filter((row) => Number(row.quantity ?? 1) > 0).map((row) => row.item_id || row.itemId).filter((id) => candyIds.has(id)));
-  const gearUpgradeLevels = rows.reduce((sum, row) => {
-    const id = row.item_id || row.itemId;
-    return sum + (gearIds.has(id) ? Math.max(0, Number(row.upgrade_level ?? row.upgradeLevel) || 0) : 0);
-  }, 0);
-  const candy = Math.max(0, Number(candyBalance) || 0);
-  const checks = {
-    wealth: wealth >= walletRequired,
-    level: Number(player.level || 1) >= levelRequired,
-    quests: claimed >= questClaimsRequired,
-    career: Boolean(currentJob),
-    careerLevel: Boolean(currentJob) && currentJobLevel >= jobLevelRequired,
-    workShifts: workShiftsCompleted >= workShiftsRequired,
-    gearItems: ownedGearIds.size >= gearItemsRequired,
-    candyItems: ownedCandyItemIds.size >= candyItemsRequired,
-    candyBalance: candy >= candyBalanceRequired,
-    gearUpgrades: gearUpgradeLevels >= gearUpgradeLevelsRequired,
-    maxRebirth: rebirths < balancing.progression.maxRebirths
-  };
-  return {
-    rebirths, wealth, wallet: Number(player.wallet || 0), bank: Number(player.bank || 0),
-    level: Number(player.level || 1), multiplier: getRebirthMultiplier(rebirths), nextMultiplier: getRebirthMultiplier(rebirths + 1),
-    walletRequired, levelRequired, questClaimsCount: claimed, questClaimsRequired,
-    currentJob, currentJobLevel, jobLevelRequired, workShiftsCompleted, workShiftsRequired,
-    gearItemsCount: ownedGearIds.size, gearItemsRequired, candyItemsCount: ownedCandyItemIds.size, candyItemsRequired,
-    candyBalance: candy, candyBalanceRequired, gearUpgradeLevels, gearUpgradeLevelsRequired,
-    checks, eligible: Object.values(checks).every(Boolean), maxRebirths: balancing.progression.maxRebirths
-  };
+  return { amount, chance: dropChance, baseChance: Number(rule.chance), gearBonus: equippedBonus, levelBonus };
 }
 
 class EconomyService {
-  constructor(pool) { this.pool = pool; this.inventory = null; }
+  constructor(pool) { this.pool = pool; this.inventory = null; this.security = null; this.client = null; }
   transact(callback) { return transaction(callback); }
   ensurePlayerTx(client, guildId, userId) { return ensurePlayerTx(client, guildId, userId); }
   claimCooldownTx(client, guildId, userId, key, ms) { return claimCooldownTx(client, guildId, userId, key, ms); }
+
+  async reportEconomyIncident(guildId,userId,category,summary,details={}) {
+    const guild=this.client?.guilds?.cache?.get(String(guildId));
+    if(!guild||!this.security?.createIncident)return null;
+    return this.security.createIncident(this.client,{guild,userId:String(userId),category,summary,details});
+  }
+  async ensureSnapshotTx(client,guildId,userId) {
+    await client.query("INSERT INTO player_economy_snapshots (guild_id,user_id,wallet,bank,lifetime_earned,lifetime_spent,level,xp) "+
+      "SELECT guild_id,user_id,wallet,bank,lifetime_earned,lifetime_spent,level,xp FROM players WHERE guild_id=$1 AND user_id=$2 "+
+      "ON CONFLICT (guild_id,user_id) DO NOTHING",[guildId,userId]);
+  }
+  async assertSnapshotTx(client,guildId,userId,player) {
+    await this.ensureSnapshotTx(client,guildId,userId);
+    const result=await client.query("SELECT wallet,bank,lifetime_earned,lifetime_spent,level,xp FROM player_economy_snapshots "+
+      "WHERE guild_id=$1 AND user_id=$2 FOR UPDATE",[guildId,userId]);
+    const snapshot=result.rows?.[0];
+    if(!snapshot)return;
+    const fields=["wallet","bank","lifetime_earned","lifetime_spent","level","xp"];
+    const changed=fields.filter((field)=>Number(snapshot[field])!==Number(player[field]));
+    if(!changed.length)return;
+    await this.reportEconomyIncident(guildId,userId,"economy_direct_balance_change",
+      "A player economy value changed outside a verified bot transaction. The attempted action was blocked.",
+      {actionType:"direct_balance_change",changedFields:changed.join(", "),riskScore:100})
+      .catch((error)=>console.warn("[economy-guard] Could not persist integrity alert:",error.message));
+    throw new DomainError("Your player data failed an economy integrity check. No currency was changed. Please contact a server administrator.","ECONOMY_INTEGRITY_MISMATCH");
+  }
+  async syncSnapshotTx(client,guildId,userId) {
+    await client.query("INSERT INTO player_economy_snapshots (guild_id,user_id,wallet,bank,lifetime_earned,lifetime_spent,level,xp) "+
+      "SELECT guild_id,user_id,wallet,bank,lifetime_earned,lifetime_spent,level,xp FROM players WHERE guild_id=$1 AND user_id=$2 "+
+      "ON CONFLICT (guild_id,user_id) DO UPDATE SET wallet=EXCLUDED.wallet,bank=EXCLUDED.bank,lifetime_earned=EXCLUDED.lifetime_earned,"+
+      "lifetime_spent=EXCLUDED.lifetime_spent,level=EXCLUDED.level,xp=EXCLUDED.xp,updated_at=NOW()",[guildId,userId]);
+  }
 
   async excludeFromLeaderboards(guildId, userId, actorId, reason) {
     const result = await this.pool.query(
@@ -185,23 +160,42 @@ class EconomyService {
     };
   }
 
-  async getRebirthHistory(guildId, userId, limit = 5) {
-    const result = await this.pool.query(
-      "SELECT created_at, metadata FROM economy_ledger WHERE guild_id = $1 AND user_id = $2 " +
-      "AND reason = 'rebirth_reset' ORDER BY created_at DESC LIMIT $3",
-      [guildId, userId, Math.max(1, Math.min(10, Math.floor(Number(limit) || 5)))]
-    );
-    return result.rows;
-  }
-
   async mutateTx(client, guildId, userId, delta, reason, reference, metadata = {}) {
     const amount = Math.trunc(Number(delta));
-    if (!Number.isSafeInteger(amount) || amount === 0) throw new DomainError("Amount must be a non-zero whole number.", "INVALID_AMOUNT");
+    const policy = inspectEconomyMutation({ userId, delta: amount, reason, metadata });
+    if (!policy.allowed) {
+      await this.reportEconomyIncident(guildId,userId,"economy_tampering",
+        "A currency mutation was rejected by the economy integrity guard: " + policy.code + ".",
+        { actionType:"invalid_economy_mutation",reason:String(reason || "missing"),amount,riskScore:100,reasonCode:policy.code })
+        .catch((error) => console.warn("[economy-guard] Could not persist mutation alert:",error.message));
+      throw new DomainError(policy.message,policy.code);
+    }
     await ensurePlayerTx(client, guildId, userId);
-    const result = await client.query("SELECT wallet, prestige, job_id, level FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [guildId, userId]);
+    const result = await client.query("SELECT wallet, bank, lifetime_earned, lifetime_spent, job_id, level, xp FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [guildId, userId]);
+    if (!result.rowCount) throw new DomainError("Your player profile could not be found.","PLAYER_NOT_FOUND");
+    await this.assertSnapshotTx(client,guildId,userId,result.rows[0]);
     const ref = reference || uuid();
     const existing = await client.query("SELECT id FROM economy_ledger WHERE guild_id = $1 AND user_id = $2 AND reference = $3", [guildId, userId, ref]);
     if (existing.rowCount) return { duplicate: true, balance: Number(result.rows[0].wallet), delta: 0, candyDrop: null };
+
+    if (policy.policy.casino) {
+      const wager = Math.trunc(Number(metadata.wager));
+      const multiplier = Math.trunc(Number(metadata.multiplier));
+      const expectedPayout = Math.floor(wager * multiplier / 100);
+      const betReference = String(ref).replace(/:payout$/i, ":bet");
+      const bet = await client.query(
+        "SELECT delta FROM economy_ledger WHERE guild_id=$1 AND user_id=$2 AND reference=$3 AND reason='casino_bet'",
+        [guildId,userId,betReference]
+      );
+      if (!/:payout$/i.test(String(ref)) || !bet.rowCount || Number(bet.rows[0].delta) !== -wager ||
+          !Number.isSafeInteger(expectedPayout) || expectedPayout !== amount) {
+        await this.reportEconomyIncident(guildId,userId,"economy_invalid_payout",
+          "A casino payout failed verification against the recorded wager and payout formula.",
+          { actionType:"invalid_casino_payout",wager,multiplier,amount,riskScore:100 })
+          .catch((error) => console.warn("[economy-guard] Could not persist casino alert:",error.message));
+        throw new DomainError("Casino payout verification failed. No payout was added.","ECONOMY_INVALID_PAYOUT");
+      }
+    }
 
     const currentWallet = Number(result.rows[0].wallet);
     const maxWallet = Number(balancing.economy.maxWallet);
@@ -224,10 +218,33 @@ class EconomyService {
       party = partyResult.rows[0] || null;
       partyMultiplier = party ? Math.max(1, Math.min(10, Number(party.multiplier) || 1)) : 1;
       const multiplier = Math.max(1, Number(balancing.economy.earningMultiplier) || 1) *
-        getRebirthMultiplier(result.rows[0].prestige) * levelMultiplier * (1 + incomeBonus) * partyMultiplier;
+        levelMultiplier * (1 + incomeBonus) * partyMultiplier;
       appliedAmount = Math.floor(amount * multiplier);
-      if (!Number.isSafeInteger(appliedAmount) || appliedAmount < 1) {
+      if (!Number.isSafeInteger(appliedAmount) || appliedAmount < 1 || appliedAmount > MAX_SINGLE_MUTATION_FC || multiplier > MAX_EARNING_MULTIPLIER) {
         throw new DomainError("This reward is too large to process safely.", "INVALID_REWARD_AMOUNT");
+      }
+      const recent = await client.query(
+        "SELECT COUNT(*)::int AS count, COALESCE(SUM(COALESCE(NULLIF(metadata->>'baseAmount','')::numeric,delta::numeric)),0)::numeric AS base_total " +
+        "FROM economy_ledger WHERE guild_id=$1 AND user_id=$2 AND delta>0 AND reason=ANY($3::text[]) AND created_at>NOW()-INTERVAL '60 seconds'",
+        [guildId,userId,Array.from(MULTIPLIED_EARNING_REASONS)]
+      );
+      const burst = inspectRewardBurst({
+        recentCount:Number(recent.rows?.[0]?.count || 0),
+        recentBase:Number(recent.rows?.[0]?.base_total || 0),
+        currentBase:amount
+      });
+      if (burst.blocked) {
+        await this.reportEconomyIncident(guildId,userId,"economy_reward_burst",
+          "A burst of FC rewards exceeded the hard per-minute economy threshold. The latest reward was blocked.",
+          { actionType:"reward_burst",recentRewards:burst.count,baseAmount:burst.baseTotal,riskScore:100 })
+          .catch((error) => console.warn("[economy-guard] Could not persist burst alert:",error.message));
+        throw new DomainError("Your recent reward activity exceeded the economy safety limit. Please contact an administrator.","ECONOMY_REWARD_BURST");
+      }
+      if (burst.alert) {
+        this.reportEconomyIncident(guildId,userId,"economy_reward_burst",
+          "Unusually frequent or high-value FC rewards were detected. No automatic punishment was applied.",
+          { actionType:"reward_burst",recentRewards:burst.count,baseAmount:burst.baseTotal,riskScore:burst.score })
+          .catch((error) => console.warn("[economy-guard] Could not persist burst alert:",error.message));
       }
     }
 
@@ -246,7 +263,7 @@ class EconomyService {
     if (next < 0) throw new DomainError("You do not have enough FS Coins in your wallet.", "INSUFFICIENT_FUNDS");
 
     let candyDrop = appliedAmount > 0
-      ? calculateCandyDrop(reason, gear.candyDropBonus || 0, Math.random(), Math.random(), Number(result.rows[0].prestige) || 0)
+      ? calculateCandyDrop(reason, gear.candyDropBonus || 0, Math.random(), Math.random(), Number(result.rows[0].level) || 1)
       : null;
     let adminAbuseEvent = null;
     if (dropEligible) {
@@ -290,18 +307,19 @@ class EconomyService {
         [guildId, userId, balancing.halloween.eventId, candyDrop.amount]
       );
     }
+    await this.syncSnapshotTx(client,guildId,userId);
     return { duplicate: false, balance: next, delta: appliedAmount, walletDelta, bankDelta, baseDelta: amount, candyDrop };
   }
 
   async rollCandyDropTx(client, guildId, userId, reason) {
     const player = await client.query(
-      "SELECT prestige FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE",
+      "SELECT level FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE",
       [guildId, userId]
     );
     if (!player.rowCount) return null;
     const gear = this.inventory ? await this.inventory.getEffectsTx(client, guildId, userId) : {};
     const drop = calculateCandyDrop(
-      reason, gear.candyDropBonus || 0, Math.random(), Math.random(), Number(player.rows[0].prestige) || 0
+      reason, gear.candyDropBonus || 0, Math.random(), Math.random(), Number(player.rows[0].level) || 1
     );
     if (!drop) return null;
     await client.query(
@@ -318,14 +336,29 @@ class EconomyService {
       [guildId]
     );
     const hasBooster = booster.rowCount && roleIds.includes(booster.rows[0].setting_value);
-    const result = await client.query("SELECT level, xp, prestige FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [guildId, userId]);
+    const result = await client.query("SELECT wallet, bank, lifetime_earned, lifetime_spent, level, xp FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [guildId, userId]);
+    if (!result.rowCount) return { gained: 0, level: 1, levelsGained: 0 };
+    await this.assertSnapshotTx(client,guildId,userId,result.rows[0]);
     const gear = this.inventory ? await this.inventory.getEffectsTx(client, guildId, userId) : {};
+    const baseXp = Math.trunc(Number(amount));
+    if (!Number.isSafeInteger(baseXp) || baseXp < 0 || baseXp > MAX_BASE_XP_PER_ACTION) {
+      await this.reportEconomyIncident(guildId,userId,"economy_xp_manipulation",
+        "An XP award fell outside the approved per-action range and was blocked.",
+        { actionType:"invalid_xp_award",amount:Number(amount),riskScore:100 })
+        .catch((error) => console.warn("[economy-guard] Could not persist XP alert:",error.message));
+      throw new DomainError("That XP award is outside approved progression limits.","ECONOMY_XP_INVALID");
+    }
+    const bonus = Math.max(0,Math.min(0.75,(gear.xpBonus || 0) + Math.max(0,Number(activityBonus) || 0)));
     const multiplier = balancing.progression.xpMultiplier *
-      (hasBooster ? balancing.progression.roleBoosterMultiplier : 1) *
-      getRebirthMultiplier(result.rows[0]?.prestige || 0) *
-      (1 + Math.min(0.75, (gear.xpBonus || 0) + (Number(activityBonus) || 0)));
-    const gained = Math.max(0, Math.floor(amount * multiplier));
-    if (!result.rowCount) return { gained, level: 1, levelsGained: 0 };
+      (hasBooster ? balancing.progression.roleBoosterMultiplier : 1) * (1 + bonus);
+    const gained = Math.max(0, Math.floor(baseXp * multiplier));
+    if (!Number.isSafeInteger(gained) || gained > MAX_SINGLE_XP_GAIN) {
+      await this.reportEconomyIncident(guildId,userId,"economy_xp_manipulation",
+        "A calculated XP award exceeded the verified multiplier ceiling and was blocked.",
+        { actionType:"invalid_xp_multiplier",baseXp,gained,riskScore:100 })
+        .catch((error) => console.warn("[economy-guard] Could not persist XP alert:",error.message));
+      throw new DomainError("The calculated XP award is outside approved progression limits.","ECONOMY_XP_INVALID");
+    }
     let level = Number(result.rows[0].level);
     let xp = Number(result.rows[0].xp) + gained;
     let levelsGained = 0;
@@ -336,144 +369,8 @@ class EconomyService {
     }
     if (level >= balancing.progression.maxLevel) xp = 0;
     await client.query("UPDATE players SET level = $3, xp = $4, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [guildId, userId, level, xp]);
+    await this.syncSnapshotTx(client,guildId,userId);
     return { gained, multiplier, level, levelsGained, xp, nextLevelXp: levelXpRequired(level) };
-  }
-
-  async getRebirthStatus(guildId, userId) {
-    const [player, claims, inventory, candy] = await Promise.all([
-      getPlayer(this.pool, guildId, userId),
-      this.pool.query(
-        "SELECT COUNT(*)::int AS claimed_count FROM event_claims WHERE guild_id = $1 AND user_id = $2 " +
-        "AND quest_id NOT LIKE 'weekly_messages:%'",
-        [guildId, userId]
-      ),
-      this.pool.query(
-        "SELECT item_id, quantity, upgrade_level FROM inventory WHERE guild_id = $1 AND user_id = $2 AND quantity > 0",
-        [guildId, userId]
-      ),
-      this.pool.query(
-        "SELECT candy FROM event_wallets WHERE guild_id = $1 AND user_id = $2 AND event_id = $3",
-        [guildId, userId, balancing.halloween.eventId]
-      )
-    ]);
-    const status = getRebirthRequirements(
-      player,
-      claims.rows[0]?.claimed_count || 0,
-      inventory.rows,
-      candy.rows[0]?.candy || 0
-    );
-    const next = getRebirthRequirements(
-      { wallet: 0, bank: 0, level: 1, prestige: status.rebirths + 1, job_id: null, job_level: 1, rebirth_work_count: 0 },
-      0, [], 0
-    );
-    return {
-      ...status,
-      nextWalletRequired: next.walletRequired,
-      nextLevelRequired: next.levelRequired,
-      nextQuestClaimsRequired: next.questClaimsRequired,
-      nextJobLevelRequired: next.jobLevelRequired,
-      nextWorkShiftsRequired: next.workShiftsRequired,
-      nextGearItemsRequired: next.gearItemsRequired,
-      nextCandyItemsRequired: next.candyItemsRequired,
-      nextCandyBalanceRequired: next.candyBalanceRequired,
-      nextGearUpgradeLevelsRequired: next.gearUpgradeLevelsRequired
-    };
-  }
-
-  async rebirth(guildId, userId) {
-    return transaction(async (client) => {
-      await ensurePlayerTx(client, guildId, userId);
-      const playerResult = await client.query(
-        "SELECT wallet, bank, level, prestige, job_id, job_level, rebirth_work_count " +
-        "FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE",
-        [guildId, userId]
-      );
-      const player = playerResult.rows[0];
-      const [claims, inventory, candy] = await Promise.all([
-        client.query(
-          "SELECT COUNT(*)::int AS claimed_count FROM event_claims WHERE guild_id = $1 AND user_id = $2 " +
-          "AND quest_id NOT LIKE 'weekly_messages:%'",
-          [guildId, userId]
-        ),
-        client.query(
-          "SELECT item_id, quantity, upgrade_level FROM inventory WHERE guild_id = $1 AND user_id = $2 AND quantity > 0",
-          [guildId, userId]
-        ),
-        client.query(
-          "SELECT candy FROM event_wallets WHERE guild_id = $1 AND user_id = $2 AND event_id = $3 FOR UPDATE",
-          [guildId, userId, balancing.halloween.eventId]
-        )
-      ]);
-      if (Number(player.prestige) >= balancing.progression.maxRebirths) {
-        throw new DomainError("You have reached the maximum of " + balancing.progression.maxRebirths + " rebirths.", "MAX_REBIRTHS_REACHED");
-      }
-      const requirements = getRebirthRequirements(
-        player,
-        claims.rows[0]?.claimed_count || 0,
-        inventory.rows,
-        candy.rows[0]?.candy || 0
-      );
-
-      const failures = [
-        ["wealth", "You need " + requirements.walletRequired.toLocaleString() + " FC in combined wallet and bank savings.", "REBIRTH_FUNDS_REQUIRED"],
-        ["level", "You need player level " + requirements.levelRequired + ".", "REBIRTH_LEVEL_REQUIRED"],
-        ["quests", "You need " + requirements.questClaimsRequired + " claimed normal event quest rewards.", "REBIRTH_EVENT_REWARDS_REQUIRED"],
-        ["career", "Apply for a career before rebirthing.", "REBIRTH_JOB_REQUIRED"],
-        ["careerLevel", "Your career must reach job level " + requirements.jobLevelRequired + ".", "REBIRTH_JOB_LEVEL_REQUIRED"],
-        ["workShifts", "Complete " + requirements.workShiftsRequired + " work shifts in this run.", "REBIRTH_WORK_REQUIRED"],
-        ["gearItems", "Own " + requirements.gearItemsRequired + " different equipment items. You currently own " + requirements.gearItemsCount + ".", "REBIRTH_GEAR_REQUIRED"],
-        ["candyItems", "Collect " + requirements.candyItemsRequired + " different Candy-shop collectibles. You currently own " + requirements.candyItemsCount + ".", "REBIRTH_CANDY_ITEMS_REQUIRED"],
-        ["candyBalance", "Keep at least " + requirements.candyBalanceRequired + " unspent Candy. Your balance is " + requirements.candyBalance + ".", "REBIRTH_CANDY_REQUIRED"],
-        ["gearUpgrades", "Reach a combined " + requirements.gearUpgradeLevelsRequired + " gear upgrade levels. You currently have " + requirements.gearUpgradeLevels + ".", "REBIRTH_GEAR_UPGRADE_REQUIRED"],
-        ["maxRebirth", "You have reached the maximum of " + balancing.progression.maxRebirths + " rebirths.", "MAX_REBIRTHS_REACHED"]
-      ];
-      for (const [key, message, code] of failures) {
-        if (!requirements.checks[key]) throw new DomainError(message, code);
-      }
-
-      const newRebirths = requirements.rebirths + 1;
-      const reset = await client.query(
-        "UPDATE players SET wallet = $3, bank = 0, level = 1, xp = 0, job_id = NULL, job_level = 1, job_xp = 0, " +
-        "rebirth_work_count = 0, reputation = 0, prestige = $4, last_rebirth_at = NOW(), updated_at = NOW() " +
-        "WHERE guild_id = $1 AND user_id = $2 RETURNING wallet, level, prestige",
-        [guildId, userId, balancing.rebirth.startingWallet, newRebirths]
-      );
-      await client.query("DELETE FROM cooldowns WHERE guild_id = $1 AND user_id = $2", [guildId, userId]);
-      await client.query(
-        "INSERT INTO economy_ledger (guild_id, user_id, delta, reason, reference, metadata) VALUES ($1, $2, $3, 'rebirth_reset', $4, $5::jsonb)",
-        [guildId, userId, balancing.rebirth.startingWallet - Number(player.wallet), uuid(), JSON.stringify({
-          previousWallet: Number(player.wallet), previousBank: Number(player.bank),
-          previousLevel: Number(player.level), previousJobId: player.job_id,
-          previousJobLevel: Number(player.job_level), rebirths: newRebirths,
-          workShiftsCompleted: requirements.workShiftsCompleted,
-          questClaimsCount: requirements.questClaimsCount,
-          gearItemsCount: requirements.gearItemsCount,
-          candyItemsCount: requirements.candyItemsCount,
-          candyBalance: requirements.candyBalance,
-          gearUpgradeLevels: requirements.gearUpgradeLevels
-        })]
-      );
-      const next = getRebirthRequirements(
-        { wallet: 0, bank: 0, level: 1, prestige: newRebirths, job_id: null, job_level: 1, rebirth_work_count: 0 },
-        0, [], 0
-      );
-      return {
-        rebirths: newRebirths,
-        multiplier: getRebirthMultiplier(newRebirths),
-        previousWealth: requirements.wealth,
-        wallet: Number(reset.rows[0].wallet),
-        level: Number(reset.rows[0].level),
-        nextWalletRequired: next.walletRequired,
-        nextLevelRequired: next.levelRequired,
-        nextQuestClaimsRequired: next.questClaimsRequired,
-        nextJobLevelRequired: next.jobLevelRequired,
-        nextWorkShiftsRequired: next.workShiftsRequired,
-        nextGearItemsRequired: next.gearItemsRequired,
-        nextCandyItemsRequired: next.candyItemsRequired,
-        nextCandyBalanceRequired: next.candyBalanceRequired,
-        nextGearUpgradeLevelsRequired: next.gearUpgradeLevelsRequired
-      };
-    });
   }
 
   async scavenge(guildId, userId, roleIds = []) {
@@ -527,4 +424,4 @@ class EconomyService {
   }
 }
 
-module.exports = { EconomyService, ensurePlayerTx, getPlayer, getLeaderboard, getRebirthRequirements, calculateCandyDrop };
+module.exports = { EconomyService, ensurePlayerTx, getPlayer, getLeaderboard, calculateCandyDrop };

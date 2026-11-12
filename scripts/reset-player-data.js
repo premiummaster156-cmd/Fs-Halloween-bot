@@ -9,7 +9,7 @@ const RESET_TABLES = Object.freeze([
   "heist_participants", "heists", "event_claims", "event_quest_progress", "event_wallets",
   "weekly_quest_claims", "weekly_quest_progress", "weekly_activity", "daily_chat_rewards",
   "equipped_items", "inventory", "boss_battles", "achievement_claims", "party_game_stats",
-  "cooldowns", "economy_ledger", "players", "archived_guild_boss_claims",
+  "cooldowns", "economy_ledger", "player_economy_snapshots", "players", "archived_guild_boss_claims",
   "archived_guild_boss_contributions", "archived_guild_bosses", "guild_boss_claims",
   "guild_boss_contributions", "guild_bosses"
 ]);
