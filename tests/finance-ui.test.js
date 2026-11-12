@@ -39,27 +39,3 @@ test("gear dashboard shows loadout capacity, upgrade progress and active bonuses
   assert.ok(embed.fields.some((field) => field.name === "⚙️ ACTIVE BONUSES"));
 });
 
-test("rebirth dashboard previews the next cycle and records completed resets", async () => {
-  const status = {
-    checks: { wealth: true, level: true, quests: true, career: true, careerLevel: true, workShifts: true, gearItems: true, candyItems: true, candyBalance: true, gearUpgrades: true },
-    wealth: 40000, walletRequired: 30000, level: 10, levelRequired: 8,
-    currentJob: balancing.jobs[0], currentJobLevel: 1, jobLevelRequired: 1,
-    questClaimsCount: 1, questClaimsRequired: 1, workShiftsCompleted: 3, workShiftsRequired: 3,
-    gearItemsRequired: 0, gearItemsCount: 0, candyItemsRequired: 0, candyItemsCount: 0,
-    candyBalanceRequired: 0, candyBalance: 0, gearUpgradeLevelsRequired: 0, gearUpgradeLevels: 0,
-    rebirths: 0, multiplier: 1, nextMultiplier: 2,
-    nextWalletRequired: 45000, nextLevelRequired: 10, nextQuestClaimsRequired: 2, nextWorkShiftsRequired: 5
-  };
-  const payload = await renderMenu("guild-1", "member-1", "rebirth", {
-    economy: {
-      getRebirthStatus: async () => status,
-      getRebirthHistory: async () => [{
-        created_at: new Date("2026-11-05T12:00:00Z"),
-        metadata: { rebirths: 1, previousWallet: 40000, previousBank: 5000, previousLevel: 20 }
-      }]
-    }
-  });
-  const embed = payload.embeds[0].toJSON();
-  assert.ok(embed.fields.some((field) => field.name === "Next-run preview" && field.value.includes("45,000 FC")));
-  assert.ok(embed.fields.some((field) => field.name === "Rebirth history" && field.value.includes("Rebirth 1")));
-});
