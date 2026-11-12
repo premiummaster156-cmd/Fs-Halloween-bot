@@ -256,6 +256,13 @@ class TradeService {
             [guildId,toUser,item.itemId,item.quantity,Number(owned.rows[0].upgrade_level)||0]);
         }
       }
+      await client.query(
+        "INSERT INTO player_economy_snapshots (guild_id,user_id,wallet,bank,lifetime_earned,lifetime_spent,level,xp) " +
+        "SELECT guild_id,user_id,wallet,bank,lifetime_earned,lifetime_spent,level,xp FROM players WHERE guild_id=$1 AND user_id=ANY($2::text[]) " +
+        "ON CONFLICT (guild_id,user_id) DO UPDATE SET wallet=EXCLUDED.wallet,bank=EXCLUDED.bank,lifetime_earned=EXCLUDED.lifetime_earned," +
+        "lifetime_spent=EXCLUDED.lifetime_spent,level=EXCLUDED.level,xp=EXCLUDED.xp,updated_at=NOW()",
+        [guildId,members]
+      );
       const completed=await client.query("UPDATE player_trades SET status='completed',confirmations=$3::jsonb,completed_at=NOW(),updated_at=NOW() WHERE guild_id=$1 AND id=$2 RETURNING *",
         [guildId,id,JSON.stringify(trade.confirmations)]);
       return { completed:true,trade:normalizeTrade(completed.rows[0]) };

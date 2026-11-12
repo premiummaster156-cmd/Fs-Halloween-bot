@@ -251,16 +251,31 @@ class EconomyService {
     // The wallet has a display/spending ceiling, not an income ceiling. Keep as
     // much as possible in the wallet and automatically bank the overflow so a
     // full wallet never causes a completed reward to fail.
-    const normalizedWallet = appliedAmount > 0 ? Math.min(currentWallet, maxWallet) : currentWallet;
-    const recoveredWalletOverflow = appliedAmount > 0 ? Math.max(0, currentWallet - maxWallet) : 0;
-    const walletDelta = appliedAmount > 0
-      ? Math.min(appliedAmount, Math.max(0, maxWallet - normalizedWallet))
-      : appliedAmount;
-    const bankDelta = appliedAmount > 0
-      ? recoveredWalletOverflow + appliedAmount - walletDelta
-      : 0;
-    const next = normalizedWallet + walletDelta;
-    if (next < 0) throw new DomainError("You do not have enough FS Coins in your wallet.", "INSUFFICIENT_FUNDS");
+    const currentBank = Number(result.rows[0].bank);
+    let nextWallet = currentWallet, nextBank = currentBank, walletDelta = 0, bankDelta = 0;
+    if (reason === "bank_deposit") {
+      const deposit = -appliedAmount;
+      if (deposit < 1 || currentWallet < deposit) throw new DomainError("Your wallet does not contain enough FC.", "INSUFFICIENT_FUNDS");
+      if (currentBank + deposit > maxWallet) throw new DomainError("That deposit would exceed the bank limit.", "BANK_LIMIT");
+      walletDelta = -deposit; bankDelta = deposit;
+    } else if (reason === "bank_withdrawal") {
+      const withdrawal = appliedAmount;
+      if (currentBank < withdrawal) throw new DomainError("Your bank does not contain enough FC.", "INSUFFICIENT_FUNDS");
+      if (currentWallet + withdrawal > maxWallet) throw new DomainError("That withdrawal would exceed the wallet limit.", "WALLET_LIMIT");
+      walletDelta = withdrawal; bankDelta = -withdrawal;
+    } else if (appliedAmount > 0) {
+      nextWallet = Math.min(currentWallet,maxWallet);
+      const recoveredOverflow = Math.max(0,currentWallet-maxWallet);
+      walletDelta = Math.min(appliedAmount,Math.max(0,maxWallet-nextWallet));
+      bankDelta = recoveredOverflow + appliedAmount - walletDelta;
+    } else {
+      walletDelta = appliedAmount;
+    }
+    nextWallet += walletDelta;
+    nextBank += bankDelta;
+    if (!Number.isSafeInteger(nextWallet) || !Number.isSafeInteger(nextBank) || nextWallet < 0 || nextBank < 0) {
+      throw new DomainError("This currency change is outside the supported balance range.","ECONOMY_BALANCE_INVALID");
+    }
 
     let candyDrop = appliedAmount > 0
       ? calculateCandyDrop(reason, gear.candyDropBonus || 0, Math.random(), Math.random(), Number(result.rows[0].level) || 1)
@@ -280,8 +295,8 @@ class EconomyService {
     const lifetimeEarned = LIFETIME_EARNING_REASONS.has(reason) ? Math.max(0, appliedAmount) : 0;
     const lifetimeSpent = LIFETIME_SPENDING_REASONS.has(reason) ? Math.max(0, -appliedAmount) : 0;
     await client.query(
-      "UPDATE players SET wallet = $3, bank = bank + $4, lifetime_earned = lifetime_earned + $5, lifetime_spent = lifetime_spent + $6, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2",
-      [guildId, userId, next, bankDelta, lifetimeEarned, lifetimeSpent]
+      "UPDATE players SET wallet = $3, bank = $4, lifetime_earned = lifetime_earned + $5, lifetime_spent = lifetime_spent + $6, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2",
+      [guildId, userId, nextWallet, nextBank, lifetimeEarned, lifetimeSpent]
     );
     await client.query(
       "INSERT INTO economy_ledger (guild_id, user_id, delta, reason, reference, metadata) VALUES ($1, $2, $3, $4, $5, $6::jsonb)",
@@ -308,7 +323,7 @@ class EconomyService {
       );
     }
     await this.syncSnapshotTx(client,guildId,userId);
-    return { duplicate: false, balance: next, delta: appliedAmount, walletDelta, bankDelta, baseDelta: amount, candyDrop };
+    return { duplicate: false, balance: nextWallet, delta: appliedAmount, walletDelta, bankDelta, baseDelta: amount, candyDrop };
   }
 
   async rollCandyDropTx(client, guildId, userId, reason) {

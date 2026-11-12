@@ -202,7 +202,12 @@ class SecurityService {
         repeated_cooldown_bypass: "Repeated cooldown attempts",
         unauthorized_admin_access: "Unauthorized admin access",
         unauthorized_control_access: "Unauthorized dashboard access",
-        rapid_destructive_actions: "Rapid server changes"
+        rapid_destructive_actions: "Rapid server changes",
+        economy_tampering: "Rejected economy manipulation",
+        economy_direct_balance_change: "Out-of-band balance or level edit",
+        economy_invalid_payout: "Invalid casino payout",
+        economy_reward_burst: "Unusual reward burst",
+        economy_xp_manipulation: "Invalid XP award"
       };
       await channel.send({
         content: (mention ? mention + "\n" : "") + "**SECURITY ALERT · #" + incidentId + "**\n" +
