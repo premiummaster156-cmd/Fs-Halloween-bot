@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS players (
   bank BIGINT NOT NULL DEFAULT 0 CHECK (bank >= 0),
   level INTEGER NOT NULL DEFAULT 1 CHECK (level >= 1),
   xp BIGINT NOT NULL DEFAULT 0 CHECK (xp >= 0),
+  -- Legacy fields retained for compatibility only; rebirth progression is retired.
   prestige INTEGER NOT NULL DEFAULT 0 CHECK (prestige >= 0),
   last_rebirth_at TIMESTAMPTZ,
   job_id TEXT,

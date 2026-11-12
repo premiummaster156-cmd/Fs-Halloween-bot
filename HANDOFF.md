@@ -3,35 +3,23 @@
 **Repository:** https://github.com/premiummaster156-cmd/Fs-Halloween-bot  
 **Default branch:** `main`  
 **Runtime:** Node.js 20+, Discord.js 14, PostgreSQL on Neon  
-**Last updated:** 2026-11-08 — no privileged intents, tracked-profile leaderboards, Admin Abuse live events, trade safeguards and Dragon Sovereign artwork
+**Last updated:** 2026-11-12 — rebirth retired, level-based FC rewards and economy integrity guard added; no privileged intents
 **Working rule:** `main` is the only development branch. Do not create feature branches. Inspect and update `main` directly, keep this file current, and verify CI before reporting completion.
 
 ## Final season — ends November 30, 2026
 
 The user confirmed this is the bot's final season and it will not be used after **November 30, 2026 (Tashkent time)**. The default event end is `2026-11-30T19:00:00.000Z`, which is midnight at the start of December 1 in Tashkent and includes the full November 30 local day. The `HALLOWEEN_ENDS_AT` environment variable overrides this default if set on the host. This setting ends the event; it does not automatically shut down the bot.
 
-### Rebirth requirements
+### Progression and retired rebirth system
 
-These are the authoritative final-season rules. In the formulas below, `r` is the player's current completed rebirth count before the next rebirth.
-
-- **FC wealth:** `15,000 + (5,000 × r)` combined wallet and bank.
-- **Player level:** `min(600, 10 + 2 × r)`.
-- **Claimed Halloween quests:** `min(3, 1 + floor(r / 20))`.
-- **Career:** any selected career at rebirth 0; career level rises every 20 rebirths and caps at level 5.
-- **Work shifts in the current run:** `min(3, 1 + floor(r / 25))`.
-- **Normal gear:** first required for rebirth #5; one item, increasing by one every 40 rebirths and capped at three.
-- **Candy-shop collectibles:** first required for rebirth #10; one item, increasing by one every 45 rebirths and capped at two.
-- **Unspent Candy:** first required for rebirth #10 at 10 Candy, increases by 10 every 20 rebirths and caps at 50.
-- **Combined normal-gear upgrade levels:** first required for rebirth #20; one level, increasing by one every 40 rebirths and capped at three.
-- Booster-exclusive equipment does not count as normal rebirth gear.
-
-To complete the 100th rebirth (with 99 already completed), the checklist is **510,000 FC, level 208, three quest claims, career level 5, three work shifts, three normal gear items, two Candy collectibles, 50 unspent Candy and three combined gear-upgrade levels**. The maximum player level remains **600** and the maximum rebirth count remains **100**.
-
-Rebirth resets wallet to **2,500 FC**, bank to zero, player level to one and current career. Owned gear, upgrades, Candy collectibles, event claims and lifetime records remain. The permanent FC/XP duplication is `1 + rebirths`: 1×, 2×, 3×, 4× … up to **101×** at 100 rebirths (+1× for every rebirth).
+- Rebirth is removed from gameplay, dashboard navigation, player/admin controls, service methods, career XP, Arena health scaling, achievements and leaderboard UI.
+- The old `prestige`, `last_rebirth_at` and `rebirth_work_count` columns are intentionally retained as inert legacy storage. They are not read or changed by the new progression path; no player balance, level, gear, career or history is reset by this feature change.
+- Player level remains capped at **600**. Eligible normal FC rewards keep the **3× season multiplier** and now gain **+0.5% per level above level 1** (level factor **3.995× at level 600**). Equipped gear and configured FC Party events follow the existing eligibility rules.
+- Candy-drop chance progression uses player level (up to +20 percentage points by level 600) rather than rebirth count. Phoenix Core's Arena heal ability is named **PHOENIX**.
 
 ### Final-season economy and activities
 
-- Normal FC rewards retain the global **3×** earning multiplier and add **+0.1% per player level above level 1**, reaching **1.599×** at level 600. Rebirth and gear bonuses stack on top. Casino payouts, player trades and admin grants are excluded.
+- Normal FC rewards retain the global **3×** earning multiplier and add **+0.5% per player level above level 1**, reaching a **3.995× level factor** at level 600. Eligible gear and FC Party bonuses stack according to each reward's rules. Casino payouts, player trades and admin grants are excluded from the ordinary reward multiplier.
 - Daily reward: **600–900 base FC**, 30 base XP and an 18-hour cooldown.
 - Careers include 22 paths: the original seven plus 15 new specialist careers with progressive level/wallet unlocks, higher salaries and distinct passive perks. Work shifts retain three questions per run from a 115-question randomized pool with 15 added templates across easy, medium and hard bands; difficulty-based time limits are used.
 - Crime unlocks begin at level 1 and progress to level 16; cooldowns range from five to 22 minutes with lower penalties and improved success chances.
@@ -48,8 +36,8 @@ Rebirth resets wallet to **2,500 FC**, bank to zero, player level to one and cur
 
 - Six solo bosses unlock at levels **1, 20, 40, 60, 80 and 100**: Training Golem, Ashen Knight, Rift Warden, Abyss Wyrm, Oni Shogun and Dragon Sovereign.
 - PostgreSQL `boss_battles` records persist encounters. A player can have one active encounter; the service applies a 20-minute entry cooldown, turn locking and server-side expected-turn validation to prevent stale/double-click interactions.
-- The eight endgame abilities can each be activated once per encounter: **PHASE** avoids a counterstrike; **DREAD** weakens three boss strikes; **AEGIS** creates a shield; **REBIRTH** restores health; **EXECUTE** deals bonus damage based on remaining boss health; **HASTE** doubles a strike; **HEX** applies damage over time; **ASCEND** deals a large burst.
-- Boss victories grant FC and XP using the normal and rebirth multipliers. Losses charge no fine. Retreating does not erase the Arena cooldown.
+- The eight endgame abilities can each be activated once per encounter: **PHASE** avoids a counterstrike; **DREAD** weakens three boss strikes; **AEGIS** creates a shield; **PHOENIX** restores health; **EXECUTE** deals bonus damage based on remaining boss health; **HASTE** doubles a strike; **HEX** applies damage over time; **ASCEND** deals a large burst.
+- Boss victories grant FC and XP using the normal level-based earning factor and eligible gear/event bonuses. Losses charge no fine. Retreating does not erase the Arena cooldown.
 - The dashboard includes boss selection, attack/ability/retreat controls, health bars, status effects and encounter result messages.
 - `src/utils/arena-card.js` renders the beveled Arena HUD with `@napi-rs/canvas`; Dragon Sovereign uses its dedicated standalone image at `assets/bosses/dragon-sovereign.webp` inside the boss card. The surrounding HUD remains layered 2D artwork, not a true 3D scene.
 - `tests/arena.test.js` covers boss gates, all eight powers, damage-over-time, shields, healing, battle outcomes and PNG rendering.
@@ -63,7 +51,7 @@ All eight endgame items are normal shop equipment, not booster-exclusive. Their 
 | Nightfall Greaves | 30 | 100,000 | PHASE |
 | Soulrender Crown | 40 | 135,000 | DREAD |
 | Starforged Mantle | 50 | 175,000 | AEGIS |
-| Phoenix Core | 60 | 220,000 | REBIRTH |
+| Phoenix Core | 60 | 220,000 | PHOENIX |
 | Eclipse Greatblade | 70 | 270,000 | EXECUTE |
 | Chrono Shard | 80 | 330,000 | HASTE |
 | Abyssal Grimoire | 90 | 400,000 | HEX |
@@ -93,7 +81,7 @@ Abilities retain their passive equipment stats and have their one-use Arena powe
 - Preview with \`npm run reset:player-data\`; execute with \`npm run reset:player-data -- --confirm RESET_ALL_PLAYER_DATA\`.
 - Back up Neon and stop the bot first. The reset requires \`DISCORD_TOKEN\` and \`OWNER_ID\` to verify Discord server owners, bot owner and currently configured Admin Role members. Any failed verification aborts without deletion.
 - Bot owner, each guild/server owner and users holding that guild's configured Admin Role are excluded from every user-scoped delete.
-- Everyone else has FC/bank, level/XP/rebirth, job/career, lifetime stats, owned/equipped items and upgrades, Candy/event records, activity/quests/achievements, party stats, heists and Arena progress reset.
+- Everyone else has FC/bank, level/XP, job/career, lifetime stats, owned/equipped items and upgrades, Candy/event records, activity/quests/achievements, party stats, heists and Arena progress reset.
 - Admin-panel settings, event configuration, custom commands, leaderboard exclusions, audit history and security restrictions remain unchanged.
 - Discord boost status and boost-message idempotency history are preserved to prevent re-granting old boost rewards; booster equipment itself is removed with inventory.
 - Tables without a recognized guild/member identity are skipped. The reset is transactional and rolls back on any error.
@@ -137,7 +125,7 @@ The project also applies schema changes at startup. No slash-command redeploymen
 ## Trading, leaderboards, economy events and admin DMs — current work
 
 - /menu → Trade replaces one-way FC transfer. Offers may contain FC and up to 10 item types. Both players must contribute; both confirm independently; changing either offer resets both confirmations. Offers are revalidated at settlement and FC/items exchange in a transaction. Booster-exclusive Mythic gear is non-tradable. Active trades expire after 30 minutes.
-- Leaderboards use saved player profiles, Party Game stats, weekly activity and the current non-privileged member cache. Exact Discord-ID lookup fetches one member at a time. This intentionally does not enumerate never-seen server members because the user will not enable privileged intents. Zero-score saved profiles are included. Categories: Wealth, Level, Lifetime Earned, Party Points, Weekly Messages, Rebirths, Career Level, Successful Crimes and Completed Heists; paging, search and leaderboard exclusions are supported.
+- Leaderboards use saved player profiles, Party Game stats, weekly activity and the current non-privileged member cache. Exact Discord-ID lookup fetches one member at a time. This intentionally does not enumerate never-seen server members because the user will not enable privileged intents. Zero-score saved profiles are included. Categories: Wealth, Level, Lifetime Earned, Party Points, Weekly Messages, Career Level, Successful Crimes and Completed Heists; paging, search and leaderboard exclusions are supported.
 - New FC activities: Scavenge (30m) and Delivery Contract (3h). They award FC/XP and participate in normal multipliers and Candy drops.
 - Admin console retains FC Party Events (2×–10×, 5m–24h) as a separate economy feature. Member DMs target one selected member or tracked profiles plus cached members only. The Guild Members privileged intent is deliberately disabled; never-seen members cannot be enumerated. Bulk DMs are capped at 1,500 known recipients; failures/skips are counted and Discord privacy settings are respected.
 
@@ -145,7 +133,7 @@ The project also applies schema changes at startup. No slash-command redeploymen
 ## Current approved upgrade — November 8, 2026
 
 - **Privileged intents:** Do not request or enable any privileged Gateway intent. `src/index.js` uses Guilds, GuildMessages and GuildModeration only. `GatewayIntentBits.GuildMembers` must stay removed. The bot cannot enumerate every server member; leaderboards and bulk DM recipient lists are limited to saved player profiles, tracked activity and currently cached members. Exact Discord-ID search performs an individual member lookup only.
-- **Leaderboards:** Added Rebirths, Career Level, Successful Crimes and Completed Heists. Ranking pages include zero-stat saved profiles, respect exclusions and disclose the tracked-profile limitation. Search supports cached usernames/display names and exact IDs.
+- **Leaderboards:** Added Career Level, Successful Crimes and Completed Heists. Ranking pages include zero-stat saved profiles, respect exclusions and disclose the tracked-profile limitation. Search supports cached usernames/display names and exact IDs.
 - **Trading safeguards:** Both sides still contribute and independently confirm. Editing an offer clears both confirmations. New trade invitations require a 7-day-old Discord account and at least 24 hours in the server; each account can open at most eight trades per rolling 24 hours, and the same pair has a 10-minute re-open cooldown. These checks deter low-effort alt abuse but do not claim perfect alt detection.
 - **Admin Abuse:** Separate from FC Party Events. Presets: Blood Moon (+12 crime-success points and +25% crime base rewards), Candy Storm (+1–2 Candy on eligible gameplay rewards), Rift Surge (+50% Rift Arena victory FC/XP), and Lucky Block Rain (one claim per player per event; FC, Candy and a level-eligible non-booster equipment item). Admins start/stop events through `/admin-panel → Admin Abuse`; events announce in the configured member-command channel and are logged.
 - **Dragon Sovereign:** Replaced the emblem-like image at `assets/bosses/dragon-sovereign.webp` with an original dragon creature portrait, displayed in the existing right-side Arena image viewport.
@@ -216,7 +204,7 @@ Keep Neon PostgreSQL, no privileged intents, no destructive player reset, preser
 - `src/database/migrate.js`: added a PostgreSQL transaction-scoped advisory lock before applying the idempotent schema/backfills. This serializes concurrent startup migration attempts across multiple bot instances. It does not yet replace the schema file with fully versioned migration files; that remains a planned database-hardening task.
 - CI run for the latest migration-lock commit: [42615755679](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/42615755679). Check its final status before reporting the latest commit as validated.
 
-- `src/database/migrate.js` now also records a SHA-256 checksum for `schema.sql` in a dedicated `schema_migrations` table and only reapplies the idempotent schema when the file content changes. It still verifies the level/rebirth constraints on startup. This is an intermediate safe migration improvement; it is not a substitute for a fully ordered per-release migration directory, which should be introduced with PostgreSQL integration coverage.
+- `src/database/migrate.js` records a SHA-256 checksum for `schema.sql` in `schema_migrations` and reapplies the idempotent schema only when content changes. It verifies the level cap only; legacy prestige fields are no longer part of progression validation. This is an intermediate safe migration improvement; it is not a substitute for a fully ordered per-release migration directory, which should be introduced with PostgreSQL integration coverage.
 - CI run for this schema-checksum change: [42615869661](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/42615869661). Verify its final result.
 
 
@@ -230,3 +218,18 @@ Keep Neon PostgreSQL, no privileged intents, no destructive player reset, preser
 
 
 - **Invitation control security:** Accept/Deny buttons from DMs now resolve the originating server, verify the recipient is still a member through one targeted member lookup, and apply the existing bot-access restriction and component rate-limit checks before changing invitation status. No privileged intents or whole-member fetches are used. If a sender's DM is closed, the bot attempts a mention notification in the current server channel (or the server system channel when the response came from a DM).
+
+
+## Economy integrity and rebirth retirement — November 12, 2026
+
+- **Rebirth retired:** active rebirth flows and multipliers have been removed from the economy service, menu/profile/player admin, career XP, Arena health scaling, achievements and leaderboard UI. Phoenix Core's old `REBIRTH` ability is now `PHOENIX`. Player level remains capped at 600.
+- **Level earnings:** eligible FC actions receive the normal 3× season multiplier plus `1 + (level - 1) × 0.005`; the level factor reaches 3.995× at level 600. Candy-drop odds use a level-based bonus in place of the old rebirth bonus. Active player rows and inventories are not reset.
+- **Legacy database safety:** existing `prestige`, `last_rebirth_at` and `rebirth_work_count` columns are retained but inert. Do not drop them or reset their values as part of this change; this preserves historical records without a destructive migration.
+- **Mutation allowlist:** `src/services/economy-guard.js` defines approved currency reasons, valid credit/debit directions, per-action base caps, admin-grant audit requirements and self-grant prevention. Unknown or malformed mutations are rejected and recorded as security incidents.
+- **Casino integrity:** every payout is checked against the same user's recorded `casino_bet` reference and the server-side wager × payout multiplier formula. Duplicate ledger references remain idempotent.
+- **Reward-rate detection:** eligible FC rewards are examined over a rolling 60-second ledger window. Suspicious reward bursts generate a security incident for review; hard thresholds block the latest reward. XP grants have per-action and calculated-gain ceilings.
+- **Snapshot integrity:** `player_economy_snapshots` is backfilled for saved players by schema migration. FC, bank, lifetime earned/spent, level and XP are compared with the last verified state before economy/XP changes; mismatches block the attempted action and raise a high-risk incident. Legitimate bank transfers, admin changes and trade settlements update snapshots in the same transaction.
+- **Trade audit:** settled FC deltas are written to `economy_ledger` as `player_trade_in` / `player_trade_out`, without treating trade value as lifetime earnings or spending. Trade references are tied to the trade ID and member.
+- **No automatic ban:** detections are explainable security incidents; no account is automatically banned or timed out based solely on a statistical flag. Existing restrictions remain owner/admin controlled.
+- **Intent boundary:** no privileged Discord Gateway intent was added. No `GuildMembers`, `GuildPresences` or `MessageContent` dependency is introduced.
+- **Validation boundary:** CI tests and syntax/command validation are separate from a live Neon migration or real Discord guild test. Record the exact CI run and test count after completion; do not claim live Neon/Discord verification unless performed.

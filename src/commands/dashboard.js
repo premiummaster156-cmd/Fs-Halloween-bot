@@ -581,7 +581,7 @@ async function renderMenu(guildId, owner, page, s) {
             : "All six bosses are unlocked. The Dragon Sovereign is the final trial." },
           { name: "Equipped powers", value: status.equippedAbilities.length
             ? status.equippedAbilities.map((item) => "**" + item.ability + "** · " + item.name).join("\n").slice(0, 900)
-            : "Equip endgame gear with PHASE, DREAD, AEGIS, REBIRTH, EXECUTE, HASTE, HEX or ASCEND to unlock active powers." }
+            : "Equip endgame gear with PHASE, DREAD, AEGIS, PHOENIX, EXECUTE, HASTE, HEX or ASCEND to unlock active powers." }
         ],
         [
           menu(owner, "arena-start", "Choose a boss to challenge", status.unlockedBosses.map((boss) => ({

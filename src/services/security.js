@@ -207,6 +207,11 @@ class SecurityService {
         economy_direct_balance_change: "Out-of-band balance or level edit",
         economy_invalid_payout: "Invalid casino payout",
         economy_reward_burst: "Unusual reward burst",
+        economy_xp_manipulation: "Invalid XP award",
+        economy_tampering: "Rejected economy manipulation",
+        economy_direct_balance_change: "Out-of-band balance or level edit",
+        economy_invalid_payout: "Invalid casino payout",
+        economy_reward_burst: "Unusual reward burst",
         economy_xp_manipulation: "Invalid XP award"
       };
       await channel.send({
