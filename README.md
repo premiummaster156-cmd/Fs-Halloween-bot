@@ -192,14 +192,12 @@ The Rift Arena is available from **/menu → Game Room → Rift Arena**.
 
 This is a short, playable finale, not a multi-month grind. The default event end is December 1, 2026 at 00:00 UTC (05:00 in Tashkent), including the full November 30 local day. The bot does not automatically shut down after the event.
 
-- Level cap 600; XP per level: `80 + 12 × current level`. Rebirth progression is retired.
-- First rebirth: 20,000 FC, level 12, one claimed event quest, career level 2 and three current-run work shifts.
-- Each further rebirth adds 10,000 FC and four levels. Quest claims cap at 4; career level at 10; work shifts at 10.
-- Gear milestones begin at rebirth #3, Candy collectibles at #4, and gear upgrades at #5. All are spaced out and capped.
-- Rebirth reset: 2,500 FC wallet, bank zero, level 1 and no career. Gear, upgrades, Candy collectibles and lifetime records persist.
+- Player level cap: **600**. XP per level: `80 + 12 × current level`.
+- Eligible normal FC income uses the **3× season multiplier** plus **0.5% per level above level 1**, reaching a **3.995× level factor at level 600**. Gear and FC Party bonuses follow action-specific rules.
+- Rebirth is retired. No player reset, wallet wipe or level reset is part of the progression system.
 - Career unlocks, gear prices, crimes, heists, weekly quests, Halloween quests, Candy shop, achievements, Party Fortune and Arena boss gates are reduced for the short season.
 - Casino retains a 95% theoretical return, 100 FC minimum bet and no daily wager cap; base cooldown is 10 seconds.
-- Normal FC rewards retain the 3× multiplier. Booster-exclusive rewards and automatic boost assignment remain unchanged.
+- Booster-exclusive rewards and automatic boost assignment remain unchanged.
 
 
 ## Trading, leaderboards, FC activities and administration
