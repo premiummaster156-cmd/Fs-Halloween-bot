@@ -346,6 +346,14 @@ class EconomyService {
   }
 
   async addXpTx(client, guildId, userId, amount, roleIds = [], activityBonus = 0) {
+    const baseXp = Math.trunc(Number(amount));
+    if (!Number.isSafeInteger(baseXp) || baseXp < 0 || baseXp > MAX_BASE_XP_PER_ACTION) {
+      await this.reportEconomyIncident(guildId,userId,"economy_xp_manipulation",
+        "An XP award fell outside the approved per-action range and was blocked.",
+        { actionType:"invalid_xp_award",amount:Number(amount),riskScore:100 })
+        .catch((error) => console.warn("[economy-guard] Could not persist XP alert:",error.message));
+      throw new DomainError("That XP award is outside approved progression limits.","ECONOMY_XP_INVALID");
+    }
     const booster = await client.query(
       "SELECT setting_value FROM guild_settings WHERE guild_id = $1 AND setting_key = 'xpBoosterRoleId'",
       [guildId]
@@ -355,14 +363,6 @@ class EconomyService {
     if (!result.rowCount) return { gained: 0, level: 1, levelsGained: 0 };
     await this.assertSnapshotTx(client,guildId,userId,result.rows[0]);
     const gear = this.inventory ? await this.inventory.getEffectsTx(client, guildId, userId) : {};
-    const baseXp = Math.trunc(Number(amount));
-    if (!Number.isSafeInteger(baseXp) || baseXp < 0 || baseXp > MAX_BASE_XP_PER_ACTION) {
-      await this.reportEconomyIncident(guildId,userId,"economy_xp_manipulation",
-        "An XP award fell outside the approved per-action range and was blocked.",
-        { actionType:"invalid_xp_award",amount:Number(amount),riskScore:100 })
-        .catch((error) => console.warn("[economy-guard] Could not persist XP alert:",error.message));
-      throw new DomainError("That XP award is outside approved progression limits.","ECONOMY_XP_INVALID");
-    }
     const bonus = Math.max(0,Math.min(0.75,(gear.xpBonus || 0) + Math.max(0,Number(activityBonus) || 0)));
     const multiplier = balancing.progression.xpMultiplier *
       (hasBooster ? balancing.progression.roleBoosterMultiplier : 1) * (1 + bonus);

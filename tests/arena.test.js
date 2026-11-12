@@ -45,10 +45,10 @@ test("AEGIS converts its shield into absorbed damage", () => {
   assert.equal(result.playerHp, 1000);
 });
 
-test("REBIRTH restores health without exceeding maximum vitality", () => {
-  const result = resolveArenaTurn(battle({ playerHp: 400 }), boss, { action: "ability", ability: "REBIRTH", damage: 100, bossDamage: 100 });
+test("PHOENIX restores health without exceeding maximum vitality", () => {
+  const result = resolveArenaTurn(battle({ playerHp: 400 }), boss, { action: "ability", ability: "PHOENIX", damage: 100, bossDamage: 100 });
   assert.equal(result.playerHp, 720);
-  const full = resolveArenaTurn(battle(), boss, { action: "ability", ability: "REBIRTH", damage: 100, bossDamage: 100 });
+  const full = resolveArenaTurn(battle(), boss, { action: "ability", ability: "PHOENIX", damage: 100, bossDamage: 100 });
   assert.equal(full.playerHp, 900);
 });
 

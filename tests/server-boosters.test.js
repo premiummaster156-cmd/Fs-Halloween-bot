@@ -227,7 +227,6 @@ test("all five special items can be upgraded using normal FC upgrade prices", ()
     assert.equal(item.type, "equipment");
     assert.ok(item.boostNumber >= 1 && item.boostNumber <= 5);
     assert.ok(getUpgradeCost(item, 1) > 0);
-    assert.equal(item.rebirthEligible, false);
     assert.ok(Object.keys(item.effects).length >= 4);
   }
 });

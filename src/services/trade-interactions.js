@@ -226,6 +226,9 @@ class TradeService {
       const deltas = [[trade.initiator_id,b.fc-a.fc],[trade.target_id,a.fc-b.fc]];
       for (const [user,delta] of deltas) {
         if (!delta) continue;
+        const counterpartyId = user === trade.initiator_id ? trade.target_id : trade.initiator_id;
+        const ledgerReason = delta > 0 ? "player_trade_in" : "player_trade_out";
+        const ledgerReference = String(trade.id) + ":" + String(user) + ":fc";
         if (delta < 0) {
           if (wallets.get(user) < -delta) throw new DomainError("A trader no longer has enough wallet FC.", "TRADE_FUNDS_CHANGED");
           await client.query("UPDATE players SET wallet=wallet+$3,updated_at=NOW() WHERE guild_id=$1 AND user_id=$2", [guildId,user,delta]);
@@ -240,6 +243,14 @@ class TradeService {
             [guildId,user,normalized + walletCredit,bankCredit]
           );
         }
+        await client.query(
+          "INSERT INTO economy_ledger (guild_id,user_id,delta,reason,reference,metadata) VALUES ($1,$2,$3,$4,$5,$6::jsonb)",
+          [guildId,user,delta,ledgerReason,ledgerReference,JSON.stringify({
+            tradeId:String(trade.id),counterpartyId,
+            offeredFc:Number(user===trade.initiator_id?a.fc:b.fc),
+            receivedFc:Number(user===trade.initiator_id?b.fc:a.fc)
+          })]
+        );
       }
       for (const [fromSide,toUser] of [["initiator",trade.target_id],["target",trade.initiator_id]]) {
         const fromUser=trade[fromSide+"_id"];

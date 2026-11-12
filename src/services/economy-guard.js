@@ -11,7 +11,11 @@ const MUTATION_POLICIES=Object.freeze({
  bank_deposit:{direction:"debit",maxBase:MAX_SINGLE_MUTATION_FC},casino_bet:{direction:"debit",maxBase:MAX_SINGLE_MUTATION_FC},
  shop_purchase:{direction:"debit",maxBase:MAX_SINGLE_MUTATION_FC},item_upgrade:{direction:"debit",maxBase:MAX_SINGLE_MUTATION_FC},
  crime_failed_fine:{direction:"debit",maxBase:MAX_SINGLE_MUTATION_FC},heist_failed_fine:{direction:"debit",maxBase:MAX_SINGLE_MUTATION_FC},
- admin_remove:{direction:"debit",maxBase:10000000,audited:true}
+ admin_remove:{direction:"debit",maxBase:10000000,audited:true},
+ player_trade_in:{direction:"credit",maxBase:MAX_SINGLE_MUTATION_FC},
+ player_trade_out:{direction:"debit",maxBase:MAX_SINGLE_MUTATION_FC},
+ member_transfer_in:{direction:"credit",maxBase:MAX_SINGLE_MUTATION_FC},
+ member_transfer_out:{direction:"debit",maxBase:MAX_SINGLE_MUTATION_FC}
 });
 function inspectEconomyMutation({userId,delta,reason,metadata={}}){
  const amount=Math.trunc(Number(delta));
