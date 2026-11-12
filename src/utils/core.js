@@ -38,12 +38,6 @@ function chance(percent) {
 }
 function uuid() { return crypto.randomUUID(); }
 function clamp(value, minimum, maximum) { return Math.min(maximum, Math.max(minimum, value)); }
-function getRebirthMultiplier(rebirths) {
-  // Each rebirth adds one full multiplier: 0 = 1x, 1 = 2x, 2 = 3x ... 100 = 101x.
-  const maxRebirths = require("../config/game-balancing").progression.maxRebirths;
-  const count = Math.max(0, Math.min(maxRebirths, Math.floor(Number(rebirths) || 0)));
-  return 1 + count;
-}
 function getLevelEarningMultiplier(level) {
   const balancing = require("../config/game-balancing");
   const maxLevel = balancing.progression.maxLevel;
@@ -118,5 +112,5 @@ async function claimCooldownTx(client, guildId, userId, key, durationMs, now = n
 module.exports = {
   DomainError, CooldownError, formatDuration, randomInt, chance, uuid, clamp,
   levelXpRequired, calculateWorkPay, calculateCrimeChance, calculateHeistChance,
-  splitReward, casinoPayout, claimCooldownTx, getRebirthMultiplier, getLevelEarningMultiplier, applyCooldownReduction
+  splitReward, casinoPayout, claimCooldownTx, getLevelEarningMultiplier, applyCooldownReduction
 };

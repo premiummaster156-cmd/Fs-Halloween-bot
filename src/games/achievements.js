@@ -10,7 +10,6 @@ const ACHIEVEMENTS = [
   { id: "crew_veteran", name: "Crew Veteran", description: "Complete 3 successful heists.", metric: "heists_completed", target: 3, rewardFc: 600, rewardXp: 75 },
   { id: "level_ten", name: "Rising Star", description: "Reach player level 5.", metric: "level", target: 5, rewardFc: 350, rewardXp: 50 },
   { id: "millionaire", name: "Wealth Builder", description: "Hold 50,000 FC across your wallet and bank.", metric: "wealth", target: 50000, rewardFc: 1000, rewardXp: 100 },
-  { id: "reborn", name: "A New Beginning", description: "Complete your first rebirth.", metric: "prestige", target: 1, rewardFc: 700, rewardXp: 100 },
   { id: "party_regular", name: "Party Regular", description: "Play 3 Party Games.", metric: "party_games", target: 3, rewardFc: 300, rewardXp: 40 },
   { id: "party_champion", name: "Crowd Favourite", description: "Win 5 Party Games.", metric: "party_wins", target: 5, rewardFc: 650, rewardXp: 85 }
 ];
@@ -40,7 +39,6 @@ function mapPlayerMetrics(player, partyStats = {}) {
     heists_completed: Number(player.heists_completed) || 0,
     level: Number(player.level) || 1,
     wealth: Number(player.wallet || 0) + Number(player.bank || 0),
-    prestige: Number(player.prestige) || 0,
     party_games: Number(partyStats.games ?? partyStats.party_games) || 0,
     party_wins: Number(partyStats.wins ?? partyStats.party_wins) || 0
   };
@@ -80,7 +78,7 @@ class AchievementsGame {
       await ensurePlayerTx(client, guildId, userId);
       const result = await client.query(
         "SELECT p.level, p.wallet, p.bank, p.job_level, p.work_count, p.crime_successes, " +
-        "p.heists_completed, p.prestige, COALESCE(s.games, 0)::bigint AS party_games, " +
+        "p.heists_completed, COALESCE(s.games, 0)::bigint AS party_games, " +
         "COALESCE(s.wins, 0)::bigint AS party_wins " +
         "FROM players p LEFT JOIN party_game_stats s ON s.guild_id = p.guild_id AND s.user_id = p.user_id " +
         "WHERE p.guild_id = $1 AND p.user_id = $2 FOR UPDATE OF p",

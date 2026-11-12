@@ -125,6 +125,8 @@ async function start() {
   economy.inventory = inventory;
   const guildSettings = new GuildSettingsService(pool);
   const security = new SecurityService(pool, guildSettings);
+  economy.security = security;
+  economy.client = client;
   const serverBoosters = new ServerBoosterService(pool);
   const customCommands = new CustomCommandService(pool);
   const restoredCommandFiles = await customCommands.restoreWorkspaceFiles();

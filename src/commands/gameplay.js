@@ -10,7 +10,7 @@ const { createEmbed } = require("../ui");
 const balancing = require("../config/game-balancing");
 const { getPlayer, getLeaderboard } = require("../services/economy");
 const { makeWorkChallenge, getWorkShiftTimeLimit } = require("../games/work-challenge");
-const { getRebirthMultiplier, levelXpRequired } = require("../utils/core");
+const { getLevelEarningMultiplier, levelXpRequired } = require("../utils/core");
 const { ACHIEVEMENTS } = require("../games/achievements");
 const { createProfileCard } = require("../utils/profile-card");
 
@@ -104,7 +104,6 @@ const profileCommand = {
       stats: {
         career: balancing.jobs.find((job) => job.id === player.job_id)?.name || "Unemployed",
         candy: Number(candyResult.rows[0]?.candy) || 0,
-        rebirthMultiplier: getRebirthMultiplier(player.prestige),
         partyWins: Number(partyStats.wins) || 0,
         partyGames: Number(partyStats.games) || 0,
         partyPoints: Number(partyStats.points) || 0

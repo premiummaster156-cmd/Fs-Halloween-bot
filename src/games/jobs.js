@@ -1,5 +1,5 @@
 const balancing = require("../config/game-balancing");
-const { calculateWorkPay, randomInt, uuid, DomainError, claimCooldownTx, getRebirthMultiplier, getLevelEarningMultiplier, applyCooldownReduction } = require("../utils/core");
+const { calculateWorkPay, randomInt, uuid, DomainError, claimCooldownTx, getLevelEarningMultiplier, applyCooldownReduction } = require("../utils/core");
 const { ensurePlayerTx, getPlayer } = require("../services/economy");
 const { transaction } = require("../database/pool");
 const { trackActionTx } = require("../services/events");
@@ -31,7 +31,7 @@ class JobsGame {
   async startShift(guildId, userId) {
     return transaction(async (client) => {
       await ensurePlayerTx(client, guildId, userId);
-      const result = await client.query("SELECT level, job_id, job_level, job_xp, prestige FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [guildId, userId]);
+      const result = await client.query("SELECT level, job_id, job_level, job_xp FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [guildId, userId]);
       const player = result.rows[0];
       const job = balancing.jobs.find((item) => item.id === player.job_id);
       if (!job) throw new DomainError("You do not have a job yet. Use /job to view careers and apply.", "NO_JOB");
@@ -54,7 +54,7 @@ class JobsGame {
     if (correct < 1 || correct > total) throw new DomainError("Answer at least one work question correctly to earn a shift reward.", "NO_CORRECT_WORK_ANSWERS");
     return transaction(async (client) => {
       await ensurePlayerTx(client, guildId, userId);
-      const result = await client.query("SELECT level, job_id, job_level, job_xp, prestige FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [guildId, userId]);
+      const result = await client.query("SELECT level, job_id, job_level, job_xp FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [guildId, userId]);
       const player = result.rows[0];
       const job = balancing.jobs.find((item) => item.id === player.job_id);
       if (!job) throw new DomainError("You no longer have a job. Apply for a career before finishing this shift.", "NO_JOB");
@@ -69,8 +69,8 @@ class JobsGame {
       const pay = earning.delta;
       const baseXpEarned = Math.max(1, Math.floor(job.xp * correct / total));
       const careerXpBonus = Math.min(0.75, (gear.xpBonus || 0) + (gear.workXpBonus || 0));
-      const xpEarned = Math.max(1, Math.floor(baseXpEarned * getRebirthMultiplier(player.prestige) * (1 + careerXpBonus)));
-      await client.query("UPDATE players SET work_count = work_count + 1, rebirth_work_count = rebirth_work_count + 1, job_xp = job_xp + $3, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [guildId, userId, xpEarned]);
+      const xpEarned = Math.max(1, Math.floor(baseXpEarned * (1 + careerXpBonus)));
+      await client.query("UPDATE players SET work_count = work_count + 1, job_xp = job_xp + $3, updated_at = NOW() WHERE guild_id = $1 AND user_id = $2", [guildId, userId, xpEarned]);
       const updated = await client.query("SELECT job_level, job_xp FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE", [guildId, userId]);
       let jobLevel = Number(updated.rows[0].job_level);
       let jobXp = Number(updated.rows[0].job_xp);

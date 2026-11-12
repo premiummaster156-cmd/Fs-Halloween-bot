@@ -14,7 +14,7 @@ const BOSSES = [
 ];
 
 const BOSS_COOLDOWN_MS = 20 * 60 * 1000;
-const abilityNames = new Set(["PHASE", "DREAD", "AEGIS", "REBIRTH", "EXECUTE", "HASTE", "HEX", "ASCEND"]);
+const abilityNames = new Set(["PHASE", "DREAD", "AEGIS", "PHOENIX", "EXECUTE", "HASTE", "HEX", "ASCEND"]);
 
 function normalizeBattle(row) {
   if (!row) return null;
@@ -71,9 +71,9 @@ function resolveArenaTurn(battle, boss, options = {}) {
         next.shield = Math.max(Number(next.shield || 0), Math.ceil(next.playerMaxHp * 0.38));
         event = "AEGIS: a barrier formed around you.";
         break;
-      case "REBIRTH":
+      case "PHOENIX":
         next.playerHp = Math.min(next.playerMaxHp, next.playerHp + Math.ceil(next.playerMaxHp * 0.42));
-        event = "REBIRTH: the Phoenix Core restored your vitality.";
+        event = "PHOENIX: the Phoenix Core restored your vitality.";
         break;
       case "EXECUTE":
         damage += Math.ceil(next.bossHp * 0.22);
@@ -182,7 +182,7 @@ class RiftArena {
     await this.transactionRunner(async (client) => {
       await ensurePlayerTx(client, guildId, userId);
       const playerResult = await client.query(
-        "SELECT level, prestige FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE",
+        "SELECT level FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE",
         [guildId, userId]
       );
       const player = playerResult.rows[0];
@@ -195,7 +195,7 @@ class RiftArena {
         throw new DomainError("You need level " + boss.minLevel + " to challenge " + boss.name + ".", "ARENA_LEVEL_REQUIRED");
       }
       await claimCooldownTx(client, guildId, userId, "rift_arena", BOSS_COOLDOWN_MS);
-      const playerMaxHp = 900 + Number(player.level) * 5 + Number(player.prestige) * 8;
+      const playerMaxHp = 900 + Number(player.level) * 5;
       await client.query(
         "INSERT INTO boss_battles (id, guild_id, user_id, boss_id, status, player_hp, player_max_hp, boss_hp, boss_max_hp) " +
         "VALUES ($1, $2, $3, $4, 'active', $5, $5, $6, $6)",

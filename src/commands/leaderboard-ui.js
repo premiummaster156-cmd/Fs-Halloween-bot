@@ -6,7 +6,6 @@ const METRICS={
  earned:{title:"LIFETIME FC EARNED",label:"FC",description:"Eligible FC earned over the member's lifetime."},
  party:{title:"PARTY POINTS",label:"PP",description:"Points earned from Party Games."},
  activity:{title:"WEEKLY MESSAGES",label:"messages",description:"Messages sent during the current week."},
- rebirths:{title:"REBIRTHS",label:"rebirths",description:"Completed rebirth count."},
  career:{title:"CAREER LEVEL",label:"job levels",description:"Current career progression."},
  crimes:{title:"SUCCESSFUL CRIMES",label:"crimes",description:"Successful crime operations."},
  heists:{title:"COMPLETED HEISTS",label:"heists",description:"Successfully completed heists."}
@@ -17,7 +16,6 @@ function scoreFor(metric,p,party,activity){
  if(metric==="earned")return Number(p.lifetime_earned||0);
  if(metric==="party")return Number(p.points||0);
  if(metric==="activity")return Number(activity.messages||0);
- if(metric==="rebirths")return Number(p.prestige||0);
  if(metric==="career")return p.job_id?Number(p.job_level||0):0;
  if(metric==="crimes")return Number(p.crime_successes||0);
  if(metric==="heists")return Number(p.heists_completed||0);
@@ -31,7 +29,7 @@ function cachedName(guild,id){
 async function leaderboardPayload({guild,pool,owner,metric="wealth",page=0,query=""}){
  const key=METRICS[metric]?metric:"wealth";
  const [players,party,activity,exclusions]=await Promise.all([
-  pool.query("SELECT user_id,wallet,bank,level,xp,lifetime_earned,prestige,job_id,job_level,crime_successes,heists_completed FROM players WHERE guild_id=$1",[guild.id]),
+  pool.query("SELECT user_id,wallet,bank,level,xp,lifetime_earned,job_id,job_level,crime_successes,heists_completed FROM players WHERE guild_id=$1",[guild.id]),
   pool.query("SELECT user_id,points FROM party_game_stats WHERE guild_id=$1",[guild.id]),
   pool.query("SELECT user_id,messages FROM weekly_activity WHERE guild_id=$1 AND week_start=date_trunc('week',CURRENT_DATE)::date",[guild.id]),
   pool.query("SELECT user_id FROM leaderboard_exclusions WHERE guild_id=$1",[guild.id])
