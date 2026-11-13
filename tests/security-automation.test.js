@@ -150,9 +150,73 @@ test("soft economy reward-burst signals are stored but do not DM owners", async 
     summary: "A soft reward-burst signal was observed.",
     details: { actionType: "reward_burst", recentRewards: 10, baseAmount: 23, riskScore: 20 }
   });
-  assert.equal(queryCounts.incidents, 1, "the evidence remains in the security incident log");
+  assert.equal(queryCounts.incidents, 0, "soft signals are below the severity threshold and are ignored");
   assert.equal(queryCounts.throttle, 0, "soft signals do not consume the owner notification throttle");
   assert.equal(sent.length, 0, "soft activity must not create noisy owner DMs");
+});
+
+test("authorized owner can exclude a member after reviewing a severe economy incident", async () => {
+  const writes = [];
+  const targetId = "player-under-review";
+  const kingId = settings.kingIds[0];
+  const security = new SecurityService({
+    async query(sql, params) {
+      writes.push({ sql, params });
+      if (sql.includes("SELECT id, user_id, category, details FROM security_incidents")) {
+        return { rowCount: 1, rows: [{ id: "501", user_id: targetId, category: "economy_direct_balance_change", details: { riskScore: 100 } }] };
+      }
+      return { rowCount: 1, rows: [] };
+    }
+  }, { async get() { return null; } });
+  security.hasAdminAccess = async () => true;
+  const guild = { id: "guild-1", ownerId: settings.kingIds[1], members: {} };
+  let updated = null;
+  const interaction = {
+    customId: "security:501:guild-1:" + targetId + ":exclude-leaderboard",
+    guildId: null,
+    guild: null,
+    user: { id: kingId },
+    async reply(payload) { throw new Error("Valid owner action should update the DM embed: " + payload.content); },
+    async update(payload) { updated = payload; },
+    message: { embeds: [] }
+  };
+  const client = { guilds: { cache: new Map([[guild.id, guild]]), async fetch() { return guild; } } };
+  await security.handleAlertInteraction(interaction, client);
+  const exclusion = writes.find(entry => entry.sql.includes("INSERT INTO leaderboard_exclusions"));
+  assert.ok(exclusion, "leaderboard exclusion is applied only after the King clicks the action");
+  assert.deepEqual(exclusion.params.slice(0, 3), ["guild-1", targetId, kingId]);
+  assert.match(exclusion.params[3], /incident #501/);
+  assert.ok(writes.some(entry => entry.sql.includes("UPDATE security_incidents")));
+  assert.match(updated.embeds[0].data.description, /excluded from Fukishōkai leaderboards/);
+});
+
+test("economy controls cannot target a protected King account", async () => {
+  const kingId = settings.kingIds[0];
+  const writes = [];
+  const security = new SecurityService({
+    async query(sql, params) {
+      writes.push({ sql, params });
+      if (sql.includes("SELECT id, user_id, category, details FROM security_incidents")) {
+        return { rowCount: 1, rows: [{ id: "502", user_id: kingId, category: "economy_direct_balance_change", details: { riskScore: 100 } }] };
+      }
+      return { rowCount: 1, rows: [] };
+    }
+  }, { async get() { return null; } });
+  security.hasAdminAccess = async () => true;
+  let reply = null;
+  const guild = { id: "guild-1", ownerId: settings.kingIds[1], members: {} };
+  const interaction = {
+    customId: "security:502:guild-1:" + kingId + ":block",
+    guildId: null,
+    guild: null,
+    user: { id: settings.kingIds[1] },
+    async reply(payload) { reply = payload; },
+    async update() { throw new Error("Protected King must not receive an action"); }
+  };
+  const client = { guilds: { cache: new Map([[guild.id, guild]]), async fetch() { return guild; } } };
+  await security.handleAlertInteraction(interaction, client);
+  assert.match(reply.content, /King accounts cannot be targeted/);
+  assert.equal(writes.length, 1, "no restriction or leaderboard write occurs");
 });
 
 test("anti-nuke alerts DM only Kings and bot owner, with no action controls or automatic actions", async () => {
