@@ -231,7 +231,7 @@ test("owner can use raid controls directly from a private DM", async () => {
 
   await service.handleAlertInteraction(interaction, client);
   assert.equal(writes.some((entry) => entry.sql.includes("UPDATE security_incidents")), true);
-  assert.match(updated.embeds[0].data.fields[0].value, /Very High for 30 minutes/);
+  assert.match(updated.embeds[0].data.description, /Very High for 30 minutes/);
   assert.deepEqual(updated.components, []);
 });
 
