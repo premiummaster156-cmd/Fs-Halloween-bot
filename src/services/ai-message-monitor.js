@@ -23,11 +23,12 @@ const OUTPUT_SCHEMA = {
 };
 
 class AIMessageMonitor {
-  constructor({ apiKey, model = "gpt-oss:20b", ownerId, pool, dailyLimit = 100, minConfidence = OWNER_REPORT_MIN_CONFIDENCE }) {
+  constructor({ apiKey, model = "gpt-oss:20b", ownerId, pool, dailyLimit = 100, minConfidence = OWNER_REPORT_MIN_CONFIDENCE, fetchImpl = fetch }) {
     this.apiKey = String(apiKey || "");
     this.model = String(model || "gpt-oss:20b");
     this.ownerId = String(ownerId || "");
     this.pool = pool;
+    this.fetchImpl = fetchImpl;
     this.dailyLimit = Math.max(1, Math.min(1000, Math.floor(Number(dailyLimit) || 100)));
     this.minConfidence = Math.max(0.75, Math.min(0.99, Number(minConfidence) || OWNER_REPORT_MIN_CONFIDENCE));
     this.historyByChannel = new Map();
@@ -171,7 +172,7 @@ class AIMessageMonitor {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20000);
     try {
-      const response = await fetch("https://ollama.com/api/chat", {
+      const response = await this.fetchImpl("https://ollama.com/api/chat", {
         method: "POST",
         headers: {
           "Authorization": "Bearer " + this.apiKey,
