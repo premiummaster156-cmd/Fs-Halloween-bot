@@ -188,27 +188,6 @@ class SecurityService {
       return null;
     }
 
-    const automaticPolicy = userId ? getAutomaticEconomyRestriction(input.category, input.details || {}) : null;
-    let automaticAction = null;
-    if (automaticPolicy) {
-      const expiresAt = new Date(Date.now() + automaticPolicy.minutes * 60 * 1000);
-      try {
-        await this.pool.query(
-          "INSERT INTO bot_user_restrictions (guild_id, user_id, expires_at, reason, created_by) VALUES ($1, $2, $3, $4, $5) " +
-          "ON CONFLICT (guild_id, user_id) DO UPDATE SET " +
-          "expires_at = CASE WHEN bot_user_restrictions.expires_at IS NULL THEN NULL " +
-          "WHEN bot_user_restrictions.expires_at > EXCLUDED.expires_at THEN bot_user_restrictions.expires_at ELSE EXCLUDED.expires_at END, " +
-          "reason = CASE WHEN bot_user_restrictions.expires_at IS NULL THEN bot_user_restrictions.reason ELSE EXCLUDED.reason END, " +
-          "created_by = CASE WHEN bot_user_restrictions.expires_at IS NULL THEN bot_user_restrictions.created_by ELSE EXCLUDED.created_by END, " +
-          "updated_at = NOW()",
-          [guild.id, userId, expiresAt, automaticPolicy.reason + " (incident #" + incidentId + ")", "AUTO_SECURITY"]
-        );
-        automaticAction = automaticPolicy;
-      } catch (error) {
-        log("error", "Could not apply automatic economy restriction", { guildId: guild.id, userId, incidentId, message: error.message });
-      }
-    }
-
     const detailsInput = { ...(input.details || {}) };
     const isAlertOnly = ["anti_nuke", "anti_raid"].includes(input.category);
     const isEconomyAlert = String(input.category || "").startsWith("economy_");
@@ -570,7 +549,7 @@ class SecurityService {
       });
     }
     const incident = await this.pool.query(
-      "SELECT id, user_id, category FROM security_incidents WHERE id=$1 AND guild_id=$2",
+      "SELECT id, user_id, category, details FROM security_incidents WHERE id=$1 AND guild_id=$2",
       [incidentId, guildId]
     );
     if (!incident.rowCount) {
@@ -585,7 +564,7 @@ class SecurityService {
     }
     let resultText = "The incident was acknowledged. No further action was taken.";
 
-    if (["exclude-leaderboard", "pause-1h"].includes(action) || action === "block") {
+    if (category.startsWith("economy_") && ["exclude-leaderboard", "pause-1h", "block"].includes(action)) {
       if (!category.startsWith("economy_") || !targetId || incident.rows[0].user_id !== targetId ||
           !isSevereEconomyIncident(category, incident.rows[0].details || {})) {
         return interaction.reply({ content: "This action is available only for a severe, verified economy incident with a matching member.", flags: MessageFlags.Ephemeral });
