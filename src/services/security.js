@@ -33,10 +33,12 @@ function evaluateNukeBurst(events = []) {
   return { triggered: false, reason: null, count: events.length, counts };
 }
 
-function evaluateRaidBurst(joins = [], now = Date.now()) {
-  const recent = joins.filter((join) => now - Number(join.joinedAt || 0) <= 20000);
-  const youngAccounts = recent.filter((join) => Number(join.accountAgeMs) < 7 * 24 * 60 * 60 * 1000).length;
-  return { triggered: recent.length >= 8 || (recent.length >= 6 && youngAccounts >= 4), joins: recent.length, youngAccounts, windowSeconds: 20 };
+function evaluateInviteBurst(events = [], now = Date.now()) {
+  const recent = events.filter((event) => now - Number(event.at || 0) <= 30000);
+  const created = recent.filter((event) => event.kind === "invite_create").length;
+  const deleted = recent.filter((event) => event.kind === "invite_delete").length;
+  const triggered = created >= 5 || (recent.length >= 8 && created >= 3 && deleted >= 2);
+  return { triggered, total: recent.length, created, deleted, windowSeconds: 30 };
 }
 
 class SecurityService {
@@ -53,7 +55,7 @@ class SecurityService {
     this.nukeEvents = new Map();
     this.processedAuditIds = new Map();
     this.nukeAlertedAt = new Map();
-    this.raidJoins = new Map();
+    this.inviteActivity = new Map();
     this.raidAlertedAt = new Map();
     this.maintenanceTimer = null;
   }
@@ -163,7 +165,8 @@ class SecurityService {
     const guild = input.guild;
     if (!guild?.id) return null;
     const userId = input.userId || null;
-    if (userId && await this.isAboveBotRole(guild, userId)) return null;
+    if (userId && !["anti_nuke", "anti_raid"].includes(input.category) &&
+        await this.isAboveBotRole(guild, userId)) return null;
     const dedupeKey = guild.id + ":" + (userId || "unknown") + ":" + input.category;
     const now = Date.now();
     if (now - (this.alertedAt.get(dedupeKey) || 0) < ALERT_DEDUPE_MS) return null;
