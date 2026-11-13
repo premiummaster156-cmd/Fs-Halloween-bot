@@ -106,11 +106,12 @@ async function authoriseMember(client, services, userId, requestedGuildId) {
   const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId);
   const isServerOwner = userId === guild.ownerId;
   const isBotOwner = Boolean(settings.ownerId && userId === settings.ownerId);
+  const isKing = Boolean(Array.isArray(settings.kingIds) && settings.kingIds.includes(String(userId)));
   const member = await guild.members.fetch(userId).catch(() => null);
   const trustedRoleId = await services.guildSettings.get(guildId, "adminRoleId");
   const hasTrustedRole = Boolean(member && trustedRoleId && member.roles.cache.has(trustedRoleId));
-  if (!isServerOwner && !isBotOwner && !hasTrustedRole) {
-    throw new Error("Code Studio is limited to this server's owner, bot owner and configured Admin Role.");
+  if (!isServerOwner && !isBotOwner && !isKing && !hasTrustedRole) {
+    throw new Error("Code Studio is limited to this server's owner, bot owner, Fukishōkai Kings and configured Admin Role.");
   }
   return { guild, member, trustedRoleId };
 }
