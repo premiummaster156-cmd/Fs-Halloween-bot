@@ -39,7 +39,9 @@ function inspectRewardBurst({recentCount=0,recentBase=0,currentBase=0}={}){
  const count=Math.max(0,Math.floor(Number(recentCount)||0))+1;
  const baseTotal=Math.max(0,Number(recentBase)||0)+Math.max(0,Number(currentBase)||0);
  if(count>=30||baseTotal>=2000000)return{blocked:true,alert:true,score:100,count,baseTotal};
- const alert=count>=10||baseTotal>=250000;
- return{blocked:false,alert,score:alert?Math.min(99,Math.round(count*2+baseTotal/5000)):0,count,baseTotal};
+ const score=Math.min(99,Math.round(count*2+baseTotal/5000));
+ // Notify owners only for high-confidence bursts; ordinary activity is not an alert.
+ const alert=score>=80;
+ return{blocked:false,alert,score,count,baseTotal};
 }
 module.exports={MUTATION_POLICIES,MAX_BASE_XP_PER_ACTION,MAX_SINGLE_XP_GAIN,MAX_EARNING_MULTIPLIER,MAX_SINGLE_MUTATION_FC,inspectEconomyMutation,inspectRewardBurst};
