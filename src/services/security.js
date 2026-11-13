@@ -260,7 +260,7 @@ class SecurityService {
       economy_xp_manipulation: "Invalid XP award"
     };
     const detailLabels = {
-      count: "Attempts observed", attemptsInWindow: "Attempts observed", countInWindow: "Actions observed",
+      count: "Attempts observed", attemptsInWindow: "Attempts observed", countInWindow: "Actions observed", invalidAttempts: "Rejected attempts",
       windowSeconds: "Time window", command: "Command used", actionType: "Server activity",
       auditReason: "Audit-log reason", riskScore: "Risk score", reasonCode: "Guard code",
       baseAmount: "Base reward", recentRewards: "Recent rewards", changedFields: "Changed fields",
