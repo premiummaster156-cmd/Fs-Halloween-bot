@@ -520,7 +520,7 @@ CREATE INDEX IF NOT EXISTS economy_events_active_idx ON economy_events(guild_id,
 CREATE TABLE IF NOT EXISTS admin_abuse_events (
   id UUID PRIMARY KEY,
   guild_id TEXT NOT NULL,
-  event_type TEXT NOT NULL CHECK (event_type IN ('blood_moon','candy_storm','rift_surge','lucky_block_rain')),
+  event_type TEXT NOT NULL CHECK (event_type IN ('blood_moon','candy_storm','rift_surge','lucky_block_rain','xp_surge','heist_rush')),
   name TEXT NOT NULL,
   description TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','ended')),
