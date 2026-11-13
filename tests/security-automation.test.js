@@ -54,6 +54,9 @@ function makeService() {
         restrictions.push({ sql, params });
         return { rowCount: 1, rows: [] };
       }
+      if (sql.includes("INSERT INTO security_priority_alert_state")) {
+        return { rowCount: 1, rows: [{ last_notified_at: new Date() }] };
+      }
       if (sql.includes("INSERT INTO security_alert_state")) {
         queryCounts.throttle += 1;
         return {
@@ -165,6 +168,35 @@ test("anti-raid notices provide lockdown and release controls to owners", async 
   assert.ok(labels.includes("Enable 30m lockdown"));
   assert.ok(labels.includes("End lockdown"));
   assert.ok(labels.includes("Acknowledge"));
+});
+
+test("priority anti-raid alerts are suppressed by a persistent database throttle", async () => {
+  let savedIncident = false;
+  const service = new SecurityService({
+    async query(sql) {
+      if (sql.includes("INSERT INTO security_incidents")) {
+        savedIncident = true;
+        return { rowCount: 1, rows: [{ id: "99" }] };
+      }
+      if (sql.includes("INSERT INTO security_priority_alert_state")) {
+        return { rowCount: 0, rows: [] };
+      }
+      return { rowCount: 1, rows: [] };
+    }
+  }, { async get() { return null; } });
+  service.isAboveBotRole = async () => false;
+  const sent = [];
+  const client = { users: { async fetch() { return { username: "Nico", async send(payload) { sent.push(payload); } }; } } };
+  const guild = { id: "guild-1", name: "Fukishōkai", ownerId: "server-owner" };
+
+  await service.createIncident(client, {
+    guild,
+    category: "anti_raid",
+    summary: "A join burst was detected.",
+    details: { joinsInWindow: 8, youngAccounts: 4 }
+  });
+  assert.equal(savedIncident, true, "the incident remains stored even when the repeat DM is suppressed");
+  assert.equal(sent.length, 0, "a recently notified server does not receive another priority DM");
 });
 
 test("owner can use raid controls directly from a private DM", async () => {
