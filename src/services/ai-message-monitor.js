@@ -1,7 +1,7 @@
 "use strict";
 
 const OWNER_REPORT_MIN_CONFIDENCE = 0.88;
-const CANDIDATE_PATTERN = /\b(fc|fs\s*coins?|coins?|money|cash|give\s+me|send\s+me|gift|donat(?:e|ion)|beg(?:ging)?|loan|borrow|pay\s+for\s+me|free\s+(?:fc|coins?|money)|transfer|handout|exploit|dupe|glitch|refund|scam|fake\s+proof|admin|moderator|mods?|idiot|stupid|shut\s+up|bully|harass|threat|abuse|go\s+die|pul|bepul|bering|menga|iltimos|tanga|puli)\b/i;
+const CANDIDATE_PATTERN = /\b(fc|fs\s*coins?|coins?|money|cash|give\s+me|send\s+me|can\s+i\s+get|could\s+i\s+get|anyone\s+got|anyone\s+have|spare|gimme|drop\s+me|slide\s+me|gift|donat(?:e|ion)|beg(?:ging)?|loan|borrow|pay\s+for\s+me|free\s+(?:fc|coins?|money)|transfer|handout|exploit|dupe|glitch|refund|scam|fake\s+proof|admin|moderator|mods?|idiot|stupid|shut\s+up|bully|harass|threat|abuse|go\s+die|pul|bepul|bering|menga|iltimos|tanga|puli)\b/i;
 const MULTILINGUAL_CANDIDATE_PATTERN = /(дай|дайте|деньги|монеты|бесплатно|переведи|перевод|пожалуйста|подарок|подарить)/i;
 const OUTPUT_SCHEMA = {
   type: "object",
