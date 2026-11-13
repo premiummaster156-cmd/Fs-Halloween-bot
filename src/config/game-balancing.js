@@ -10,7 +10,7 @@ module.exports = {
     maxWallet: 2000000000,
     levelIncomeBonusPerLevel: 0.005
   },
-  progression: { xpMultiplier: 1, roleBoosterMultiplier: 1.2, maxLevel: 600, xpPerLevelBase: 80, xpPerLevelStep: 12 },
+  progression: { xpMultiplier: 1, roleBoosterMultiplier: 1.2, maxLevel: 1000, xpPerLevelBase: 80, xpPerLevelStep: 12 },
   careerProgression: { baseXp: 40, xpPerLevelSquared: 20 },
   chat: { rewardMin: 1, rewardMax: 3, dailyRewardCap: 250, xpPerMessage: 2, dailyXpCap: 100 },
   jobs: [
