@@ -202,132 +202,165 @@ class SecurityService {
       }
     }
 
-    // Notifications are throttled per guild in PostgreSQL, so restarts and multiple
-    // bot instances cannot turn one burst of incidents into repeated owner pings.
-    let notificationState;
-    try {
-      const throttled = await this.pool.query(
-        "INSERT INTO security_alert_state (guild_id, last_notified_at, suppressed_count, last_suppressed_count) " +
-        "VALUES ($1, NOW(), 0, 0) ON CONFLICT (guild_id) DO UPDATE SET " +
-        "last_suppressed_count = CASE WHEN security_alert_state.last_notified_at <= NOW() - INTERVAL '15 minutes' " +
-        "THEN security_alert_state.suppressed_count ELSE security_alert_state.last_suppressed_count END, " +
-        "suppressed_count = CASE WHEN security_alert_state.last_notified_at <= NOW() - INTERVAL '15 minutes' " +
-        "THEN 0 ELSE security_alert_state.suppressed_count + 1 END, " +
-        "last_notified_at = CASE WHEN security_alert_state.last_notified_at <= NOW() - INTERVAL '15 minutes' " +
-        "THEN NOW() ELSE security_alert_state.last_notified_at END " +
-        "RETURNING (last_notified_at = NOW()) AS should_notify, last_suppressed_count AS suppressed_count",
-        [guild.id]
-      );
-      notificationState = throttled.rows?.[0];
-    } catch (error) {
-      log("error", "Could not apply persistent security notification throttle", { guildId: guild.id, incidentId, message: error.message });
-      return incidentId;
+    const detailsInput = { ...(input.details || {}) };
+    let quarantine = null;
+    if (input.category === "anti_nuke" && userId) {
+      quarantine = await this.quarantineNuker(guild, userId, incidentId);
+      detailsInput.quarantineApplied = Boolean(quarantine?.applied);
+      detailsInput.quarantinedRoleCount = Number(quarantine?.roleIds?.length || 0);
+      if (quarantine?.error) detailsInput.quarantineError = quarantine.error;
     }
-    if (!notificationState || notificationState.should_notify === false) return incidentId;
-    const suppressedCount = Math.max(0, Number(notificationState.suppressed_count) || 0);
 
+    // Urgent raid/nuke detections are sent immediately. Routine notices are
+    // grouped per guild and limited by PostgreSQL across restarts and instances.
+    let suppressedCount = 0;
+    if (!["anti_nuke", "anti_raid"].includes(input.category)) {
+      try {
+        const throttled = await this.pool.query(
+          "INSERT INTO security_alert_state (guild_id, last_notified_at, suppressed_count, last_suppressed_count) " +
+          "VALUES ($1, NOW(), 0, 0) ON CONFLICT (guild_id) DO UPDATE SET " +
+          "last_suppressed_count = CASE WHEN security_alert_state.last_notified_at <= NOW() - INTERVAL '15 minutes' " +
+          "THEN security_alert_state.suppressed_count ELSE security_alert_state.last_suppressed_count END, " +
+          "suppressed_count = CASE WHEN security_alert_state.last_notified_at <= NOW() - INTERVAL '15 minutes' " +
+          "THEN 0 ELSE security_alert_state.suppressed_count + 1 END, " +
+          "last_notified_at = CASE WHEN security_alert_state.last_notified_at <= NOW() - INTERVAL '15 minutes' " +
+          "THEN NOW() ELSE security_alert_state.last_notified_at END " +
+          "RETURNING (last_notified_at = NOW()) AS should_notify, last_suppressed_count AS suppressed_count",
+          [guild.id]
+        );
+        const state = throttled.rows?.[0];
+        if (!state || state.should_notify === false) return incidentId;
+        suppressedCount = Math.max(0, Number(state.suppressed_count) || 0);
+      } catch (error) {
+        log("error", "Could not apply persistent security notification throttle", { guildId: guild.id, incidentId, message: error.message });
+        return incidentId;
+      }
+    }
+
+    const labels = {
+      command_spam: "Repeated command use",
+      component_spam: "Rapid dashboard use",
+      repeated_cooldown_bypass: "Repeated cooldown attempts",
+      unauthorized_admin_access: "Unauthorized admin access",
+      unauthorized_control_access: "Unauthorized dashboard access",
+      rapid_destructive_actions: "Rapid server changes",
+      anti_nuke: "Potential server nuke",
+      anti_raid: "Possible coordinated join raid",
+      economy_tampering: "Rejected economy manipulation",
+      economy_direct_balance_change: "Out-of-band balance or level edit",
+      economy_invalid_payout: "Invalid casino payout",
+      economy_reward_burst: "Unusual reward burst",
+      economy_xp_manipulation: "Invalid XP award"
+    };
     const detailLabels = {
-      count: "Attempts observed",
-      attemptsInWindow: "Attempts observed",
-      countInWindow: "Actions observed",
-      windowSeconds: "Time window",
-      command: "Command used",
-      actionType: "Server activity",
-      auditReason: "Audit-log reason",
-      riskScore: "Risk score",
-      reasonCode: "Guard code",
-      baseAmount: "Base reward",
-      recentRewards: "Recent rewards",
-      changedFields: "Changed fields",
-      wager: "Wager",
-      multiplier: "Payout multiplier",
-      amount: "Attempted amount"
+      count: "Attempts observed", attemptsInWindow: "Attempts observed", countInWindow: "Actions observed",
+      windowSeconds: "Time window", command: "Command used", actionType: "Server activity",
+      auditReason: "Audit-log reason", riskScore: "Risk score", reasonCode: "Guard code",
+      baseAmount: "Base reward", recentRewards: "Recent rewards", changedFields: "Changed fields",
+      wager: "Wager", multiplier: "Payout multiplier", amount: "Attempted amount",
+      detectionReason: "Detection reason", actionCounts: "Action counts",
+      joinsInWindow: "New members joined", youngAccounts: "Accounts younger than seven days",
+      accountAgeThreshold: "New-account threshold", lockdownApplied: "Automatic join lockdown",
+      verificationLevel: "Verification level", quarantinedRoleCount: "Privileged roles removed",
+      quarantineError: "Containment limitation"
     };
-    const actionLabels = {
-      channel_create: "Channel created",
-      channel_delete: "Channel deleted",
-      role_create: "Role created",
-      role_delete: "Role deleted",
-      member_ban: "Member banned"
-    };
-    const details = Object.entries(input.details || {})
-      .filter(([key]) => key !== "customId" && key !== "latestTargetId")
+    const details = Object.entries(detailsInput)
+      .filter(([key]) => !["customId", "latestTargetId", "removedRoleIds"].includes(key))
       .map(([key, value]) => {
         const label = detailLabels[key];
         if (!label) return null;
-        let displayValue = typeof value === "string" ? value : JSON.stringify(value);
-        if (key === "actionType") displayValue = actionLabels[displayValue] || "Server change";
-        if (key === "command" && displayValue && !displayValue.startsWith("/")) displayValue = "/" + displayValue;
-        return label + ": " + String(displayValue).slice(0, 300);
-      })
-      .filter(Boolean)
-      .join("\n")
-      .slice(0, 1100);
+        return label + ": " + String(typeof value === "string" ? value : JSON.stringify(value)).slice(0, 250);
+      }).filter(Boolean).join("\n").slice(0, 1200);
 
+    const actionId = userId || "unknown";
     const components = [];
-    if (userId && automaticAction) {
+    if (input.category === "anti_raid") {
       components.push(new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + userId + ":unblock").setLabel("Restore bot access").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + userId + ":ignore").setLabel("Mark alert reviewed").setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":unknown:raid-lockdown").setLabel("Enable 30m lockdown").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":unknown:raid-release").setLabel("End lockdown").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":unknown:ignore").setLabel("Acknowledge").setStyle(ButtonStyle.Secondary)
+      ));
+    } else if (input.category === "anti_nuke" && userId) {
+      const row = new ActionRowBuilder();
+      if (quarantine?.applied) row.addComponents(
+        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":restore-roles").setLabel("Restore removed roles").setStyle(ButtonStyle.Success)
+      );
+      row.addComponents(
+        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":ban").setLabel("Ban attacker").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":kick").setLabel("Kick attacker").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":ignore").setLabel("Acknowledge").setStyle(ButtonStyle.Secondary)
+      );
+      components.push(row);
+    } else if (userId && automaticAction) {
+      components.push(new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":unblock").setLabel("Restore bot access").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":ignore").setLabel("Mark reviewed").setStyle(ButtonStyle.Secondary)
       ));
     } else if (userId) {
       components.push(new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + userId + ":pause").setLabel("Pause bot access · 10m").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + userId + ":block").setLabel("Block bot access").setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + userId + ":unblock").setLabel("Remove bot block").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + userId + ":timeout")
-          .setLabel("Timeout 10m").setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + userId + ":ignore").setLabel("Ignore alert").setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":pause").setLabel("Pause bot access · 10m").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":block").setLabel("Block bot access").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":timeout").setLabel("Timeout 10m").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":ignore").setLabel("Acknowledge").setStyle(ButtonStyle.Secondary)
       ));
     } else {
       components.push(new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":unknown:ignore").setLabel("Acknowledge / ignore").setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":unknown:ignore").setLabel("Acknowledge").setStyle(ButtonStyle.Secondary)
       ));
     }
 
-    try {
-      const channelId = await this.guildSettings.get(guild.id, "logChannelId");
-      const channel = channelId ? await client.channels.fetch(channelId) : null;
-      if (!channel || !channel.isTextBased() || channel.guildId !== guild.id) {
-        log("warn", "Security incident created without a usable log channel", { guildId: guild.id, incidentId });
-        return incidentId;
+    const softSignal = input.category === "economy_reward_burst" && Number(detailsInput.riskScore) < 100;
+    const enforcement = input.category === "anti_nuke"
+      ? (quarantine?.applied
+        ? "Automated containment removed manageable high-risk roles from the suspected actor. The removed roles are saved and can be restored below. No ban or kick was applied automatically."
+        : "The anti-nuke threshold was crossed, but the bot could not safely remove the actor's privileged roles. Review the actions below.")
+      : input.category === "anti_raid"
+        ? (detailsInput.lockdownApplied
+          ? "Automated containment raised server verification to Very High for 15 minutes. The previous setting is saved for automatic restoration."
+          : "The join burst was detected, but automatic verification lockdown could not be applied. The controls below can retry or end a lockdown.")
+        : automaticAction
+          ? "Automated enforcement: " + automaticAction.label + ". This affects Fukishōkai bot access only."
+          : input.category.startsWith("economy_") && !softSignal
+            ? "The invalid economy operation was rejected before player data could be changed."
+            : softSignal ? "Monitoring only: no account restriction was applied." : "No automatic account restriction was applied.";
+    const grouped = suppressedCount ? " " + suppressedCount + " additional security incident(s) were grouped into this notice." : "";
+    const severity = ["anti_nuke", "anti_raid", "economy_direct_balance_change", "economy_invalid_payout"].includes(input.category) ? "High" : "Review";
+    const recipients = Array.from(new Set([guild.ownerId, settings.ownerId].filter(Boolean)));
+    let delivered = 0;
+    for (const recipientId of recipients) {
+      try {
+        const recipient = await client.users.fetch(recipientId);
+        const displayName = String(recipient.globalName || recipient.username || "Administrator").replace(/[\r\n<>]/g, "").slice(0, 64);
+        const embed = new EmbedBuilder()
+          .setColor(input.category.startsWith("anti_") ? settings.brand.danger : settings.brand.warning)
+          .setAuthor({ name: "Fukishōkai Security Operations" })
+          .setTitle(labels[input.category] || "Security Incident Notification")
+          .setDescription(
+            "Dear " + displayName + ",\n\n" +
+            "This is an official security notification regarding **" + String(guild.name || "your Discord server").slice(0, 90) + "**. " +
+            String(input.summary || "Security activity requires your attention.") + "\n\n" +
+            "The automated security service has recorded the incident and taken the action described below. Please review the context and select an appropriate response."
+          )
+          .addFields(
+            { name: "Server", value: String(guild.name || "Unknown server").slice(0, 100), inline: true },
+            { name: "Severity", value: severity, inline: true },
+            { name: "Incident", value: "#" + incidentId, inline: true },
+            { name: "Incident context", value: details || "No additional event details were recorded." },
+            { name: "Automated response", value: (enforcement + grouped).slice(0, 1000) }
+          )
+          .setFooter({ text: "Fukishōkai Security Operations · Confidential owner notice" })
+          .setTimestamp(new Date());
+        await recipient.send({ embeds: [embed], components, allowedMentions: { parse: [] } });
+        delivered += 1;
+      } catch (error) {
+        log("warn", "Could not deliver private security notice", {
+          guildId: guild.id, recipientId, incidentId, message: error.message
+        });
       }
-      const categoryLabels = {
-        command_spam: "Repeated command use",
-        component_spam: "Rapid dashboard use",
-        repeated_cooldown_bypass: "Repeated cooldown attempts",
-        unauthorized_admin_access: "Unauthorized admin access",
-        unauthorized_control_access: "Unauthorized dashboard access",
-        rapid_destructive_actions: "Rapid server changes",
-        economy_tampering: "Rejected economy manipulation",
-        economy_direct_balance_change: "Out-of-band balance or level edit",
-        economy_invalid_payout: "Invalid casino payout",
-        economy_reward_burst: "Unusual reward burst",
-        economy_xp_manipulation: "Invalid XP award"
-      };
-      const isSoftRewardSignal = input.category === "economy_reward_burst" && Number(input.details?.riskScore) < 100;
-      const enforcement = automaticAction
-        ? "Automated enforcement: " + automaticAction.label + ". This restricts Fukishōkai bot access only; no Discord timeout, kick or ban was applied."
-        : input.category.startsWith("economy_") && !isSoftRewardSignal
-          ? "Economy guard: the invalid operation was rejected before it could change player data."
-          : isSoftRewardSignal
-            ? "Monitoring only: this is a soft anomaly signal. No account restriction was applied."
-            : "No automatic account restriction was applied.";
-      const grouped = suppressedCount > 0
-        ? "\nGrouped " + suppressedCount + " additional security incident(s) from the previous notification window."
-        : "";
-      await channel.send({
-        content: "**SECURITY ALERT · #" + incidentId + "**\n" +
-          input.summary + "\nActivity type: " + (categoryLabels[input.category] || "Security review") + "\nMember ID: " +
-          (userId ? "`" + userId + "`" : "Unknown") +
-          (details ? "\n" + details : "") + grouped +
-          "\n\n" + enforcement,
-        components,
-        allowedMentions: { parse: [] }
-      });
-    } catch (error) {
-      log("error", "Could not deliver security alert", { guildId: guild.id, incidentId, message: error.message });
     }
+    if (!delivered) log("warn", "Security incident was recorded, but no owner DM could be delivered", {
+      guildId: guild.id, incidentId, category: input.category
+    });
     return incidentId;
   }
 
