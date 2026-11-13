@@ -15,8 +15,11 @@ test("only severe economy incidents qualify for owner notification and review ac
   assert.equal(isSevereEconomyIncident("economy_invalid_payout"), true);
   assert.equal(isSevereEconomyIncident("economy_reward_burst", { riskScore: 79 }), false);
   assert.equal(isSevereEconomyIncident("economy_reward_burst", { riskScore: 80 }), true);
-  assert.equal(isSevereEconomyIncident("economy_xp_manipulation", { riskScore: 79 }), false);
-  assert.equal(isSevereEconomyIncident("economy_xp_manipulation", { riskScore: 80 }), true);
+  assert.equal(isSevereEconomyIncident("economy_tampering", { riskScore: 100 }), false);
+  assert.equal(isSevereEconomyIncident("economy_tampering", { riskScore: 100, invalidAttempts: 2 }), false);
+  assert.equal(isSevereEconomyIncident("economy_tampering", { riskScore: 100, invalidAttempts: 3 }), true);
+  assert.equal(isSevereEconomyIncident("economy_xp_manipulation", { riskScore: 100 }), false);
+  assert.equal(isSevereEconomyIncident("economy_xp_manipulation", { riskScore: 100, invalidAttempts: 3 }), true);
   assert.equal(isSevereEconomyIncident("command_spam", { riskScore: 100 }), false);
   assert.equal(isSevereEconomyIncident("anti_nuke", { riskScore: 100 }), false);
   assert.equal(isSevereEconomyIncident("anti_raid", { riskScore: 100 }), false);
@@ -139,6 +142,27 @@ test("severe economy alerts use a compact embed and offer only owner-approved bo
   assert.ok(embed.fields.some(field => field.name === "Suggested manual review"));
   const actionLabels = payload.components[0].components.map(component => component.data.label);
   assert.deepEqual(actionLabels, ["Exclude leaderboard", "Pause bot · 1h", "Block bot access", "Dismiss"]);
+});
+
+test("isolated malformed economy operations are ignored; repeated attempts trigger one severe owner alert", async () => {
+  const { service, client, guild, sent, queryCounts } = makeService();
+  const payload = {
+    guild,
+    userId: "player-invalid-attempts",
+    category: "economy_tampering",
+    summary: "A currency mutation was rejected by the economy integrity guard.",
+    details: { actionType: "invalid_economy_mutation", reasonCode: "ECONOMY_DIRECTION_INVALID", amount: -100, riskScore: 100 }
+  };
+  await service.createIncident(client, payload);
+  await service.createIncident(client, payload);
+  assert.equal(queryCounts.incidents, 0, "one or two malformed calls are not severe owner alerts");
+  assert.equal(sent.length, 0);
+  await service.createIncident(client, payload);
+  assert.equal(queryCounts.incidents, 1, "the third attempt within five minutes becomes a severe incident");
+  assert.ok(sent.length > 0);
+  const embed = sent[0].payload.embeds[0].data;
+  assert.match(embed.fields.find(field => field.name === "Context").value, /3/);
+  assert.ok(sent[0].payload.components?.length, "severe confirmed pattern offers owner-approved review controls");
 });
 
 test("soft economy reward-burst signals are stored but do not DM owners", async () => {
