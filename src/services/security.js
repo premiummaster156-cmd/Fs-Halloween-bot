@@ -7,6 +7,9 @@ const ALERT_DEDUPE_MS = 600000;
 
 function isSevereEconomyIncident(category, details = {}) {
   if (["economy_direct_balance_change", "economy_invalid_payout"].includes(category)) return true;
+  if (["economy_tampering", "economy_xp_manipulation"].includes(category)) {
+    return Number(details.invalidAttempts) >= 3;
+  }
   return String(category || "").startsWith("economy_") && Number(details.riskScore) >= 80;
 }
 
@@ -49,6 +52,7 @@ class SecurityService {
     this.nukeAlertedAt = new Map();
     this.inviteActivity = new Map();
     this.raidAlertedAt = new Map();
+    this.economyViolationAttempts = new Map();
   }
 
   isKing(userId) {
@@ -171,12 +175,18 @@ class SecurityService {
     const userId = input.userId || null;
     const isAlertOnly = ["anti_nuke", "anti_raid"].includes(input.category);
     const isEconomyAlert = String(input.category || "").startsWith("economy_");
-    const severeEconomyAlert = isEconomyAlert && isSevereEconomyIncident(input.category, input.details || {});
-    // Soft economy signals are below the owner-notification threshold: no incident DM or noise record.
-    if (isEconomyAlert && !severeEconomyAlert) return null;
     if (userId && !isAlertOnly && await this.isAboveBotRole(guild, userId)) return null;
-    const dedupeKey = guild.id + ":" + (userId || "unknown") + ":" + input.category;
     const now = Date.now();
+    if (userId && ["economy_tampering", "economy_xp_manipulation"].includes(input.category)) {
+      const attemptKey = guild.id + ":" + userId;
+      const attempts = this.pushWindow(this.economyViolationAttempts, attemptKey, now, 5 * 60 * 1000);
+      if (attempts.length < 3) return null;
+      input = { ...input, details: { ...(input.details || {}), invalidAttempts: attempts.length } };
+    }
+    const severeEconomyAlert = isEconomyAlert && isSevereEconomyIncident(input.category, input.details || {});
+    // Soft economy signals and isolated malformed operations never notify owners.
+    if (isEconomyAlert && !severeEconomyAlert) return null;
+    const dedupeKey = guild.id + ":" + (userId || "unknown") + ":" + input.category;
     if (now - (this.alertedAt.get(dedupeKey) || 0) < ALERT_DEDUPE_MS) return null;
     this.alertedAt.set(dedupeKey, now);
 
