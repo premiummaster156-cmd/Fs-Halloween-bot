@@ -1,6 +1,13 @@
 const parseList = (value) => String(value || "").split(",").map((x) => x.trim()).filter(Boolean);
 const numberOr = (value, fallback) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
+// Fukishōkai's two highest-trust identities. These accounts outrank OWNER_ID
+// inside the bot's own authorization and protection rules.
+const kingIds = Object.freeze([
+  "994605068269670490", // Fukishōkai clan founder
+  "1118573719644811314" // Discord server owner
+]);
+
 module.exports = {
   discordToken: process.env.DISCORD_TOKEN || "",
   clientId: process.env.CLIENT_ID || "",
@@ -12,6 +19,7 @@ module.exports = {
   guildId: process.env.GUILD_ID || "",
   databaseUrl: process.env.DATABASE_URL || "",
   ownerId: process.env.OWNER_ID || "",
+  kingIds,
   adminRoleIds: parseList(process.env.ADMIN_ROLE_IDS),
   // Role assigned to members who currently boost this Discord server.
   boosterRoleId: process.env.BOOSTER_ROLE_ID || "1376299577581240410",
