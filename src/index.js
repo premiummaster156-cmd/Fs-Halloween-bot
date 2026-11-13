@@ -152,7 +152,6 @@ async function start() {
 
   client.once(Events.ClientReady, (ready) => {
     console.log("[bot] Logged in as " + ready.user.tag + " with " + client.commands.size + " commands.");
-    security.startMaintenance(client);
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
@@ -368,7 +367,7 @@ async function start() {
   });
 
   // Anti-nuke monitoring attributes high-impact changes through Discord audit logs.
-  // The bot requires View Audit Log, plus Manage Roles to quarantine a confirmed actor.
+  // This subsystem is alert-only: it never changes roles, permissions or member status.
   const monitorSecurityChange = (guild, targetId, kind, auditType) => {
     client.services.security.recordDestructiveChange(client, guild, targetId, kind, auditType)
       .catch((error) => console.error("[security] " + kind + " monitor failed:", error.message));
