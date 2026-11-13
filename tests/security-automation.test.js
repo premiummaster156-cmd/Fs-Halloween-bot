@@ -17,6 +17,8 @@ test("automatic economy restrictions remain limited to high-confidence signals",
   assert.equal(getAutomaticEconomyRestriction("economy_reward_burst", { riskScore: 100 }).minutes, 30);
   assert.equal(getAutomaticEconomyRestriction("economy_xp_manipulation", { riskScore: 100 }), null);
   assert.equal(getAutomaticEconomyRestriction("command_spam"), null);
+  assert.equal(getAutomaticEconomyRestriction("anti_nuke"), null);
+  assert.equal(getAutomaticEconomyRestriction("anti_raid"), null);
 });
 
 test("anti-nuke thresholds require a destructive or mass-creation burst", () => {
@@ -80,8 +82,8 @@ function makeService() {
       async fetch(id) {
         return {
           id,
-          username: id === "server-owner" ? "nico" : "brian",
-          globalName: id === "server-owner" ? "Nico" : "Brian",
+          username: id === settings.kingIds[0] ? "hadeon" : id === settings.kingIds[1] ? "nico" : "brian",
+          globalName: id === settings.kingIds[0] ? "Hadeon" : id === settings.kingIds[1] ? "Nico" : "Brian",
           async send(payload) { sent.push({ recipientId: id, payload }); }
         };
       }
@@ -133,10 +135,8 @@ test("confirmed economy tampering applies a bot-only timed restriction", async (
   assert.equal(restrictions[0].params[4], "AUTO_SECURITY");
 });
 
-test("anti-nuke owner mail is alert-only and leaves response decisions to the owner", async () => {
+test("anti-nuke alerts DM only Kings and bot owner, with no action controls or automatic actions", async () => {
   const { service, client, guild, sent, restrictions } = makeService();
-  let quarantineCalled = false;
-  service.quarantineNuker = async () => { quarantineCalled = true; throw new Error("must not run"); };
   await service.createIncident(client, {
     guild,
     userId: "suspected-actor",
@@ -145,43 +145,46 @@ test("anti-nuke owner mail is alert-only and leaves response decisions to the ow
     details: { detectionReason: "mass_asset_deletion", countInWindow: 3, windowSeconds: 20 }
   });
 
-  const settings = require("../src/config/settings");
-  assert.equal(sent.length, new Set([guild.ownerId, settings.ownerId, ...settings.kingIds].filter(Boolean)).size);
-  assert.equal(quarantineCalled, false, "anti-nuke detection must not remove roles automatically");
-  assert.equal(restrictions.length, 0, "anti-nuke detection must not apply an automatic bot restriction");
-  const mail = sent[0].payload;
-  assert.match(mail.embeds[0].data.description, /Dear Nico,/);
-  assert.match(mail.embeds[0].data.title, /Potential server nuke/);
-  const response = mail.embeds[0].data.fields.find((field) => field.name === "Automated response").value;
-  assert.match(response, /no roles, channels, permissions or member status were changed automatically/);
-  const labels = mail.components[0].components.map((component) => component.data.label);
-  assert.ok(labels.includes("Ban attacker"));
-  assert.ok(labels.includes("Kick attacker"));
-  assert.ok(labels.includes("Timeout 10m"));
-  assert.equal(labels.includes("Restore removed roles"), false);
-  assert.deepEqual(mail.allowedMentions, { parse: [] });
+  const expectedRecipients = new Set([...settings.kingIds, settings.ownerId].filter(Boolean));
+  assert.deepEqual(new Set(sent.map((entry) => entry.recipientId)), expectedRecipients);
+  assert.equal(sent.length, expectedRecipients.size);
+  assert.equal(sent.some((entry) => entry.recipientId === guild.ownerId && !settings.kingIds.includes(guild.ownerId)), false,
+    "the server owner is not added separately unless they are one of the configured Kings");
+  assert.equal(restrictions.length, 0, "anti-nuke detection must not apply a bot-access restriction");
+  for (const entry of sent) {
+    const mail = entry.payload;
+    assert.match(mail.embeds[0].data.title, /Potential server nuke/);
+    assert.match(mail.embeds[0].data.description, /alert-only notification/i);
+    const action = mail.embeds[0].data.fields.find((field) => field.name === "Action taken").value;
+    assert.match(action, /No moderation/i);
+    assert.equal(Object.hasOwn(mail, "components"), false, "anti-nuke DMs must not contain buttons or controls");
+    assert.deepEqual(mail.allowedMentions, { parse: [] });
+  }
 });
 
-test("anti-raid notices provide lockdown and release controls to owners", async () => {
-  const { service, client, guild, sent } = makeService();
+test("anti-raid alerts DM only Kings and bot owner, with no action controls or lockdown", async () => {
+  const { service, client, guild, sent, restrictions } = makeService();
+  let guildEditCalls = 0;
+  guild.edit = async () => { guildEditCalls += 1; };
   await service.createIncident(client, {
     guild,
     category: "anti_raid",
-    summary: "A rapid join burst crossed the anti-raid threshold.",
+    summary: "An invite activity burst crossed the anti-raid threshold.",
     details: { invitesInWindow: 5, invitesCreated: 5, invitesDeleted: 0, windowSeconds: 30, verificationLevel: "Unchanged" }
   });
 
-  const settings = require("../src/config/settings");
-  assert.equal(sent.length, new Set([guild.ownerId, settings.ownerId, ...settings.kingIds].filter(Boolean)).size);
-  const mail = sent[0].payload;
-  assert.match(mail.embeds[0].data.description, /Dear Nico,/);
-  const response = mail.embeds[0].data.fields.find((field) => field.name === "Automated response").value;
-  assert.match(response, /invite-activity warning/);
-  assert.match(response, /No server settings or member permissions were changed/);
-  const labels = mail.components[0].components.map((component) => component.data.label);
-  assert.ok(labels.includes("Enable 30m lockdown"));
-  assert.ok(labels.includes("End lockdown"));
-  assert.ok(labels.includes("Acknowledge"));
+  const expectedRecipients = new Set([...settings.kingIds, settings.ownerId].filter(Boolean));
+  assert.deepEqual(new Set(sent.map((entry) => entry.recipientId)), expectedRecipients);
+  assert.equal(sent.length, expectedRecipients.size);
+  assert.equal(restrictions.length, 0, "anti-raid detection must not apply a bot-access restriction");
+  assert.equal(guildEditCalls, 0, "anti-raid detection must never change the server verification level");
+  for (const entry of sent) {
+    const mail = entry.payload;
+    assert.match(mail.embeds[0].data.description, /alert-only notification/i);
+    const action = mail.embeds[0].data.fields.find((field) => field.name === "Action taken").value;
+    assert.match(action, /No moderation/i);
+    assert.equal(Object.hasOwn(mail, "components"), false, "anti-raid DMs must not contain buttons or controls");
+  }
 });
 
 test("a high-impact role permission grant is escalated as an anti-nuke incident", async () => {
@@ -244,32 +247,38 @@ test("security DMs are sent to both Fukishokai Kings", async () => {
   for (const kingId of settings.kingIds) assert.equal(ids.has(kingId), true);
 });
 
-test("the configured bot owner cannot moderate a protected King from a security alert", async () => {
-  const settings = require("../src/config/settings");
+test("legacy anti-nuke action buttons are rejected without taking any action", async () => {
   const kingId = settings.kingIds[0];
   const writes = [];
   const security = new SecurityService({
     async query(sql, params) {
       writes.push({ sql, params });
-      if (sql.includes("SELECT id, user_id FROM security_incidents")) {
-        return { rowCount: 1, rows: [{ id: "72", user_id: kingId }] };
+      if (sql.includes("SELECT id, user_id, category FROM security_incidents")) {
+        return { rowCount: 1, rows: [{ id: "72", user_id: kingId, category: "anti_nuke" }] };
       }
       return { rowCount: 1, rows: [] };
     }
   }, { async get() { return null; } });
   security.hasAdminAccess = async () => true;
   let reply = null;
-  const guild = { id: "guild-1", ownerId: "server-owner", members: {} };
+  let updateCalled = false;
+  const guild = {
+    id: "guild-1", ownerId: settings.kingIds[1],
+    members: { async fetch() { throw new Error("No member lookup should occur"); } },
+    async edit() { throw new Error("No server setting may be changed"); }
+  };
   const interaction = {
     customId: "security:72:guild-1:" + kingId + ":timeout",
     guildId: "guild-1",
     guild,
     user: { id: settings.ownerId || "configured-bot-owner" },
-    async reply(payload) { reply = payload; }
+    async reply(payload) { reply = payload; },
+    async update() { updateCalled = true; }
   };
   await security.handleAlertInteraction(interaction, { guilds: { cache: new Map() } });
-  assert.match(reply.content, /No action was taken/);
-  assert.equal(writes.length, 1, "the incident is read, but no moderation or audit update is written");
+  assert.match(reply.content, /alert-only/i);
+  assert.equal(updateCalled, false);
+  assert.equal(writes.length, 1, "the incident is read, with no moderation, lockdown or audit write");
 });
 
 test("priority anti-raid alerts are suppressed by a persistent database throttle", async () => {
@@ -301,40 +310,37 @@ test("priority anti-raid alerts are suppressed by a persistent database throttle
   assert.equal(sent.length, 0, "a recently notified server does not receive another priority DM");
 });
 
-test("owner can use raid controls directly from a private DM", async () => {
+test("legacy anti-raid lockdown buttons are rejected without changing server settings", async () => {
   const writes = [];
   const service = new SecurityService({
     async query(sql, params) {
       writes.push({ sql, params });
-      if (sql.includes("SELECT id, user_id FROM security_incidents")) {
-        return { rowCount: 1, rows: [{ id: "44", user_id: null }] };
+      if (sql.includes("SELECT id, user_id, category FROM security_incidents")) {
+        return { rowCount: 1, rows: [{ id: "44", user_id: null, category: "anti_raid" }] };
       }
       return { rowCount: 1, rows: [] };
     }
   }, { async get() { return null; } });
-  const guild = { id: "guild-1", ownerId: "server-owner", members: {} };
-  service.activateRaidLockdown = async () => ({ applied: true });
-  let updated;
+  const guild = {
+    id: "guild-1", ownerId: settings.kingIds[1],
+    async edit() { throw new Error("Raid alerts must never edit the server."); }
+  };
+  let reply = null;
+  let updateCalled = false;
   const interaction = {
     customId: "security:44:guild-1:unknown:raid-lockdown",
     guildId: null,
     guild: null,
-    user: { id: "server-owner" },
-    message: { embeds: [] },
-    reply: async () => { throw new Error("A valid owner action should update the DM notice."); },
-    update: async (payload) => { updated = payload; }
+    user: { id: settings.kingIds[1] },
+    reply: async (payload) => { reply = payload; },
+    update: async () => { updateCalled = true; }
   };
-  const client = {
-    guilds: {
-      cache: { get: () => guild },
-      async fetch() { return guild; }
-    }
-  };
-
+  const client = { guilds: { cache: { get: () => guild }, async fetch() { return guild; } } };
+  service.hasAdminAccess = async () => true;
   await service.handleAlertInteraction(interaction, client);
-  assert.equal(writes.some((entry) => entry.sql.includes("UPDATE security_incidents")), true);
-  assert.match(updated.embeds[0].data.description, /Very High for 30 minutes/);
-  assert.deepEqual(updated.components, []);
+  assert.match(reply.content, /alert-only/i);
+  assert.equal(updateCalled, false);
+  assert.equal(writes.length, 1, "legacy lockdown buttons must not edit the server or incident status");
 });
 
 
