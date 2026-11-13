@@ -2,12 +2,6 @@
 
 const OWNER_REPORT_MIN_CONFIDENCE = 0.88;
 const CANDIDATE_PATTERN = /\b(fc|fs\s*coins?|coins?|money|cash|give\s+me|send\s+me|gift|donat(?:e|ion)|beg(?:ging)?|loan|borrow|pay\s+for\s+me|free\s+(?:fc|coins?|money)|transfer|handout|exploit|dupe|glitch|refund|scam|fake\s+proof|admin|moderator|mods?|idiot|stupid|shut\s+up|bully|harass|threat|abuse|go\s+die)\b/i;
-const SENSITIVE_PERMISSIONS = [
-  "Administrator", "ManageGuild", "ManageChannels", "ManageRoles", "ManageMessages",
-  "ManageWebhooks", "BanMembers", "KickMembers", "ModerateMembers", "ViewAuditLog",
-  "MentionEveryone", "ManageThreads", "ManageNicknames"
-];
-
 const OUTPUT_SCHEMA = {
   type: "object",
   properties: {
@@ -77,7 +71,7 @@ class AIMessageMonitor {
 
   compactPermissions(permissions) {
     if (!permissions?.toArray) return [];
-    return permissions.toArray().filter((name) => SENSITIVE_PERMISSIONS.includes(name));
+    return permissions.toArray().slice(0, 40);
   }
 
   memberContext(member, user, channel) {
