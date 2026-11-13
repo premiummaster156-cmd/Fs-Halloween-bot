@@ -86,7 +86,7 @@ async function announceEconomyParty(i, services, event) {
     .slice(0, 80);
   const starterName = String(
     i.member?.displayName || i.user.globalName || i.user.username || i.user.id
-  ).replace(/@/g, "@\\u200b").slice(0, 80);
+  ).replace(/@/g, "@\u200b").slice(0, 80);
   const startsAt = new Date(event.starts_at);
   const endsAt = new Date(event.ends_at);
   const durationMinutes = Number.isFinite(startsAt.getTime()) && Number.isFinite(endsAt.getTime())
