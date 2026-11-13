@@ -214,4 +214,8 @@ test("AI Watch candidate gate watches messages but sends only plausible rule-rel
   assert.equal(monitor.isCandidate(fixture.message, history), false);
   fixture.message.content = "Can a moderator send me free FC?";
   assert.equal(monitor.isCandidate(fixture.message, history), true);
+  fixture.message.content = "Iltimos, menga bepul FC bering";
+  assert.equal(monitor.isCandidate(fixture.message, history), true);
+  fixture.message.content = "Дайте мне бесплатные монеты";
+  assert.equal(monitor.isCandidate(fixture.message, history), true);
 });
