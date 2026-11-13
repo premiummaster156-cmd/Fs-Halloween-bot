@@ -170,6 +170,36 @@ test("anti-raid notices provide lockdown and release controls to owners", async 
   assert.ok(labels.includes("Acknowledge"));
 });
 
+test("a high-impact role permission grant is escalated as an anti-nuke incident", async () => {
+  const service = new SecurityService({}, { async get() { return null; } });
+  service.isAboveBotRole = async () => false;
+  let recorded = null;
+  service.createIncident = async (_client, input) => { recorded = input; return "incident-1"; };
+  const entry = {
+    id: "audit-1",
+    target: { id: "role-1" },
+    executor: { id: "actor-1" },
+    createdTimestamp: Date.now(),
+    reason: "unexpected privilege grant"
+  };
+  const guild = {
+    id: "guild-1",
+    async fetchAuditLogs() { return { entries: [entry] }; }
+  };
+  const client = { user: { id: "bot-user" } };
+
+  await service.recordPrivilegeEscalation(
+    client, guild, "role-1", "role_permission_escalation",
+    require("discord.js").AuditLogEvent.RoleUpdate,
+    ["Administrator", "Manage Roles"]
+  );
+
+  assert.equal(recorded.category, "anti_nuke");
+  assert.equal(recorded.userId, "actor-1");
+  assert.equal(recorded.details.detectionReason, "privilege_escalation");
+  assert.equal(recorded.details.changedFields, "Administrator, Manage Roles");
+});
+
 test("priority anti-raid alerts are suppressed by a persistent database throttle", async () => {
   let savedIncident = false;
   const service = new SecurityService({
