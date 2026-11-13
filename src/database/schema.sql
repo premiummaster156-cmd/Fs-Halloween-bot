@@ -274,6 +274,15 @@ CREATE TABLE IF NOT EXISTS security_incidents (
 CREATE INDEX IF NOT EXISTS security_incidents_guild_time_idx
   ON security_incidents (guild_id, created_at DESC);
 
+-- Persistent per-guild notification throttle. Incidents remain fully recorded, while
+-- the configured log channel receives at most one security summary every 15 minutes.
+CREATE TABLE IF NOT EXISTS security_alert_state (
+  guild_id TEXT PRIMARY KEY,
+  last_notified_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  suppressed_count INTEGER NOT NULL DEFAULT 0 CHECK (suppressed_count >= 0),
+  last_suppressed_count INTEGER NOT NULL DEFAULT 0 CHECK (last_suppressed_count >= 0)
+);
+
 -- Restrictions apply only to this bot, not to the member's Discord server permissions.
 -- expires_at NULL means the bot restriction remains until an owner removes it.
 CREATE TABLE IF NOT EXISTS bot_user_restrictions (
