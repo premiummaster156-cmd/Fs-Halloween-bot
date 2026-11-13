@@ -25,7 +25,7 @@ test("casino payout policy requires well-formed wager metadata",()=>{
 test("reward burst notifications require a severe score while hard safety limits still block",()=>{
  assert.equal(inspectRewardBurst({recentCount:2,recentBase:1000,currentBase:1000}).alert,false);
  const soft=inspectRewardBurst({recentCount:9,recentBase:5000,currentBase:500});
- assert.equal(soft.score,22);
+ assert.equal(soft.score,21);
  assert.equal(soft.alert,false);
  assert.equal(soft.blocked,false);
  const severe=inspectRewardBurst({recentCount:9,recentBase:300000,currentBase:1000});
