@@ -116,7 +116,7 @@ async function start() {
   if (!settings.discordToken) throw new Error("DISCORD_TOKEN is missing.");
   if (!settings.clientId) throw new Error("CLIENT_ID is missing.");
   await migrate();
-  const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildMembers] });
+  const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildInvites] });
   const economy = new EconomyService(pool);
   const economyEvents = new EconomyEventService(pool);
   const adminAbuse = new AdminAbuseService(pool, economy);
@@ -378,10 +378,23 @@ async function start() {
   client.on("roleCreate", (role) => monitorSecurityChange(role.guild, role.id, "role_create", AuditLogEvent.RoleCreate));
   client.on("roleDelete", (role) => monitorSecurityChange(role.guild, role.id, "role_delete", AuditLogEvent.RoleDelete));
   client.on("guildBanAdd", (ban) => monitorSecurityChange(ban.guild, ban.user.id, "member_ban", AuditLogEvent.MemberBanAdd));
-  client.on("guildMemberRemove", (member) => monitorSecurityChange(member.guild, member.id, "member_kick", AuditLogEvent.MemberKick));
-  client.on("guildMemberAdd", (member) => {
-    client.services.security.recordMemberJoin(client, member)
-      .catch((error) => console.error("[security] Anti-raid join monitor failed:", error.message));
+  // Audit-log entry events are included in Guild Moderation and let us spot kicks
+  // without requesting the privileged Guild Members intent.
+  client.on("guildAuditLogEntryCreate", (entry, guild) => {
+    if (entry.action !== AuditLogEvent.MemberKick) return;
+    const targetId = entry.targetId || entry.target?.id;
+    if (targetId) monitorSecurityChange(guild, targetId, "member_kick", AuditLogEvent.MemberKick);
+  });
+
+  // Guild Invites is a standard (non-privileged) intent. Invite bursts are only
+  // treated as a warning signal; this does not imply that a join raid occurred.
+  client.on("inviteCreate", (invite) => {
+    client.services.security.recordInviteChange(client, invite, "invite_create")
+      .catch((error) => console.error("[security] Invite-create monitor failed:", error.message));
+  });
+  client.on("inviteDelete", (invite) => {
+    client.services.security.recordInviteChange(client, invite, "invite_delete")
+      .catch((error) => console.error("[security] Invite-delete monitor failed:", error.message));
   });
 
   // One high-impact permission grant can be the start of a nuke, so it is
