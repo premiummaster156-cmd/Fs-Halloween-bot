@@ -500,8 +500,8 @@ test("security alert refuses bot restrictions or timeouts against a higher-ranke
   const pool = {
     query: async (sql, params) => {
       writes.push({ sql, params });
-      if (String(sql).includes("SELECT id, user_id FROM security_incidents")) {
-        return { rowCount: 1, rows: [{ id: "12", user_id: "senior-staff" }] };
+      if (String(sql).includes("SELECT id, user_id, category FROM security_incidents")) {
+        return { rowCount: 1, rows: [{ id: "12", user_id: "senior-staff", category: "unauthorized_admin_access" }] };
       }
       return { rowCount: 1, rows: [] };
     }
