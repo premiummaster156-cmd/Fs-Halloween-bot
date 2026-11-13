@@ -54,7 +54,11 @@ The admin console retains its custom JavaScript command workspace. A custom slas
 
 Casino games have a 100 FC minimum bet and no maximum bet; wagers are limited only by the player's available wallet balance. The base cooldown is 10 seconds and there is no daily wager cap. Equipped casino gear can increase the frequency of winning results and shorten the cooldown, while adjusting winning payouts to keep the published long-run return fair. Coin Flip, High Dice and Slots each have a base theoretical return of 95%. Slots has a 1% Jackpot (10×), 4% Big win (4×), 20% Small win (3.45×), and 75% no-win chance.
 
-Normal FC rewards from Daily, Work, Crime, Heists, chat activity, achievements and Arena victories use the 3× season multiplier and a level-based earning factor: **+0.5% per level above level 1**, reaching **3.995× at level 600**. Equipped gear and active FC Party events apply only where the reward rules allow them. Casino payouts, player trades and admin grants are excluded from the normal earning multiplier so the published 95% casino return stays unchanged.
+Normal FC rewards from Daily, Work, Crime, Heists, chat activity, achievements and Arena victories use the 3× season multiplier and a level-based earning factor: **+0.5% per level above level 1**, reaching **5.995× at level 1000**. Equipped gear and active FC Party events apply only where the reward rules allow them. Casino payouts, player trades and admin grants are excluded from the normal earning multiplier so the published 95% casino return stays unchanged.
+
+### Live event modes
+
+Authorized administrators can launch one server-wide limited-time event from **/admin → Admin Abuse**. Available modes include **Blood Moon** (crime boost), **Candy Storm** (extra Candy on eligible rewards), **Rift Surge** (Arena reward boost), **Lucky Block Rain** (one claim per player), **XP Surge** (+50% XP on eligible actions), and **Heist Rush** (+8 percentage points to crew success chance and +30% base payout). Only one live event runs at a time. Events are announced in the configured game channel without pinging @everyone or @here.
 
 ### Server Booster rewards
 
@@ -73,7 +77,7 @@ Equipment bonuses apply only while equipped. Every item can be upgraded five tim
 3. Use **Profile** to track your level, career and wealth. Use **Bank** to protect savings and **Gear** to manage equipment.
 4. Open **Games** to review crime and casino risks, or **Heists** to create a crew. The bot posts a public crew board that updates with each member and chosen role, then publishes the final mission result when the leader starts it.
 5. Use **Gear** to equip items and upgrade each one up to five times. More expensive equipment has stronger bonuses; upgrades improve its effects. Gear can improve salary, FC and XP income, operation success, casino hit frequency, fines and cooldowns.
-6. Level up to increase eligible FC earnings by **0.5% per level above level 1**. At level 600, the level factor reaches **3.995×**. Your wallet, bank, current level, career, equipment, upgrades and seasonal collectibles continue as you progress.
+6. Level up to increase eligible FC earnings by **0.5% per level above level 1**. At level 1000, the level factor reaches **5.995×**. Your wallet, bank, current level, career, equipment, upgrades and seasonal collectibles continue as you progress.
 7. Open **Achievements** to track permanent milestones and claim each unlocked FC/XP reward once. Open **Halloween** to track quests, claim completed rewards, check the weekly activity mission and browse seasonal items.
 
 
@@ -205,9 +209,9 @@ The Rift Arena is available from **/menu → Game Room → Rift Arena**.
 
 This is a short, playable finale, not a multi-month grind. The default event end is December 1, 2026 at 00:00 UTC (05:00 in Tashkent), including the full November 30 local day. The bot does not automatically shut down after the event.
 
-- Player level cap: **600**. XP per level: `80 + 12 × current level`.
-- Eligible normal FC income uses the **3× season multiplier** plus **0.5% per level above level 1**, reaching a **3.995× level factor at level 600**. Gear and FC Party bonuses follow action-specific rules.
-- Player progression retains the 600-level cap; wallets, banks and levels are not reset by ordinary gameplay progression.
+- Player level cap: **1,000**. XP per level: `80 + 12 × current level`.
+- Eligible normal FC income uses the **3× season multiplier** plus **0.5% per level above level 1**, reaching a **5.995× level factor at level 1000**. Gear and FC Party bonuses follow action-specific rules.
+- Player progression retains the 1,000-level cap; wallets, banks and levels are not reset by ordinary gameplay progression.
 - Career unlocks, gear prices, crimes, heists, weekly quests, Halloween quests, Candy shop, achievements, Party Fortune and Arena boss gates are reduced for the short season.
 - Casino retains a 95% theoretical return, 100 FC minimum bet and no daily wager cap; base cooldown is 10 seconds.
 - Booster-exclusive rewards and automatic boost assignment remain unchanged.
