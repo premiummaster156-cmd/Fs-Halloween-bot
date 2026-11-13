@@ -59,6 +59,82 @@ async function safeSendLog(i, services, content) {
   if (await services.security.isAboveBotRole(i.guild, i.user.id)) return;
   return sendLog(i.client, i.guildId, content);
 }
+async function announceEconomyParty(i, services, event) {
+  const channelId = await services.guildSettings.get(i.guildId, "memberCommandsChannelId");
+  if (!channelId) return { announced: false, reason: "No game announcement channel is configured." };
+  const channel = await i.guild.channels.fetch(channelId).catch(() => null);
+  if (!channel || !channel.isTextBased() || channel.isDMBased?.()) {
+    return { announced: false, reason: "The configured game announcement channel is unavailable." };
+  }
+
+  const configuredRoleId = await services.guildSettings.get(i.guildId, "halloweenRoleId");
+  const rewardRole = configuredRoleId
+    ? await i.guild.roles.fetch(configuredRoleId).catch(() => null)
+    : null;
+  const botMember = i.guild.members.me;
+  const channelPermissions = botMember ? channel.permissionsFor(botMember) : null;
+  const canPingRewardRole = Boolean(
+    rewardRole &&
+    rewardRole.id !== i.guildId &&
+    !rewardRole.managed &&
+    (rewardRole.mentionable || channelPermissions?.has(PermissionFlagsBits.MentionEveryone))
+  );
+
+  const safeName = String(event.name || "FC Party")
+    .replace(/@/g, "@\\u200b")
+    .replace(/[\\r\\n]+/g, " ")
+    .slice(0, 80);
+  const starterName = String(
+    i.member?.displayName || i.user.globalName || i.user.username || i.user.id
+  ).replace(/@/g, "@\\u200b").slice(0, 80);
+  const startsAt = new Date(event.starts_at);
+  const endsAt = new Date(event.ends_at);
+  const durationMinutes = Number.isFinite(startsAt.getTime()) && Number.isFinite(endsAt.getTime())
+    ? Math.max(1, Math.round((endsAt.getTime() - startsAt.getTime()) / 60000))
+    : 0;
+  const roleLine = canPingRewardRole
+    ? "Reward audience: <@&" + rewardRole.id + ">"
+    : rewardRole
+      ? "Reward audience: " + rewardRole.name + " (role ping unavailable)"
+      : "Reward audience: not configured (no ping sent)";
+
+  const content = [
+    "🎉 **FC PARTY EVENT STARTED**",
+    "**Event:** " + safeName,
+    "**Duration:** " + durationMinutes + " minutes · Ends <t:" + Math.floor(endsAt.getTime() / 1000) + ":R>",
+    "**FC duplication:** " + Number(event.multiplier).toFixed(1) + "×",
+    "**Started by:** " + starterName,
+    roleLine
+  ].join("\\n").slice(0, 1800);
+  const payload = {
+    content,
+    allowedMentions: canPingRewardRole
+      ? { parse: [], roles: [rewardRole.id] }
+      : { parse: [] }
+  };
+
+  try {
+    await channel.send(payload);
+    return { announced: true, rolePinged: canPingRewardRole, channelId: channel.id };
+  } catch (error) {
+    if (canPingRewardRole) {
+      const fallback = {
+        content: content.replace("Reward audience: <@&" + rewardRole.id + ">", "Reward audience: " + rewardRole.name + " (role ping unavailable)"),
+        allowedMentions: { parse: [] }
+      };
+      try {
+        await channel.send(fallback);
+        return { announced: true, rolePinged: false, channelId: channel.id, warning: "The event was announced without a role ping." };
+      } catch (fallbackError) {
+        console.warn("[economy-event] Announcement failed:", fallbackError.message);
+        return { announced: false, reason: "The bot could not send the event announcement." };
+      }
+    }
+    console.warn("[economy-event] Announcement failed:", error.message);
+    return { announced: false, reason: "The bot could not send the event announcement." };
+  }
+}
+
 async function announceAdminAbuse(i, services, event, stopped = false) {
   const channelId = await services.guildSettings.get(i.guildId, "memberCommandsChannelId");
   if (!channelId) return false;
@@ -2026,7 +2102,20 @@ async function handleModal(i, s) {
       const event = await s.economyEvents.start(i.guildId, owner, name, multiplier, duration);
       await safeAudit(i, s, "economy_event_started", null, { eventId: event.id, name, multiplier, durationMinutes: duration });
       await safeSendLog(i, s, "FC party **" + name + "** started at " + multiplier + "× for " + duration + " minutes by <@" + owner + ">.");
-      return i.editReply(await renderAdmin(i.guildId, owner, "economy-events", s));
+      const announcement = await announceEconomyParty(i, s, event);
+      const panelResult = await renderAdmin(i.guildId, owner, "economy-events", s);
+      if (!announcement.announced && panelResult?.embeds?.[0]) {
+        panelResult.embeds[0].addFields({
+          name: "Public announcement",
+          value: "The FC party started, but the public announcement could not be sent. " + announcement.reason
+        });
+      } else if (announcement.announced && !announcement.rolePinged && panelResult?.embeds?.[0]) {
+        panelResult.embeds[0].addFields({
+          name: "Public announcement",
+          value: "The event was announced in <#" + announcement.channelId + "> without pinging a role."
+        });
+      }
+      return i.editReply(panelResult);
     }
     if (action === "dm-all-modal" || action === "dm-one-modal") {
       const message = i.fields.getTextInputValue("message").trim();
@@ -2120,4 +2209,4 @@ async function handleDashboardInteraction(i, s) {
     return handleSelection(i, s, p[0], p[1], p[2], p);
   }
 }
-module.exports = { openMenu, openAdmin, handleDashboardInteraction, isAdmin, buildHeistEmbed, recordMemberAction, formatMemberActivityLog, renderMenu, renderAdmin };
+module.exports = { openMenu, openAdmin, handleDashboardInteraction, isAdmin, buildHeistEmbed, announceEconomyParty, recordMemberAction, formatMemberActivityLog, renderMenu, renderAdmin };
