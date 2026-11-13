@@ -206,23 +206,6 @@ class SecurityService {
     }
 
     const detailsInput = { ...(input.details || {}) };
-    let quarantine = null;
-    if (input.category === "anti_nuke" && userId) {
-      quarantine = await this.quarantineNuker(guild, userId, incidentId);
-      detailsInput.quarantineApplied = Boolean(quarantine?.applied);
-      detailsInput.quarantinedRoleCount = Number(quarantine?.roleIds?.length || 0);
-      if (quarantine?.error) detailsInput.quarantineError = quarantine.error;
-      await this.pool.query(
-        "UPDATE security_incidents SET details = details || $2::jsonb WHERE id=$1",
-        [incidentId, JSON.stringify({
-          quarantineApplied: detailsInput.quarantineApplied,
-          quarantinedRoleCount: detailsInput.quarantinedRoleCount,
-          quarantineError: detailsInput.quarantineError || null
-        })]
-      ).catch((error) => log("warn", "Could not append anti-nuke containment result to incident", {
-        guildId: guild.id, incidentId, message: error.message
-      }));
-    }
 
     // Urgent raid/nuke detections are sent immediately. Routine notices are
     // grouped per guild and limited by PostgreSQL across restarts and instances.
@@ -272,7 +255,7 @@ class SecurityService {
       unauthorized_control_access: "Unauthorized dashboard access",
       rapid_destructive_actions: "Rapid server changes",
       anti_nuke: "Potential server nuke",
-      anti_raid: "Possible coordinated join raid",
+      anti_raid: "Unusual invite activity / possible raid preparation",
       economy_tampering: "Rejected economy manipulation",
       economy_direct_balance_change: "Out-of-band balance or level edit",
       economy_invalid_payout: "Invalid casino payout",
@@ -286,10 +269,9 @@ class SecurityService {
       baseAmount: "Base reward", recentRewards: "Recent rewards", changedFields: "Changed fields",
       wager: "Wager", multiplier: "Payout multiplier", amount: "Attempted amount",
       detectionReason: "Detection reason", actionCounts: "Action counts",
-      joinsInWindow: "New members joined", youngAccounts: "Accounts younger than seven days",
-      accountAgeThreshold: "New-account threshold", lockdownApplied: "Automatic join lockdown",
-      verificationLevel: "Verification level", quarantinedRoleCount: "Privileged roles removed",
-      quarantineError: "Containment limitation"
+      invitesInWindow: "Invite changes observed", invitesCreated: "Invites created",
+      invitesDeleted: "Invites deleted", actorId: "Associated inviter ID",
+      verificationLevel: "Current verification level"
     };
     const details = Object.entries(detailsInput)
       .filter(([key]) => !["customId", "latestTargetId", "removedRoleIds"].includes(key))
@@ -308,16 +290,12 @@ class SecurityService {
         new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":unknown:ignore").setLabel("Acknowledge").setStyle(ButtonStyle.Secondary)
       ));
     } else if (input.category === "anti_nuke" && userId) {
-      const row = new ActionRowBuilder();
-      if (quarantine?.applied) row.addComponents(
-        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":restore-roles").setLabel("Restore removed roles").setStyle(ButtonStyle.Success)
-      );
-      row.addComponents(
+      components.push(new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":ban").setLabel("Ban attacker").setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":kick").setLabel("Kick attacker").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":timeout").setLabel("Timeout 10m").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":ignore").setLabel("Acknowledge").setStyle(ButtonStyle.Secondary)
-      );
-      components.push(row);
+      ));
     } else if (userId && automaticAction) {
       components.push(new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":unblock").setLabel("Restore bot access").setStyle(ButtonStyle.Success),
@@ -338,13 +316,9 @@ class SecurityService {
 
     const softSignal = input.category === "economy_reward_burst" && Number(detailsInput.riskScore) < 100;
     const enforcement = input.category === "anti_nuke"
-      ? (quarantine?.applied
-        ? "Automated containment removed manageable high-risk roles from the suspected actor. The removed roles are saved and can be restored below. No ban or kick was applied automatically."
-        : "The anti-nuke threshold was crossed, but the bot could not safely remove the actor's privileged roles. Review the actions below.")
+      ? "Detection only: no roles, channels, permissions or member status were changed automatically. Review the evidence and choose an optional response below."
       : input.category === "anti_raid"
-        ? (detailsInput.lockdownApplied
-          ? "Automated containment raised server verification to Very High for 15 minutes. The previous setting is saved for automatic restoration."
-          : "The join burst was detected, but automatic verification lockdown could not be applied. The controls below can retry or end a lockdown.")
+        ? "Detection only: this is an invite-activity warning, not proof of a member-join raid. No server settings or member permissions were changed. You may choose a response below."
         : automaticAction
           ? "Automated enforcement: " + automaticAction.label + ". This affects Fukishōkai bot access only."
           : input.category.startsWith("economy_") && !softSignal
