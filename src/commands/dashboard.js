@@ -19,7 +19,17 @@ const { leaderboardPayload } = require("./leaderboard-ui");
 const sessions = new Map();
 
 function isOwner(i) {
-  return Boolean((settings.ownerId && i.user.id === settings.ownerId) || i.guild?.ownerId === i.user.id);
+  return Boolean(
+    (Array.isArray(settings.kingIds) && settings.kingIds.includes(i.user.id)) ||
+    (settings.ownerId && i.user.id === settings.ownerId) ||
+    i.guild?.ownerId === i.user.id
+  );
+}
+function protectedKingTarget(services, targetId) {
+  return Boolean(targetId && services.security.isProtectedKingTarget(targetId));
+}
+function kingProtectionMessage() {
+  return "This account has Fukishōkai King protection. Bot administrators, including the configured bot owner, cannot edit, restrict, exclude, or message this account through member-management tools.";
 }
 function memberRoleIds(i) {
   const roles = i.member?.roles;
@@ -1198,6 +1208,15 @@ async function handleSelection(i, s, scope, owner, action, parts) {
   }
   if (scope === "admin") {
     if (!await isAdmin(i, s)) return i.reply({ content: "Your admin access has changed. Reopen the panel after checking permissions.", flags: MessageFlags.Ephemeral });
+    if (["player-target", "dm-target", "special-item-target", "fairness-target"].includes(action) && protectedKingTarget(s, value)) {
+      return i.reply({ content: kingProtectionMessage(), flags: MessageFlags.Ephemeral });
+    }
+    if (action === "special-item-grant" && protectedKingTarget(s, parts[3])) {
+      return i.reply({ content: kingProtectionMessage(), flags: MessageFlags.Ephemeral });
+    }
+    if (action === "career-select" && protectedKingTarget(s, parts[3])) {
+      return i.reply({ content: kingProtectionMessage(), flags: MessageFlags.Ephemeral });
+    }
     if (action === "admin-abuse-type") return i.showModal(modal("admin:" + owner + ":admin-abuse-start-modal:" + value, "Start " + s.adminAbuse.presets()[value].name, [
       { id: "duration", label: "Duration in minutes (2–60)", placeholder: String(s.adminAbuse.presets()[value].defaultMinutes), max: 2 }
     ]));
@@ -1584,6 +1603,10 @@ async function handleButton(i, s) {
   if (scope === "admin" && !await isAdmin(i, s)) return i.reply({ content: "You no longer have permission to use this control.", flags: MessageFlags.Ephemeral });
   if (scope === "admin") {
     const target = p[3];
+    const protectedTargetActions = ["dm-send-one", "grant-fc", "grant-xp", "remove-fc", "set-level", "set-career", "exclude", "include"];
+    if (target && protectedTargetActions.includes(action) && protectedKingTarget(s, target)) {
+      return i.reply({ content: kingProtectionMessage(), flags: MessageFlags.Ephemeral });
+    }
     if (action === "fairness" && !await isAdmin(i, s)) {
       return i.reply({ content: "Only the server owner or configured bot owner can manage leaderboard eligibility.", flags: MessageFlags.Ephemeral });
     } 
@@ -1880,6 +1903,10 @@ async function handleModal(i, s) {
     return i.reply({ content: "This form belongs to another member.", flags: MessageFlags.Ephemeral });
   }
   await i.deferReply({ flags: MessageFlags.Ephemeral });
+  const protectedModalActions = ["dm-one-modal", "grant-fc", "grant-xp", "remove-fc", "set-level", "career-modal", "exclude-modal"];
+  if (scope === "admin" && target && protectedModalActions.includes(action) && protectedKingTarget(s, target)) {
+    return i.editReply({ content: kingProtectionMessage() });
+  }
   if (scope === "dash") {
     if (action === "leaderboard-search-modal") {
       const query = i.fields.getTextInputValue("query").trim();
