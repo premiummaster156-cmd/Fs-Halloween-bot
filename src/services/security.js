@@ -453,63 +453,6 @@ class SecurityService {
     }
   }
 
-  async quarantineNuker(guild, userId, incidentId) {
-    try {
-      if (await this.isAboveBotRole(guild, userId)) return { applied: false, roleIds: [] };
-      const [member, botMember] = await Promise.all([
-        guild.members.fetch(userId),
-        guild.members.me ? Promise.resolve(guild.members.me) : guild.members.fetchMe()
-      ]);
-      if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
-        return { applied: false, roleIds: [], error: "The bot is missing Manage Roles." };
-      }
-      const dangerousPermissions = [
-        PermissionFlagsBits.Administrator, PermissionFlagsBits.ManageGuild,
-        PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageRoles,
-        PermissionFlagsBits.BanMembers, PermissionFlagsBits.KickMembers,
-        PermissionFlagsBits.ManageWebhooks, PermissionFlagsBits.ManageMessages
-      ];
-      const roleIds = member.roles.cache
-        .filter((role) => role.id !== guild.id && role.editable &&
-          dangerousPermissions.some((permission) => role.permissions.has(permission)))
-        .map((role) => role.id);
-      if (!roleIds.length) return { applied: false, roleIds: [], error: "No removable privileged roles were found." };
-      const saved = await this.pool.query(
-        "INSERT INTO security_quarantines (guild_id, user_id, incident_id, role_ids, status, reason) " +
-        "VALUES ($1, $2, $3, $4::jsonb, 'pending', $5) RETURNING id",
-        [guild.id, userId, incidentId, JSON.stringify(roleIds), "Automated anti-nuke containment"]
-      );
-      await member.roles.remove(roleIds, "Fukishōkai anti-nuke containment · incident #" + incidentId);
-      await this.pool.query("UPDATE security_quarantines SET status='active' WHERE id=$1", [saved.rows[0].id]);
-      this.clearHierarchyCache();
-      return { applied: true, roleIds };
-    } catch (error) {
-      log("error", "Anti-nuke role quarantine failed", { guildId: guild.id, userId, incidentId, message: error.message });
-      return { applied: false, roleIds: [], error: String(error.message || error).slice(0, 180) };
-    }
-  }
-
-  async restoreQuarantineRoles(guild, userId, incidentId, actorId) {
-    const saved = await this.pool.query(
-      "SELECT id, role_ids FROM security_quarantines WHERE guild_id=$1 AND user_id=$2 AND incident_id=$3 AND status='active' ORDER BY created_at DESC LIMIT 1",
-      [guild.id, userId, incidentId]
-    );
-    if (!saved.rowCount) throw new Error("No active role quarantine was found for this incident.");
-    const member = await guild.members.fetch(userId);
-    const ids = Array.isArray(saved.rows[0].role_ids) ? saved.rows[0].role_ids : JSON.parse(saved.rows[0].role_ids || "[]");
-    const restorable = ids.filter((id) => {
-      const role = guild.roles.cache.get(id);
-      return role && role.editable;
-    });
-    if (restorable.length) await member.roles.add(restorable, "Owner-approved role restoration for incident #" + incidentId);
-    await this.pool.query(
-      "UPDATE security_quarantines SET status='restored', restored_by=$2, restored_at=NOW() WHERE id=$1",
-      [saved.rows[0].id, actorId]
-    );
-    this.clearHierarchyCache();
-    return { restored: restorable.length, missing: ids.length - restorable.length };
-  }
-
   async activateRaidLockdown(guild, durationMs = 30 * 60 * 1000, actorId = "AUTO_SECURITY", reason = "Anti-raid protection") {
     const botMember = guild.members.me || await guild.members.fetchMe();
     if (!botMember.permissions.has(PermissionFlagsBits.ManageGuild)) {
@@ -557,38 +500,38 @@ class SecurityService {
     return { released: true, previousLevel };
   }
 
-  async recordMemberJoin(client, member) {
-    const guild = member.guild;
-    if (!guild?.id || !member.user) return null;
+  async recordInviteChange(client, invite, kind) {
+    const guild = invite?.guild;
+    if (!guild?.id) return null;
     const now = Date.now();
-    const joins = (this.raidJoins.get(guild.id) || []).filter((entry) => now - entry.joinedAt <= 20000);
-    joins.push({
-      joinedAt: now,
-      accountAgeMs: Math.max(0, now - Number(member.user.createdTimestamp || now))
+    const recent = (this.inviteActivity.get(guild.id) || [])
+      .filter((event) => now - event.at <= 30000);
+    recent.push({
+      at: now,
+      kind,
+      actorId: invite.inviter?.id || null,
+      code: invite.code || null
     });
-    this.raidJoins.set(guild.id, joins);
-    const evaluation = evaluateRaidBurst(joins, now);
+    this.inviteActivity.set(guild.id, recent);
+
+    const evaluation = evaluateInviteBurst(recent, now);
     if (!evaluation.triggered || now - (this.raidAlertedAt.get(guild.id) || 0) < ALERT_DEDUPE_MS) return null;
     this.raidAlertedAt.set(guild.id, now);
-    let lockdown = null;
-    try {
-      lockdown = await this.activateRaidLockdown(
-        guild, 15 * 60 * 1000, "AUTO_SECURITY", "Automated anti-raid join burst"
-      );
-    } catch (error) {
-      log("error", "Could not activate automatic raid lockdown", { guildId: guild.id, message: error.message });
-    }
+
+    const actorIds = Array.from(new Set(recent.map((event) => event.actorId).filter(Boolean)));
     return this.createIncident(client, {
       guild,
+      userId: null,
       category: "anti_raid",
-      summary: "A rapid join burst crossed the configured anti-raid threshold.",
+      summary: "A burst of server invite creation and deletion was detected. This may indicate raid preparation or coordinated invite distribution; it does not confirm that members have joined.",
       details: {
-        joinsInWindow: evaluation.joins,
-        youngAccounts: evaluation.youngAccounts,
-        accountAgeThreshold: "7 days",
+        detectionReason: "invite_activity_burst",
+        invitesInWindow: evaluation.total,
+        invitesCreated: evaluation.created,
+        invitesDeleted: evaluation.deleted,
         windowSeconds: evaluation.windowSeconds,
-        lockdownApplied: Boolean(lockdown?.applied),
-        verificationLevel: lockdown?.applied ? "Very High" : "Unchanged"
+        actorId: actorIds.length === 1 ? actorIds[0] : "Multiple or unavailable",
+        verificationLevel: "Unchanged"
       }
     });
   }
@@ -743,13 +686,6 @@ class SecurityService {
       resultText = released.released
         ? "The raid lockdown was ended. The previous verification level was restored unless a server administrator had changed it manually."
         : released.message;
-    } else if (action === "restore-roles") {
-      if (!targetId || incident.rows[0].user_id !== targetId) {
-        return interaction.reply({ content: "This incident has no matching quarantined member.", flags: MessageFlags.Ephemeral });
-      }
-      const restored = await this.restoreQuarantineRoles(guild, targetId, incidentId, interaction.user.id);
-      resultText = "Role restoration completed: " + restored.restored + " role(s) restored; " +
-        restored.missing + " role(s) no longer exist or are no longer manageable.";
     } else if (action === "ban" || action === "kick" || action === "timeout") {
       if (!targetId || incident.rows[0].user_id !== targetId) {
         return interaction.reply({ content: "This incident has no matching target.", flags: MessageFlags.Ephemeral });
@@ -808,7 +744,6 @@ class SecurityService {
     const status = action === "ignore" ? "acknowledged" :
       action === "raid-lockdown" ? "raid_lockdown_enabled" :
       action === "raid-release" ? "raid_lockdown_released" :
-      action === "restore-roles" ? "roles_restored" :
       action === "ban" ? "actor_banned" : action === "kick" ? "actor_kicked" :
       action === "timeout" ? "actor_timed_out" :
       action === "pause" ? "restricted_10m" : action === "block" ? "blocked_from_bot" : "bot_access_restored";
@@ -827,4 +762,4 @@ class SecurityService {
   }
 }
 
-module.exports = { SecurityService, getAutomaticEconomyRestriction, evaluateNukeBurst, evaluateRaidBurst };
+module.exports = { SecurityService, getAutomaticEconomyRestriction, evaluateNukeBurst, evaluateInviteBurst };
