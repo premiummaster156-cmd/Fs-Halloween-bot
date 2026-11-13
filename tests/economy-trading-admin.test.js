@@ -116,8 +116,8 @@ test("leaderboard shows every tracked profile including zero-score profiles",asy
  ])},client:{users:{cache:new Map()}}};
  const pool={query:async(sql)=>{
   if(sql.includes("FROM players"))return {rows:[
-   {user_id:"u1",wallet:50,bank:20,level:4,xp:3,lifetime_earned:100,prestige:0,job_id:"street_runner",job_level:1,crime_successes:0,heists_completed:0},
-   {user_id:"u2",wallet:0,bank:0,level:1,xp:0,lifetime_earned:0,prestige:0,job_id:null,job_level:1,crime_successes:0,heists_completed:0}
+   {user_id:"u1",wallet:50,bank:20,level:4,xp:3,lifetime_earned:100,job_id:"street_runner",job_level:1,crime_successes:0,heists_completed:0},
+   {user_id:"u2",wallet:0,bank:0,level:1,xp:0,lifetime_earned:0,job_id:null,job_level:1,crime_successes:0,heists_completed:0}
   ]};
   return {rows:[]};
  }};
@@ -190,8 +190,8 @@ test("leaderboard member search matches cached names and usernames",async()=>{
  ])},client:{users:{cache:new Map()}}};
  const pool={query:async(sql)=>{
   if(sql.includes("FROM players"))return {rows:[
-   {user_id:"u1",wallet:10,bank:0,level:1,xp:0,lifetime_earned:10,prestige:0,job_id:null,job_level:0,crime_successes:0,heists_completed:0},
-   {user_id:"u2",wallet:20,bank:0,level:1,xp:0,lifetime_earned:20,prestige:0,job_id:null,job_level:0,crime_successes:0,heists_completed:0}
+   {user_id:"u1",wallet:10,bank:0,level:1,xp:0,lifetime_earned:10,job_id:null,job_level:0,crime_successes:0,heists_completed:0},
+   {user_id:"u2",wallet:20,bank:0,level:1,xp:0,lifetime_earned:20,job_id:null,job_level:0,crime_successes:0,heists_completed:0}
   ]};
   return {rows:[]};
  }};
