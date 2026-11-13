@@ -211,7 +211,7 @@ test("3x FC earnings keep meaningful progression and equipment sinks", () => {
     balancing.economy.earningMultiplier;
   assert.equal(averageLevelOneDaily, 2274);
   assert.equal(balancing.economy.levelIncomeBonusPerLevel, 0.005);
-  assert.equal(core.getLevelEarningMultiplier(600), 3.995);
+  assert.equal(core.getLevelEarningMultiplier(1000), 5.995);
   assert.equal(balancing.progression.xpMultiplier, 1);
   assert.equal(balancing.progression.roleBoosterMultiplier, 1.2);
   assert.deepEqual(balancing.jobs.map((job) => job.minLevel), [1, 5, 10, 16, 23, 30, 40, 45, 50, 55, 60, 70, 80, 90, 100, 110, 120, 140, 160, 180, 200, 220]);
@@ -225,10 +225,10 @@ test("3x FC earnings keep meaningful progression and equipment sinks", () => {
 });
 
 
-test("progression is level-capped at 600 with level-based earning bonuses", () => {
-  assert.equal(balancing.progression.maxLevel, 600);
-  assert.equal(core.levelXpRequired(601), core.levelXpRequired(600));
-  assert.equal(core.getLevelEarningMultiplier(600), 3.995);
+test("progression is level-capped at 1000 with level-based earning bonuses", () => {
+  assert.equal(balancing.progression.maxLevel, 1000);
+  assert.equal(core.levelXpRequired(1001), core.levelXpRequired(1000));
+  assert.equal(core.getLevelEarningMultiplier(1000), 5.995);
 });
 
 test("new endgame gear has a named passive ability and real gameplay effects", () => {
