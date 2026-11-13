@@ -81,8 +81,8 @@ async function announceEconomyParty(i, services, event) {
   );
 
   const safeName = String(event.name || "FC Party")
-    .replace(/@/g, "@\\u200b")
-    .replace(/[\\r\\n]+/g, " ")
+    .replace(/@/g, "@\u200b")
+    .replace(/[\r\n]+/g, " ")
     .slice(0, 80);
   const starterName = String(
     i.member?.displayName || i.user.globalName || i.user.username || i.user.id
@@ -105,7 +105,7 @@ async function announceEconomyParty(i, services, event) {
     "**FC duplication:** " + Number(event.multiplier).toFixed(1) + "×",
     "**Started by:** " + starterName,
     roleLine
-  ].join("\\n").slice(0, 1800);
+  ].join("\n").slice(0, 1800);
   const payload = {
     content,
     allowedMentions: canPingRewardRole
