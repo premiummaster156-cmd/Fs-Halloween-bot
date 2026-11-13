@@ -283,6 +283,31 @@ CREATE TABLE IF NOT EXISTS security_alert_state (
   last_suppressed_count INTEGER NOT NULL DEFAULT 0 CHECK (last_suppressed_count >= 0)
 );
 
+-- Saves the server verification setting before a temporary automated raid lockdown.
+CREATE TABLE IF NOT EXISTS guild_security_state (
+  guild_id TEXT PRIMARY KEY,
+  previous_verification_level SMALLINT,
+  lockdown_until TIMESTAMPTZ,
+  lockdown_reason TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Stores privileged roles temporarily removed from a confirmed anti-nuke actor.
+CREATE TABLE IF NOT EXISTS security_quarantines (
+  id BIGSERIAL PRIMARY KEY,
+  guild_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  incident_id BIGINT NOT NULL REFERENCES security_incidents(id) ON DELETE CASCADE,
+  role_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+  status TEXT NOT NULL DEFAULT 'pending',
+  reason TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  restored_at TIMESTAMPTZ,
+  restored_by TEXT
+);
+CREATE INDEX IF NOT EXISTS security_quarantines_active_idx
+  ON security_quarantines (guild_id, user_id, created_at DESC) WHERE status='active';
+
 -- Restrictions apply only to this bot, not to the member's Discord server permissions.
 -- expires_at NULL means the bot restriction remains until an owner removes it.
 CREATE TABLE IF NOT EXISTS bot_user_restrictions (
