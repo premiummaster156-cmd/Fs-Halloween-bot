@@ -791,7 +791,7 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
     const totals = overview.rows[0] || { players: 0, custom_commands: 0, open_incidents: 0 };
     return panel("FUKISHOKAI  /  ADMIN CONSOLE", "One private control centre for the server. The server owner, bot owner and configured Admin Role can manage every control here.",
       [
-        { name: "🔐 Bot access", value: "Server owner + OWNER_ID + the configured Admin Role. Discord Administrator alone does not grant bot control." },
+        { name: "🔐 Bot access", value: "Server owner + OWNER_ID + the two protected Fukishōkai Kings + configured Admin Role. Kings are the highest-trust bot identities; Discord Administrator alone does not grant bot control." },
         { name: "⚙️ Server setup", value: "Admin role: " + (cfg.adminRoleId ? "<@&" + cfg.adminRoleId + ">" : "Not configured") + "\nLog channel: " + (cfg.logChannelId ? "<#" + cfg.logChannelId + ">" : "Not set") + "\nCommands + Candy drops: " + (cfg.memberCommandsChannelId ? "<#" + cfg.memberCommandsChannelId + ">" : "Not set") + "\nHalloween reward role: " + (cfg.halloweenRoleId ? "<@&" + cfg.halloweenRoleId + ">" : "Not set") },
         { name: "🎃 Halloween", value: ev ? (ev.enabled ? "Enabled" : "Disabled") + " · Ends <t:" + Math.floor(new Date(ev.ends_at).getTime() / 1000) + ":R>" : "Not configured" },
         { name: "📊 Operations overview", value: Number(totals.players).toLocaleString() + " player profiles · " + Number(totals.custom_commands).toLocaleString() + " saved custom commands · " + Number(totals.open_incidents).toLocaleString() + " open security incidents" }
