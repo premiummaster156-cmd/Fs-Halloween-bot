@@ -10,12 +10,12 @@
 
 The user confirmed this is the bot's final season and it will not be used after **November 30, 2026 (Tashkent time)**. The default event end is `2026-11-30T19:00:00.000Z`, which is midnight at the start of December 1 in Tashkent and includes the full November 30 local day. The `HALLOWEEN_ENDS_AT` environment variable overrides this default if set on the host. This setting ends the event; it does not automatically shut down the bot.
 
-### Progression and retired rebirth system
+### Progression system
 
-- Rebirth is removed from gameplay, dashboard navigation, player/admin controls, service methods, career XP, Arena health scaling, achievements and leaderboard UI.
-- The old `prestige`, `last_rebirth_at` and `rebirth_work_count` columns are intentionally retained as inert legacy storage. They are not read or changed by the new progression path; no player balance, level, gear, career or history is reset by this feature change.
+- Player progression uses the current level-based FC earning factor and remains capped at level 600.
+- Existing wallets, banks, levels, careers, gear, inventory and historical gameplay records are preserved when progression rules change.
 - Player level remains capped at **600**. Eligible normal FC rewards keep the **3× season multiplier** and now gain **+0.5% per level above level 1** (level factor **3.995× at level 600**). Equipped gear and configured FC Party events follow the existing eligibility rules.
-- Candy-drop chance progression uses player level (up to +20 percentage points by level 600) rather than rebirth count. Phoenix Core's Arena heal ability is named **PHOENIX**.
+- Candy-drop chance progression uses player level (up to +20 percentage points by level 600). Phoenix Core's Arena heal ability is named **PHOENIX**.
 
 ### Final-season economy and activities
 
@@ -75,7 +75,6 @@ Abilities retain their passive equipment stats and have their one-use Arena powe
 - Admin access: server owner, configured bot owner or configured trusted Admin Role. Discord Administrator alone does not grant bot-admin access. Privileged actions remain audited.
 - Do not claim live Discord or Neon validation from GitHub CI alone.
 
-
 ## Full player-data reset (hosting console)
 
 - Preview with \`npm run reset:player-data\`; execute with \`npm run reset:player-data -- --confirm RESET_ALL_PLAYER_DATA\`.
@@ -109,8 +108,7 @@ The project also applies schema changes at startup. No slash-command redeploymen
 - PR #16 admin grant controls for Mythic booster items.
 - PR #24 Unicode and server nickname profile-card fix.
 - PR #25 silent ordinary chat Candy-drop notifications.
-- PR #26 level 600 / 100 rebirth progression, +1× per-rebirth FC/XP duplication, eight endgame items and readable activity-log embeds.
-- The original PR #26 long-term rebirth requirements were superseded by the final-season values documented above.
+- PR #26 progression tuning, eight endgame items and readable activity-log embeds.
 
 ## Next-chat rule
 
@@ -121,14 +119,12 @@ The project also applies schema changes at startup. No slash-command redeploymen
 5. For gameplay changes, define unlocks, costs, rewards, cooldowns, abuse prevention, logs and tests.
 6. Prefer clear, fair and achievable gameplay over grind walls or exploit-prone reward inflation.
 
-
 ## Trading, leaderboards, economy events and admin DMs — current work
 
 - /menu → Trade replaces one-way FC transfer. Offers may contain FC and up to 10 item types. Both players must contribute; both confirm independently; changing either offer resets both confirmations. Offers are revalidated at settlement and FC/items exchange in a transaction. Booster-exclusive Mythic gear is non-tradable. Active trades expire after 30 minutes.
 - Leaderboards use saved player profiles, Party Game stats, weekly activity and the current non-privileged member cache. Exact Discord-ID lookup fetches one member at a time. This intentionally does not enumerate never-seen server members because the user will not enable privileged intents. Zero-score saved profiles are included. Categories: Wealth, Level, Lifetime Earned, Party Points, Weekly Messages, Career Level, Successful Crimes and Completed Heists; paging, search and leaderboard exclusions are supported.
 - New FC activities: Scavenge (30m) and Delivery Contract (3h). They award FC/XP and participate in normal multipliers and Candy drops.
 - Admin console retains FC Party Events (2×–10×, 5m–24h) as a separate economy feature. Member DMs target one selected member or tracked profiles plus cached members only. The Guild Members privileged intent is deliberately disabled; never-seen members cannot be enumerated. Bulk DMs are capped at 1,500 known recipients; failures/skips are counted and Discord privacy settings are respected.
-
 
 ## Current approved upgrade — November 8, 2026
 
@@ -141,14 +137,12 @@ The project also applies schema changes at startup. No slash-command redeploymen
 - **DM limitation:** Bulk DMs target tracked profiles and cached members only. The service does not call `guild.members.fetch()` without a specific ID. Never-seen members cannot be automatically discovered.
 - **Remaining deployment checks:** Confirm GitHub Actions, then validate the Neon migration and full Discord test-server interactions separately. Do not claim deployment is live from CI alone.
 
-
 ## Latest code validation — November 8, 2026
 
 - **Verified code revision:** `5870cb338864ec2a5806e56f13dae1bed29dfb72` on `main`.
 - **GitHub Actions:** [CI run 42506948962](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/42506948962) passed: dependency installation, source syntax validation, slash-command validation and **171 tests passed / 0 failed**.
 - The passing suite includes Admin Abuse preset validation, tracked-profile leaderboard coverage, cached zero-stat members, bulk DM handling without privileged member enumeration, and trade eligibility checks.
 - This does not verify the live Neon migration, Discord Developer Portal settings, actual Discord DM delivery or end-to-end interactions in the live server. Those remain deployment checks.
-
 
 ## Latest visual and leaderboard fixes — November 9, 2026
 
@@ -204,9 +198,8 @@ Keep Neon PostgreSQL, keep `GuildMembers` and `GuildPresences` disabled, keep `M
 - `src/database/migrate.js`: added a PostgreSQL transaction-scoped advisory lock before applying the idempotent schema/backfills. This serializes concurrent startup migration attempts across multiple bot instances. It does not yet replace the schema file with fully versioned migration files; that remains a planned database-hardening task.
 - CI run for the latest migration-lock commit: [42615755679](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/42615755679). Check its final status before reporting the latest commit as validated.
 
-- `src/database/migrate.js` records a SHA-256 checksum for `schema.sql` in `schema_migrations` and reapplies the idempotent schema only when content changes. It verifies the level cap only; legacy prestige fields are no longer part of progression validation. This is an intermediate safe migration improvement; it is not a substitute for a fully ordered per-release migration directory, which should be introduced with PostgreSQL integration coverage.
+- `src/database/migrate.js` records a SHA-256 checksum for `schema.sql` in `schema_migrations` and reapplies the idempotent schema only when content changes. It verifies the level cap; this is an intermediate safe migration improvement, not a substitute for a fully ordered per-release migration directory with PostgreSQL integration coverage.
 - CI run for this schema-checksum change: [42615869661](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/42615869661). Verify its final result.
-
 
 ## Trade invitation acceptance flow — November 9, 2026
 
@@ -216,15 +209,13 @@ Keep Neon PostgreSQL, keep `GuildMembers` and `GuildPresences` disabled, keep `M
 - Denying changes the status to `cancelled` and notifies the sender. No assets are exchanged. Pending invitations reserve both participants so they cannot start overlapping trades.
 - The PostgreSQL status constraint now includes `pending`. The schema checksum migration path applies the updated constraint on the next deployment/startup. CI and the live DM/channel interaction still need verification; no live Discord or Neon validation is implied by code changes alone.
 
-
 - **Invitation control security:** Accept/Deny buttons from DMs now resolve the originating server, verify the recipient is still a member through one targeted member lookup, and apply the existing bot-access restriction and component rate-limit checks before changing invitation status. No privileged intents or whole-member fetches are used. If a sender's DM is closed, the bot attempts a mention notification in the current server channel (or the server system channel when the response came from a DM).
 
+## Economy integrity and progression update — November 12, 2026
 
-## Economy integrity and rebirth retirement — November 12, 2026
-
-- **Rebirth retired:** active rebirth flows and multipliers have been removed from the economy service, menu/profile/player admin, career XP, Arena health scaling, achievements and leaderboard UI. Phoenix Core's old `REBIRTH` ability is now `PHOENIX`. Player level remains capped at 600.
-- **Level earnings:** eligible FC actions receive the normal 3× season multiplier plus `1 + (level - 1) × 0.005`; the level factor reaches 3.995× at level 600. Candy-drop odds use a level-based bonus in place of the old rebirth bonus. Active player rows and inventories are not reset.
-- **Legacy database safety:** existing `prestige`, `last_rebirth_at` and `rebirth_work_count` columns are retained but inert. Do not drop them or reset their values as part of this change; this preserves historical records without a destructive migration.
+- **Progression:** player level remains capped at 600. Phoenix Core's Arena ability is named **PHOENIX**.
+- **Level earnings:** eligible FC actions receive the normal 3× season multiplier plus `1 + (level - 1) × 0.005`; the level factor reaches 3.995× at level 600. Candy-drop odds use a level-based bonus. Active player rows and inventories are preserved.
+- **Database cleanup:** obsolete progression columns are dropped by the idempotent `schema.sql` migration. Player wallets, banks, levels, careers and inventory are not modified.
 - **Mutation allowlist:** `src/services/economy-guard.js` defines approved currency reasons, valid credit/debit directions, per-action base caps, admin-grant audit requirements and self-grant prevention. Unknown or malformed mutations are rejected and recorded as security incidents.
 - **Casino integrity:** every payout is checked against the same user's recorded `casino_bet` reference and the server-side wager × payout multiplier formula. Duplicate ledger references remain idempotent.
 - **Reward-rate detection:** eligible FC rewards are examined over a rolling 60-second ledger window. Only a calculated risk score of 80/100 or higher creates an owner alert; lower scores are ignored. Hard safety thresholds still block an unsafe latest reward. XP grants have per-action and calculated-gain ceilings.
@@ -233,7 +224,6 @@ Keep Neon PostgreSQL, keep `GuildMembers` and `GuildPresences` disabled, keep `M
 - **No automatic ban:** detections are explainable security incidents; no account is automatically banned or timed out based solely on a statistical flag. Existing restrictions remain owner/admin controlled.
 - **Intent boundary:** `GuildMembers` and `GuildPresences` remain disabled. `MessageContent` is requested only by the optional AI Watch configuration; all non-AI bot behavior remains without privileged intents.
 - **Validation boundary:** CI tests and syntax/command validation are separate from a live Neon migration or real Discord guild test. Record the exact CI run and test count after completion; do not claim live Neon/Discord verification unless performed.
-
 
 ## Strict anti-nuke and anti-raid alert-only policy — November 13, 2026
 
@@ -248,7 +238,6 @@ This is an explicit user requirement and overrides any older handoff/README word
 - Economy integrity is separate from anti-nuke/anti-raid. Severe economy alerts may offer owner-clicked leaderboard exclusion or bot-only access controls; no economy punishment or restriction is applied automatically.
 - Check CI and verify live Discord DM delivery separately. Never claim live delivery from CI alone.
 
-
 ## Severe-only economy alerts and owner-approved controls — November 13, 2026
 
 - Economy reward-burst alert threshold is **80/100**. Scores below 80 are ignored before a security incident is persisted or an owner notification throttle is consumed. Hard reward safety thresholds still block an unsafe latest reward and produce a severe signal.
@@ -259,7 +248,6 @@ This is an explicit user requirement and overrides any older handoff/README word
 - Protected King accounts cannot be targeted by economy action controls. Re-check incident category and severity from PostgreSQL before applying any button action.
 - `src/services/economy-guard.js` calculates reward-burst severity. `src/services/security.js` filters soft signals, renders plain-text economy notices and executes only explicitly selected owner-approved controls. Tests must cover risk-score threshold, no soft DMs, exact actions, King protection and no automatic restrictions.
 
-
 ## Opt-in Ollama AI Watch — November 13, 2026
 
 - **Model:** Ollama Cloud `gpt-oss:20b` is the selected cost-efficient classification model. `OLLAMA_MODEL` can override it. The model is a read-only classifier; it has no Discord tools and cannot take actions.
@@ -269,7 +257,6 @@ This is an explicit user requirement and overrides any older handoff/README word
 - **Context:** short in-memory channel history, reply target and permalink, current message permalink, attachment URLs, author ID, username/display names, account creation date, join date when available, assigned role names/IDs/positions/permissions, effective channel permissions, channel name/category/ID and permission overwrites. Targeted member REST fetches are used for known message authors when needed; the bot does not enumerate the member list.
 - **Reporting:** only `OWNER_ID` receives plain-text DMs. Reports require confidence >= 0.88 and include category, confidence, evidence, suggested manual review, role/channel metadata and message/reply/attachment links. Repeat notices for the same member/category are suppressed for 15 minutes. The bot does not create screenshots; use Discord permalinks to open the original messages.
 - **Data boundary:** candidate message content and selected context are sent to Ollama Cloud for classification. Tell server members about this monitoring and enable it only if this data transfer is acceptable. Recent channel context is in memory only; the daily usage counter is persisted. AI Watch does not ban, kick, timeout, delete messages, change roles/permissions, exclude members, or execute any moderation actions.
-
 
 ## FC Party start announcement — November 13, 2026
 
