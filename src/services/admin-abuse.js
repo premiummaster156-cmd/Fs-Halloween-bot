@@ -7,7 +7,9 @@ const PRESETS = Object.freeze({
   blood_moon: { name: "Blood Moon", description: "Crime success chance rises by 12 percentage points and successful crime base rewards rise by 25%.", defaultMinutes: 15 },
   candy_storm: { name: "Candy Storm", description: "Every eligible gameplay reward grants an additional 1–2 Candy while the storm lasts.", defaultMinutes: 10 },
   rift_surge: { name: "Rift Surge", description: "Rift Arena victories award 50% more FC and XP.", defaultMinutes: 15 },
-  lucky_block_rain: { name: "Lucky Block Rain", description: "Every player can open one Lucky Block during this event for FC, Candy and a random eligible equipment drop.", defaultMinutes: 20, claimable: true }
+  lucky_block_rain: { name: "Lucky Block Rain", description: "Every player can open one Lucky Block during this event for FC, Candy and a random eligible equipment drop.", defaultMinutes: 20, claimable: true },
+  xp_surge: { name: "XP Surge", description: "All eligible gameplay XP gains are increased by 50% while the surge lasts.", defaultMinutes: 15 },
+  heist_rush: { name: "Heist Rush", description: "Heist crews gain +8 percentage points of success chance and +30% base payout.", defaultMinutes: 20 }
 });
 const MIN_DURATION_MINUTES = 2;
 const MAX_DURATION_MINUTES = 60;
