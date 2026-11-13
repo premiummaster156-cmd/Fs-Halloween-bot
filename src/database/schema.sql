@@ -274,6 +274,14 @@ CREATE TABLE IF NOT EXISTS security_incidents (
 CREATE INDEX IF NOT EXISTS security_incidents_guild_time_idx
   ON security_incidents (guild_id, created_at DESC);
 
+-- Per-guild daily cap for Ollama cloud classification requests.
+CREATE TABLE IF NOT EXISTS ai_message_monitor_usage (
+  guild_id TEXT NOT NULL,
+  usage_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  request_count INTEGER NOT NULL DEFAULT 0 CHECK (request_count >= 0),
+  PRIMARY KEY (guild_id, usage_date)
+);
+
 -- Persistent per-guild notification throttle. Incidents remain fully recorded, while
 -- routine private owner notices are grouped to one per server every 15 minutes.
 CREATE TABLE IF NOT EXISTS security_alert_state (
