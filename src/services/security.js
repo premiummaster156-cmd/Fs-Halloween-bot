@@ -5,17 +5,9 @@ const { log } = require("../utils/logging");
 const WINDOW_MS = 120000;
 const ALERT_DEDUPE_MS = 600000;
 
-function getAutomaticEconomyRestriction(category, details = {}) {
-  if (category === "economy_direct_balance_change") {
-    return { minutes: 24 * 60, label: "24-hour Fukishōkai access lock", reason: "Verified player economy data changed outside a bot transaction" };
-  }
-  if (category === "economy_invalid_payout") {
-    return { minutes: 60, label: "1-hour Fukishōkai access lock", reason: "A casino payout failed verification against its recorded wager" };
-  }
-  if (category === "economy_reward_burst" && Number(details.riskScore) >= 100) {
-    return { minutes: 30, label: "30-minute Fukishōkai access lock", reason: "Reward activity exceeded the hard per-minute economy threshold" };
-  }
-  return null;
+function isSevereEconomyIncident(category, details = {}) {
+  if (["economy_direct_balance_change", "economy_invalid_payout"].includes(category)) return true;
+  return String(category || "").startsWith("economy_") && Number(details.riskScore) >= 80;
 }
 
 function evaluateNukeBurst(events = []) {
@@ -218,6 +210,11 @@ class SecurityService {
     }
 
     const detailsInput = { ...(input.details || {}) };
+    const isAlertOnly = ["anti_nuke", "anti_raid"].includes(input.category);
+    const isEconomyAlert = String(input.category || "").startsWith("economy_");
+    const severeEconomyAlert = isEconomyAlert && isSevereEconomyIncident(input.category, detailsInput);
+    // Keep low-confidence economy signals in PostgreSQL for later review, but do not DM on soft noise.
+    if (isEconomyAlert && !severeEconomyAlert) return incidentId;
 
     // Urgent raid/nuke detections are sent immediately. Routine notices are
     // grouped per guild and limited by PostgreSQL across restarts and instances.
@@ -293,13 +290,14 @@ class SecurityService {
         return label + ": " + String(typeof value === "string" ? value : JSON.stringify(value)).slice(0, 250);
       }).filter(Boolean).join("\n").slice(0, 1200);
 
-    const isAlertOnly = ["anti_nuke", "anti_raid"].includes(input.category);
     const actionId = userId || "unknown";
     const components = [];
-    if (!isAlertOnly && userId && automaticAction) {
+    if (!isAlertOnly && severeEconomyAlert && userId && !this.isProtectedKingTarget(userId)) {
       components.push(new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":unblock").setLabel("Restore bot access").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":ignore").setLabel("Mark reviewed").setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":exclude-leaderboard").setLabel("Exclude leaderboard").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":pause-1h").setLabel("Pause bot · 1h").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":block").setLabel("Block bot access").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":ignore").setLabel("Dismiss").setStyle(ButtonStyle.Secondary)
       ));
     } else if (!isAlertOnly && userId) {
       components.push(new ActionRowBuilder().addComponents(
@@ -314,14 +312,9 @@ class SecurityService {
       ));
     }
 
-    const softSignal = input.category === "economy_reward_burst" && Number(detailsInput.riskScore) < 100;
     const enforcement = isAlertOnly
-      ? "Alert only. No moderation, account restriction, role, permission, channel or server-setting action was taken or will be taken automatically. This notice has no action buttons."
-      : automaticAction
-        ? "Automated enforcement: " + automaticAction.label + ". This affects Fukishōkai bot access only."
-        : input.category.startsWith("economy_") && !softSignal
-          ? "The invalid economy operation was rejected before player data could be changed."
-          : softSignal ? "Monitoring only: no account restriction was applied." : "No automatic account restriction was applied.";
+      ? "Alert only. No moderation, account restriction, role, permission, channel or server-setting action is taken."
+      : "No punishment or bot-access restriction is applied automatically. Owner actions below require an explicit click.";
     const grouped = suppressedCount ? " " + suppressedCount + " additional security incident(s) were grouped into this notice." : "";
     const severity = ["anti_nuke", "anti_raid", "economy_direct_balance_change", "economy_invalid_payout"].includes(input.category) ? "High" : "Review";
     // Anti-nuke and anti-raid are sent only to the two Kings and configured bot owner.
@@ -338,8 +331,27 @@ class SecurityService {
         const embed = new EmbedBuilder()
           .setColor(input.category.startsWith("anti_") ? settings.brand.danger : settings.brand.warning)
           .setAuthor({ name: "Fukishōkai Security Operations" })
-          .setTitle(labels[input.category] || "Security Incident Notification")
-          .setDescription(
+          .setTitle(labels[input.category] || "Security Incident Notification");
+        if (isEconomyAlert) {
+          const suggestionByCategory = {
+            economy_direct_balance_change: "Compare the player snapshot with the economy ledger and confirm the external change.",
+            economy_invalid_payout: "Check the recorded wager, payout formula and casino ledger reference.",
+            economy_reward_burst: "Review the last 60 seconds of reward entries and verify their sources.",
+            economy_tampering: "Review the rejected mutation, integrity rule and recent ledger entries.",
+            economy_xp_manipulation: "Compare the XP snapshot, level changes and recent award records."
+          };
+          embed.setDescription(String(input.summary || "A severe economy integrity signal was detected.").slice(0, 500))
+            .addFields(
+              { name: "Member", value: userId ? "<@" + userId + "> (" + userId + ")" : "Unknown", inline: false },
+              { name: "Context", value: (details || "No additional evidence recorded.").slice(0, 900), inline: false },
+              { name: "Suggested manual review", value: suggestionByCategory[input.category] || "Review the member's recent economy ledger before deciding.", inline: false },
+              { name: "Available bot actions", value: severeEconomyAlert && userId && !this.isProtectedKingTarget(userId)
+                ? "Optional actions below apply only after an authorized owner/admin clicks. No automatic punishment is applied."
+                : "Review only. No automatic punishment is applied.", inline: false }
+            )
+            .setFooter({ text: "Fukishōkai Economy Integrity · Incident #" + incidentId });
+        } else {
+          embed.setDescription(
             "Dear " + displayName + ",\n\n" +
             "This is an official security notification regarding **" + String(guild.name || "your Discord server").slice(0, 90) + "**. " +
             String(input.summary || "Security activity requires your attention.") + "\n\n" +
@@ -356,6 +368,7 @@ class SecurityService {
           )
           .setFooter({ text: "Fukishōkai Security Operations · Confidential owner notice" })
           .setTimestamp(new Date());
+        }
         const payload = { embeds: [embed], allowedMentions: { parse: [] } };
         if (!isAlertOnly && components.length) payload.components = components;
         await recipient.send(payload);
@@ -572,7 +585,33 @@ class SecurityService {
     }
     let resultText = "The incident was acknowledged. No further action was taken.";
 
-    if (action === "ban" || action === "kick" || action === "timeout") {
+    if (["exclude-leaderboard", "pause-1h"].includes(action) || action === "block") {
+      if (!category.startsWith("economy_") || !targetId || incident.rows[0].user_id !== targetId ||
+          !isSevereEconomyIncident(category, incident.rows[0].details || {})) {
+        return interaction.reply({ content: "This action is available only for a severe, verified economy incident with a matching member.", flags: MessageFlags.Ephemeral });
+      }
+      if (this.isProtectedKingTarget(targetId)) {
+        return interaction.reply({ content: "Fukishōkai King accounts cannot be targeted by economy controls.", flags: MessageFlags.Ephemeral });
+      }
+      if (action === "exclude-leaderboard") {
+        await this.pool.query(
+          "INSERT INTO leaderboard_exclusions (guild_id, user_id, excluded_by, reason) VALUES ($1, $2, $3, $4) " +
+          "ON CONFLICT (guild_id, user_id) DO UPDATE SET excluded_by=EXCLUDED.excluded_by, reason=EXCLUDED.reason, created_at=NOW()",
+          [guildId, targetId, interaction.user.id, "Confirmed economy integrity review · incident #" + incidentId + " (" + category + ")"]
+        );
+        resultText = "The member was excluded from Fukishōkai leaderboards. Their wallet, bank, levels and inventory were not changed.";
+      } else {
+        const expires = action === "pause-1h" ? new Date(Date.now() + 60 * 60 * 1000) : null;
+        await this.pool.query(
+          "INSERT INTO bot_user_restrictions (guild_id, user_id, expires_at, reason, created_by) VALUES ($1, $2, $3, $4, $5) " +
+          "ON CONFLICT (guild_id, user_id) DO UPDATE SET expires_at=EXCLUDED.expires_at, reason=EXCLUDED.reason, created_by=EXCLUDED.created_by, updated_at=NOW()",
+          [guildId, targetId, expires, "Owner-approved economy integrity control · incident #" + incidentId, interaction.user.id]
+        );
+        resultText = action === "pause-1h"
+          ? "Fukishōkai bot access was paused for one hour. This does not affect Discord server permissions."
+          : "Fukishōkai bot access was blocked until an owner removes the restriction. This does not affect Discord server permissions.";
+      }
+    } else if (action === "ban" || action === "kick" || action === "timeout") {
       if (!targetId || incident.rows[0].user_id !== targetId) {
         return interaction.reply({ content: "This incident has no matching target.", flags: MessageFlags.Ephemeral });
       }
@@ -628,6 +667,9 @@ class SecurityService {
     }
 
     const status = action === "ignore" ? "acknowledged" :
+      action === "exclude-leaderboard" ? "excluded_from_leaderboards" :
+      action === "pause-1h" ? "bot_access_paused_1h" :
+      action === "block" ? "bot_access_blocked" :
       action === "ban" ? "actor_banned" : action === "kick" ? "actor_kicked" :
       action === "timeout" ? "actor_timed_out" :
       action === "pause" ? "restricted_10m" : action === "block" ? "blocked_from_bot" : "bot_access_restored";
@@ -646,4 +688,4 @@ class SecurityService {
   }
 }
 
-module.exports = { SecurityService, getAutomaticEconomyRestriction, evaluateNukeBurst, evaluateInviteBurst };
+module.exports = { SecurityService, isSevereEconomyIncident, evaluateNukeBurst, evaluateInviteBurst };
