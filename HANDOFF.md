@@ -247,3 +247,14 @@ This is an explicit user requirement and overrides any older handoff/README word
 - **Files updated:** `src/services/security.js` sends priority alerts only to Kings + configured bot owner, omits DM components for these categories, blocks legacy anti-alert buttons, and removes raid-lockdown methods/maintenance. `src/index.js` no longer starts raid-lockdown expiry maintenance. Regression tests assert exact recipients, absent controls and no moderation/server edits.
 - Economy integrity restrictions for separate `economy_*` detections are a distinct existing system; do not mistake those for anti-nuke/anti-raid actions or expand them into anti-alert handling.
 - Check CI and verify live Discord DM delivery separately. Never claim live delivery from CI alone.
+
+
+## Severe-only economy alerts and owner-approved controls — November 13, 2026
+
+- Economy reward-burst alert threshold is **80/100**. Scores below 80 are ignored before a security incident is persisted or an owner notification throttle is consumed. Hard reward safety thresholds still block an unsafe latest reward and produce a severe signal.
+- Verified out-of-band economy snapshots and invalid casino payouts remain severe signals. Other `economy_*` notices require `riskScore >= 80`.
+- Economy alerts are concise embeds: short summary, member, evidence/context, recommended manual review and owner-approved actions. Do not add generic greeting paragraphs, repeated action/status prose or oversized diagnostics.
+- Economy embeds can offer **Exclude leaderboard**, **Pause bot · 1h**, **Block bot access**, and **Dismiss**. These controls are never automatic; an authorized server owner, configured bot owner, King or configured Admin Role must explicitly click. Exclusion is reversible via leaderboard fairness settings. Pausing/blocking affects Fukishōkai bot access only, not Discord roles or moderation permissions.
+- Do not automatically punish for economy incidents. The bot must not automatically ban, kick, timeout, remove roles, change Discord permissions, exclude a player, or restrict Fukishōkai access based only on an economy detection. Unsafe/malformed currency operations may still be rejected before ledger/player data changes; this is transaction integrity, not a member punishment.
+- Protected King accounts cannot be targeted by economy action controls. Re-check incident category and severity from PostgreSQL before applying any button action.
+- `src/services/economy-guard.js` calculates reward-burst severity. `src/services/security.js` filters soft signals, renders compact economy embeds and executes only explicitly selected owner-approved controls. Tests must cover risk-score threshold, no soft DMs, exact actions, King protection and no automatic restrictions.
