@@ -573,7 +573,7 @@ class SecurityService {
     }
     let resultText = "The incident was acknowledged. No further action was taken.";
 
-    if (category.startsWith("economy_") && ["exclude-leaderboard", "pause-1h", "block"].includes(action)) {
+    if (category.startsWith("economy_") && ["exclude-leaderboard", "include-leaderboard", "pause-1h", "block"].includes(action)) {
       if (!category.startsWith("economy_") || !targetId || incident.rows[0].user_id !== targetId ||
           !isSevereEconomyIncident(category, incident.rows[0].details || {})) {
         return interaction.reply({ content: "This action is available only for a severe, verified economy incident with a matching member.", flags: MessageFlags.Ephemeral });
@@ -588,6 +588,12 @@ class SecurityService {
           [guildId, targetId, interaction.user.id, "Confirmed economy integrity review · incident #" + incidentId + " (" + category + ")"]
         );
         resultText = "The member was excluded from Fukishōkai leaderboards. Their wallet, bank, levels and inventory were not changed.";
+      } else if (action === "include-leaderboard") {
+        await this.pool.query(
+          "DELETE FROM leaderboard_exclusions WHERE guild_id=$1 AND user_id=$2",
+          [guildId, targetId]
+        );
+        resultText = "The member's leaderboard eligibility was restored.";
       } else {
         const expires = action === "pause-1h" ? new Date(Date.now() + 60 * 60 * 1000) : null;
         await this.pool.query(
@@ -656,6 +662,7 @@ class SecurityService {
 
     const status = action === "ignore" ? "acknowledged" :
       action === "exclude-leaderboard" ? "excluded_from_leaderboards" :
+      action === "include-leaderboard" ? "leaderboard_eligibility_restored" :
       action === "pause-1h" ? "bot_access_paused_1h" :
       action === "block" ? "bot_access_blocked" :
       action === "ban" ? "actor_banned" : action === "kick" ? "actor_kicked" :
@@ -672,7 +679,20 @@ class SecurityService {
     const embed = interaction.message?.embeds?.[0]
       ? EmbedBuilder.from(interaction.message.embeds[0]).addFields({ name: "Action taken", value: resultText.slice(0, 1000) })
       : new EmbedBuilder().setTitle("Security action completed").setDescription(resultText);
-    return interaction.update({ embeds: [embed], components: [] });
+    const followUpControls = [];
+    if (action === "exclude-leaderboard") {
+      followUpControls.push(new ButtonBuilder()
+        .setCustomId("security:" + incidentId + ":" + guildId + ":" + targetId + ":include-leaderboard")
+        .setLabel("Restore leaderboard eligibility")
+        .setStyle(ButtonStyle.Success));
+    } else if (action === "pause-1h" || action === "block") {
+      followUpControls.push(new ButtonBuilder()
+        .setCustomId("security:" + incidentId + ":" + guildId + ":" + targetId + ":unblock")
+        .setLabel("Restore bot access")
+        .setStyle(ButtonStyle.Success));
+    }
+    const rows = followUpControls.length ? [new ActionRowBuilder().addComponents(followUpControls)] : [];
+    return interaction.update({ embeds: [embed], components: rows });
   }
 }
 
