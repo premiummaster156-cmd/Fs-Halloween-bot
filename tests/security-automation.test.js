@@ -129,16 +129,16 @@ test("severe economy alerts are plain-text DMs and offer only owner-approved bot
   await service.createIncident(client, {
     guild,
     userId: "tampered-player",
-    category: "economy_direct_balance_change",
-    summary: "An out-of-band economy edit was detected.",
-    details: { actionType: "direct_balance_change", changedFields: "wallet,level", riskScore: 100, mismatchCount: 2 }
+    category: "economy_invalid_payout",
+    summary: "A casino payout failed verification against its recorded wager.",
+    details: { actionType: "invalid_casino_payout", wager: 1000, amount: 9000, riskScore: 100 }
   });
 
   assert.equal(restrictions.length, 0, "no economy punishment is automatic");
   assert.ok(sent.length > 0);
   const payload = sent[0].payload;
   assert.equal(payload.embeds, undefined, "economy alerts must not use embeds");
-  assert.match(payload.content, /An out-of-band economy edit was detected/);
+  assert.match(payload.content, /casino payout failed verification/);
   assert.match(payload.content, /Context:/);
   assert.match(payload.content, /Suggested review:/);
   assert.match(payload.content, /Member:/);
