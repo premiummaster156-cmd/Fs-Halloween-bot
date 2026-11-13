@@ -3,7 +3,7 @@
 **Repository:** https://github.com/premiummaster156-cmd/Fs-Halloween-bot  
 **Default branch:** `main`  
 **Runtime:** Node.js 20+, Discord.js 14, PostgreSQL on Neon  
-**Last updated:** 2026-11-12 — rebirth retired, level-based FC rewards and economy integrity guard added; no privileged intents
+**Last updated:** 2026-11-13 — Kings hierarchy and strict Kings/bot-owner-only anti-nuke/anti-raid notifications; no privileged intents
 **Working rule:** `main` is the only development branch. Do not create feature branches. Inspect and update `main` directly, keep this file current, and verify CI before reporting completion.
 
 ## Final season — ends November 30, 2026
@@ -233,3 +233,17 @@ Keep Neon PostgreSQL, no privileged intents, no destructive player reset, preser
 - **No automatic ban:** detections are explainable security incidents; no account is automatically banned or timed out based solely on a statistical flag. Existing restrictions remain owner/admin controlled.
 - **Intent boundary:** no privileged Discord Gateway intent was added. No `GuildMembers`, `GuildPresences` or `MessageContent` dependency is introduced.
 - **Validation boundary:** CI tests and syntax/command validation are separate from a live Neon migration or real Discord guild test. Record the exact CI run and test count after completion; do not claim live Neon/Discord verification unless performed.
+
+
+## Strict anti-nuke and anti-raid alert-only policy — November 13, 2026
+
+This is an explicit user requirement and overrides any older handoff/README wording about owner-approved security responses or action buttons:
+
+- **Recipients:** Anti-nuke and anti-raid notifications must be DM'd to exactly the two configured Fukishōkai Kings (`settings.kingIds`) and the configured bot owner (`OWNER_ID` / `settings.ownerId`). Do not add `guild.ownerId` as a separate recipient. The server owner receives the DM only because they are one of the two King IDs. Deduplicate overlapping IDs.
+- **No controls:** Anti-nuke and anti-raid DMs must have no buttons, components, action rows, menus or action prompts. Do not send an empty components array; omit the components property entirely.
+- **No intervention:** These systems only detect, record the incident, and send private DMs. Never ban, kick, timeout, quarantine, remove roles, change permissions, restrict bot access, change verification levels, enable lockdown, or take any other moderation/server-setting action because of an anti-nuke or anti-raid detection.
+- **Legacy controls:** Old anti-nuke/anti-raid buttons from previously delivered DMs must be rejected without performing an action. The security interaction handler must check the incident category before executing any legacy action.
+- **Detection remains active:** Keep audit-log based destructive-action and permission-escalation detection, plus standard Guild Invites activity monitoring. Keep the existing thresholds and do not enable privileged Gateway intents.
+- **Files updated:** `src/services/security.js` sends priority alerts only to Kings + configured bot owner, omits DM components for these categories, blocks legacy anti-alert buttons, and removes raid-lockdown methods/maintenance. `src/index.js` no longer starts raid-lockdown expiry maintenance. Regression tests assert exact recipients, absent controls and no moderation/server edits.
+- Economy integrity restrictions for separate `economy_*` detections are a distinct existing system; do not mistake those for anti-nuke/anti-raid actions or expand them into anti-alert handling.
+- Check CI and verify live Discord DM delivery separately. Never claim live delivery from CI alone.
