@@ -532,6 +532,10 @@ CREATE TABLE IF NOT EXISTS admin_abuse_events (
   ended_at TIMESTAMPTZ,
   CHECK (ends_at > starts_at)
 );
+ALTER TABLE admin_abuse_events DROP CONSTRAINT IF EXISTS admin_abuse_events_event_type_check;
+ALTER TABLE admin_abuse_events ADD CONSTRAINT admin_abuse_events_event_type_check
+  CHECK (event_type IN ('blood_moon','candy_storm','rift_surge','lucky_block_rain','xp_surge','heist_rush'));
+
 CREATE INDEX IF NOT EXISTS admin_abuse_events_active_idx
   ON admin_abuse_events (guild_id,status,ends_at DESC);
 
