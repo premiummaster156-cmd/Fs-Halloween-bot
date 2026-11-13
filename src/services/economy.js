@@ -71,8 +71,11 @@ function calculateCandyDrop(reason, gearBonus = 0, chanceRoll = Math.random(), a
   const rule = balancing.candyDrops[reason];
   if (!rule) return null;
   const equippedBonus = Math.max(0, Math.min(0.20, Number(gearBonus) || 0));
-  const safeLevel = Math.max(1, Math.min(balancing.progression.maxLevel, Math.floor(Number(level) || 1)));
-  const levelBonus = ((safeLevel - 1) / (balancing.progression.maxLevel - 1)) * 0.20;
+  // Candy-drop progression keeps its original level-600 endpoint even though
+  // the player level cap is now 1,000.
+  const candyProgressionMaxLevel = Math.min(600, balancing.progression.maxLevel);
+  const safeLevel = Math.max(1, Math.min(candyProgressionMaxLevel, Math.floor(Number(level) || 1)));
+  const levelBonus = ((safeLevel - 1) / (candyProgressionMaxLevel - 1)) * 0.20;
   const dropChance = Math.min(0.60, Number(rule.chance) + equippedBonus + levelBonus);
   if (chanceRoll >= dropChance) return null;
   const amount = rule.min + Math.floor(amountRoll * (rule.max - rule.min + 1));
