@@ -269,3 +269,13 @@ This is an explicit user requirement and overrides any older handoff/README word
 - **Context:** short in-memory channel history, reply target and permalink, current message permalink, attachment URLs, author ID, username/display names, account creation date, join date when available, assigned role names/IDs/positions/permissions, effective channel permissions, channel name/category/ID and permission overwrites. Targeted member REST fetches are used for known message authors when needed; the bot does not enumerate the member list.
 - **Reporting:** only `OWNER_ID` receives plain-text DMs. Reports require confidence >= 0.88 and include category, confidence, evidence, suggested manual review, role/channel metadata and message/reply/attachment links. Repeat notices for the same member/category are suppressed for 15 minutes. The bot does not create screenshots; use Discord permalinks to open the original messages.
 - **Data boundary:** candidate message content and selected context are sent to Ollama Cloud for classification. Tell server members about this monitoring and enable it only if this data transfer is acceptable. Recent channel context is in memory only; the daily usage counter is persisted. AI Watch does not ban, kick, timeout, delete messages, change roles/permissions, exclude members, or execute any moderation actions.
+
+
+## FC Party start announcement — November 13, 2026
+
+- Starting an FC Party now calls `announceEconomyParty` from `src/commands/dashboard.js` after the event is persisted.
+- Public destination is the configured `memberCommandsChannelId` (the game/commands channel). The announcement is plain text, not an embed.
+- It contains the event name, duration and relative end time, FC duplication multiplier, starter display name, and reward audience.
+- The only mention allowed is the configured `halloweenRoleId` / Halloween reward role, and only when it exists, is not managed/@everyone, and is mentionable or the bot has `MentionEveryone` permission. `allowedMentions` is `{ parse: [], roles: [rewardRoleId] }` in that case.
+- Never use `@everyone` or `@here`. If the role is absent/unavailable or cannot be pinged, still announce without a ping and report that state in the private admin panel. If a role-mention send fails, retry with the role name as plain text and no mentions.
+- Audit log notification remains separate from the public event announcement. Tests verify the configured-role-only mention and no broad ping fallback.
