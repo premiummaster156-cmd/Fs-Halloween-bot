@@ -1,5 +1,5 @@
 "use strict";
-const MAX_BASE_XP_PER_ACTION=50000,MAX_SINGLE_XP_GAIN=105000,MAX_EARNING_MULTIPLIER=250,MAX_SINGLE_MUTATION_FC=2000000000;
+const MAX_BASE_XP_PER_ACTION=50000,MAX_SINGLE_XP_GAIN=160000,MAX_EARNING_MULTIPLIER=250,MAX_SINGLE_MUTATION_FC=2000000000;
 const MUTATION_POLICIES=Object.freeze({
  daily_reward:{direction:"credit",maxBase:10000,multiplied:true},job_work:{direction:"credit",maxBase:100000,multiplied:true},
  crime_success:{direction:"credit",maxBase:50000,multiplied:true},heist_reward:{direction:"credit",maxBase:1500000,multiplied:true},
