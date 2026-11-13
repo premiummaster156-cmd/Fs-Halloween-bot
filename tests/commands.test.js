@@ -14,7 +14,7 @@ test("the approved built-in slash commands are registered", () => {
 test("profile shows the caller's profile by default and supports another member", async () => {
   const player = {
     wallet: 4500, bank: 1500, level: 5, xp: 100, job_id: "street_runner",
-    job_level: 2, prestige: 1, lifetime_earned: 9000
+    job_level: 2, lifetime_earned: 9000
   };
   for (const selected of [null, { id: "member-2", username: "Other", globalName: "Other Member" }]) {
     const caller = { id: "member-1", username: "Caller", globalName: "Caller Name" };
