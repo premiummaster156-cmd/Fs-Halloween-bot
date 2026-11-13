@@ -190,6 +190,43 @@ test("authorized owner can exclude a member after reviewing a severe economy inc
   assert.match(updated.embeds[0].data.description, /excluded from Fukishōkai leaderboards/);
 });
 
+test("authorized owner can apply a one-hour bot-only pause from a severe economy alert", async () => {
+  const writes = [];
+  const targetId = "player-to-pause";
+  const security = new SecurityService({
+    async query(sql, params) {
+      writes.push({ sql, params });
+      if (sql.includes("SELECT id, user_id, category, details FROM security_incidents")) {
+        return { rowCount: 1, rows: [{ id: "503", user_id: targetId, category: "economy_reward_burst", details: { riskScore: 88 } }] };
+      }
+      return { rowCount: 1, rows: [] };
+    }
+  }, { async get() { return null; } });
+  security.hasAdminAccess = async () => true;
+  const guild = { id: "guild-1", ownerId: settings.kingIds[1], members: {} };
+  const before = Date.now();
+  let updated = null;
+  const interaction = {
+    customId: "security:503:guild-1:" + targetId + ":pause-1h",
+    guildId: null,
+    guild: null,
+    user: { id: settings.kingIds[0] },
+    async reply(payload) { throw new Error("Valid action should update the alert: " + payload.content); },
+    async update(payload) { updated = payload; }
+  };
+  const client = { guilds: { cache: new Map([[guild.id, guild]]), async fetch() { return guild; } } };
+  await security.handleAlertInteraction(interaction, client);
+  const restriction = writes.find(entry => entry.sql.includes("INSERT INTO bot_user_restrictions"));
+  assert.ok(restriction, "pause is applied only after the authorized owner clicks");
+  assert.equal(restriction.params[0], guild.id);
+  assert.equal(restriction.params[1], targetId);
+  assert.ok(restriction.params[2] instanceof Date);
+  assert.ok(restriction.params[2].getTime() >= before + 59 * 60 * 1000);
+  assert.ok(restriction.params[2].getTime() <= Date.now() + 60 * 60 * 1000 + 1000);
+  assert.equal(restriction.params[4], settings.kingIds[0]);
+  assert.match(updated.embeds[0].data.description, /paused for one hour/i);
+});
+
 test("economy controls cannot target a protected King account", async () => {
   const kingId = settings.kingIds[0];
   const writes = [];
