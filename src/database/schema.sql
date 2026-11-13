@@ -283,6 +283,14 @@ CREATE TABLE IF NOT EXISTS security_alert_state (
   last_suppressed_count INTEGER NOT NULL DEFAULT 0 CHECK (last_suppressed_count >= 0)
 );
 
+-- Critical anti-nuke and anti-raid owner DMs are separately throttled per guild/category.
+CREATE TABLE IF NOT EXISTS security_priority_alert_state (
+  guild_id TEXT NOT NULL,
+  category TEXT NOT NULL CHECK (category IN ('anti_nuke', 'anti_raid')),
+  last_notified_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (guild_id, category)
+);
+
 -- Saves the server verification setting before a temporary automated raid lockdown.
 CREATE TABLE IF NOT EXISTS guild_security_state (
   guild_id TEXT PRIMARY KEY,
