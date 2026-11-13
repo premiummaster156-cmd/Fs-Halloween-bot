@@ -6,7 +6,8 @@ const WINDOW_MS = 120000;
 const ALERT_DEDUPE_MS = 600000;
 
 function isSevereEconomyIncident(category, details = {}) {
-  if (["economy_direct_balance_change", "economy_invalid_payout"].includes(category)) return true;
+  if (category === "economy_invalid_payout") return true;
+  if (category === "economy_direct_balance_change") return Number(details.mismatchCount) >= 2;
   if (["economy_tampering", "economy_xp_manipulation"].includes(category)) {
     return Number(details.invalidAttempts) >= 3;
   }
@@ -53,6 +54,7 @@ class SecurityService {
     this.inviteActivity = new Map();
     this.raidAlertedAt = new Map();
     this.economyViolationAttempts = new Map();
+    this.databaseMismatchAttempts = new Map();
   }
 
   isKing(userId) {
@@ -179,9 +181,15 @@ class SecurityService {
     const now = Date.now();
     if (userId && ["economy_tampering", "economy_xp_manipulation"].includes(input.category)) {
       const attemptKey = guild.id + ":" + userId;
-      const attempts = this.pushWindow(this.economyViolationAttempts, attemptKey, now, 5 * 60 * 1000);
+      const attempts = this.pushWindow(this.economyViolationAttempts, attemptKey, now, 2 * 60 * 1000);
       if (attempts.length < 3) return null;
       input = { ...input, details: { ...(input.details || {}), invalidAttempts: attempts.length } };
+    }
+    if (userId && input.category === "economy_direct_balance_change") {
+      const mismatchKey = guild.id + ":" + userId;
+      const mismatches = this.pushWindow(this.databaseMismatchAttempts, mismatchKey, now, 10 * 60 * 1000);
+      if (mismatches.length < 2) return null;
+      input = { ...input, details: { ...(input.details || {}), mismatchCount: mismatches.length } };
     }
     const severeEconomyAlert = isEconomyAlert && isSevereEconomyIncident(input.category, input.details || {});
     // Soft economy signals and isolated malformed operations never notify owners.
@@ -322,22 +330,30 @@ class SecurityService {
           .setTitle(labels[input.category] || "Security Incident Notification");
         if (isEconomyAlert) {
           const suggestionByCategory = {
-            economy_direct_balance_change: "Compare the player snapshot with the economy ledger and confirm the external change.",
-            economy_invalid_payout: "Check the recorded wager, payout formula and casino ledger reference.",
-            economy_reward_burst: "Review the last 60 seconds of reward entries and verify their sources.",
-            economy_tampering: "Review the rejected mutation, integrity rule and recent ledger entries.",
-            economy_xp_manipulation: "Compare the XP snapshot, level changes and recent award records."
+            economy_direct_balance_change: "Check the player snapshot against the economy ledger.",
+            economy_invalid_payout: "Verify the casino wager and payout reference.",
+            economy_reward_burst: "Review recent reward entries and their source.",
+            economy_tampering: "Review the repeated rejected currency operations.",
+            economy_xp_manipulation: "Review the repeated rejected XP operations."
           };
-          embed.setDescription(String(input.summary || "A severe economy integrity signal was detected.").slice(0, 500))
-            .addFields(
-              { name: "Member", value: userId ? "<@" + userId + "> (" + userId + ")" : "Unknown", inline: false },
-              { name: "Context", value: (details || "No additional evidence recorded.").slice(0, 900), inline: false },
-              { name: "Suggested manual review", value: suggestionByCategory[input.category] || "Review the member's recent economy ledger before deciding.", inline: false },
-              { name: "Available bot actions", value: severeEconomyAlert && userId && !this.isProtectedKingTarget(userId)
-                ? "Optional actions below apply only after an authorized owner/admin clicks. No automatic punishment is applied."
-                : "Review only. No automatic punishment is applied.", inline: false }
-            )
-            .setFooter({ text: "Fukishōkai Economy Integrity · Incident #" + incidentId });
+          const actionLine = severeEconomyAlert && userId && !this.isProtectedKingTarget(userId)
+            ? "Choose an action below only after reviewing the evidence."
+            : "Review only. No action has been taken.";
+          const plainText = [
+            "FUKISHŌKAI ECONOMY ALERT · #" + incidentId,
+            "Member: " + (userId ? "<@" + userId + "> (" + userId + ")" : "Unknown"),
+            "Issue: " + String(input.summary || "A severe economy integrity signal was detected.").slice(0, 240),
+            "Context: " + (details || "No additional evidence recorded.").slice(0, 600),
+            "Suggested review: " + suggestionByCategory[input.category],
+            "Action: " + actionLine,
+            "No automatic punishment or restriction has been applied."
+          ].join("\n").slice(0, 1900);
+          // Economy alerts are plain-text DMs, not embeds.
+          const payload = { content: plainText, allowedMentions: { parse: [], users: userId ? [userId] : [] } };
+          if (!isAlertOnly && components.length) payload.components = components;
+          await recipient.send(payload);
+          delivered += 1;
+          continue;
         } else {
           embed.setDescription(
             "Dear " + displayName + ",\n\n" +
@@ -676,6 +692,7 @@ class SecurityService {
       "INSERT INTO audit_logs (guild_id, actor_id, action, target_id, details) VALUES ($1,$2,$3,$4,$5::jsonb)",
       [guildId, interaction.user.id, "security_alert_" + status, targetId, JSON.stringify({ incidentId, category })]
     ).catch((error) => log("warn", "Could not audit owner security action", { message: error.message }));
+    const isEconomyIncident = category.startsWith("economy_");
     const embed = interaction.message?.embeds?.[0]
       ? EmbedBuilder.from(interaction.message.embeds[0]).addFields({ name: "Action taken", value: resultText.slice(0, 1000) })
       : new EmbedBuilder().setTitle("Security action completed").setDescription(resultText);
@@ -692,6 +709,11 @@ class SecurityService {
         .setStyle(ButtonStyle.Success));
     }
     const rows = followUpControls.length ? [new ActionRowBuilder().addComponents(...followUpControls)] : [];
+    if (isEconomyIncident) {
+      const content = ((interaction.message?.content || "Fukishōkai economy incident #" + incidentId) +
+        "\n\n✅ Action taken: " + resultText).slice(0, 2000);
+      return interaction.update({ content, embeds: [], components: rows });
+    }
     return interaction.update({ embeds: [embed], components: rows });
   }
 }
