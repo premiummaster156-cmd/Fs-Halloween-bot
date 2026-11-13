@@ -4,6 +4,10 @@ const balancing = require("../config/game-balancing");
 const { DomainError, uuid, randomInt, claimCooldownTx, levelXpRequired, getLevelEarningMultiplier, applyCooldownReduction } = require("../utils/core");
 const { MAX_BASE_XP_PER_ACTION, MAX_SINGLE_XP_GAIN, MAX_EARNING_MULTIPLIER, MAX_SINGLE_MUTATION_FC, inspectEconomyMutation, inspectRewardBurst } = require("./economy-guard");
 
+function getXpEventMultiplier(eventType) {
+  return eventType === "xp_surge" ? 1.5 : 1;
+}
+
 const MULTIPLIED_EARNING_REASONS = new Set([
   "daily_reward",
   "job_work",
@@ -364,7 +368,12 @@ class EconomyService {
     await this.assertSnapshotTx(client,guildId,userId,result.rows[0]);
     const gear = this.inventory ? await this.inventory.getEffectsTx(client, guildId, userId) : {};
     const bonus = Math.max(0,Math.min(0.75,(gear.xpBonus || 0) + Math.max(0,Number(activityBonus) || 0)));
-    const multiplier = balancing.progression.xpMultiplier *
+    const liveEventResult = await client.query(
+      "SELECT event_type FROM admin_abuse_events WHERE guild_id=$1 AND status='active' AND starts_at<=NOW() AND ends_at>NOW() ORDER BY created_at DESC LIMIT 1",
+      [guildId]
+    );
+    const eventMultiplier = getXpEventMultiplier(liveEventResult.rows?.[0]?.event_type);
+    const multiplier = balancing.progression.xpMultiplier * eventMultiplier *
       (hasBooster ? balancing.progression.roleBoosterMultiplier : 1) * (1 + bonus);
     const gained = Math.max(0, Math.floor(baseXp * multiplier));
     if (!Number.isSafeInteger(gained) || gained > MAX_SINGLE_XP_GAIN) {
@@ -439,4 +448,4 @@ class EconomyService {
   }
 }
 
-module.exports = { EconomyService, ensurePlayerTx, getPlayer, getLeaderboard, calculateCandyDrop };
+module.exports = { EconomyService, ensurePlayerTx, getPlayer, getLeaderboard, calculateCandyDrop, getXpEventMultiplier };
