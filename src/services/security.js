@@ -169,8 +169,12 @@ class SecurityService {
     const guild = input.guild;
     if (!guild?.id) return null;
     const userId = input.userId || null;
-    if (userId && !["anti_nuke", "anti_raid"].includes(input.category) &&
-        await this.isAboveBotRole(guild, userId)) return null;
+    const isAlertOnly = ["anti_nuke", "anti_raid"].includes(input.category);
+    const isEconomyAlert = String(input.category || "").startsWith("economy_");
+    const severeEconomyAlert = isEconomyAlert && isSevereEconomyIncident(input.category, input.details || {});
+    // Soft economy signals are below the owner-notification threshold: no incident DM or noise record.
+    if (isEconomyAlert && !severeEconomyAlert) return null;
+    if (userId && !isAlertOnly && await this.isAboveBotRole(guild, userId)) return null;
     const dedupeKey = guild.id + ":" + (userId || "unknown") + ":" + input.category;
     const now = Date.now();
     if (now - (this.alertedAt.get(dedupeKey) || 0) < ALERT_DEDUPE_MS) return null;
@@ -189,11 +193,6 @@ class SecurityService {
     }
 
     const detailsInput = { ...(input.details || {}) };
-    const isAlertOnly = ["anti_nuke", "anti_raid"].includes(input.category);
-    const isEconomyAlert = String(input.category || "").startsWith("economy_");
-    const severeEconomyAlert = isEconomyAlert && isSevereEconomyIncident(input.category, detailsInput);
-    // Keep low-confidence economy signals in PostgreSQL for later review, but do not DM on soft noise.
-    if (isEconomyAlert && !severeEconomyAlert) return incidentId;
 
     // Urgent raid/nuke detections are sent immediately. Routine notices are
     // grouped per guild and limited by PostgreSQL across restarts and instances.
