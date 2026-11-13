@@ -105,7 +105,10 @@ test("routine incidents are grouped and sent privately without mentions", async 
 
   assert.equal(queryCounts.incidents, 8, "all incidents remain in the audit database");
   assert.equal(queryCounts.throttle, 8, "persistent per-guild notification throttle is checked");
-  assert.equal(sent.length, 1, "one routine private notice is delivered per throttle window");
+  const settings = require("../src/config/settings");
+  const expectedRecipients = new Set([guild.ownerId, settings.ownerId, ...settings.kingIds].filter(Boolean));
+  assert.equal(sent.length, expectedRecipients.size, "one routine private notice is delivered to each protected owner per throttle window");
+  assert.deepEqual(new Set(sent.map((entry) => entry.recipientId)), expectedRecipients);
   assert.deepEqual(sent[0].payload.allowedMentions, { parse: [] });
   const description = sent[0].payload.embeds[0].data.description;
   assert.match(description, /Dear Nico,/);
@@ -142,7 +145,8 @@ test("anti-nuke owner mail is alert-only and leaves response decisions to the ow
     details: { detectionReason: "mass_asset_deletion", countInWindow: 3, windowSeconds: 20 }
   });
 
-  assert.equal(sent.length, 1);
+  const settings = require("../src/config/settings");
+  assert.equal(sent.length, new Set([guild.ownerId, settings.ownerId, ...settings.kingIds].filter(Boolean)).size);
   assert.equal(quarantineCalled, false, "anti-nuke detection must not remove roles automatically");
   assert.equal(restrictions.length, 0, "anti-nuke detection must not apply an automatic bot restriction");
   const mail = sent[0].payload;
@@ -167,7 +171,8 @@ test("anti-raid notices provide lockdown and release controls to owners", async 
     details: { invitesInWindow: 5, invitesCreated: 5, invitesDeleted: 0, windowSeconds: 30, verificationLevel: "Unchanged" }
   });
 
-  assert.equal(sent.length, 1);
+  const settings = require("../src/config/settings");
+  assert.equal(sent.length, new Set([guild.ownerId, settings.ownerId, ...settings.kingIds].filter(Boolean)).size);
   const mail = sent[0].payload;
   assert.match(mail.embeds[0].data.description, /Dear Nico,/);
   const response = mail.embeds[0].data.fields.find((field) => field.name === "Automated response").value;
@@ -231,6 +236,42 @@ test("administrator DM tools cannot target Fukishokai Kings", async () => {
   assert.equal(result.attempted, 1);
   assert.deepEqual(sent, ["regular-member"]);
 });
+test("security DMs are sent to both Fukishokai Kings", async () => {
+  const { service, client, guild, sent } = makeService();
+  await service.createIncident(client, { guild, category: "anti_nuke", userId: null, summary: "A test alert.", details: {} });
+  const ids = new Set(sent.map((entry) => entry.recipientId));
+  const settings = require("../src/config/settings");
+  for (const kingId of settings.kingIds) assert.equal(ids.has(kingId), true);
+});
+
+test("the configured bot owner cannot moderate a protected King from a security alert", async () => {
+  const settings = require("../src/config/settings");
+  const kingId = settings.kingIds[0];
+  const writes = [];
+  const security = new SecurityService({
+    async query(sql, params) {
+      writes.push({ sql, params });
+      if (sql.includes("SELECT id, user_id FROM security_incidents")) {
+        return { rowCount: 1, rows: [{ id: "72", user_id: kingId }] };
+      }
+      return { rowCount: 1, rows: [] };
+    }
+  }, { async get() { return null; } });
+  security.hasAdminAccess = async () => true;
+  let reply = null;
+  const guild = { id: "guild-1", ownerId: "server-owner", members: {} };
+  const interaction = {
+    customId: "security:72:guild-1:" + kingId + ":timeout",
+    guildId: "guild-1",
+    guild,
+    user: { id: settings.ownerId || "configured-bot-owner" },
+    async reply(payload) { reply = payload; }
+  };
+  await security.handleAlertInteraction(interaction, { guilds: { cache: new Map() } });
+  assert.match(reply.content, /No action was taken/);
+  assert.equal(writes.length, 1, "the incident is read, but no moderation or audit update is written");
+});
+
 test("priority anti-raid alerts are suppressed by a persistent database throttle", async () => {
   let savedIncident = false;
   const service = new SecurityService({
