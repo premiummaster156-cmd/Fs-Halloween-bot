@@ -2,6 +2,9 @@ const test=require("node:test");
 const assert=require("node:assert/strict");
 const {validateOffer,hasOffer,validateTradeMember,snowflakeCreatedAt}=require("../src/services/trade-interactions");
 const {EconomyEventService}=require("../src/services/economy-events");
+const {PRESETS,validateAdminAbuseStart}=require("../src/services/admin-abuse");
+const {getXpEventMultiplier}=require("../src/services/economy");
+const {getHeistEventBonuses}=require("../src/games/heists");
 const {AdminMessagingService}=require("../src/services/admin-messaging");
 const {leaderboardPayload}=require("../src/commands/leaderboard-ui");
 const {announceEconomyParty}=require("../src/commands/dashboard");
@@ -33,6 +36,17 @@ test("economy event persists a validated party event",async()=>{
  assert.equal(event.multiplier,10);
  assert.equal(event.name,"Weekend Frenzy");
  assert.ok(calls.some(x=>x.sql.startsWith("UPDATE economy_events")));
+});
+
+test("XP Surge and Heist Rush are available, validated and use their intended gameplay bonuses",()=>{
+  assert.equal(PRESETS.xp_surge.name,"XP Surge");
+  assert.equal(PRESETS.heist_rush.name,"Heist Rush");
+  assert.equal(validateAdminAbuseStart("xp_surge",15).eventType,"xp_surge");
+  assert.equal(validateAdminAbuseStart("heist_rush",20).eventType,"heist_rush");
+  assert.equal(getXpEventMultiplier("xp_surge"),1.5);
+  assert.equal(getXpEventMultiplier("blood_moon"),1);
+  assert.deepEqual(getHeistEventBonuses("heist_rush"),{successChanceBonus:8,payoutMultiplier:1.3});
+  assert.deepEqual(getHeistEventBonuses("blood_moon"),{successChanceBonus:0,payoutMultiplier:1});
 });
 
 test("FC party announcement pings only the configured Halloween reward role",async()=>{
