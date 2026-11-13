@@ -167,6 +167,42 @@ test("anti-raid notices provide lockdown and release controls to owners", async 
   assert.ok(labels.includes("Acknowledge"));
 });
 
+test("owner can use raid controls directly from a private DM", async () => {
+  const writes = [];
+  const service = new SecurityService({
+    async query(sql, params) {
+      writes.push({ sql, params });
+      if (sql.includes("SELECT id, user_id FROM security_incidents")) {
+        return { rowCount: 1, rows: [{ id: "44", user_id: null }] };
+      }
+      return { rowCount: 1, rows: [] };
+    }
+  }, { async get() { return null; } });
+  const guild = { id: "guild-1", ownerId: "server-owner", members: {} };
+  service.activateRaidLockdown = async () => ({ applied: true });
+  let updated;
+  const interaction = {
+    customId: "security:44:guild-1:unknown:raid-lockdown",
+    guildId: null,
+    guild: null,
+    user: { id: "server-owner" },
+    message: { embeds: [] },
+    reply: async () => { throw new Error("A valid owner action should update the DM notice."); },
+    update: async (payload) => { updated = payload; }
+  };
+  const client = {
+    guilds: {
+      cache: { get: () => guild },
+      async fetch() { return guild; }
+    }
+  };
+
+  await service.handleAlertInteraction(interaction, client);
+  assert.equal(writes.some((entry) => entry.sql.includes("UPDATE security_incidents")), true);
+  assert.match(updated.embeds[0].data.fields[0].value, /Very High for 30 minutes/);
+  assert.deepEqual(updated.components, []);
+});
+
 test("verified role quarantine data is persisted for owner-approved restoration", async () => {
   let saved = null;
   const service = new SecurityService({
