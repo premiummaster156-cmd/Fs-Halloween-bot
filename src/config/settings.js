@@ -19,6 +19,10 @@ module.exports = {
   guildId: process.env.GUILD_ID || "",
   databaseUrl: process.env.DATABASE_URL || "",
   ownerId: process.env.OWNER_ID || "",
+  // The whole-server AI watcher is opt-in because it requires Discord's privileged Message Content intent.
+  aiMessageMonitorEnabled: String(process.env.AI_MESSAGE_MONITOR_ENABLED || "").toLowerCase() === "true",
+  ollamaApiKey: process.env.OLLAMA_API_KEY || "",
+  ollamaModel: process.env.OLLAMA_MODEL || "gemma4:31b",
   kingIds,
   adminRoleIds: parseList(process.env.ADMIN_ROLE_IDS),
   // Role assigned to members who currently boost this Discord server.
