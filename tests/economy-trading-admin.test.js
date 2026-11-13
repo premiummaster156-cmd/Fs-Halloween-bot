@@ -4,6 +4,7 @@ const {validateOffer,hasOffer,validateTradeMember,snowflakeCreatedAt}=require(".
 const {EconomyEventService}=require("../src/services/economy-events");
 const {AdminMessagingService}=require("../src/services/admin-messaging");
 const {leaderboardPayload}=require("../src/commands/leaderboard-ui");
+const {announceEconomyParty}=require("../src/commands/dashboard");
 
 test("trade offers require valid, owned-catalog item IDs and bounded quantities",()=>{
  assert.deepEqual(validateOffer({fc:500,items:[{itemId:"reinforced_gloves",quantity:1}]}),
@@ -32,6 +33,73 @@ test("economy event persists a validated party event",async()=>{
  assert.equal(event.multiplier,10);
  assert.equal(event.name,"Weekend Frenzy");
  assert.ok(calls.some(x=>x.sql.startsWith("UPDATE economy_events")));
+});
+
+test("FC party announcement pings only the configured Halloween reward role",async()=>{
+ const sent=[];
+ const rewardRole={id:"reward-role",name:"Halloween Rewards",mentionable:false,managed:false};
+ const guild={
+  id:"guild-1",
+  roles:{fetch:async(id)=>id===rewardRole.id?rewardRole:null},
+  members:{me:{}},
+  channels:{fetch:async()=>({
+   id:"game-channel",
+   isTextBased:()=>true,
+   isDMBased:()=>false,
+   permissionsFor:()=>({has:()=>true}),
+   send:async(payload)=>{sent.push(payload);return {id:"message-1"};}
+  })}
+ };
+ const interaction={
+  guildId:guild.id,guild,
+  user:{id:"starter-id",username:"starter",globalName:"Starter"},
+  member:{displayName:"Starter Display"}
+ };
+ const services={guildSettings:{get:async(_guildId,key)=>key==="memberCommandsChannelId"?"game-channel":"reward-role"}};
+ const event={
+  name:"Weekend FC Frenzy",
+  multiplier:5,
+  starts_at:new Date("2026-11-13T12:00:00Z"),
+  ends_at:new Date("2026-11-13T12:30:00Z"),
+  created_by:"starter-id"
+ };
+ const result=await announceEconomyParty(interaction,services,event);
+ assert.deepEqual(result,{announced:true,rolePinged:true,channelId:"game-channel"});
+ assert.equal(sent.length,1);
+ assert.match(sent[0].content,/FC PARTY EVENT STARTED/);
+ assert.match(sent[0].content,/Weekend FC Frenzy/);
+ assert.match(sent[0].content,/30 minutes/);
+ assert.match(sent[0].content,/5\.0×/);
+ assert.match(sent[0].content,/Starter Display/);
+ assert.match(sent[0].content,/<@&reward-role>/);
+ assert.equal(sent[0].content.includes("@everyone"),false);
+ assert.equal(sent[0].content.includes("@here"),false);
+ assert.deepEqual(sent[0].allowedMentions,{parse:[],roles:["reward-role"]});
+});
+
+test("FC party announcement never substitutes everyone or here when reward role is missing",async()=>{
+ const sent=[];
+ const guild={
+  id:"guild-1",
+  roles:{fetch:async()=>null},
+  members:{me:{}},
+  channels:{fetch:async()=>({
+   id:"game-channel",isTextBased:()=>true,isDMBased:()=>false,
+   permissionsFor:()=>({has:()=>true}),
+   send:async(payload)=>{sent.push(payload);return {id:"message-1"};}
+  })}
+ };
+ const interaction={guildId:guild.id,guild,user:{id:"starter",username:"starter"}};
+ const services={guildSettings:{get:async(_guildId,key)=>key==="memberCommandsChannelId"?"game-channel":null}};
+ const result=await announceEconomyParty(interaction,services,{
+  name:"Small Party",multiplier:2,starts_at:new Date("2026-11-13T12:00:00Z"),ends_at:new Date("2026-11-13T12:05:00Z")
+ });
+ assert.equal(result.announced,true);
+ assert.equal(result.rolePinged,false);
+ assert.match(sent[0].content,/not configured/);
+ assert.deepEqual(sent[0].allowedMentions,{parse:[]});
+ assert.equal(sent[0].content.includes("@everyone"),false);
+ assert.equal(sent[0].content.includes("@here"),false);
 });
 
 test("forced DM sends skip bots and count closed DMs as failures",async()=>{
