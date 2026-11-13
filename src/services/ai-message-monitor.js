@@ -23,10 +23,11 @@ const OUTPUT_SCHEMA = {
 };
 
 class AIMessageMonitor {
-  constructor({ apiKey, model = "gpt-oss:20b", ownerId, pool, dailyLimit = 100, minConfidence = OWNER_REPORT_MIN_CONFIDENCE, fetchImpl = fetch }) {
+  constructor({ apiKey, model = "gpt-oss:20b", ownerId, guildIds = [], pool, dailyLimit = 100, minConfidence = OWNER_REPORT_MIN_CONFIDENCE, fetchImpl = fetch }) {
     this.apiKey = String(apiKey || "");
     this.model = String(model || "gpt-oss:20b");
     this.ownerId = String(ownerId || "");
+    this.guildIds = new Set((Array.isArray(guildIds) ? guildIds : []).map(String).filter(Boolean));
     this.pool = pool;
     this.fetchImpl = fetchImpl;
     this.dailyLimit = Math.max(1, Math.min(1000, Math.floor(Number(dailyLimit) || 100)));
@@ -305,6 +306,7 @@ class AIMessageMonitor {
 
   async inspect(message, client) {
     if (!this.apiKey || !this.ownerId || !message?.guild || !message.author || message.author.bot || message.webhookId) return;
+    if (this.guildIds.size && !this.guildIds.has(String(message.guildId))) return;
     if (message.system || message.type !== 0) return;
     if (this.processedMessageIds.has(message.id)) return;
     this.processedMessageIds.add(message.id);
