@@ -22,11 +22,16 @@ test("casino payout policy requires well-formed wager metadata",()=>{
  assert.equal(inspectEconomyMutation({userId:"u",delta:100,reason:"casino_payout",metadata:{wager:100,multiplier:100}}).allowed,true);
 });
 
-test("reward bursts create soft alerts and hard blocks at the configured thresholds",()=>{
+test("reward burst notifications require a severe score while hard safety limits still block",()=>{
  assert.equal(inspectRewardBurst({recentCount:2,recentBase:1000,currentBase:1000}).alert,false);
  const soft=inspectRewardBurst({recentCount:9,recentBase:5000,currentBase:500});
- assert.equal(soft.alert,true);
+ assert.equal(soft.score,22);
+ assert.equal(soft.alert,false);
  assert.equal(soft.blocked,false);
+ const severe=inspectRewardBurst({recentCount:9,recentBase:300000,currentBase:1000});
+ assert.equal(severe.score,80);
+ assert.equal(severe.alert,true);
+ assert.equal(severe.blocked,false);
  const hard=inspectRewardBurst({recentCount:29,recentBase:1000,currentBase:100});
  assert.equal(hard.blocked,true);
  assert.equal(hard.score,100);
