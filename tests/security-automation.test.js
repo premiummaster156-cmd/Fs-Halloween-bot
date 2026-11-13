@@ -186,7 +186,14 @@ test("verified role quarantine data is persisted for owner-approved restoration"
   };
   const member = {
     roles: {
-      cache: new Map([["guild-1", { id: "guild-1", editable: false, permissions: { has() { return false; } } }, ["admin-role", role]]]),
+      cache: {
+        filter(predicate) {
+          return [
+            { id: "guild-1", editable: false, permissions: { has() { return false; } } },
+            role
+          ].filter(predicate);
+        }
+      },
       async remove(ids) { assert.deepEqual(ids, ["admin-role"]); }
     }
   };
