@@ -138,7 +138,13 @@ async function start() {
   const guildSettings = new GuildSettingsService(pool);
   const security = new SecurityService(pool, guildSettings);
   const aiMessageMonitor = aiMessageMonitorConfigured
-    ? new AIMessageMonitor({ apiKey: settings.ollamaApiKey, model: settings.ollamaModel, ownerId: settings.ownerId })
+    ? new AIMessageMonitor({
+        apiKey: settings.ollamaApiKey,
+        model: settings.ollamaModel,
+        ownerId: settings.ownerId,
+        pool,
+        dailyLimit: settings.aiMessageMonitorDailyLimit
+      })
     : null;
   if (aiMessageMonitor) {
     client.on(Events.MessageCreate, (message) => {
@@ -159,6 +165,7 @@ async function start() {
     trades: new TradeService(pool),
     economyEvents,
     adminAbuse,
+    aiMessageMonitor,
     adminMessaging: new AdminMessagingService(),
     jobs: new JobsGame(pool, economy, inventory),
     crime: new CrimeGame(pool, economy, inventory),
