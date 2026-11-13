@@ -1,7 +1,7 @@
 "use strict";
 
 const OWNER_REPORT_MIN_CONFIDENCE = 0.88;
-const CANDIDATE_PATTERN = /\b(fc|fs\s*coins?|coins?|money|cash|give\s+me|send\s+me|gift|donat(?:e|ion)|beg(?:ging)?|loan|borrow|pay\s+for\s+me|free\s+(?:fc|coins?|money)|transfer|handout|exploit|dupe|glitch|refund|scam|fake\s+proof|admin|moderator|mods?)\b/i;
+const CANDIDATE_PATTERN = /\b(fc|fs\s*coins?|coins?|money|cash|give\s+me|send\s+me|gift|donat(?:e|ion)|beg(?:ging)?|loan|borrow|pay\s+for\s+me|free\s+(?:fc|coins?|money)|transfer|handout|exploit|dupe|glitch|refund|scam|fake\s+proof|admin|moderator|mods?|idiot|stupid|shut\s+up|bully|harass|threat|abuse|go\s+die)\b/i;
 const SENSITIVE_PERMISSIONS = [
   "Administrator", "ManageGuild", "ManageChannels", "ManageRoles", "ManageMessages",
   "ManageWebhooks", "BanMembers", "KickMembers", "ModerateMembers", "ViewAuditLog",
@@ -268,10 +268,15 @@ class AIMessageMonitor {
     const recentProofs = history.slice(-4)
       .filter((item) => item.url)
       .map((item) => item.authorName + ": " + item.content.slice(0, 180) + "\n" + item.url);
+    const replyProof = replyContext?.url
+      ? ["Replied to: " + (replyContext.author?.serverDisplayName || replyContext.author?.globalDisplayName || replyContext.author?.username || "Unknown member") +
+          " (" + (replyContext.author?.userId || "unknown ID") + ")\n" + replyContext.url]
+      : [];
+    const attachmentProofs = Array.from(message.attachments?.values?.() || []).slice(0, 3)
+      .map((item) => "Attachment: " + item.name + "\n" + item.url);
     const proofText = [message.author.username + ": " + String(message.content || "").slice(0, 300) + "\n" + message.url]
-      .concat(replyContext?.url ? ["Replied-to message: " + replyContext.url] : [])
-      .concat(recentProofs)
-      .slice(0, 5)
+      .concat(replyProof, recentProofs, attachmentProofs)
+      .slice(0, 6)
       .join("\n\n");
     const text = [
       "FUKISHŌKAI AI WATCH · REVIEW REQUIRED",
