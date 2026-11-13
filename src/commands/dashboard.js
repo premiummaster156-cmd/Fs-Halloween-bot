@@ -846,7 +846,7 @@ async function renderMenu(guildId, owner, page, s) {
         { name: "4 · Server Booster rewards", value: "Boost this server and your personal boost #1–#5 automatically awards a different 🌟 MYTHIC item. It appears in Gear and equips itself. No claiming or FC purchase. See all 5 rewards and perks in Gear." },
         { name: "5 · Play when you want", value: "Crime and Casino are optional and risky. Heists are team missions. Read the reward and possible loss before confirming." },
         { name: "6 · Halloween", value: "Complete the listed quests to earn Candy and event points. Candy is separate from FC." },
-        { name: "7 · Level rewards", value: "Every level increases eligible FC earnings by 0.5%. At level 600, the level multiplier reaches 3.995×. Gear and server FC parties can add further bonuses." },
+        { name: "7 · Level rewards", value: "Every level increases eligible FC earnings by 0.5%. At level 1000, the level multiplier reaches 5.995×. Gear and server FC parties can add further bonuses." },
         { name: "What do the words mean?", value: "**FC** = game coins · **XP** = experience for levels · **Candy** = event currency · **Gear** = items that give bonuses · **MYTHIC** = rare boost-only gear." }
       ], [nav]);
   }
@@ -904,13 +904,17 @@ async function renderAdmin(guildId, owner, page, s, targetId) {
         { name: "Blood Moon", value: presets.blood_moon.description },
         { name: "Candy Storm", value: presets.candy_storm.description },
         { name: "Rift Surge", value: presets.rift_surge.description },
-        { name: "Lucky Block Rain", value: presets.lucky_block_rain.description }
+        { name: "Lucky Block Rain", value: presets.lucky_block_rain.description },
+        { name: "XP Surge", value: presets.xp_surge.description },
+        { name: "Heist Rush", value: presets.heist_rush.description }
       ], [
         row(new StringSelectMenuBuilder().setCustomId("admin:" + owner + ":admin-abuse-type").setPlaceholder("Choose a live event to start").setMinValues(1).setMaxValues(1).addOptions(
           { label: "Blood Moon", value: "blood_moon", description: "Crime success +12 points and +25% base rewards" },
           { label: "Candy Storm", value: "candy_storm", description: "Every eligible gameplay action gains +1–2 Candy" },
           { label: "Rift Surge", value: "rift_surge", description: "Rift Arena victory rewards +50% FC and XP" },
-          { label: "Lucky Block Rain", value: "lucky_block_rain", description: "Every player can claim one reward block" }
+          { label: "Lucky Block Rain", value: "lucky_block_rain", description: "Every player can claim one reward block" },
+          { label: "XP Surge", value: "xp_surge", description: "All eligible XP gains are boosted by 50%" },
+          { label: "Heist Rush", value: "heist_rush", description: "Heists gain +8 success points and +30% base payout" }
         )),
         row(aBtn(owner, "admin-abuse-stop", "Stop live event", ButtonStyle.Danger).setDisabled(!active), aBtn(owner, "home", "Admin console"))
       ]);
@@ -1774,7 +1778,7 @@ async function handleButton(i, s) {
         return i.reply({ content: "Administrators cannot grant FC, XP or levels to their own account.", flags: MessageFlags.Ephemeral });
       }
       return i.showModal(modal("admin:" + owner + ":" + action + ":" + target, isLevel ? "Set player level" : action === "remove-fc" ? "Remove FS Coins" : action === "grant-xp" ? "Grant XP" : "Grant FS Coins", [
-        { id: isLevel ? "level" : "amount", label: isLevel ? "New level (1–600)" : "Amount", placeholder: isLevel ? "10" : "1000", max: 12 },
+        { id: isLevel ? "level" : "amount", label: isLevel ? "New level (1–1000)" : "Amount", placeholder: isLevel ? "10" : "1000", max: 12 },
         { id: "reason", label: "Audit reason", paragraph: true, max: 500 }
       ]));
     }
