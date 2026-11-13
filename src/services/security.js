@@ -209,6 +209,16 @@ class SecurityService {
       detailsInput.quarantineApplied = Boolean(quarantine?.applied);
       detailsInput.quarantinedRoleCount = Number(quarantine?.roleIds?.length || 0);
       if (quarantine?.error) detailsInput.quarantineError = quarantine.error;
+      await this.pool.query(
+        "UPDATE security_incidents SET details = details || $2::jsonb WHERE id=$1",
+        [incidentId, JSON.stringify({
+          quarantineApplied: detailsInput.quarantineApplied,
+          quarantinedRoleCount: detailsInput.quarantinedRoleCount,
+          quarantineError: detailsInput.quarantineError || null
+        })]
+      ).catch((error) => log("warn", "Could not append anti-nuke containment result to incident", {
+        guildId: guild.id, incidentId, message: error.message
+      }));
     }
 
     // Urgent raid/nuke detections are sent immediately. Routine notices are
