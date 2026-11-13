@@ -219,8 +219,7 @@ async function createProfileCard({ user, player, rank, stats = {} }) {
   const totalWealth = wallet + bank;
   const career = stats.career || "Unemployed";
   const careerText = career === "Unemployed" ? career : career + " · Job " + (Number(player?.job_level ?? stats.jobLevel) || 1);
-  const rebirths = Math.max(0, Number(player?.prestige ?? stats.rebirths) || 0);
-  const rebirthValue = rebirths + " · " + (Number(stats.rebirthMultiplier) || 1).toFixed(1) + "×";
+  const jobXp = Math.max(0, Number(player?.job_xp ?? stats.jobXp) || 0);
   const partyWins = Number(stats.partyWins) || 0;
   const partyGames = Number(stats.partyGames) || 0;
 
@@ -231,7 +230,7 @@ async function createProfileCard({ user, player, rank, stats = {} }) {
   drawStat(ctx, columns[3], 160, "Candy", compact(stats.candy) );
 
   drawStat(ctx, columns[0], 205, "Career", careerText);
-  drawStat(ctx, columns[1], 205, "Rebirths", rebirthValue);
+  drawStat(ctx, columns[1], 205, "Job XP", compact(jobXp));
   drawStat(ctx, columns[2], 205, "Lifetime FC", compact(player?.lifetime_earned ?? stats.lifetimeEarned));
   drawStat(ctx, columns[3], 205, "Party points", compact(stats.partyPoints) + " PP");
 
