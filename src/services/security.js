@@ -452,114 +452,341 @@ class SecurityService {
     }
   }
 
-  async recordDestructiveChange(client, guild, targetId, kind, auditType) {
-    if (!guild || !targetId) return;
-    await new Promise((resolve) => setTimeout(resolve, 900));
-    let entry;
+  async quarantineNuker(guild, userId, incidentId) {
     try {
-      const logs = await guild.fetchAuditLogs({ type: auditType, limit: 5 });
-      entry = logs.entries.find((item) => item.target?.id === targetId && Date.now() - item.createdTimestamp < 20000);
+      if (await this.isAboveBotRole(guild, userId)) return { applied: false, roleIds: [] };
+      const [member, botMember] = await Promise.all([
+        guild.members.fetch(userId),
+        guild.members.me ? Promise.resolve(guild.members.me) : guild.members.fetchMe()
+      ]);
+      if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        return { applied: false, roleIds: [], error: "The bot is missing Manage Roles." };
+      }
+      const dangerousPermissions = [
+        PermissionFlagsBits.Administrator, PermissionFlagsBits.ManageGuild,
+        PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageRoles,
+        PermissionFlagsBits.BanMembers, PermissionFlagsBits.KickMembers,
+        PermissionFlagsBits.ManageWebhooks, PermissionFlagsBits.ManageMessages
+      ];
+      const roleIds = member.roles.cache
+        .filter((role) => role.id !== guild.id && role.editable &&
+          dangerousPermissions.some((permission) => role.permissions.has(permission)))
+        .map((role) => role.id);
+      if (!roleIds.length) return { applied: false, roleIds: [], error: "No removable privileged roles were found." };
+      const saved = await this.pool.query(
+        "INSERT INTO security_quarantines (guild_id, user_id, incident_id, role_ids, status, reason) " +
+        "VALUES ($1, $2, $3, $4::jsonb, 'pending', $5) RETURNING id",
+        [guild.id, userId, incidentId, JSON.stringify(roleIds), "Automated anti-nuke containment"]
+      );
+      await member.roles.remove(roleIds, "Fukishōkai anti-nuke containment · incident #" + incidentId);
+      await this.pool.query("UPDATE security_quarantines SET status='active' WHERE id=$1", [saved.rows[0].id]);
+      this.clearHierarchyCache();
+      return { applied: true, roleIds };
     } catch (error) {
-      log("warn", "Could not attribute destructive action. Grant View Audit Log to the bot for attribution.", {
-        guildId: guild.id, kind, targetId, message: error.message
-      });
-      return;
+      log("error", "Anti-nuke role quarantine failed", { guildId: guild.id, userId, incidentId, message: error.message });
+      return { applied: false, roleIds: [], error: String(error.message || error).slice(0, 180) };
     }
-    const actorId = entry?.executor?.id;
-    if (!actorId || actorId === client.user?.id) return;
-    if (await this.isAboveBotRole(guild, actorId)) return;
-    const key = guild.id + ":" + actorId;
-    const attempts = this.pushWindow(this.destructiveAttempts, key, Date.now(), 20000);
-    const threshold = kind === "member_ban" ? 5 : 3;
-    if (attempts.length !== threshold) return;
-    await this.createIncident(client, {
-      guild, userId: actorId, category: "rapid_destructive_actions",
-      summary: "Several destructive server actions were detected in a short period.",
+  }
+
+  async restoreQuarantineRoles(guild, userId, incidentId, actorId) {
+    const saved = await this.pool.query(
+      "SELECT id, role_ids FROM security_quarantines WHERE guild_id=$1 AND user_id=$2 AND incident_id=$3 AND status='active' ORDER BY created_at DESC LIMIT 1",
+      [guild.id, userId, incidentId]
+    );
+    if (!saved.rowCount) throw new Error("No active role quarantine was found for this incident.");
+    const member = await guild.members.fetch(userId);
+    const ids = Array.isArray(saved.rows[0].role_ids) ? saved.rows[0].role_ids : JSON.parse(saved.rows[0].role_ids || "[]");
+    const restorable = ids.filter((id) => {
+      const role = guild.roles.cache.get(id);
+      return role && role.editable;
+    });
+    if (restorable.length) await member.roles.add(restorable, "Owner-approved role restoration for incident #" + incidentId);
+    await this.pool.query(
+      "UPDATE security_quarantines SET status='restored', restored_by=$2, restored_at=NOW() WHERE id=$1",
+      [saved.rows[0].id, actorId]
+    );
+    this.clearHierarchyCache();
+    return { restored: restorable.length, missing: ids.length - restorable.length };
+  }
+
+  async activateRaidLockdown(guild, durationMs = 30 * 60 * 1000, actorId = "AUTO_SECURITY", reason = "Anti-raid protection") {
+    const botMember = guild.members.me || await guild.members.fetchMe();
+    if (!botMember.permissions.has(PermissionFlagsBits.ManageGuild)) {
+      throw new Error("The bot requires Manage Server permission to change the verification level.");
+    }
+    const current = await this.pool.query(
+      "SELECT previous_verification_level, lockdown_until FROM guild_security_state WHERE guild_id=$1",
+      [guild.id]
+    );
+    const active = current.rowCount && current.rows[0].lockdown_until &&
+      new Date(current.rows[0].lockdown_until).getTime() > Date.now();
+    const previousLevel = active
+      ? Number(current.rows[0].previous_verification_level)
+      : Number(guild.verificationLevel || 0);
+    await guild.edit({ verificationLevel: 4 }, reason + " · actor " + actorId);
+    const until = new Date(Date.now() + durationMs);
+    await this.pool.query(
+      "INSERT INTO guild_security_state (guild_id, previous_verification_level, lockdown_until, lockdown_reason) " +
+      "VALUES ($1, $2, $3, $4) ON CONFLICT (guild_id) DO UPDATE SET " +
+      "previous_verification_level = CASE WHEN guild_security_state.lockdown_until IS NOT NULL " +
+      "AND guild_security_state.lockdown_until > NOW() THEN guild_security_state.previous_verification_level " +
+      "ELSE EXCLUDED.previous_verification_level END, lockdown_until=EXCLUDED.lockdown_until, " +
+      "lockdown_reason=EXCLUDED.lockdown_reason, updated_at=NOW()",
+      [guild.id, previousLevel, until, reason]
+    );
+    return { applied: true, previousLevel, until };
+  }
+
+  async releaseRaidLockdown(guild, actorId = "AUTO_SECURITY", reason = "Raid lockdown released") {
+    const current = await this.pool.query(
+      "SELECT previous_verification_level, lockdown_until FROM guild_security_state WHERE guild_id=$1",
+      [guild.id]
+    );
+    if (!current.rowCount || !current.rows[0].lockdown_until) {
+      return { released: false, message: "No active automatic lockdown was recorded." };
+    }
+    const previousLevel = Number(current.rows[0].previous_verification_level || 0);
+    if (Number(guild.verificationLevel) === 4) {
+      await guild.edit({ verificationLevel: previousLevel }, reason + " · actor " + actorId);
+    }
+    await this.pool.query(
+      "UPDATE guild_security_state SET previous_verification_level=NULL, lockdown_until=NULL, lockdown_reason=NULL, updated_at=NOW() WHERE guild_id=$1",
+      [guild.id]
+    );
+    return { released: true, previousLevel };
+  }
+
+  async recordMemberJoin(client, member) {
+    const guild = member.guild;
+    if (!guild?.id || !member.user) return null;
+    const now = Date.now();
+    const joins = (this.raidJoins.get(guild.id) || []).filter((entry) => now - entry.joinedAt <= 20000);
+    joins.push({
+      joinedAt: now,
+      accountAgeMs: Math.max(0, now - Number(member.user.createdTimestamp || now))
+    });
+    this.raidJoins.set(guild.id, joins);
+    const evaluation = evaluateRaidBurst(joins, now);
+    if (!evaluation.triggered || now - (this.raidAlertedAt.get(guild.id) || 0) < ALERT_DEDUPE_MS) return null;
+    this.raidAlertedAt.set(guild.id, now);
+    let lockdown = null;
+    try {
+      lockdown = await this.activateRaidLockdown(
+        guild, 15 * 60 * 1000, "AUTO_SECURITY", "Automated anti-raid join burst"
+      );
+    } catch (error) {
+      log("error", "Could not activate automatic raid lockdown", { guildId: guild.id, message: error.message });
+    }
+    return this.createIncident(client, {
+      guild,
+      category: "anti_raid",
+      summary: "A rapid join burst crossed the configured anti-raid threshold.",
       details: {
-        actionType: kind, countInWindow: attempts.length, windowSeconds: 20,
-        latestTargetId: targetId, auditReason: entry.reason || "No audit-log reason provided"
+        joinsInWindow: evaluation.joins,
+        youngAccounts: evaluation.youngAccounts,
+        accountAgeThreshold: "7 days",
+        windowSeconds: evaluation.windowSeconds,
+        lockdownApplied: Boolean(lockdown?.applied),
+        verificationLevel: lockdown?.applied ? "Very High" : "Unchanged"
       }
     });
   }
 
-  async handleAlertInteraction(interaction) {
+  async processExpiredRaidLockdowns(client) {
+    const due = await this.pool.query(
+      "SELECT guild_id, previous_verification_level FROM guild_security_state WHERE lockdown_until IS NOT NULL AND lockdown_until <= NOW()"
+    );
+    for (const row of due.rows || []) {
+      try {
+        const guild = client.guilds.cache.get(row.guild_id) || await client.guilds.fetch(row.guild_id);
+        if (Number(guild.verificationLevel) === 4) {
+          await guild.edit(
+            { verificationLevel: Number(row.previous_verification_level || 0) },
+            "Fukishōkai automatic raid lockdown expired"
+          );
+        }
+        await this.pool.query(
+          "UPDATE guild_security_state SET previous_verification_level=NULL, lockdown_until=NULL, lockdown_reason=NULL, updated_at=NOW() WHERE guild_id=$1",
+          [row.guild_id]
+        );
+      } catch (error) {
+        log("warn", "Could not restore expired raid verification level", {
+          guildId: row.guild_id, message: error.message
+        });
+      }
+    }
+  }
+
+  startMaintenance(client) {
+    if (this.maintenanceTimer) clearInterval(this.maintenanceTimer);
+    this.processExpiredRaidLockdowns(client)
+      .catch((error) => log("warn", "Security maintenance failed", { message: error.message }));
+    this.maintenanceTimer = setInterval(() => {
+      this.processExpiredRaidLockdowns(client)
+        .catch((error) => log("warn", "Security maintenance failed", { message: error.message }));
+    }, 60000);
+    if (typeof this.maintenanceTimer.unref === "function") this.maintenanceTimer.unref();
+  }
+
+  async recordDestructiveChange(client, guild, targetId, kind, auditType) {
+    if (!guild || !targetId) return null;
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    let entry;
+    try {
+      const logs = await guild.fetchAuditLogs({ type: auditType, limit: 10 });
+      entry = logs.entries.find((item) =>
+        item.target?.id === targetId && Date.now() - item.createdTimestamp < 15000 &&
+        !this.processedAuditIds.has(item.id)
+      );
+    } catch (error) {
+      log("warn", "Could not attribute anti-nuke event. Grant View Audit Log to the bot for attribution.", {
+        guildId: guild.id, kind, targetId, message: error.message
+      });
+      return null;
+    }
+    if (!entry) return null;
+    this.processedAuditIds.set(entry.id, Date.now());
+    for (const [id, at] of this.processedAuditIds) {
+      if (Date.now() - at > 5 * 60 * 1000) this.processedAuditIds.delete(id);
+    }
+    const actorId = entry.executor?.id;
+    if (!actorId || actorId === client.user?.id || await this.isAboveBotRole(guild, actorId)) return null;
+    const key = guild.id + ":" + actorId;
+    const recent = (this.nukeEvents.get(key) || []).filter((item) => Date.now() - item.at <= 20000);
+    recent.push({ at: Date.now(), kind, targetId, auditId: entry.id });
+    this.nukeEvents.set(key, recent);
+    const evaluation = evaluateNukeBurst(recent);
+    if (!evaluation.triggered || Date.now() - (this.nukeAlertedAt.get(key) || 0) < ALERT_DEDUPE_MS) return null;
+    this.nukeAlertedAt.set(key, Date.now());
+    return this.createIncident(client, {
+      guild,
+      userId: actorId,
+      category: "anti_nuke",
+      summary: "A member performed a burst of destructive server actions consistent with a nuke attempt.",
+      details: {
+        detectionReason: evaluation.reason,
+        countInWindow: evaluation.count,
+        windowSeconds: 20,
+        actionType: kind,
+        actionCounts: JSON.stringify(evaluation.counts),
+        auditReason: entry.reason || "No audit-log reason provided"
+      }
+    });
+  }
+
+  async handleAlertInteraction(interaction, client) {
     const parts = interaction.customId.split(":");
     const incidentId = parts[1], guildId = parts[2];
     const targetId = parts[3] === "unknown" ? null : parts[3];
     const action = parts[4];
-    if (interaction.guildId !== guildId || !await this.hasAdminAccess(interaction.guild, interaction.user.id)) {
-      return interaction.reply({ content: "Only the server owner, bot owner, or configured Admin Role can manage security alerts.", flags: MessageFlags.Ephemeral });
+    const guild = interaction.guild || client.guilds.cache.get(guildId) ||
+      await client.guilds.fetch(guildId).catch(() => null);
+    if (!guild || (interaction.guildId && interaction.guildId !== guildId) ||
+        !await this.hasAdminAccess(guild, interaction.user.id)) {
+      return interaction.reply({
+        content: "Only the server owner, bot owner, or configured Admin Role can manage these private security actions.",
+        flags: MessageFlags.Ephemeral
+      });
     }
     const incident = await this.pool.query(
-      "SELECT id, user_id FROM security_incidents WHERE id = $1 AND guild_id = $2",
+      "SELECT id, user_id, category FROM security_incidents WHERE id=$1 AND guild_id=$2",
       [incidentId, guildId]
     );
-    if (!incident.rowCount) return interaction.reply({ content: "This security incident could not be found.", flags: MessageFlags.Ephemeral });
+    if (!incident.rowCount) {
+      return interaction.reply({ content: "This security incident could not be found.", flags: MessageFlags.Ephemeral });
+    }
+    const category = incident.rows[0].category;
+    let resultText = "The incident was acknowledged. No further action was taken.";
 
-    if (action === "pause" || action === "block" || action === "timeout") {
+    if (action === "raid-lockdown") {
+      await this.activateRaidLockdown(guild, 30 * 60 * 1000, interaction.user.id, "Owner-approved raid lockdown");
+      resultText = "Server verification was raised to Very High for 30 minutes. The previous setting is saved for restoration.";
+    } else if (action === "raid-release") {
+      const released = await this.releaseRaidLockdown(guild, interaction.user.id, "Owner-approved raid lockdown release");
+      resultText = released.released
+        ? "The raid lockdown was ended. The previous verification level was restored unless a server administrator had changed it manually."
+        : released.message;
+    } else if (action === "restore-roles") {
       if (!targetId || incident.rows[0].user_id !== targetId) {
-        return interaction.reply({ content: "This alert has no valid target to restrict.", flags: MessageFlags.Ephemeral });
+        return interaction.reply({ content: "This incident has no matching quarantined member.", flags: MessageFlags.Ephemeral });
       }
-      if (await this.isAboveBotRole(interaction.guild, targetId)) {
-        return interaction.reply({
-          content: "No action was taken. This member's highest role is above the bot's highest role, so they are excluded from bot security enforcement.",
-          flags: MessageFlags.Ephemeral
-        });
+      const restored = await this.restoreQuarantineRoles(guild, targetId, incidentId, interaction.user.id);
+      resultText = "Role restoration completed: " + restored.restored + " role(s) restored; " +
+        restored.missing + " role(s) no longer exist or are no longer manageable.";
+    } else if (action === "ban" || action === "kick" || action === "timeout") {
+      if (!targetId || incident.rows[0].user_id !== targetId) {
+        return interaction.reply({ content: "This incident has no matching target.", flags: MessageFlags.Ephemeral });
       }
-      if (action === "timeout") {
-        const member = await interaction.guild.members.fetch(targetId);
-        const botMember = interaction.guild.members.me || await interaction.guild.members.fetchMe();
-        if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers) || !member.moderatable) {
-          return interaction.reply({
-            content: "Discord did not allow the bot to timeout this member. Check Moderate Members permission and role hierarchy.",
-            flags: MessageFlags.Ephemeral
-          });
+      if (await this.isAboveBotRole(guild, targetId)) {
+        return interaction.reply({ content: "No action was taken because the target is exempt by owner/trusted-role or role hierarchy.", flags: MessageFlags.Ephemeral });
+      }
+      const [member, botMember] = await Promise.all([
+        guild.members.fetch(targetId),
+        guild.members.me ? Promise.resolve(guild.members.me) : guild.members.fetchMe()
+      ]);
+      if (action === "ban") {
+        if (!botMember.permissions.has(PermissionFlagsBits.BanMembers) || !member.bannable) {
+          throw new Error("The bot cannot ban this member. Check Ban Members permission and role hierarchy.");
         }
-        await member.timeout(10 * 60 * 1000, "Owner-approved response to security incident #" + incidentId);
+        await member.ban({
+          reason: "Owner-approved response to Fukishōkai security incident #" + incidentId,
+          deleteMessageSeconds: 0
+        });
+        resultText = "The suspected actor was banned from the server following your approval.";
+      } else if (action === "kick") {
+        if (!botMember.permissions.has(PermissionFlagsBits.KickMembers) || !member.kickable) {
+          throw new Error("The bot cannot kick this member. Check Kick Members permission and role hierarchy.");
+        }
+        await member.kick("Owner-approved response to Fukishōkai security incident #" + incidentId);
+        resultText = "The suspected actor was kicked from the server following your approval.";
+      } else {
+        if (!botMember.permissions.has(PermissionFlagsBits.ModerateMembers) || !member.moderatable) {
+          throw new Error("The bot cannot timeout this member. Check Moderate Members permission and role hierarchy.");
+        }
+        await member.timeout(10 * 60 * 1000, "Owner-approved response to Fukishōkai security incident #" + incidentId);
+        resultText = "The suspected actor was timed out for 10 minutes following your approval.";
+      }
+    } else if (action === "pause" || action === "block" || action === "unblock") {
+      if (!targetId || incident.rows[0].user_id !== targetId) {
+        return interaction.reply({ content: "This alert has no valid target for a bot-access restriction.", flags: MessageFlags.Ephemeral });
+      }
+      if (action === "unblock") {
+        await this.pool.query("DELETE FROM bot_user_restrictions WHERE guild_id=$1 AND user_id=$2", [guildId, targetId]);
+        resultText = "Fukishōkai bot access has been restored for the selected member.";
       } else {
         const expires = action === "pause" ? new Date(Date.now() + 600000) : null;
         await this.pool.query(
           "INSERT INTO bot_user_restrictions (guild_id, user_id, expires_at, reason, created_by) VALUES ($1, $2, $3, $4, $5) " +
-          "ON CONFLICT (guild_id, user_id) DO UPDATE SET expires_at = EXCLUDED.expires_at, reason = EXCLUDED.reason, created_by = EXCLUDED.created_by, updated_at = NOW()",
-          [guildId, targetId, expires, "Security restriction from incident #" + incidentId, interaction.user.id]
+          "ON CONFLICT (guild_id, user_id) DO UPDATE SET expires_at=EXCLUDED.expires_at, reason=EXCLUDED.reason, created_by=EXCLUDED.created_by, updated_at=NOW()",
+          [guildId, targetId, expires, "Owner-approved security restriction from incident #" + incidentId, interaction.user.id]
         );
+        resultText = action === "pause"
+          ? "Fukishōkai access was paused for 10 minutes."
+          : "Fukishōkai access was blocked until an owner restores it.";
       }
-    } else if (action === "unblock") {
-      if (!targetId) return interaction.reply({ content: "This alert has no valid target to unblock.", flags: MessageFlags.Ephemeral });
-      await this.pool.query("DELETE FROM bot_user_restrictions WHERE guild_id = $1 AND user_id = $2", [guildId, targetId]);
     } else if (action !== "ignore") {
       return interaction.reply({ content: "Unknown security action.", flags: MessageFlags.Ephemeral });
     }
 
-    const status = action === "ignore" ? "ignored" : action === "pause" ? "restricted_10m" : action === "block" ? "blocked_from_bot" : action === "timeout" ? "timed_out_10m" : "bot_access_restored";
-    const ownerIsAboveBot = await this.isAboveBotRole(interaction.guild, interaction.user.id);
+    const status = action === "ignore" ? "acknowledged" :
+      action === "raid-lockdown" ? "raid_lockdown_enabled" :
+      action === "raid-release" ? "raid_lockdown_released" :
+      action === "restore-roles" ? "roles_restored" :
+      action === "ban" ? "actor_banned" : action === "kick" ? "actor_kicked" :
+      action === "timeout" ? "actor_timed_out" :
+      action === "pause" ? "restricted_10m" : action === "block" ? "blocked_from_bot" : "bot_access_restored";
     await this.pool.query(
-      "UPDATE security_incidents SET status = $2, updated_by = $3, updated_at = NOW() WHERE id = $1",
-      [incidentId, status, ownerIsAboveBot ? null : interaction.user.id]
+      "UPDATE security_incidents SET status=$2, updated_by=$3, updated_at=NOW() WHERE id=$1",
+      [incidentId, status, interaction.user.id]
     );
-    if (!ownerIsAboveBot) {
-      await this.pool.query(
-        "INSERT INTO audit_logs (guild_id, actor_id, action, target_id, details) VALUES ($1, $2, $3, $4, $5::jsonb)",
-        [guildId, interaction.user.id, "security_alert_" + status, targetId, JSON.stringify({ incidentId })]
-      ).catch((error) => log("warn", "Could not audit security action", { message: error.message }));
-    }
-
-    const text = {
-      ignored: "Alert #" + incidentId + " marked as reviewed. No action was taken.",
-      restricted_10m: "<@" + targetId + "> cannot use the bot for 10 minutes. No server timeout was applied.",
-      blocked_from_bot: "<@" + targetId + "> is blocked from this bot until an owner removes the restriction. No server timeout was applied.",
-      bot_access_restored: "Bot access restored for <@" + targetId + ">.",
-      timed_out_10m: "<@" + targetId + "> was timed out for 10 minutes by an owner-approved security action."
-    };
-    const followUpControls = (action === "pause" || action === "block") && targetId
-      ? [new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guildId + ":" + targetId + ":unblock")
-            .setLabel("Restore bot access").setStyle(ButtonStyle.Success),
-          new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guildId + ":" + targetId + ":ignore")
-            .setLabel("Mark alert reviewed").setStyle(ButtonStyle.Secondary)
-        )]
-      : [];
-    return interaction.update({ content: text[status], embeds: interaction.message.embeds, components: followUpControls });
+    await this.pool.query(
+      "INSERT INTO audit_logs (guild_id, actor_id, action, target_id, details) VALUES ($1,$2,$3,$4,$5::jsonb)",
+      [guildId, interaction.user.id, "security_alert_" + status, targetId, JSON.stringify({ incidentId, category })]
+    ).catch((error) => log("warn", "Could not audit owner security action", { message: error.message }));
+    const embed = interaction.message?.embeds?.[0]
+      ? EmbedBuilder.from(interaction.message.embeds[0]).addFields({ name: "Action taken", value: resultText.slice(0, 1000) })
+      : new EmbedBuilder().setTitle("Security action completed").setDescription(resultText);
+    return interaction.update({ embeds: [embed], components: [] });
   }
 }
 
