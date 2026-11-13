@@ -209,6 +209,28 @@ test("a high-impact role permission grant is escalated as an anti-nuke incident"
   assert.equal(recorded.details.changedFields, "Administrator, Manage Roles");
 });
 
+test("administrator DM tools cannot target Fukishokai Kings", async () => {
+  const { AdminMessagingService } = require("../src/services/admin-messaging");
+  const settings = require("../src/config/settings");
+  const messaging = new AdminMessagingService();
+  let fetchCalls = 0;
+  const sent = [];
+  const regularMember = { user: { bot: false }, async send() { sent.push("regular-member"); } };
+  const guild = {
+    members: {
+      cache: new Map([["regular-member", regularMember]]),
+      async fetch() { fetchCalls += 1; return regularMember; }
+    }
+  };
+  await assert.rejects(() => messaging.sendToMember(guild, settings.kingIds[0], "An administrator message"), /King protection/);
+  assert.equal(fetchCalls, 0, "a protected account is rejected before Discord member lookup");
+  const result = await messaging.sendToAll(guild, "Server announcement", [...settings.kingIds, "regular-member"]);
+  assert.equal(result.sent, 1);
+  assert.equal(result.failed, 0);
+  assert.equal(result.skipped, 2);
+  assert.equal(result.attempted, 1);
+  assert.deepEqual(sent, ["regular-member"]);
+});
 test("priority anti-raid alerts are suppressed by a persistent database throttle", async () => {
   let savedIncident = false;
   const service = new SecurityService({
