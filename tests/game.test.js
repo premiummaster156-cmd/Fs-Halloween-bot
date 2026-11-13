@@ -367,6 +367,28 @@ test("only the server owner or configured bot owner qualifies for bot control", 
   assert.equal(security.isOwner("ordinary-member", "guild-owner"), false);
 });
 
+test("Fukishokai King accounts outrank the bot owner and bypass bot restrictions", async () => {
+  const { SecurityService } = require("../src/services/security");
+  const settings = require("../src/config/settings");
+  const security = new SecurityService({
+    query: async () => { throw new Error("King access must be granted before restriction lookup."); }
+  }, {
+    get: async () => null
+  });
+  assert.equal(settings.kingIds.includes("994605068269670490"), true);
+  assert.equal(settings.kingIds.includes("1118573719644811314"), true);
+  for (const kingId of settings.kingIds) {
+    assert.equal(security.isKing(kingId), true);
+    assert.equal(security.isProtectedKingTarget(kingId), true);
+    assert.equal(security.isOwner(kingId, "different-guild-owner"), true);
+    const guild = { id: "guild-1", ownerId: "different-guild-owner", members: {} };
+    assert.equal(await security.hasAdminAccess(guild, kingId), true);
+    assert.equal(await security.getHierarchyExemptionStatus(guild, kingId), true);
+    assert.equal(await security.isAboveBotRole(guild, kingId), true);
+    const access = await security.checkAccess({ guild, guildId: guild.id, user: { id: kingId } });
+    assert.deepEqual(access, { allowed: true });
+  }
+});
 test("repeated cooldown blocks create a security alert but do not auto-punish", async () => {
   const { SecurityService } = require("../src/services/security");
   const writes = [];
