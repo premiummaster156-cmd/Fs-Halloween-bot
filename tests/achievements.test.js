@@ -43,7 +43,6 @@ test("player metrics include combined wallet and bank wealth plus Party Games al
     work_count: "18",
     crime_successes: "9",
     heists_completed: "4",
-    prestige: 1
   }, { party_games: "14", party_wins: "6" });
   assert.equal(metrics.wealth, 1100000);
   assert.equal(metrics.party_games, 14);
