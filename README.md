@@ -64,7 +64,7 @@ Members actively boosting this server receive automatic passive bonuses across F
 
 **One-time server setup for automatic booster items:** in Discord, open **Server Settings → Overview → System Messages Channel** and enable **Send a message when someone boosts this server**. The bot must be able to view that channel and read its messages. Personal boost #1–#5 each grants the matching MYTHIC item automatically; if the boost notification is not delivered to a channel the bot can read, that boost cannot be counted. Older boosts from before setup are not backfilled. The bot counts Discord's personal **GUILD_BOOST** system messages and ignores the separate server-tier milestone messages. Discord's member object exposes a boost-start timestamp, not a per-member boost quantity, so personal reward progress starts with the boost notifications the bot receives after this feature is deployed.
 
-Equipment bonuses apply only while equipped. Every item can be upgraded five times; the final-season cost curve is reduced so the gear catalogue is reachable before November 30. The eight endgame abilities — PHASE, DREAD, AEGIS, PHOENIX, EXECUTE, HASTE, HEX and ASCEND — retain their passive gear effects and each has a one-use active Arena power. Phoenix Core's healing power is now named **PHOENIX**. Casino gear changes hit frequency while keeping the published 95% return fair. The final season runs through **November 30, 2026 in Tashkent** (default end: **November 30 at 19:00 UTC**, the start of December 1 locally). Daily rewards are 600–900 base FC every 18 hours. Rebirth has been retired. Existing player wallets, banks, levels, careers, gear, Candy, collectibles and historical stats are preserved; old rebirth counters remain only as inert legacy columns and are no longer read by gameplay.
+Equipment bonuses apply only while equipped. Every item can be upgraded five times; the final-season cost curve is reduced so the gear catalogue is reachable before November 30. The eight endgame abilities — PHASE, DREAD, AEGIS, PHOENIX, EXECUTE, HASTE, HEX and ASCEND — retain their passive gear effects and each has a one-use active Arena power. Phoenix Core's healing power is now named **PHOENIX**. Casino gear changes hit frequency while keeping the published 95% return fair. The final season runs through **November 30, 2026 in Tashkent** (default end: **November 30 at 19:00 UTC**, the start of December 1 locally). Daily rewards are 600–900 base FC every 18 hours. Existing player wallets, banks, levels, careers, gear, Candy and collectibles remain intact under the current level-based progression system.
 
 ### First steps
 
@@ -73,7 +73,7 @@ Equipment bonuses apply only while equipped. Every item can be upgraded five tim
 3. Use **Profile** to track your level, career and wealth. Use **Bank** to protect savings and **Gear** to manage equipment.
 4. Open **Games** to review crime and casino risks, or **Heists** to create a crew. The bot posts a public crew board that updates with each member and chosen role, then publishes the final mission result when the leader starts it.
 5. Use **Gear** to equip items and upgrade each one up to five times. More expensive equipment has stronger bonuses; upgrades improve its effects. Gear can improve salary, FC and XP income, operation success, casino hit frequency, fines and cooldowns.
-6. Level up to increase eligible FC earnings by **0.5% per level above level 1**. At level 600, the level factor reaches **3.995×**. Your wallet, bank, current level, career, equipment, upgrades and seasonal collectibles continue without rebirth resets.
+6. Level up to increase eligible FC earnings by **0.5% per level above level 1**. At level 600, the level factor reaches **3.995×**. Your wallet, bank, current level, career, equipment, upgrades and seasonal collectibles continue as you progress.
 7. Open **Achievements** to track permanent milestones and claim each unlocked FC/XP reward once. Open **Halloween** to track quests, claim completed rewards, check the weekly activity mission and browse seasonal items.
 
 
@@ -207,7 +207,7 @@ This is a short, playable finale, not a multi-month grind. The default event end
 
 - Player level cap: **600**. XP per level: `80 + 12 × current level`.
 - Eligible normal FC income uses the **3× season multiplier** plus **0.5% per level above level 1**, reaching a **3.995× level factor at level 600**. Gear and FC Party bonuses follow action-specific rules.
-- Rebirth is retired. No player reset, wallet wipe or level reset is part of the progression system.
+- Player progression retains the 600-level cap; wallets, banks and levels are not reset by ordinary gameplay progression.
 - Career unlocks, gear prices, crimes, heists, weekly quests, Halloween quests, Candy shop, achievements, Party Fortune and Arena boss gates are reduced for the short season.
 - Casino retains a 95% theoretical return, 100 FC minimum bet and no daily wager cap; base cooldown is 10 seconds.
 - Booster-exclusive rewards and automatic boost assignment remain unchanged.
