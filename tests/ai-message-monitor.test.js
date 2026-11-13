@@ -39,7 +39,10 @@ function makeMessage({ reply = null, content = "Can you give me free FC please?"
     id: "guild-1",
     name: "Fukishōkai",
     roles: { cache: new Map([[role.id, role]]) },
-    members: { cache: new Map() }
+    members: {
+      cache: new Map(),
+      async fetch() { return null; }
+    }
   };
   const channel = {
     id: "channel-1",
