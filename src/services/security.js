@@ -698,6 +698,42 @@ class SecurityService {
     });
   }
 
+  async recordPrivilegeEscalation(client, guild, targetId, kind, auditType, permissionNames = []) {
+    if (!guild || !targetId) return null;
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    let entry;
+    try {
+      const logs = await guild.fetchAuditLogs({ type: auditType, limit: 10 });
+      entry = logs.entries.find((item) =>
+        item.target?.id === targetId && Date.now() - item.createdTimestamp < 15000 &&
+        !this.processedAuditIds.has(item.id)
+      );
+    } catch (error) {
+      log("warn", "Could not attribute a high-impact permission change.", {
+        guildId: guild.id, targetId, kind, message: error.message
+      });
+      return null;
+    }
+    if (!entry) return null;
+    this.processedAuditIds.set(entry.id, Date.now());
+    const actorId = entry.executor?.id;
+    if (!actorId || actorId === client.user?.id || await this.isAboveBotRole(guild, actorId)) return null;
+    return this.createIncident(client, {
+      guild,
+      userId: actorId,
+      category: "anti_nuke",
+      summary: "A member granted high-impact permissions to a role or channel access rule.",
+      details: {
+        detectionReason: "privilege_escalation",
+        countInWindow: 1,
+        windowSeconds: 15,
+        actionType: kind,
+        changedFields: permissionNames.join(", "),
+        auditReason: entry.reason || "No audit-log reason provided"
+      }
+    });
+  }
+
   async handleAlertInteraction(interaction, client) {
     const parts = interaction.customId.split(":");
     const incidentId = parts[1], guildId = parts[2];
