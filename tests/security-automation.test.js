@@ -11,7 +11,9 @@ const {
 } = require("../src/services/security");
 
 test("only severe economy incidents qualify for owner notification and review actions", () => {
-  assert.equal(isSevereEconomyIncident("economy_direct_balance_change"), true);
+  assert.equal(isSevereEconomyIncident("economy_direct_balance_change"), false);
+  assert.equal(isSevereEconomyIncident("economy_direct_balance_change", { mismatchCount: 1 }), false);
+  assert.equal(isSevereEconomyIncident("economy_direct_balance_change", { mismatchCount: 2 }), true);
   assert.equal(isSevereEconomyIncident("economy_invalid_payout"), true);
   assert.equal(isSevereEconomyIncident("economy_reward_burst", { riskScore: 79 }), false);
   assert.equal(isSevereEconomyIncident("economy_reward_burst", { riskScore: 80 }), true);
@@ -122,24 +124,24 @@ test("routine incidents are grouped and sent privately without mentions", async 
   assert.equal(sent[0].payload.components.length, 1);
 });
 
-test("severe economy alerts use a compact embed and offer only owner-approved bot controls", async () => {
+test("severe economy alerts are plain-text DMs and offer only owner-approved bot controls", async () => {
   const { service, client, guild, sent, restrictions } = makeService();
   await service.createIncident(client, {
     guild,
     userId: "tampered-player",
     category: "economy_direct_balance_change",
     summary: "An out-of-band economy edit was detected.",
-    details: { actionType: "direct_balance_change", changedFields: "wallet,level", riskScore: 100 }
+    details: { actionType: "direct_balance_change", changedFields: "wallet,level", riskScore: 100, mismatchCount: 2 }
   });
 
   assert.equal(restrictions.length, 0, "no economy punishment is automatic");
   assert.ok(sent.length > 0);
   const payload = sent[0].payload;
-  const embed = payload.embeds[0].data;
-  assert.equal(embed.description, "An out-of-band economy edit was detected.");
-  assert.equal(embed.description.includes("Dear "), false);
-  assert.ok(embed.fields.some(field => field.name === "Context"));
-  assert.ok(embed.fields.some(field => field.name === "Suggested manual review"));
+  assert.equal(payload.embeds, undefined, "economy alerts must not use embeds");
+  assert.match(payload.content, /An out-of-band economy edit was detected/);
+  assert.match(payload.content, /Context:/);
+  assert.match(payload.content, /Suggested review:/);
+  assert.match(payload.content, /Member:/);
   const actionLabels = payload.components[0].components.map(component => component.data.label);
   assert.deepEqual(actionLabels, ["Exclude leaderboard", "Pause bot · 1h", "Block bot access", "Dismiss"]);
 });
@@ -160,9 +162,27 @@ test("isolated malformed economy operations are ignored; repeated attempts trigg
   await service.createIncident(client, payload);
   assert.equal(queryCounts.incidents, 1, "the third attempt within five minutes becomes a severe incident");
   assert.ok(sent.length > 0);
-  const embed = sent[0].payload.embeds[0].data;
-  assert.match(embed.fields.find(field => field.name === "Context").value, /3/);
+  assert.equal(sent[0].payload.embeds, undefined);
+  assert.match(sent[0].payload.content, /Rejected attempts: 3/);
   assert.ok(sent[0].payload.components?.length, "severe confirmed pattern offers owner-approved review controls");
+});
+
+test("a single external database mismatch is not an owner alert; repeated mismatches are", async () => {
+  const { service, client, guild, sent, queryCounts } = makeService();
+  const incident = {
+    guild,
+    userId: "player-db-mismatch",
+    category: "economy_direct_balance_change",
+    summary: "A player economy snapshot differs from the verified ledger.",
+    details: { changedFields: "wallet", riskScore: 100 }
+  };
+  await service.createIncident(client, incident);
+  assert.equal(queryCounts.incidents, 0, "a single mismatch is not enough to notify");
+  assert.equal(sent.length, 0);
+  await service.createIncident(client, incident);
+  assert.equal(queryCounts.incidents, 1, "a repeated mismatch inside ten minutes is escalated");
+  assert.ok(sent.length > 0);
+  assert.match(sent[0].payload.content, /mismatch/i);
 });
 
 test("soft economy reward-burst signals are stored but do not DM owners", async () => {
@@ -187,7 +207,7 @@ test("authorized owner can exclude a member after reviewing a severe economy inc
     async query(sql, params) {
       writes.push({ sql, params });
       if (sql.includes("SELECT id, user_id, category, details FROM security_incidents")) {
-        return { rowCount: 1, rows: [{ id: "501", user_id: targetId, category: "economy_direct_balance_change", details: { riskScore: 100 } }] };
+        return { rowCount: 1, rows: [{ id: "501", user_id: targetId, category: "economy_direct_balance_change", details: { riskScore: 100, mismatchCount: 2 } }] };
       }
       return { rowCount: 1, rows: [] };
     }
@@ -200,9 +220,9 @@ test("authorized owner can exclude a member after reviewing a severe economy inc
     guildId: null,
     guild: null,
     user: { id: kingId },
-    async reply(payload) { throw new Error("Valid owner action should update the DM embed: " + payload.content); },
+    async reply(payload) { throw new Error("Valid owner action should update the DM text: " + payload.content); },
     async update(payload) { updated = payload; },
-    message: { embeds: [] }
+    message: { content: "Fukishōkai economy alert", embeds: [] }
   };
   const client = { guilds: { cache: new Map([[guild.id, guild]]), async fetch() { return guild; } } };
   await security.handleAlertInteraction(interaction, client);
@@ -211,7 +231,8 @@ test("authorized owner can exclude a member after reviewing a severe economy inc
   assert.deepEqual(exclusion.params.slice(0, 3), ["guild-1", targetId, kingId]);
   assert.match(exclusion.params[3], /incident #501/);
   assert.ok(writes.some(entry => entry.sql.includes("UPDATE security_incidents")));
-  assert.match(updated.embeds[0].data.description, /excluded from Fukishōkai leaderboards/);
+  assert.equal(updated.embeds.length, 0);
+  assert.match(updated.content, /excluded from Fukishōkai leaderboards/);
 });
 
 test("authorized owner can apply a one-hour bot-only pause from a severe economy alert", async () => {
@@ -248,7 +269,8 @@ test("authorized owner can apply a one-hour bot-only pause from a severe economy
   assert.ok(restriction.params[2].getTime() >= before + 59 * 60 * 1000);
   assert.ok(restriction.params[2].getTime() <= Date.now() + 60 * 60 * 1000 + 1000);
   assert.equal(restriction.params[4], settings.kingIds[0]);
-  assert.match(updated.embeds[0].data.description, /paused for one hour/i);
+  assert.equal(updated.embeds.length, 0);
+  assert.match(updated.content, /paused for one hour/i);
 });
 
 test("economy controls cannot target a protected King account", async () => {
@@ -258,7 +280,7 @@ test("economy controls cannot target a protected King account", async () => {
     async query(sql, params) {
       writes.push({ sql, params });
       if (sql.includes("SELECT id, user_id, category, details FROM security_incidents")) {
-        return { rowCount: 1, rows: [{ id: "502", user_id: kingId, category: "economy_direct_balance_change", details: { riskScore: 100 } }] };
+        return { rowCount: 1, rows: [{ id: "502", user_id: kingId, category: "economy_direct_balance_change", details: { riskScore: 100, mismatchCount: 2 } }] };
       }
       return { rowCount: 1, rows: [] };
     }
