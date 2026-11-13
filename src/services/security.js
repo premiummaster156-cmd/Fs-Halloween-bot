@@ -60,8 +60,21 @@ class SecurityService {
     this.maintenanceTimer = null;
   }
 
+  isKing(userId) {
+    return Boolean(userId && Array.isArray(settings.kingIds) && settings.kingIds.includes(String(userId)));
+  }
+
   isOwner(userId, guildOwnerId) {
-    return Boolean(userId && (userId === guildOwnerId || (settings.ownerId && userId === settings.ownerId)));
+    // Kings are the bot's highest-trust identities; OWNER_ID remains below them.
+    return Boolean(userId && (
+      this.isKing(userId) ||
+      userId === guildOwnerId ||
+      (settings.ownerId && userId === settings.ownerId)
+    ));
+  }
+
+  isProtectedKingTarget(userId) {
+    return this.isKing(userId);
   }
 
   async hasAdminAccess(guild, userId) {
@@ -326,7 +339,11 @@ class SecurityService {
             : softSignal ? "Monitoring only: no account restriction was applied." : "No automatic account restriction was applied.";
     const grouped = suppressedCount ? " " + suppressedCount + " additional security incident(s) were grouped into this notice." : "";
     const severity = ["anti_nuke", "anti_raid", "economy_direct_balance_change", "economy_invalid_payout"].includes(input.category) ? "High" : "Review";
-    const recipients = Array.from(new Set([guild.ownerId, settings.ownerId].filter(Boolean)));
+    const recipients = Array.from(new Set([
+      guild.ownerId,
+      settings.ownerId,
+      ...(Array.isArray(settings.kingIds) ? settings.kingIds : [])
+    ].filter(Boolean)));
     let delivered = 0;
     for (const recipientId of recipients) {
       try {
