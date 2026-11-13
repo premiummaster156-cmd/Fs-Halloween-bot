@@ -691,7 +691,7 @@ class SecurityService {
         .setLabel("Restore bot access")
         .setStyle(ButtonStyle.Success));
     }
-    const rows = followUpControls.length ? [new ActionRowBuilder().addComponents(followUpControls)] : [];
+    const rows = followUpControls.length ? [new ActionRowBuilder().addComponents(...followUpControls)] : [];
     return interaction.update({ embeds: [embed], components: rows });
   }
 }
