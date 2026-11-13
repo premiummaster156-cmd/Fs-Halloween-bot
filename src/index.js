@@ -116,7 +116,7 @@ async function start() {
   if (!settings.discordToken) throw new Error("DISCORD_TOKEN is missing.");
   if (!settings.clientId) throw new Error("CLIENT_ID is missing.");
   await migrate();
-  const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildModeration] });
+  const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildMembers] });
   const economy = new EconomyService(pool);
   const economyEvents = new EconomyEventService(pool);
   const adminAbuse = new AdminAbuseService(pool, economy);
@@ -152,6 +152,7 @@ async function start() {
 
   client.once(Events.ClientReady, (ready) => {
     console.log("[bot] Logged in as " + ready.user.tag + " with " + client.commands.size + " commands.");
+    security.startMaintenance(client);
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
@@ -169,7 +170,7 @@ async function start() {
 
     if (interaction.isButton() && interaction.customId.startsWith("security:")) {
       try {
-        await security.handleAlertInteraction(interaction);
+        await security.handleAlertInteraction(interaction, client);
       } catch (error) {
         console.error("[security] Alert action failed:", error.code || error.name, error.message);
         try {
@@ -366,18 +367,21 @@ async function start() {
     }
   });
 
-  // Lightweight anti-nuke watch. Attribution depends on the bot having View Audit Log.
-  client.on("channelDelete", (channel) => {
-    client.services.security.recordDestructiveChange(client, channel.guild, channel.id, "channel_delete", AuditLogEvent.ChannelDelete)
-      .catch((error) => console.error("[security] Channel-delete monitor failed:", error.message));
-  });
-  client.on("roleDelete", (role) => {
-    client.services.security.recordDestructiveChange(client, role.guild, role.id, "role_delete", AuditLogEvent.RoleDelete)
-      .catch((error) => console.error("[security] Role-delete monitor failed:", error.message));
-  });
-  client.on("guildBanAdd", (ban) => {
-    client.services.security.recordDestructiveChange(client, ban.guild, ban.user.id, "member_ban", AuditLogEvent.MemberBanAdd)
-      .catch((error) => console.error("[security] Ban monitor failed:", error.message));
+  // Anti-nuke monitoring attributes high-impact changes through Discord audit logs.
+  // The bot requires View Audit Log, plus Manage Roles to quarantine a confirmed actor.
+  const monitorSecurityChange = (guild, targetId, kind, auditType) => {
+    client.services.security.recordDestructiveChange(client, guild, targetId, kind, auditType)
+      .catch((error) => console.error("[security] " + kind + " monitor failed:", error.message));
+  };
+  client.on("channelCreate", (channel) => monitorSecurityChange(channel.guild, channel.id, "channel_create", AuditLogEvent.ChannelCreate));
+  client.on("channelDelete", (channel) => monitorSecurityChange(channel.guild, channel.id, "channel_delete", AuditLogEvent.ChannelDelete));
+  client.on("roleCreate", (role) => monitorSecurityChange(role.guild, role.id, "role_create", AuditLogEvent.RoleCreate));
+  client.on("roleDelete", (role) => monitorSecurityChange(role.guild, role.id, "role_delete", AuditLogEvent.RoleDelete));
+  client.on("guildBanAdd", (ban) => monitorSecurityChange(ban.guild, ban.user.id, "member_ban", AuditLogEvent.MemberBanAdd));
+  client.on("guildMemberRemove", (member) => monitorSecurityChange(member.guild, member.id, "member_kick", AuditLogEvent.MemberKick));
+  client.on("guildMemberAdd", (member) => {
+    client.services.security.recordMemberJoin(client, member)
+      .catch((error) => console.error("[security] Anti-raid join monitor failed:", error.message));
   });
 
   client.on(Events.Error, (error) => console.error("[discord] Client error:", error.message));
@@ -389,6 +393,7 @@ async function start() {
   });
   const shutdown = async (signal) => {
     console.log("[bot] Shutting down after " + signal + ".");
+    if (security.maintenanceTimer) clearInterval(security.maintenanceTimer);
     if (ideServer) await new Promise((resolve) => ideServer.close(resolve));
     client.destroy();
     await pool.end();
