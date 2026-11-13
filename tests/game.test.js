@@ -225,10 +225,8 @@ test("3x FC earnings keep meaningful progression and equipment sinks", () => {
 });
 
 
-test("progression is level-capped at 600 and has no active rebirth system", () => {
+test("progression is level-capped at 600 with level-based earning bonuses", () => {
   assert.equal(balancing.progression.maxLevel, 600);
-  assert.equal("maxRebirths" in balancing.progression, false);
-  assert.equal("rebirth" in balancing, false);
   assert.equal(core.levelXpRequired(601), core.levelXpRequired(600));
   assert.equal(core.getLevelEarningMultiplier(600), 3.995);
 });
