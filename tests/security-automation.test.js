@@ -5,20 +5,21 @@ const assert = require("node:assert/strict");
 const settings = require("../src/config/settings");
 const {
   SecurityService,
-  getAutomaticEconomyRestriction,
+  isSevereEconomyIncident,
   evaluateNukeBurst,
   evaluateInviteBurst
 } = require("../src/services/security");
 
-test("automatic economy restrictions remain limited to high-confidence signals", () => {
-  assert.equal(getAutomaticEconomyRestriction("economy_direct_balance_change").minutes, 1440);
-  assert.equal(getAutomaticEconomyRestriction("economy_invalid_payout").minutes, 60);
-  assert.equal(getAutomaticEconomyRestriction("economy_reward_burst", { riskScore: 99 }), null);
-  assert.equal(getAutomaticEconomyRestriction("economy_reward_burst", { riskScore: 100 }).minutes, 30);
-  assert.equal(getAutomaticEconomyRestriction("economy_xp_manipulation", { riskScore: 100 }), null);
-  assert.equal(getAutomaticEconomyRestriction("command_spam"), null);
-  assert.equal(getAutomaticEconomyRestriction("anti_nuke"), null);
-  assert.equal(getAutomaticEconomyRestriction("anti_raid"), null);
+test("only severe economy incidents qualify for owner notification and review actions", () => {
+  assert.equal(isSevereEconomyIncident("economy_direct_balance_change"), true);
+  assert.equal(isSevereEconomyIncident("economy_invalid_payout"), true);
+  assert.equal(isSevereEconomyIncident("economy_reward_burst", { riskScore: 79 }), false);
+  assert.equal(isSevereEconomyIncident("economy_reward_burst", { riskScore: 80 }), true);
+  assert.equal(isSevereEconomyIncident("economy_xp_manipulation", { riskScore: 79 }), false);
+  assert.equal(isSevereEconomyIncident("economy_xp_manipulation", { riskScore: 80 }), true);
+  assert.equal(isSevereEconomyIncident("command_spam", { riskScore: 100 }), false);
+  assert.equal(isSevereEconomyIncident("anti_nuke", { riskScore: 100 }), false);
+  assert.equal(isSevereEconomyIncident("anti_raid", { riskScore: 100 }), false);
 });
 
 test("anti-nuke thresholds require a destructive or mass-creation burst", () => {
@@ -99,8 +100,8 @@ test("routine incidents are grouped and sent privately without mentions", async 
     await service.createIncident(client, {
       guild,
       userId: "player-" + i,
-      category: "economy_tampering",
-      summary: "An invalid economy mutation was rejected.",
+      category: "command_spam",
+      summary: "Repeated commands were rate-limited.",
       details: { reasonCode: "ECONOMY_DIRECTION_INVALID", riskScore: 100 }
     });
   }
@@ -118,21 +119,40 @@ test("routine incidents are grouped and sent privately without mentions", async 
   assert.equal(sent[0].payload.components.length, 1);
 });
 
-test("confirmed economy tampering applies a bot-only timed restriction", async () => {
-  const { service, client, guild, restrictions } = makeService();
+test("severe economy alerts use a compact embed and offer only owner-approved bot controls", async () => {
+  const { service, client, guild, sent, restrictions } = makeService();
   await service.createIncident(client, {
     guild,
     userId: "tampered-player",
     category: "economy_direct_balance_change",
     summary: "An out-of-band economy edit was detected.",
-    details: { changedFields: "wallet,level", riskScore: 100 }
+    details: { actionType: "direct_balance_change", changedFields: "wallet,level", riskScore: 100 }
   });
 
-  assert.equal(restrictions.length, 1);
-  assert.equal(restrictions[0].params[0], "guild-1");
-  assert.equal(restrictions[0].params[1], "tampered-player");
-  assert.ok(restrictions[0].params[2] instanceof Date);
-  assert.equal(restrictions[0].params[4], "AUTO_SECURITY");
+  assert.equal(restrictions.length, 0, "no economy punishment is automatic");
+  assert.ok(sent.length > 0);
+  const payload = sent[0].payload;
+  const embed = payload.embeds[0].data;
+  assert.equal(embed.description, "An out-of-band economy edit was detected.");
+  assert.equal(embed.description.includes("Dear "), false);
+  assert.ok(embed.fields.some(field => field.name === "Context"));
+  assert.ok(embed.fields.some(field => field.name === "Suggested manual review"));
+  const actionLabels = payload.components[0].components.map(component => component.data.label);
+  assert.deepEqual(actionLabels, ["Exclude leaderboard", "Pause bot · 1h", "Block bot access", "Dismiss"]);
+});
+
+test("soft economy reward-burst signals are stored but do not DM owners", async () => {
+  const { service, client, guild, sent, queryCounts } = makeService();
+  await service.createIncident(client, {
+    guild,
+    userId: "player-soft",
+    category: "economy_reward_burst",
+    summary: "A soft reward-burst signal was observed.",
+    details: { actionType: "reward_burst", recentRewards: 10, baseAmount: 23, riskScore: 20 }
+  });
+  assert.equal(queryCounts.incidents, 1, "the evidence remains in the security incident log");
+  assert.equal(queryCounts.throttle, 0, "soft signals do not consume the owner notification throttle");
+  assert.equal(sent.length, 0, "soft activity must not create noisy owner DMs");
 });
 
 test("anti-nuke alerts DM only Kings and bot owner, with no action controls or automatic actions", async () => {
@@ -253,7 +273,7 @@ test("legacy anti-nuke action buttons are rejected without taking any action", a
   const security = new SecurityService({
     async query(sql, params) {
       writes.push({ sql, params });
-      if (sql.includes("SELECT id, user_id, category FROM security_incidents")) {
+      if (sql.includes("SELECT id, user_id, category, details FROM security_incidents")) {
         return { rowCount: 1, rows: [{ id: "72", user_id: kingId, category: "anti_nuke" }] };
       }
       return { rowCount: 1, rows: [] };
@@ -315,7 +335,7 @@ test("legacy anti-raid lockdown buttons are rejected without changing server set
   const service = new SecurityService({
     async query(sql, params) {
       writes.push({ sql, params });
-      if (sql.includes("SELECT id, user_id, category FROM security_incidents")) {
+      if (sql.includes("SELECT id, user_id, category, details FROM security_incidents")) {
         return { rowCount: 1, rows: [{ id: "44", user_id: null, category: "anti_raid" }] };
       }
       return { rowCount: 1, rows: [] };
