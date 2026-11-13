@@ -172,7 +172,7 @@ class HalloweenGame {
         [guildId, userId, item.id]
       );
       if (item.unique && existing.rowCount && Number(existing.rows[0].quantity) > 0) {
-        throw new DomainError("You already own this unique collectible. Keep it for your rebirth progress.", "EVENT_ITEM_ALREADY_OWNED");
+        throw new DomainError("You already own this unique collectible. Keep it in your collection.", "EVENT_ITEM_ALREADY_OWNED");
       }
 
       await client.query(
