@@ -343,9 +343,9 @@ class SecurityService {
             "Dear " + displayName + ",\n\n" +
             "This is an official security notification regarding **" + String(guild.name || "your Discord server").slice(0, 90) + "**. " +
             String(input.summary || "Security activity requires your attention.") + "\n\n" +
-            isAlertOnly
+            (isAlertOnly
               ? "This is an alert-only notification. Fukishōkai has not taken any action and will not automatically moderate members or change server settings."
-              : "The automated security service has recorded the incident and taken the action described below. Please review the context."
+              : "The automated security service has recorded the incident and taken the action described below. Please review the context.")
           )
           .addFields(
             { name: "Server", value: String(guild.name || "Unknown server").slice(0, 100), inline: true },
