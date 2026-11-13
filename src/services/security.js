@@ -1,4 +1,4 @@
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, PermissionFlagsBits } = require("discord.js");
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, PermissionFlagsBits } = require("discord.js");
 const settings = require("../config/settings");
 const { log } = require("../utils/logging");
 
@@ -13,9 +13,30 @@ function getAutomaticEconomyRestriction(category, details = {}) {
     return { minutes: 60, label: "1-hour Fukishōkai access lock", reason: "A casino payout failed verification against its recorded wager" };
   }
   if (category === "economy_reward_burst" && Number(details.riskScore) >= 100) {
-    return { minutes: 30, label: "30-minute Fukishōkai access lock", reason: "Reward activity exceeded the hard anti-cheat threshold" };
+    return { minutes: 30, label: "30-minute Fukishōkai access lock", reason: "Reward activity exceeded the hard per-minute economy threshold" };
   }
   return null;
+}
+
+function evaluateNukeBurst(events = []) {
+  const counts = events.reduce((total, event) => {
+    const kind = typeof event === "string" ? event : event.kind;
+    total[kind] = (total[kind] || 0) + 1;
+    return total;
+  }, {});
+  const deletedAssets = (counts.channel_delete || 0) + (counts.role_delete || 0);
+  const memberRemovals = (counts.member_ban || 0) + (counts.member_kick || 0);
+  const createdAssets = (counts.channel_create || 0) + (counts.role_create || 0);
+  if (deletedAssets >= 3) return { triggered: true, reason: "mass_asset_deletion", count: deletedAssets, counts };
+  if (memberRemovals >= 5) return { triggered: true, reason: "mass_member_removal", count: memberRemovals, counts };
+  if (createdAssets >= 8) return { triggered: true, reason: "mass_asset_creation", count: createdAssets, counts };
+  return { triggered: false, reason: null, count: events.length, counts };
+}
+
+function evaluateRaidBurst(joins = [], now = Date.now()) {
+  const recent = joins.filter((join) => now - Number(join.joinedAt || 0) <= 20000);
+  const youngAccounts = recent.filter((join) => Number(join.accountAgeMs) < 7 * 24 * 60 * 60 * 1000).length;
+  return { triggered: recent.length >= 8 || (recent.length >= 6 && youngAccounts >= 4), joins: recent.length, youngAccounts, windowSeconds: 20 };
 }
 
 class SecurityService {
@@ -29,6 +50,12 @@ class SecurityService {
     this.destructiveAttempts = new Map();
     this.alertedAt = new Map();
     this.hierarchyCache = new Map();
+    this.nukeEvents = new Map();
+    this.processedAuditIds = new Map();
+    this.nukeAlertedAt = new Map();
+    this.raidJoins = new Map();
+    this.raidAlertedAt = new Map();
+    this.maintenanceTimer = null;
   }
 
   isOwner(userId, guildOwnerId) {
