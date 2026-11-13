@@ -22,7 +22,8 @@ module.exports = {
   // The whole-server AI watcher is opt-in because it requires Discord's privileged Message Content intent.
   aiMessageMonitorEnabled: String(process.env.AI_MESSAGE_MONITOR_ENABLED || "").toLowerCase() === "true",
   ollamaApiKey: process.env.OLLAMA_API_KEY || "",
-  ollamaModel: process.env.OLLAMA_MODEL || "gemma4:31b",
+  ollamaModel: process.env.OLLAMA_MODEL || "gpt-oss:20b",
+  aiMessageMonitorDailyLimit: Math.max(1, Math.min(1000, Math.floor(numberOr(process.env.AI_MESSAGE_MONITOR_DAILY_LIMIT, 100)))),
   kingIds,
   adminRoleIds: parseList(process.env.ADMIN_ROLE_IDS),
   // Role assigned to members who currently boost this Discord server.
