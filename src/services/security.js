@@ -5,6 +5,19 @@ const { log } = require("../utils/logging");
 const WINDOW_MS = 120000;
 const ALERT_DEDUPE_MS = 600000;
 
+function getAutomaticEconomyRestriction(category, details = {}) {
+  if (category === "economy_direct_balance_change") {
+    return { minutes: 24 * 60, label: "24-hour Fukishōkai access lock", reason: "Verified player economy data changed outside a bot transaction" };
+  }
+  if (category === "economy_invalid_payout") {
+    return { minutes: 60, label: "1-hour Fukishōkai access lock", reason: "A casino payout failed verification against its recorded wager" };
+  }
+  if (category === "economy_reward_burst" && Number(details.riskScore) >= 100) {
+    return { minutes: 30, label: "30-minute Fukishōkai access lock", reason: "Reward activity exceeded the hard anti-cheat threshold" };
+  }
+  return null;
+}
+
 class SecurityService {
   constructor(pool, guildSettings) {
     this.pool = pool;
@@ -141,8 +154,51 @@ class SecurityService {
       return null;
     }
 
-    const owners = Array.from(new Set([guild.ownerId, settings.ownerId].filter(Boolean)));
-    const mention = owners.map((id) => "<@" + id + ">").join(" ");
+    const automaticPolicy = userId ? getAutomaticEconomyRestriction(input.category, input.details || {}) : null;
+    let automaticAction = null;
+    if (automaticPolicy) {
+      const expiresAt = new Date(Date.now() + automaticPolicy.minutes * 60 * 1000);
+      try {
+        await this.pool.query(
+          "INSERT INTO bot_user_restrictions (guild_id, user_id, expires_at, reason, created_by) VALUES ($1, $2, $3, $4, $5) " +
+          "ON CONFLICT (guild_id, user_id) DO UPDATE SET " +
+          "expires_at = CASE WHEN bot_user_restrictions.expires_at IS NULL THEN NULL " +
+          "WHEN bot_user_restrictions.expires_at > EXCLUDED.expires_at THEN bot_user_restrictions.expires_at ELSE EXCLUDED.expires_at END, " +
+          "reason = CASE WHEN bot_user_restrictions.expires_at IS NULL THEN bot_user_restrictions.reason ELSE EXCLUDED.reason END, " +
+          "created_by = CASE WHEN bot_user_restrictions.expires_at IS NULL THEN bot_user_restrictions.created_by ELSE EXCLUDED.created_by END, " +
+          "updated_at = NOW()",
+          [guild.id, userId, expiresAt, automaticPolicy.reason + " (incident #" + incidentId + ")", "AUTO_SECURITY"]
+        );
+        automaticAction = automaticPolicy;
+      } catch (error) {
+        log("error", "Could not apply automatic economy restriction", { guildId: guild.id, userId, incidentId, message: error.message });
+      }
+    }
+
+    // Notifications are throttled per guild in PostgreSQL, so restarts and multiple
+    // bot instances cannot turn one burst of incidents into repeated owner pings.
+    let notificationState;
+    try {
+      const throttled = await this.pool.query(
+        "INSERT INTO security_alert_state (guild_id, last_notified_at, suppressed_count, last_suppressed_count) " +
+        "VALUES ($1, NOW(), 0, 0) ON CONFLICT (guild_id) DO UPDATE SET " +
+        "last_suppressed_count = CASE WHEN security_alert_state.last_notified_at <= NOW() - INTERVAL '15 minutes' " +
+        "THEN security_alert_state.suppressed_count ELSE security_alert_state.last_suppressed_count END, " +
+        "suppressed_count = CASE WHEN security_alert_state.last_notified_at <= NOW() - INTERVAL '15 minutes' " +
+        "THEN 0 ELSE security_alert_state.suppressed_count + 1 END, " +
+        "last_notified_at = CASE WHEN security_alert_state.last_notified_at <= NOW() - INTERVAL '15 minutes' " +
+        "THEN NOW() ELSE security_alert_state.last_notified_at END " +
+        "RETURNING (last_notified_at = NOW()) AS should_notify, last_suppressed_count AS suppressed_count",
+        [guild.id]
+      );
+      notificationState = throttled.rows?.[0];
+    } catch (error) {
+      log("error", "Could not apply persistent security notification throttle", { guildId: guild.id, incidentId, message: error.message });
+      return incidentId;
+    }
+    if (!notificationState || notificationState.should_notify === false) return incidentId;
+    const suppressedCount = Math.max(0, Number(notificationState.suppressed_count) || 0);
+
     const detailLabels = {
       count: "Attempts observed",
       attemptsInWindow: "Attempts observed",
@@ -150,7 +206,15 @@ class SecurityService {
       windowSeconds: "Time window",
       command: "Command used",
       actionType: "Server activity",
-      auditReason: "Audit-log reason"
+      auditReason: "Audit-log reason",
+      riskScore: "Risk score",
+      reasonCode: "Guard code",
+      baseAmount: "Base reward",
+      recentRewards: "Recent rewards",
+      changedFields: "Changed fields",
+      wager: "Wager",
+      multiplier: "Payout multiplier",
+      amount: "Attempted amount"
     };
     const actionLabels = {
       channel_create: "Channel created",
@@ -174,7 +238,12 @@ class SecurityService {
       .slice(0, 1100);
 
     const components = [];
-    if (userId) {
+    if (userId && automaticAction) {
+      components.push(new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + userId + ":unblock").setLabel("Restore bot access").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + userId + ":ignore").setLabel("Mark alert reviewed").setStyle(ButtonStyle.Secondary)
+      ));
+    } else if (userId) {
       components.push(new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + userId + ":pause").setLabel("Pause bot access · 10m").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + userId + ":block").setLabel("Block bot access").setStyle(ButtonStyle.Danger),
@@ -207,21 +276,27 @@ class SecurityService {
         economy_direct_balance_change: "Out-of-band balance or level edit",
         economy_invalid_payout: "Invalid casino payout",
         economy_reward_burst: "Unusual reward burst",
-        economy_xp_manipulation: "Invalid XP award",
-        economy_tampering: "Rejected economy manipulation",
-        economy_direct_balance_change: "Out-of-band balance or level edit",
-        economy_invalid_payout: "Invalid casino payout",
-        economy_reward_burst: "Unusual reward burst",
         economy_xp_manipulation: "Invalid XP award"
       };
+      const isSoftRewardSignal = input.category === "economy_reward_burst" && Number(input.details?.riskScore) < 100;
+      const enforcement = automaticAction
+        ? "Automated enforcement: " + automaticAction.label + ". This restricts Fukishōkai bot access only; no Discord timeout, kick or ban was applied."
+        : input.category.startsWith("economy_") && !isSoftRewardSignal
+          ? "Economy guard: the invalid operation was rejected before it could change player data."
+          : isSoftRewardSignal
+            ? "Monitoring only: this is a soft anomaly signal. No account restriction was applied."
+            : "No automatic account restriction was applied.";
+      const grouped = suppressedCount > 0
+        ? "\nGrouped " + suppressedCount + " additional security incident(s) from the previous notification window."
+        : "";
       await channel.send({
-        content: (mention ? mention + "\n" : "") + "**SECURITY ALERT · #" + incidentId + "**\n" +
-          input.summary + "\nActivity type: " + (categoryLabels[input.category] || "Security review") + "\nMember: " +
-          (userId ? "<@" + userId + "> (" + userId + ")" : "Unknown") +
-          (details ? "\n" + details : "") +
-          "\n\nNo punishment has been applied automatically. Review and choose an action below.",
+        content: "**SECURITY ALERT · #" + incidentId + "**\n" +
+          input.summary + "\nActivity type: " + (categoryLabels[input.category] || "Security review") + "\nMember ID: " +
+          (userId ? "`" + userId + "`" : "Unknown") +
+          (details ? "\n" + details : "") + grouped +
+          "\n\n" + enforcement,
         components,
-        allowedMentions: { users: owners }
+        allowedMentions: { parse: [] }
       });
     } catch (error) {
       log("error", "Could not deliver security alert", { guildId: guild.id, incidentId, message: error.message });
@@ -428,4 +503,4 @@ class SecurityService {
   }
 }
 
-module.exports = { SecurityService };
+module.exports = { SecurityService, getAutomaticEconomyRestriction };
