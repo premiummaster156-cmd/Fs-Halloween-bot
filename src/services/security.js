@@ -594,7 +594,7 @@ class SecurityService {
       if (Date.now() - at > 5 * 60 * 1000) this.processedAuditIds.delete(id);
     }
     const actorId = entry.executor?.id;
-    if (!actorId || actorId === client.user?.id || await this.isAboveBotRole(guild, actorId)) return null;
+    if (!actorId || actorId === client.user?.id) return null;
     const key = guild.id + ":" + actorId;
     const recent = (this.nukeEvents.get(key) || []).filter((item) => Date.now() - item.at <= 20000);
     recent.push({ at: Date.now(), kind, targetId, auditId: entry.id });
@@ -637,7 +637,7 @@ class SecurityService {
     if (!entry) return null;
     this.processedAuditIds.set(entry.id, Date.now());
     const actorId = entry.executor?.id;
-    if (!actorId || actorId === client.user?.id || await this.isAboveBotRole(guild, actorId)) return null;
+    if (!actorId || actorId === client.user?.id) return null;
     return this.createIncident(client, {
       guild,
       userId: actorId,
