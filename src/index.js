@@ -27,6 +27,7 @@ const { TradeService } = require("./services/trade-interactions");
 const { EconomyEventService } = require("./services/economy-events");
 const { AdminMessagingService } = require("./services/admin-messaging");
 const { AdminAbuseService } = require("./services/admin-abuse");
+const { AIMessageMonitor } = require("./services/ai-message-monitor");
 const { respond } = require("./ui");
 
 async function handleTradeInvitationButton(interaction, client) {
@@ -116,7 +117,18 @@ async function start() {
   if (!settings.discordToken) throw new Error("DISCORD_TOKEN is missing.");
   if (!settings.clientId) throw new Error("CLIENT_ID is missing.");
   await migrate();
-  const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildInvites] });
+  const gatewayIntents = [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildModeration,
+    GatewayIntentBits.GuildInvites
+  ];
+  const aiMessageMonitorConfigured = settings.aiMessageMonitorEnabled && Boolean(settings.ollamaApiKey && settings.ownerId);
+  if (aiMessageMonitorConfigured) gatewayIntents.push(GatewayIntentBits.MessageContent);
+  const client = new Client({ intents: gatewayIntents });
+  if (settings.aiMessageMonitorEnabled && !aiMessageMonitorConfigured) {
+    console.warn("[ai-monitor] Disabled: set OLLAMA_API_KEY and OWNER_ID before enabling AI_MESSAGE_MONITOR_ENABLED.");
+  }
   const economy = new EconomyService(pool);
   const economyEvents = new EconomyEventService(pool);
   const adminAbuse = new AdminAbuseService(pool, economy);
@@ -125,6 +137,16 @@ async function start() {
   economy.inventory = inventory;
   const guildSettings = new GuildSettingsService(pool);
   const security = new SecurityService(pool, guildSettings);
+  const aiMessageMonitor = aiMessageMonitorConfigured
+    ? new AIMessageMonitor({ apiKey: settings.ollamaApiKey, model: settings.ollamaModel, ownerId: settings.ownerId })
+    : null;
+  if (aiMessageMonitor) {
+    client.on(Events.MessageCreate, (message) => {
+      aiMessageMonitor.inspect(message, client).catch((error) =>
+        console.warn("[ai-monitor] Message analysis failed:", error.message)
+      );
+    });
+  }
   economy.security = security;
   economy.client = client;
   const serverBoosters = new ServerBoosterService(pool);
