@@ -1,5 +1,5 @@
 require("dotenv").config();
-const { Client, GatewayIntentBits, Events, MessageFlags, AuditLogEvent, MessageType } = require("discord.js");
+const { Client, GatewayIntentBits, Events, MessageFlags, AuditLogEvent, MessageType, PermissionFlagsBits } = require("discord.js");
 const { DomainError } = require("./utils/core");
 const settings = require("./config/settings");
 const balancing = require("./config/game-balancing");
@@ -382,6 +382,56 @@ async function start() {
   client.on("guildMemberAdd", (member) => {
     client.services.security.recordMemberJoin(client, member)
       .catch((error) => console.error("[security] Anti-raid join monitor failed:", error.message));
+  });
+
+  // One high-impact permission grant can be the start of a nuke, so it is
+  // escalated immediately rather than waiting for the mass-action thresholds.
+  const criticalRolePermissions = [
+    [PermissionFlagsBits.Administrator, "Administrator"],
+    [PermissionFlagsBits.ManageGuild, "Manage Server"],
+    [PermissionFlagsBits.ManageChannels, "Manage Channels"],
+    [PermissionFlagsBits.ManageRoles, "Manage Roles"],
+    [PermissionFlagsBits.BanMembers, "Ban Members"],
+    [PermissionFlagsBits.KickMembers, "Kick Members"],
+    [PermissionFlagsBits.ManageWebhooks, "Manage Webhooks"],
+    [PermissionFlagsBits.ManageMessages, "Manage Messages"],
+    [PermissionFlagsBits.ManageEvents, "Manage Events"],
+    [PermissionFlagsBits.ManageGuildExpressions, "Manage Expressions"]
+  ];
+  client.on("roleUpdate", (oldRole, newRole) => {
+    const granted = criticalRolePermissions
+      .filter(([permission]) => newRole.permissions.has(permission) && !oldRole.permissions.has(permission))
+      .map(([, label]) => label);
+    if (!granted.length) return;
+    client.services.security.recordPrivilegeEscalation(
+      client, newRole.guild, newRole.id, "role_permission_escalation", AuditLogEvent.RoleUpdate, granted
+    ).catch((error) => console.error("[security] Role permission escalation monitor failed:", error.message));
+  });
+  client.on("channelUpdate", (oldChannel, newChannel) => {
+    const oldOverwrites = oldChannel.permissionOverwrites?.cache;
+    const newOverwrites = newChannel.permissionOverwrites?.cache;
+    if (!oldOverwrites || !newOverwrites) return;
+    const channelPermissions = [
+      [PermissionFlagsBits.ManageChannels, "Manage Channels"],
+      [PermissionFlagsBits.ManageRoles, "Manage Roles"],
+      [PermissionFlagsBits.BanMembers, "Ban Members"],
+      [PermissionFlagsBits.KickMembers, "Kick Members"],
+      [PermissionFlagsBits.ManageWebhooks, "Manage Webhooks"],
+      [PermissionFlagsBits.ManageMessages, "Manage Messages"]
+    ];
+    const granted = [];
+    for (const overwrite of newOverwrites.values()) {
+      const previous = oldOverwrites.get(overwrite.id);
+      for (const [permission, label] of channelPermissions) {
+        if (overwrite.allow.has(permission) && !previous?.allow.has(permission)) {
+          granted.push("overwrite " + overwrite.id + ": " + label);
+        }
+      }
+    }
+    if (!granted.length) return;
+    client.services.security.recordPrivilegeEscalation(
+      client, newChannel.guild, newChannel.id, "channel_permission_escalation", AuditLogEvent.ChannelUpdate, granted
+    ).catch((error) => console.error("[security] Channel permission escalation monitor failed:", error.message));
   });
 
   client.on(Events.Error, (error) => console.error("[discord] Client error:", error.message));
