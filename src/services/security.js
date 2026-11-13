@@ -689,13 +689,13 @@ class SecurityService {
       });
     }
     const incident = await this.pool.query(
-      "SELECT id, user_id, category FROM security_incidents WHERE id=$1 AND guild_id=$2",
+      "SELECT id, user_id FROM security_incidents WHERE id=$1 AND guild_id=$2",
       [incidentId, guildId]
     );
     if (!incident.rowCount) {
       return interaction.reply({ content: "This security incident could not be found.", flags: MessageFlags.Ephemeral });
     }
-    const category = incident.rows[0].category;
+    const category = incident.rows[0].category || "security";
     let resultText = "The incident was acknowledged. No further action was taken.";
 
     if (action === "raid-lockdown") {
@@ -790,4 +790,4 @@ class SecurityService {
   }
 }
 
-module.exports = { SecurityService, getAutomaticEconomyRestriction };
+module.exports = { SecurityService, getAutomaticEconomyRestriction, evaluateNukeBurst, evaluateRaidBurst };
