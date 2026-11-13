@@ -349,7 +349,7 @@ class SecurityService {
             "No automatic punishment or restriction has been applied."
           ].join("\n").slice(0, 1900);
           // Economy alerts are plain-text DMs, not embeds.
-          const payload = { content: plainText, allowedMentions: { parse: [], users: userId ? [userId] : [] } };
+          const payload = { content: plainText, allowedMentions: { parse: [] } };
           if (!isAlertOnly && components.length) payload.components = components;
           await recipient.send(payload);
           delivered += 1;
