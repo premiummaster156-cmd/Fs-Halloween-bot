@@ -82,8 +82,8 @@ function makeService() {
       async fetch(id) {
         return {
           id,
-          username: id === settings.kingIds[0] ? "hadeon" : id === settings.kingIds[1] ? "nico" : "brian",
-          globalName: id === settings.kingIds[0] ? "Hadeon" : id === settings.kingIds[1] ? "Nico" : "Brian",
+          username: id === settings.kingIds[0] ? "hadeon" : (id === settings.kingIds[1] || id === "server-owner") ? "nico" : "brian",
+          globalName: id === settings.kingIds[0] ? "Hadeon" : (id === settings.kingIds[1] || id === "server-owner") ? "Nico" : "Brian",
           async send(payload) { sent.push({ recipientId: id, payload }); }
         };
       }
