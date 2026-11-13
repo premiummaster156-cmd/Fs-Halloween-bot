@@ -5,6 +5,12 @@ const { ensurePlayerTx } = require("../services/economy");
 const { transaction } = require("../database/pool");
 const { trackActionTx } = require("../services/events");
 
+function getHeistEventBonuses(eventType) {
+  return eventType === "heist_rush"
+    ? { successChanceBonus: 8, payoutMultiplier: 1.3 }
+    : { successChanceBonus: 0, payoutMultiplier: 1 };
+}
+
 class HeistsGame {
   constructor(pool, economy, inventory) { this.pool = pool; this.economy = economy; this.inventory = inventory; }
   missions() { return balancing.heists.map((mission) => ({ ...mission })); }
@@ -72,17 +78,23 @@ class HeistsGame {
         const career = balancing.careerEffects[member.job_id] || {};
         return sum + balancing.heistRoles[member.role_id].bonus + (gear.heistChance || 0) + (career.heistChance || 0);
       }, 0) + Math.max(0, uniqueRoles - 1) * 2;
-      const successChance = calculateHeistChance(mission.baseChance, averageLevel, crew.length, mission.difficulty, roleBonus);
+      const liveEventResult = await client.query(
+        "SELECT event_type,name FROM admin_abuse_events WHERE guild_id=$1 AND status='active' AND starts_at<=NOW() AND ends_at>NOW() ORDER BY created_at DESC LIMIT 1",
+        [guildId]
+      );
+      const liveEvent = liveEventResult.rows?.[0] || null;
+      const eventBonuses = getHeistEventBonuses(liveEvent?.event_type);
+      const successChance = Math.min(95, calculateHeistChance(mission.baseChance, averageLevel, crew.length, mission.difficulty, roleBonus) + eventBonuses.successChanceBonus);
       const roll = randomInt(1, 100);
       const succeeded = roll <= successChance;
       const reference = uuid();
       let totalPayout = 0;
       const candyDropsByUser = new Map();
       if (succeeded) {
-        const baseTotalPayout = randomInt(mission.payoutMin, mission.payoutMax);
+        const baseTotalPayout = Math.floor(randomInt(mission.payoutMin, mission.payoutMax) * eventBonuses.payoutMultiplier);
         const shares = splitReward(baseTotalPayout, crew.map((member) => member.user_id));
         for (const share of shares) {
-          const earning = await this.economy.mutateTx(client, guildId, share.userId, share.amount, "heist_reward", reference + ":" + share.userId, { heistId, missionId: mission.id });
+          const earning = await this.economy.mutateTx(client, guildId, share.userId, share.amount, "heist_reward", reference + ":" + share.userId, { heistId, missionId: mission.id, adminAbuseEvent: liveEvent?.name || null });
           totalPayout += earning.delta;
           if (earning.candyDrop) candyDropsByUser.set(share.userId, earning.candyDrop);
           await client.query("UPDATE players SET heists_completed = heists_completed + 1, reputation = LEAST(100, reputation + 2) WHERE guild_id = $1 AND user_id = $2", [guildId, share.userId]);
@@ -99,7 +111,7 @@ class HeistsGame {
         }
       }
       await client.query("UPDATE heists SET status = $3, success_chance = $4, roll = $5, total_payout = $6, started_at = NOW(), completed_at = NOW() WHERE id = $1 AND guild_id = $2", [heistId, guildId, succeeded ? "success" : "failed", successChance, roll, totalPayout]);
-      return { mission, succeeded, successChance, roll, totalPayout, crew: crew.map((member) => ({ userId: member.user_id, role: member.role_id, candyDrop: candyDropsByUser.get(member.user_id) || null })) };
+      return { mission, succeeded, successChance, roll, totalPayout, adminAbuseEvent: liveEvent?.name || null, crew: crew.map((member) => ({ userId: member.user_id, role: member.role_id, candyDrop: candyDropsByUser.get(member.user_id) || null })) };
     });
   }
 
@@ -120,4 +132,4 @@ class HeistsGame {
     return { heist: query.rows[0], crew: members.rows };
   }
 }
-module.exports = { HeistsGame };
+module.exports = { HeistsGame, getHeistEventBonuses };
