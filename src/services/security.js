@@ -57,7 +57,6 @@ class SecurityService {
     this.nukeAlertedAt = new Map();
     this.inviteActivity = new Map();
     this.raidAlertedAt = new Map();
-    this.maintenanceTimer = null;
   }
 
   isKing(userId) {
@@ -294,56 +293,43 @@ class SecurityService {
         return label + ": " + String(typeof value === "string" ? value : JSON.stringify(value)).slice(0, 250);
       }).filter(Boolean).join("\n").slice(0, 1200);
 
+    const isAlertOnly = ["anti_nuke", "anti_raid"].includes(input.category);
     const actionId = userId || "unknown";
     const components = [];
-    if (input.category === "anti_raid") {
-      components.push(new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":unknown:raid-lockdown").setLabel("Enable 30m lockdown").setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":unknown:raid-release").setLabel("End lockdown").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":unknown:ignore").setLabel("Acknowledge").setStyle(ButtonStyle.Secondary)
-      ));
-    } else if (input.category === "anti_nuke" && userId) {
-      components.push(new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":ban").setLabel("Ban attacker").setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":kick").setLabel("Kick attacker").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":timeout").setLabel("Timeout 10m").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":ignore").setLabel("Acknowledge").setStyle(ButtonStyle.Secondary)
-      ));
-    } else if (userId && automaticAction) {
+    if (!isAlertOnly && userId && automaticAction) {
       components.push(new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":unblock").setLabel("Restore bot access").setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":ignore").setLabel("Mark reviewed").setStyle(ButtonStyle.Secondary)
       ));
-    } else if (userId) {
+    } else if (!isAlertOnly && userId) {
       components.push(new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":pause").setLabel("Pause bot access · 10m").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":block").setLabel("Block bot access").setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":timeout").setLabel("Timeout 10m").setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":" + actionId + ":ignore").setLabel("Acknowledge").setStyle(ButtonStyle.Secondary)
       ));
-    } else {
+    } else if (!isAlertOnly) {
       components.push(new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("security:" + incidentId + ":" + guild.id + ":unknown:ignore").setLabel("Acknowledge").setStyle(ButtonStyle.Secondary)
       ));
     }
 
     const softSignal = input.category === "economy_reward_burst" && Number(detailsInput.riskScore) < 100;
-    const enforcement = input.category === "anti_nuke"
-      ? "Detection only: no roles, channels, permissions or member status were changed automatically. Review the evidence and choose an optional response below."
-      : input.category === "anti_raid"
-        ? "Detection only: this is an invite-activity warning, not proof of a member-join raid. No server settings or member permissions were changed. You may choose a response below."
-        : automaticAction
-          ? "Automated enforcement: " + automaticAction.label + ". This affects Fukishōkai bot access only."
-          : input.category.startsWith("economy_") && !softSignal
-            ? "The invalid economy operation was rejected before player data could be changed."
-            : softSignal ? "Monitoring only: no account restriction was applied." : "No automatic account restriction was applied.";
+    const enforcement = isAlertOnly
+      ? "Alert only. No moderation, account restriction, role, permission, channel or server-setting action was taken or will be taken automatically. This notice has no action buttons."
+      : automaticAction
+        ? "Automated enforcement: " + automaticAction.label + ". This affects Fukishōkai bot access only."
+        : input.category.startsWith("economy_") && !softSignal
+          ? "The invalid economy operation was rejected before player data could be changed."
+          : softSignal ? "Monitoring only: no account restriction was applied." : "No automatic account restriction was applied.";
     const grouped = suppressedCount ? " " + suppressedCount + " additional security incident(s) were grouped into this notice." : "";
     const severity = ["anti_nuke", "anti_raid", "economy_direct_balance_change", "economy_invalid_payout"].includes(input.category) ? "High" : "Review";
-    const recipients = Array.from(new Set([
-      guild.ownerId,
-      settings.ownerId,
-      ...(Array.isArray(settings.kingIds) ? settings.kingIds : [])
-    ].filter(Boolean)));
+    // Anti-nuke and anti-raid are sent only to the two Kings and configured bot owner.
+    // Other security notices retain their existing server-owner recipient as well.
+    const recipients = Array.from(new Set((isAlertOnly
+      ? [...(Array.isArray(settings.kingIds) ? settings.kingIds : []), settings.ownerId]
+      : [guild.ownerId, settings.ownerId, ...(Array.isArray(settings.kingIds) ? settings.kingIds : [])]
+    ).filter(Boolean)));
     let delivered = 0;
     for (const recipientId of recipients) {
       try {
@@ -357,18 +343,22 @@ class SecurityService {
             "Dear " + displayName + ",\n\n" +
             "This is an official security notification regarding **" + String(guild.name || "your Discord server").slice(0, 90) + "**. " +
             String(input.summary || "Security activity requires your attention.") + "\n\n" +
-            "The automated security service has recorded the incident and taken the action described below. Please review the context and select an appropriate response."
+            isAlertOnly
+              ? "This is an alert-only notification. Fukishōkai has not taken any action and will not automatically moderate members or change server settings."
+              : "The automated security service has recorded the incident and taken the action described below. Please review the context."
           )
           .addFields(
             { name: "Server", value: String(guild.name || "Unknown server").slice(0, 100), inline: true },
             { name: "Severity", value: severity, inline: true },
             { name: "Incident", value: "#" + incidentId, inline: true },
             { name: "Incident context", value: details || "No additional event details were recorded." },
-            { name: "Automated response", value: (enforcement + grouped).slice(0, 1000) }
+            { name: isAlertOnly ? "Action taken" : "Automated response", value: (enforcement + grouped).slice(0, 1000) }
           )
           .setFooter({ text: "Fukishōkai Security Operations · Confidential owner notice" })
           .setTimestamp(new Date());
-        await recipient.send({ embeds: [embed], components, allowedMentions: { parse: [] } });
+        const payload = { embeds: [embed], allowedMentions: { parse: [] } };
+        if (!isAlertOnly && components.length) payload.components = components;
+        await recipient.send(payload);
         delivered += 1;
       } catch (error) {
         log("warn", "Could not deliver private security notice", {
@@ -470,125 +460,6 @@ class SecurityService {
     }
   }
 
-  async activateRaidLockdown(guild, durationMs = 30 * 60 * 1000, actorId = "AUTO_SECURITY", reason = "Anti-raid protection") {
-    const botMember = guild.members.me || await guild.members.fetchMe();
-    if (!botMember.permissions.has(PermissionFlagsBits.ManageGuild)) {
-      throw new Error("The bot requires Manage Server permission to change the verification level.");
-    }
-    const current = await this.pool.query(
-      "SELECT previous_verification_level, lockdown_until FROM guild_security_state WHERE guild_id=$1",
-      [guild.id]
-    );
-    const active = current.rowCount && current.rows[0].lockdown_until &&
-      new Date(current.rows[0].lockdown_until).getTime() > Date.now();
-    const previousLevel = active
-      ? Number(current.rows[0].previous_verification_level)
-      : Number(guild.verificationLevel || 0);
-    await guild.edit({ verificationLevel: 4 }, reason + " · actor " + actorId);
-    const until = new Date(Date.now() + durationMs);
-    await this.pool.query(
-      "INSERT INTO guild_security_state (guild_id, previous_verification_level, lockdown_until, lockdown_reason) " +
-      "VALUES ($1, $2, $3, $4) ON CONFLICT (guild_id) DO UPDATE SET " +
-      "previous_verification_level = CASE WHEN guild_security_state.lockdown_until IS NOT NULL " +
-      "AND guild_security_state.lockdown_until > NOW() THEN guild_security_state.previous_verification_level " +
-      "ELSE EXCLUDED.previous_verification_level END, lockdown_until=EXCLUDED.lockdown_until, " +
-      "lockdown_reason=EXCLUDED.lockdown_reason, updated_at=NOW()",
-      [guild.id, previousLevel, until, reason]
-    );
-    return { applied: true, previousLevel, until };
-  }
-
-  async releaseRaidLockdown(guild, actorId = "AUTO_SECURITY", reason = "Raid lockdown released") {
-    const current = await this.pool.query(
-      "SELECT previous_verification_level, lockdown_until FROM guild_security_state WHERE guild_id=$1",
-      [guild.id]
-    );
-    if (!current.rowCount || !current.rows[0].lockdown_until) {
-      return { released: false, message: "No active automatic lockdown was recorded." };
-    }
-    const previousLevel = Number(current.rows[0].previous_verification_level || 0);
-    if (Number(guild.verificationLevel) === 4) {
-      await guild.edit({ verificationLevel: previousLevel }, reason + " · actor " + actorId);
-    }
-    await this.pool.query(
-      "UPDATE guild_security_state SET previous_verification_level=NULL, lockdown_until=NULL, lockdown_reason=NULL, updated_at=NOW() WHERE guild_id=$1",
-      [guild.id]
-    );
-    return { released: true, previousLevel };
-  }
-
-  async recordInviteChange(client, invite, kind) {
-    const guild = invite?.guild;
-    if (!guild?.id) return null;
-    const now = Date.now();
-    const recent = (this.inviteActivity.get(guild.id) || [])
-      .filter((event) => now - event.at <= 30000);
-    recent.push({
-      at: now,
-      kind,
-      actorId: invite.inviter?.id || null,
-      code: invite.code || null
-    });
-    this.inviteActivity.set(guild.id, recent);
-
-    const evaluation = evaluateInviteBurst(recent, now);
-    if (!evaluation.triggered || now - (this.raidAlertedAt.get(guild.id) || 0) < ALERT_DEDUPE_MS) return null;
-    this.raidAlertedAt.set(guild.id, now);
-
-    const actorIds = Array.from(new Set(recent.map((event) => event.actorId).filter(Boolean)));
-    return this.createIncident(client, {
-      guild,
-      userId: null,
-      category: "anti_raid",
-      summary: "A burst of server invite creation and deletion was detected. This may indicate raid preparation or coordinated invite distribution; it does not confirm that members have joined.",
-      details: {
-        detectionReason: "invite_activity_burst",
-        invitesInWindow: evaluation.total,
-        invitesCreated: evaluation.created,
-        invitesDeleted: evaluation.deleted,
-        windowSeconds: evaluation.windowSeconds,
-        actorId: actorIds.length === 1 ? actorIds[0] : "Multiple or unavailable",
-        verificationLevel: "Unchanged"
-      }
-    });
-  }
-
-  async processExpiredRaidLockdowns(client) {
-    const due = await this.pool.query(
-      "SELECT guild_id, previous_verification_level FROM guild_security_state WHERE lockdown_until IS NOT NULL AND lockdown_until <= NOW()"
-    );
-    for (const row of due.rows || []) {
-      try {
-        const guild = client.guilds.cache.get(row.guild_id) || await client.guilds.fetch(row.guild_id);
-        if (Number(guild.verificationLevel) === 4) {
-          await guild.edit(
-            { verificationLevel: Number(row.previous_verification_level || 0) },
-            "Fukishōkai automatic raid lockdown expired"
-          );
-        }
-        await this.pool.query(
-          "UPDATE guild_security_state SET previous_verification_level=NULL, lockdown_until=NULL, lockdown_reason=NULL, updated_at=NOW() WHERE guild_id=$1",
-          [row.guild_id]
-        );
-      } catch (error) {
-        log("warn", "Could not restore expired raid verification level", {
-          guildId: row.guild_id, message: error.message
-        });
-      }
-    }
-  }
-
-  startMaintenance(client) {
-    if (this.maintenanceTimer) clearInterval(this.maintenanceTimer);
-    this.processExpiredRaidLockdowns(client)
-      .catch((error) => log("warn", "Security maintenance failed", { message: error.message }));
-    this.maintenanceTimer = setInterval(() => {
-      this.processExpiredRaidLockdowns(client)
-        .catch((error) => log("warn", "Security maintenance failed", { message: error.message }));
-    }, 60000);
-    if (typeof this.maintenanceTimer.unref === "function") this.maintenanceTimer.unref();
-  }
-
   async recordDestructiveChange(client, guild, targetId, kind, auditType) {
     if (!guild || !targetId) return null;
     await new Promise((resolve) => setTimeout(resolve, 900));
@@ -686,24 +557,22 @@ class SecurityService {
       });
     }
     const incident = await this.pool.query(
-      "SELECT id, user_id FROM security_incidents WHERE id=$1 AND guild_id=$2",
+      "SELECT id, user_id, category FROM security_incidents WHERE id=$1 AND guild_id=$2",
       [incidentId, guildId]
     );
     if (!incident.rowCount) {
       return interaction.reply({ content: "This security incident could not be found.", flags: MessageFlags.Ephemeral });
     }
     const category = incident.rows[0].category || "security";
+    if (["anti_nuke", "anti_raid"].includes(category)) {
+      return interaction.reply({
+        content: "This Fukishōkai security incident is alert-only. No moderation or server-setting actions are available from security alerts.",
+        flags: MessageFlags.Ephemeral
+      });
+    }
     let resultText = "The incident was acknowledged. No further action was taken.";
 
-    if (action === "raid-lockdown") {
-      await this.activateRaidLockdown(guild, 30 * 60 * 1000, interaction.user.id, "Owner-approved raid lockdown");
-      resultText = "Server verification was raised to Very High for 30 minutes. The previous setting is saved for restoration.";
-    } else if (action === "raid-release") {
-      const released = await this.releaseRaidLockdown(guild, interaction.user.id, "Owner-approved raid lockdown release");
-      resultText = released.released
-        ? "The raid lockdown was ended. The previous verification level was restored unless a server administrator had changed it manually."
-        : released.message;
-    } else if (action === "ban" || action === "kick" || action === "timeout") {
+    if (action === "ban" || action === "kick" || action === "timeout") {
       if (!targetId || incident.rows[0].user_id !== targetId) {
         return interaction.reply({ content: "This incident has no matching target.", flags: MessageFlags.Ephemeral });
       }
@@ -759,8 +628,6 @@ class SecurityService {
     }
 
     const status = action === "ignore" ? "acknowledged" :
-      action === "raid-lockdown" ? "raid_lockdown_enabled" :
-      action === "raid-release" ? "raid_lockdown_released" :
       action === "ban" ? "actor_banned" : action === "kick" ? "actor_kicked" :
       action === "timeout" ? "actor_timed_out" :
       action === "pause" ? "restricted_10m" : action === "block" ? "blocked_from_bot" : "bot_access_restored";
