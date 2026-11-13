@@ -224,7 +224,21 @@ class SecurityService {
     // Urgent raid/nuke detections are sent immediately. Routine notices are
     // grouped per guild and limited by PostgreSQL across restarts and instances.
     let suppressedCount = 0;
-    if (!["anti_nuke", "anti_raid"].includes(input.category)) {
+    if (["anti_nuke", "anti_raid"].includes(input.category)) {
+      try {
+        const priority = await this.pool.query(
+          "INSERT INTO security_priority_alert_state (guild_id, category, last_notified_at) VALUES ($1, $2, NOW()) " +
+          "ON CONFLICT (guild_id, category) DO UPDATE SET last_notified_at=NOW() " +
+          "WHERE security_priority_alert_state.last_notified_at <= NOW() - INTERVAL '10 minutes' " +
+          "RETURNING last_notified_at",
+          [guild.id, input.category]
+        );
+        if (!priority.rowCount) return incidentId;
+      } catch (error) {
+        log("error", "Could not apply persistent priority-alert throttle", { guildId: guild.id, incidentId, message: error.message });
+        return incidentId;
+      }
+    } else {
       try {
         const throttled = await this.pool.query(
           "INSERT INTO security_alert_state (guild_id, last_notified_at, suppressed_count, last_suppressed_count) " +
