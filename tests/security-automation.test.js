@@ -7,7 +7,7 @@ const {
   SecurityService,
   getAutomaticEconomyRestriction,
   evaluateNukeBurst,
-  evaluateRaidBurst
+  evaluateInviteBurst
 } = require("../src/services/security");
 
 test("automatic economy restrictions remain limited to high-confidence signals", () => {
@@ -26,18 +26,19 @@ test("anti-nuke thresholds require a destructive or mass-creation burst", () => 
   assert.equal(evaluateNukeBurst(Array(8).fill("channel_create")).reason, "mass_asset_creation");
 });
 
-test("anti-raid thresholds distinguish ordinary joins from a coordinated burst", () => {
+test("invite-burst monitoring detects suspicious invite churn without claiming members joined", () => {
   const now = Date.now();
-  const ordinary = Array.from({ length: 7 }, (_, i) => ({ joinedAt: now - i * 1000, accountAgeMs: 30 * 86400000 }));
-  assert.equal(evaluateRaidBurst(ordinary, now).triggered, false);
-  const youngBurst = Array.from({ length: 6 }, (_, i) => ({
-    joinedAt: now - i * 1000,
-    accountAgeMs: i < 4 ? 60 * 60 * 1000 : 30 * 86400000
+  const routine = Array.from({ length: 4 }, (_, i) => ({ at: now - i * 1000, kind: "invite_create" }));
+  assert.equal(evaluateInviteBurst(routine, now).triggered, false);
+  const createBurst = Array.from({ length: 5 }, (_, i) => ({ at: now - i * 1000, kind: "invite_create" }));
+  assert.equal(evaluateInviteBurst(createBurst, now).triggered, true);
+  const mixedBurst = Array.from({ length: 8 }, (_, i) => ({
+    at: now - i * 1000,
+    kind: i < 4 ? "invite_create" : "invite_delete"
   }));
-  assert.equal(evaluateRaidBurst(youngBurst, now).triggered, true);
-  assert.equal(evaluateRaidBurst(Array.from({ length: 8 }, (_, i) => ({
-    joinedAt: now - i * 1000, accountAgeMs: 90 * 86400000
-  })), now).triggered, true);
+  assert.equal(evaluateInviteBurst(mixedBurst, now).triggered, true);
+  const stale = Array.from({ length: 6 }, (_, i) => ({ at: now - 60000 - i * 1000, kind: "invite_create" }));
+  assert.equal(evaluateInviteBurst(stale, now).triggered, false);
 });
 
 function makeService() {
@@ -129,9 +130,10 @@ test("confirmed economy tampering applies a bot-only timed restriction", async (
   assert.equal(restrictions[0].params[4], "AUTO_SECURITY");
 });
 
-test("anti-nuke owner mail includes contextual action options and no public channel delivery", async () => {
-  const { service, client, guild, sent } = makeService();
-  service.quarantineNuker = async () => ({ applied: true, roleIds: ["dangerous-role"] });
+test("anti-nuke owner mail is alert-only and leaves response decisions to the owner", async () => {
+  const { service, client, guild, sent, restrictions } = makeService();
+  let quarantineCalled = false;
+  service.quarantineNuker = async () => { quarantineCalled = true; throw new Error("must not run"); };
   await service.createIncident(client, {
     guild,
     userId: "suspected-actor",
@@ -141,14 +143,18 @@ test("anti-nuke owner mail includes contextual action options and no public chan
   });
 
   assert.equal(sent.length, 1);
+  assert.equal(quarantineCalled, false, "anti-nuke detection must not remove roles automatically");
+  assert.equal(restrictions.length, 0, "anti-nuke detection must not apply an automatic bot restriction");
   const mail = sent[0].payload;
   assert.match(mail.embeds[0].data.description, /Dear Nico,/);
   assert.match(mail.embeds[0].data.title, /Potential server nuke/);
-  assert.match(mail.embeds[0].data.fields.find((field) => field.name === "Automated response").value, /removed manageable high-risk roles/);
+  const response = mail.embeds[0].data.fields.find((field) => field.name === "Automated response").value;
+  assert.match(response, /no roles, channels, permissions or member status were changed automatically/);
   const labels = mail.components[0].components.map((component) => component.data.label);
-  assert.ok(labels.includes("Restore removed roles"));
   assert.ok(labels.includes("Ban attacker"));
   assert.ok(labels.includes("Kick attacker"));
+  assert.ok(labels.includes("Timeout 10m"));
+  assert.equal(labels.includes("Restore removed roles"), false);
   assert.deepEqual(mail.allowedMentions, { parse: [] });
 });
 
@@ -158,12 +164,15 @@ test("anti-raid notices provide lockdown and release controls to owners", async 
     guild,
     category: "anti_raid",
     summary: "A rapid join burst crossed the anti-raid threshold.",
-    details: { joinsInWindow: 8, youngAccounts: 5, windowSeconds: 20, lockdownApplied: true }
+    details: { invitesInWindow: 5, invitesCreated: 5, invitesDeleted: 0, windowSeconds: 30, verificationLevel: "Unchanged" }
   });
 
   assert.equal(sent.length, 1);
   const mail = sent[0].payload;
   assert.match(mail.embeds[0].data.description, /Dear Nico,/);
+  const response = mail.embeds[0].data.fields.find((field) => field.name === "Automated response").value;
+  assert.match(response, /invite-activity warning/);
+  assert.match(response, /No server settings or member permissions were changed/);
   const labels = mail.components[0].components.map((component) => component.data.label);
   assert.ok(labels.includes("Enable 30m lockdown"));
   assert.ok(labels.includes("End lockdown"));
@@ -265,44 +274,4 @@ test("owner can use raid controls directly from a private DM", async () => {
   assert.deepEqual(updated.components, []);
 });
 
-test("verified role quarantine data is persisted for owner-approved restoration", async () => {
-  let saved = null;
-  const service = new SecurityService({
-    async query(sql, params) {
-      if (sql.includes("INSERT INTO security_quarantines")) {
-        saved = params;
-        return { rowCount: 1, rows: [{ id: "5" }] };
-      }
-      return { rowCount: 1, rows: [] };
-    }
-  }, { async get() { return null; } });
-  service.isAboveBotRole = async () => false;
-  const role = {
-    id: "admin-role",
-    editable: true,
-    permissions: { has(permission) { return permission === require("discord.js").PermissionFlagsBits.Administrator; } }
-  };
-  const member = {
-    roles: {
-      cache: {
-        filter(predicate) {
-          return [
-            { id: "guild-1", editable: false, permissions: { has() { return false; } } },
-            role
-          ].filter(predicate);
-        }
-      },
-      async remove(ids) { assert.deepEqual(ids, ["admin-role"]); }
-    }
-  };
-  const botMember = { permissions: { has(permission) { return permission === require("discord.js").PermissionFlagsBits.ManageRoles; } } };
-  const guild = {
-    id: "guild-1",
-    members: { async fetch() { return member; }, me: botMember }
-  };
-  const result = await service.quarantineNuker(guild, "actor", "12");
-  assert.equal(result.applied, true);
-  assert.deepEqual(result.roleIds, ["admin-role"]);
-  assert.equal(saved[2], "12");
-  assert.deepEqual(JSON.parse(saved[3]), ["admin-role"]);
-});
+
