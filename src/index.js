@@ -123,11 +123,12 @@ async function start() {
     GatewayIntentBits.GuildModeration,
     GatewayIntentBits.GuildInvites
   ];
-  const aiMessageMonitorConfigured = settings.aiMessageMonitorEnabled && Boolean(settings.ollamaApiKey && settings.ownerId);
+  const aiMessageMonitorConfigured = settings.aiMessageMonitorEnabled &&
+    Boolean(settings.ollamaApiKey && settings.ownerId && settings.aiMessageMonitorGuildIds.length);
   if (aiMessageMonitorConfigured) gatewayIntents.push(GatewayIntentBits.MessageContent);
   const client = new Client({ intents: gatewayIntents });
   if (settings.aiMessageMonitorEnabled && !aiMessageMonitorConfigured) {
-    console.warn("[ai-monitor] Disabled: set OLLAMA_API_KEY and OWNER_ID before enabling AI_MESSAGE_MONITOR_ENABLED.");
+    console.warn("[ai-monitor] Disabled: set OLLAMA_API_KEY, OWNER_ID and AI_MESSAGE_MONITOR_GUILD_IDS (or GUILD_ID) before enabling AI_MESSAGE_MONITOR_ENABLED.");
   }
   const economy = new EconomyService(pool);
   const economyEvents = new EconomyEventService(pool);
@@ -142,6 +143,7 @@ async function start() {
         apiKey: settings.ollamaApiKey,
         model: settings.ollamaModel,
         ownerId: settings.ownerId,
+        guildIds: settings.aiMessageMonitorGuildIds,
         pool,
         dailyLimit: settings.aiMessageMonitorDailyLimit
       })
