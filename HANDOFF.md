@@ -12,14 +12,18 @@ The user confirmed this is the bot's final season and it will not be used after 
 
 ### Progression system
 
-- Player progression uses the current level-based FC earning factor and remains capped at level 600.
+- Player progression uses the current level-based FC earning factor and remains capped at level 1,000.
 - Existing wallets, banks, levels, careers, gear, inventory and historical gameplay records are preserved when progression rules change.
-- Player level remains capped at **600**. Eligible normal FC rewards keep the **3× season multiplier** and now gain **+0.5% per level above level 1** (level factor **3.995× at level 600**). Equipped gear and configured FC Party events follow the existing eligibility rules.
+- Player level remains capped at **1,000**. Eligible normal FC rewards keep the **3× season multiplier** and now gain **+0.5% per level above level 1** (level factor **5.995× at level 1,000**). Equipped gear and configured FC Party events follow the existing eligibility rules.
 - Candy-drop chance progression uses player level (up to +20 percentage points by level 600). Phoenix Core's Arena heal ability is named **PHOENIX**.
+
+### Live event modes
+
+Admin Abuse has six modes: Blood Moon, Candy Storm, Rift Surge, Lucky Block Rain, XP Surge (+50% eligible XP), and Heist Rush (+8 success percentage points and +30% base payout). The PostgreSQL event-type constraint is updated idempotently by schema migration.
 
 ### Final-season economy and activities
 
-- Normal FC rewards retain the global **3×** earning multiplier and add **+0.5% per player level above level 1**, reaching a **3.995× level factor** at level 600. Eligible gear and FC Party bonuses stack according to each reward's rules. Casino payouts, player trades and admin grants are excluded from the ordinary reward multiplier.
+- Normal FC rewards retain the global **3×** earning multiplier and add **+0.5% per player level above level 1**, reaching a **5.995× level factor** at level 1,000. Eligible gear and FC Party bonuses stack according to each reward's rules. Casino payouts, player trades and admin grants are excluded from the ordinary reward multiplier.
 - Daily reward: **600–900 base FC**, 30 base XP and an 18-hour cooldown.
 - Careers include 22 paths: the original seven plus 15 new specialist careers with progressive level/wallet unlocks, higher salaries and distinct passive perks. Work shifts retain three questions per run from a 115-question randomized pool with 15 added templates across easy, medium and hard bands; difficulty-based time limits are used.
 - Crime unlocks begin at level 1 and progress to level 16; cooldowns range from five to 22 minutes with lower penalties and improved success chances.
@@ -213,8 +217,8 @@ Keep Neon PostgreSQL, keep `GuildMembers` and `GuildPresences` disabled, keep `M
 
 ## Economy integrity and progression update — November 12, 2026
 
-- **Progression:** player level remains capped at 600. Phoenix Core's Arena ability is named **PHOENIX**.
-- **Level earnings:** eligible FC actions receive the normal 3× season multiplier plus `1 + (level - 1) × 0.005`; the level factor reaches 3.995× at level 600. Candy-drop odds use a level-based bonus. Active player rows and inventories are preserved.
+- **Progression:** player level remains capped at 1,000. Phoenix Core's Arena ability is named **PHOENIX**.
+- **Level earnings:** eligible FC actions receive the normal 3× season multiplier plus `1 + (level - 1) × 0.005`; the level factor reaches 5.995× at level 1,000. Candy-drop odds use a level-based bonus. Active player rows and inventories are preserved.
 - **Database cleanup:** obsolete progression columns are dropped by the idempotent `schema.sql` migration. Player wallets, banks, levels, careers and inventory are not modified.
 - **Mutation allowlist:** `src/services/economy-guard.js` defines approved currency reasons, valid credit/debit directions, per-action base caps, admin-grant audit requirements and self-grant prevention. Unknown or malformed mutations are rejected and recorded as security incidents.
 - **Casino integrity:** every payout is checked against the same user's recorded `casino_bet` reference and the server-side wager × payout multiplier formula. Duplicate ledger references remain idempotent.
