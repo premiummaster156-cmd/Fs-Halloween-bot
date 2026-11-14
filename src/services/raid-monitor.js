@@ -83,10 +83,9 @@ function compareInviteSnapshots(previous, current) {
   const oldVanity = previous.vanity;
   const newVanity = current.vanity;
   if (newVanity?.code && Number.isFinite(newVanity.uses)) {
-    const oldUses = oldVanity?.code === newVanity.code && Number.isFinite(oldVanity.uses)
-      ? oldVanity.uses
-      : 0;
-    if (newVanity.uses > oldUses) {
+    const sameVanityCode = oldVanity?.code === newVanity.code;
+    const oldUses = sameVanityCode && Number.isFinite(oldVanity.uses) ? oldVanity.uses : null;
+    if (sameVanityCode && oldUses !== null && newVanity.uses > oldUses) {
       changed.push({
         type: "vanity",
         code: newVanity.code,
@@ -101,7 +100,8 @@ function compareInviteSnapshots(previous, current) {
   if (changed.length > 1) {
     return {
       type: "unknown",
-      reason: "Multiple invite counters increased between checks; the exact source for this join is ambiguous."
+      reason: "Multiple invite counters increased between checks; the exact source for this join is ambiguous.",
+      possibleSources: changed.map((candidate) => sourceLabel(candidate))
     };
   }
   return {
@@ -112,7 +112,10 @@ function compareInviteSnapshots(previous, current) {
 
 function sourceLabel(source) {
   if (!source || source.type === "unknown") {
-    return "Unknown — " + String(source?.reason || "Discord did not expose a matching invite counter.");
+    const possible = Array.isArray(source?.possibleSources) && source.possibleSources.length
+      ? " Possible changed sources: " + source.possibleSources.join("; ")
+      : "";
+    return "Unknown / ambiguous — " + String(source?.reason || "Discord did not expose a matching invite counter.") + possible;
   }
   if (source.type === "vanity") {
     return "Vanity URL discord.gg/" + source.code + " (no individual inviter is provided for vanity links)";
@@ -179,7 +182,7 @@ class RaidMonitor {
     if (inviteResult.status === "fulfilled") {
       let metadataComplete = true;
       for (const invite of inviteResult.value.values()) {
-        const uses = Number(invite.uses);
+        const uses = invite.uses;
         if (!Number.isFinite(uses)) {
           metadataComplete = false;
           continue;
@@ -200,8 +203,8 @@ class RaidMonitor {
 
     if (vanityResult.status === "fulfilled") {
       const vanity = vanityResult.value;
-      snapshot.vanity = vanity?.code && Number.isFinite(Number(vanity.uses))
-        ? { code: vanity.code, uses: Number(vanity.uses) }
+      snapshot.vanity = vanity?.code && Number.isFinite(vanity.uses)
+        ? { code: vanity.code, uses: vanity.uses }
         : null;
       snapshot.vanityAvailable = true;
     } else if (!guild.vanityURLCode) {
