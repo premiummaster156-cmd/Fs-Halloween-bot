@@ -29,14 +29,6 @@ function evaluateNukeBurst(events = []) {
   return { triggered: false, reason: null, count: events.length, counts };
 }
 
-function evaluateInviteBurst(events = [], now = Date.now()) {
-  const recent = events.filter((event) => now - Number(event.at || 0) <= 30000);
-  const created = recent.filter((event) => event.kind === "invite_create").length;
-  const deleted = recent.filter((event) => event.kind === "invite_delete").length;
-  const triggered = created >= 5 || (recent.length >= 8 && created >= 3 && deleted >= 2);
-  return { triggered, total: recent.length, created, deleted, windowSeconds: 30 };
-}
-
 class SecurityService {
   constructor(pool, guildSettings) {
     this.pool = pool;
@@ -51,8 +43,6 @@ class SecurityService {
     this.nukeEvents = new Map();
     this.processedAuditIds = new Map();
     this.nukeAlertedAt = new Map();
-    this.inviteActivity = new Map();
-    this.raidAlertedAt = new Map();
     this.economyViolationAttempts = new Map();
     this.databaseMismatchAttempts = new Map();
   }
@@ -718,4 +708,4 @@ class SecurityService {
   }
 }
 
-module.exports = { SecurityService, isSevereEconomyIncident, evaluateNukeBurst, evaluateInviteBurst };
+module.exports = { SecurityService, isSevereEconomyIncident, evaluateNukeBurst };
