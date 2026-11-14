@@ -281,8 +281,9 @@ class SecurityService {
       .map(([key, value]) => {
         const label = detailLabels[key];
         if (!label) return null;
-        return label + ": " + String(typeof value === "string" ? value : JSON.stringify(value)).slice(0, 250);
-      }).filter(Boolean).join("\n").slice(0, 1200);
+        const maxLength = key === "inviteSourceSummary" ? 380 : key === "recentJoiners" ? 430 : 250;
+        return label + ": " + String(typeof value === "string" ? value : JSON.stringify(value)).slice(0, maxLength);
+      }).filter(Boolean).join("\n").slice(0, 1000);
 
     const actionId = userId || "unknown";
     const components = [];
