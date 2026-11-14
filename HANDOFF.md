@@ -3,7 +3,7 @@
 **Repository:** https://github.com/premiummaster156-cmd/Fs-Halloween-bot  
 **Default branch:** `main`  
 **Runtime:** Node.js 20+, Discord.js 14, PostgreSQL on Neon  
-**Last updated:** 2026-11-13 — Kings hierarchy, strict Kings/bot-owner-only anti-nuke/anti-raid notifications, severe-only economy alerts, and opt-in owner-only Ollama AI Watch
+**Last updated:** 2026-11-14 — invite monitoring removed; Kings hierarchy, strict Kings/bot-owner-only anti-nuke notifications, severe-only economy alerts, and opt-in owner-only Ollama AI Watch
 **Working rule:** `main` is the only development branch. Do not create feature branches. Inspect and update `main` directly, keep this file current, and verify CI before reporting completion.
 
 ## Final season — ends November 30, 2026
@@ -132,7 +132,7 @@ The project also applies schema changes at startup. No slash-command redeploymen
 
 ## Current approved upgrade — November 8, 2026
 
-- **Privileged intents:** `GuildMembers` and `GuildPresences` remain disabled. `MessageContent` is opt-in only for AI Watch: request it only when `AI_MESSAGE_MONITOR_ENABLED=true`, `OLLAMA_API_KEY` and `OWNER_ID` are configured. Default operation stays on Guilds, GuildMessages, GuildModeration and GuildInvites. The AI monitor does not enumerate all members; it analyses messages delivered in channels the bot can view and fetches a known member individually when role/join metadata is needed. Existing leaderboard and bulk-DM restrictions remain unchanged.
+- **Privileged intents:** `GuildMembers` and `GuildPresences` remain disabled. `MessageContent` is opt-in only for AI Watch: request it only when `AI_MESSAGE_MONITOR_ENABLED=true`, `OLLAMA_API_KEY` and `OWNER_ID` are configured. Default operation stays on Guilds, GuildMessages and GuildModeration. GuildInvites is not requested because invite creation/deletion monitoring is disabled. The AI monitor does not enumerate all members; it analyses messages delivered in channels the bot can view and fetches a known member individually when role/join metadata is needed. Existing leaderboard and bulk-DM restrictions remain unchanged.
 - **Leaderboards:** Added Career Level, Successful Crimes and Completed Heists. Ranking pages include zero-stat saved profiles, respect exclusions and disclose the tracked-profile limitation. Search supports cached usernames/display names and exact IDs.
 - **Trading safeguards:** Both sides still contribute and independently confirm. Editing an offer clears both confirmations. New trade invitations require a 7-day-old Discord account and at least 24 hours in the server; each account can open at most eight trades per rolling 24 hours, and the same pair has a 10-minute re-open cooldown. These checks deter low-effort alt abuse but do not claim perfect alt detection.
 - **Admin Abuse:** Separate from FC Party Events. Presets: Blood Moon (+12 crime-success points and +25% crime base rewards), Candy Storm (+1–2 Candy on eligible gameplay rewards), Rift Surge (+50% Rift Arena victory FC/XP), and Lucky Block Rain (one claim per player per event; FC, Candy and a level-eligible non-booster equipment item). Admins start/stop events through `/admin-panel → Admin Abuse`; events announce in the configured member-command channel and are logged.
@@ -229,17 +229,17 @@ Keep Neon PostgreSQL, keep `GuildMembers` and `GuildPresences` disabled, keep `M
 - **Intent boundary:** `GuildMembers` and `GuildPresences` remain disabled. `MessageContent` is requested only by the optional AI Watch configuration; all non-AI bot behavior remains without privileged intents.
 - **Validation boundary:** CI tests and syntax/command validation are separate from a live Neon migration or real Discord guild test. Record the exact CI run and test count after completion; do not claim live Neon/Discord verification unless performed.
 
-## Strict anti-nuke and anti-raid alert-only policy — November 13, 2026
+## Strict anti-nuke alert-only policy — November 13, 2026
 
 This is an explicit user requirement and overrides any older handoff/README wording about owner-approved security responses or action buttons:
 
-- **Recipients:** Anti-nuke and anti-raid notifications must be DM'd to exactly the two configured Fukishōkai Kings (`settings.kingIds`) and the configured bot owner (`OWNER_ID` / `settings.ownerId`). Do not add `guild.ownerId` as a separate recipient. The server owner receives the DM only because they are one of the two King IDs. Deduplicate overlapping IDs.
-- **No controls:** Anti-nuke and anti-raid DMs must have no buttons, components, action rows, menus or action prompts. Do not send an empty components array; omit the components property entirely.
-- **No intervention:** These systems only detect, record the incident, and send private DMs. Never ban, kick, timeout, quarantine, remove roles, change permissions, restrict bot access, change verification levels, enable lockdown, or take any other moderation/server-setting action because of an anti-nuke or anti-raid detection.
-- **Legacy controls:** Old anti-nuke/anti-raid buttons from previously delivered DMs must be rejected without performing an action. The security interaction handler must check the incident category before executing any legacy action.
-- **Detection remains active:** Keep audit-log based destructive-action and permission-escalation detection, plus standard Guild Invites activity monitoring. Keep the existing thresholds and do not enable privileged Gateway intents.
+- **Recipients:** Anti-nuke notifications must be DM'd to exactly the two configured Fukishōkai Kings (`settings.kingIds`) and the configured bot owner (`OWNER_ID` / `settings.ownerId`). Do not add `guild.ownerId` as a separate recipient. The server owner receives the DM only because they are one of the two King IDs. Deduplicate overlapping IDs.
+- **No controls:** Anti-nuke DMs must have no buttons, components, action rows, menus or action prompts. Do not send an empty components array; omit the components property entirely.
+- **No intervention:** This system only detects, records the incident, and sends private DMs. Never ban, kick, timeout, quarantine, remove roles, change permissions, restrict bot access, change verification levels, enable lockdown, or take any other moderation/server-setting action because of an anti-nuke detection.
+- **Legacy controls:** Old anti-nuke buttons from previously delivered DMs must be rejected without performing an action. The security interaction handler must check the incident category before executing any legacy action.
+- **Detection remains active:** Keep audit-log based destructive-action and permission-escalation detection. Invite creation/deletion monitoring is intentionally disabled, and GuildInvites is not requested.
 - **Files updated:** `src/services/security.js` sends priority alerts only to Kings + configured bot owner, omits DM components for these categories, blocks legacy anti-alert buttons, and removes raid-lockdown methods/maintenance. `src/index.js` no longer starts raid-lockdown expiry maintenance. Regression tests assert exact recipients, absent controls and no moderation/server edits.
-- Economy integrity is separate from anti-nuke/anti-raid. Severe economy alerts may offer owner-clicked leaderboard exclusion or bot-only access controls; no economy punishment or restriction is applied automatically.
+- Economy integrity is separate from anti-nuke. Severe economy alerts may offer owner-clicked leaderboard exclusion or bot-only access controls; no economy punishment or restriction is applied automatically.
 - Check CI and verify live Discord DM delivery separately. Never claim live delivery from CI alone.
 
 ## Severe-only economy alerts and owner-approved controls — November 13, 2026
