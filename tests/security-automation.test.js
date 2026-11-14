@@ -320,8 +320,17 @@ test("anti-raid alerts DM only Kings and bot owner, with no action controls or l
   await service.createIncident(client, {
     guild,
     category: "anti_raid",
-    summary: "An invite activity burst crossed the anti-raid threshold.",
-    details: { invitesInWindow: 5, invitesCreated: 5, invitesDeleted: 0, windowSeconds: 30, verificationLevel: "Unchanged" }
+    summary: "A rapid join burst included three newly created accounts.",
+    details: {
+      joinsIn30Seconds: 5,
+      joinsIn60Seconds: 5,
+      newAccountsIn60Seconds: 3,
+      newAccountAgeDays: 7,
+      joinWindowSeconds: 30,
+      newAccountWindowSeconds: 60,
+      inviteSourceSummary: "3 joins: Invite abc123 — created by Example (ID inviter-1)",
+      recentJoiners: "new-user-1 — account age 1d — Invite abc123"
+    }
   });
 
   const expectedRecipients = new Set([...settings.kingIds, settings.ownerId].filter(Boolean));
@@ -329,6 +338,8 @@ test("anti-raid alerts DM only Kings and bot owner, with no action controls or l
   assert.equal(sent.length, expectedRecipients.size);
   assert.equal(restrictions.length, 0, "anti-raid detection must not apply a bot-access restriction");
   assert.equal(guildEditCalls, 0, "anti-raid detection must never change the server verification level");
+  assert.match(sent[0].payload.embeds[0].data.fields.find((field) => field.name === "Incident context").value, /Invite abc123/);
+  assert.match(sent[0].payload.embeds[0].data.description, /three newly created accounts/);
   for (const entry of sent) {
     const mail = entry.payload;
     assert.match(mail.embeds[0].data.description, /alert-only notification/i);
