@@ -161,7 +161,7 @@ Economy guards reject invalid currency/XP mutations before player data changes. 
 
 **Anti-nuke:** With View Audit Log enabled, the bot attributes channel/role creation and deletion, member bans and kicks to recent audit-log entries. Three channel/role deletions, five member removals, or eight channel/role creations within 20 seconds trigger an alert. A single high-impact permission grant (such as Administrator, Manage Server, Manage Channels, Manage Roles, Ban/Kick, Manage Webhooks or Manage Messages) to a role or channel overwrite also triggers immediate detection. **Strictly alert-only:** the bot records the incident and privately DMs only the two Kings and configured bot owner. No action buttons are attached, and the bot never bans, kicks, times out, restricts accounts, removes roles or changes permissions/settings in response.
 
-**Invite monitoring is disabled:** creating or deleting Discord invites does not trigger a security alert. The bot does not request the Guild Invites intent and does not claim to detect join raids.
+**Raid monitoring is disabled:** the bot does not monitor invite creation, invite usage or member-join bursts. It does not request Guild Invites or Guild Members intents, and does not claim to detect raids.
 
 No privileged intents need to be enabled in the Discord Developer Portal. Anti-nuke attribution requires **View Audit Log**. The anti-nuke alert system does not require ban, kick, timeout, role-management, or Manage Server permissions because it does not perform moderation or server changes. Invite creation/deletion monitoring is disabled.
 
