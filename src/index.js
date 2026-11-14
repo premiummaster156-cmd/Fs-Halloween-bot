@@ -21,7 +21,6 @@ const { WeeklyQuestService } = require("./services/weekly-quests");
 const { InventoryService } = require("./services/inventory");
 const { GuildSettingsService } = require("./services/guild-settings");
 const { SecurityService } = require("./services/security");
-const { RaidMonitor } = require("./services/raid-monitor");
 const { ServerBoosterService } = require("./services/server-boosters");
 const { CustomCommandService } = require("./services/custom-commands");
 const { TradeService } = require("./services/trade-interactions");
@@ -121,8 +120,7 @@ async function start() {
   const gatewayIntents = [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.GuildModeration,
-    GatewayIntentBits.GuildMembers
+    GatewayIntentBits.GuildModeration
   ];
   const aiMessageMonitorConfigured = settings.aiMessageMonitorEnabled &&
     Boolean(settings.ollamaApiKey && settings.ownerId && settings.aiMessageMonitorGuildIds.length);
@@ -139,7 +137,6 @@ async function start() {
   economy.inventory = inventory;
   const guildSettings = new GuildSettingsService(pool);
   const security = new SecurityService(pool, guildSettings);
-  const raidMonitor = new RaidMonitor({ security });
   const aiMessageMonitor = aiMessageMonitorConfigured
     ? new AIMessageMonitor({
         apiKey: settings.ollamaApiKey,
@@ -164,7 +161,7 @@ async function start() {
   const restoredCommandFiles = await customCommands.restoreWorkspaceFiles();
   console.log("[workspace] Restored " + restoredCommandFiles + " JavaScript command file(s).");
   client.services = {
-    pool, balancing, economy, inventory, guildSettings, security, raidMonitor, serverBoosters, customCommands,
+    pool, balancing, economy, inventory, guildSettings, security, serverBoosters, customCommands,
     partyGames: new PartyGameService(pool, economy),
     trades: new TradeService(pool),
     economyEvents,
@@ -185,23 +182,6 @@ async function start() {
 
   client.once(Events.ClientReady, (ready) => {
     console.log("[bot] Logged in as " + ready.user.tag + " with " + client.commands.size + " commands.");
-    for (const guild of ready.guilds.cache.values()) {
-      raidMonitor.initializeGuild(guild).catch((error) =>
-        console.warn("[raid-monitor] Startup invite baseline failed:", error.message)
-      );
-    }
-  });
-
-  client.on(Events.GuildCreate, (guild) => {
-    raidMonitor.initializeGuild(guild).catch((error) =>
-      console.warn("[raid-monitor] New-server invite baseline failed:", error.message)
-    );
-  });
-
-  client.on(Events.GuildMemberAdd, (member) => {
-    raidMonitor.handleMemberJoin(member, client).catch((error) =>
-      console.error("[raid-monitor] Could not process member join:", error.message)
-    );
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
