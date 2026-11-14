@@ -106,6 +106,8 @@ test("multiple invite sources changing together are marked ambiguous", () => {
   );
   assert.equal(source.type, "unknown");
   assert.match(source.reason, /ambiguous/i);
+  assert.ok(source.possibleSources.some((entry) => /Invite abc123/.test(entry)));
+  assert.ok(source.possibleSources.some((entry) => /Vanity URL discord\\.gg\\/fukishokai/.test(entry)));
 });
 
 test("missing usage metadata never guesses an inviter", () => {
@@ -186,6 +188,54 @@ test("unavailable invite snapshots produce explicit unknown source evidence", as
   assert.ok(incident);
   assert.match(incident.details.inviteSourceSummary, /Unknown/);
   assert.match(incident.details.inviteSourceSummary, /Manage Server/);
+});
+
+test("missing Manage Server permission disables attribution without breaking join detection", async () => {
+  let inviteFetches = 0;
+  const monitor = new RaidMonitor({
+    security: { async createIncident() { return "unused"; } },
+    logger: { warn() {} }
+  });
+  const snapshot = await monitor.fetchInviteSnapshot({
+    id: "guild-1",
+    members: { me: { permissions: { has() { return false; } } } },
+    invites: { async fetch() { inviteFetches += 1; throw new Error("must not fetch"); } },
+    async fetchVanityData() { throw new Error("must not fetch"); }
+  });
+  assert.equal(inviteFetches, 0);
+  assert.equal(snapshot.invitesAvailable, false);
+  assert.equal(snapshot.vanityAvailable, false);
+  assert.match(snapshot.reason, /Manage Server/);
+});
+
+test("Manage Server permission enables invite creator and vanity counter snapshots", async () => {
+  let inviteOptions = null;
+  const monitor = new RaidMonitor({
+    security: { async createIncident() { return "unused"; } },
+    logger: { warn() {} }
+  });
+  const snapshot = await monitor.fetchInviteSnapshot({
+    id: "guild-1",
+    vanityURLCode: "fukishokai",
+    members: { me: { permissions: { has() { return true; } } } },
+    invites: {
+      async fetch(options) {
+        inviteOptions = options;
+        return new Map([["abc123", {
+          code: "abc123",
+          uses: 4,
+          inviter: { id: "creator-1", tag: "Creator#0001" }
+        }]]);
+      }
+    },
+    async fetchVanityData() { return { code: "fukishokai", uses: 10 }; }
+  });
+  assert.deepEqual(inviteOptions, { cache: false });
+  assert.equal(snapshot.invitesAvailable, true);
+  assert.equal(snapshot.invites.get("abc123").inviterId, "creator-1");
+  assert.equal(snapshot.invites.get("abc123").uses, 4);
+  assert.deepEqual(snapshot.vanity, { code: "fukishokai", uses: 10 });
+  assert.equal(snapshot.vanityAvailable, true);
 });
 
 test("account ages are rendered in compact readable units", () => {
