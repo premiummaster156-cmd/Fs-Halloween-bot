@@ -250,7 +250,7 @@ class SecurityService {
       unauthorized_control_access: "Unauthorized dashboard access",
       rapid_destructive_actions: "Rapid server changes",
       anti_nuke: "Potential server nuke",
-      anti_raid: "Unusual invite activity / possible raid preparation",
+      anti_raid: "Possible join raid — rapid joins / new accounts",
       economy_tampering: "Rejected economy manipulation",
       economy_direct_balance_change: "Out-of-band balance or level edit",
       economy_invalid_payout: "Invalid casino payout",
@@ -266,7 +266,15 @@ class SecurityService {
       detectionReason: "Detection reason", actionCounts: "Action counts",
       invitesInWindow: "Invite changes observed", invitesCreated: "Invites created",
       invitesDeleted: "Invites deleted", actorId: "Associated inviter ID",
-      verificationLevel: "Current verification level"
+      verificationLevel: "Current verification level",
+      joinsIn30Seconds: "Members joined in 30 seconds",
+      joinsIn60Seconds: "Members joined in 60 seconds",
+      newAccountsIn60Seconds: "Accounts created within 7 days (last 60 seconds)",
+      newAccountAgeDays: "New-account age threshold (days)",
+      joinWindowSeconds: "Rapid-join window (seconds)",
+      newAccountWindowSeconds: "New-account window (seconds)",
+      inviteSourceSummary: "Invite source / creator attribution",
+      recentJoiners: "Recent joiner evidence"
     };
     const details = Object.entries(detailsInput)
       .filter(([key]) => !["customId", "latestTargetId", "removedRoleIds"].includes(key))
