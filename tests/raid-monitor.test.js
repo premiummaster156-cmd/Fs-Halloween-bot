@@ -107,7 +107,7 @@ test("multiple invite sources changing together are marked ambiguous", () => {
   assert.equal(source.type, "unknown");
   assert.match(source.reason, /ambiguous/i);
   assert.ok(source.possibleSources.some((entry) => /Invite abc123/.test(entry)));
-  assert.ok(source.possibleSources.some((entry) => /Vanity URL discord\\.gg\\/fukishokai/.test(entry)));
+  assert.ok(source.possibleSources.some((entry) => /Vanity URL discord\.gg\/fukishokai/.test(entry)));
 });
 
 test("missing usage metadata never guesses an inviter", () => {
