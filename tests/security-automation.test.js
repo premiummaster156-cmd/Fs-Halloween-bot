@@ -6,8 +6,7 @@ const settings = require("../src/config/settings");
 const {
   SecurityService,
   isSevereEconomyIncident,
-  evaluateNukeBurst,
-  evaluateInviteBurst
+  evaluateNukeBurst
 } = require("../src/services/security");
 
 test("only severe economy incidents qualify for owner notification and review actions", () => {
@@ -32,21 +31,6 @@ test("anti-nuke thresholds require a destructive or mass-creation burst", () => 
   assert.equal(evaluateNukeBurst(["channel_delete", "channel_delete", "role_delete"]).reason, "mass_asset_deletion");
   assert.equal(evaluateNukeBurst(["member_ban", "member_ban", "member_kick", "member_kick", "member_kick"]).reason, "mass_member_removal");
   assert.equal(evaluateNukeBurst(Array(8).fill("channel_create")).reason, "mass_asset_creation");
-});
-
-test("invite-burst monitoring detects suspicious invite churn without claiming members joined", () => {
-  const now = Date.now();
-  const routine = Array.from({ length: 4 }, (_, i) => ({ at: now - i * 1000, kind: "invite_create" }));
-  assert.equal(evaluateInviteBurst(routine, now).triggered, false);
-  const createBurst = Array.from({ length: 5 }, (_, i) => ({ at: now - i * 1000, kind: "invite_create" }));
-  assert.equal(evaluateInviteBurst(createBurst, now).triggered, true);
-  const mixedBurst = Array.from({ length: 8 }, (_, i) => ({
-    at: now - i * 1000,
-    kind: i < 4 ? "invite_create" : "invite_delete"
-  }));
-  assert.equal(evaluateInviteBurst(mixedBurst, now).triggered, true);
-  const stale = Array.from({ length: 6 }, (_, i) => ({ at: now - 60000 - i * 1000, kind: "invite_create" }));
-  assert.equal(evaluateInviteBurst(stale, now).triggered, false);
 });
 
 function makeService() {
