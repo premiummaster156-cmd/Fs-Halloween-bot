@@ -120,9 +120,7 @@ async function start() {
   const gatewayIntents = [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.GuildModeration,
-    GatewayIntentBits.GuildInvites
-  ];
+    GatewayIntentBits.GuildModeration  ];
   const aiMessageMonitorConfigured = settings.aiMessageMonitorEnabled &&
     Boolean(settings.ollamaApiKey && settings.ownerId && settings.aiMessageMonitorGuildIds.length);
   if (aiMessageMonitorConfigured) gatewayIntents.push(GatewayIntentBits.MessageContent);
@@ -414,17 +412,6 @@ async function start() {
     if (entry.action !== AuditLogEvent.MemberKick) return;
     const targetId = entry.targetId || entry.target?.id;
     if (targetId) monitorSecurityChange(guild, targetId, "member_kick", AuditLogEvent.MemberKick);
-  });
-
-  // Guild Invites is a standard (non-privileged) intent. Invite bursts are only
-  // treated as a warning signal; this does not imply that a join raid occurred.
-  client.on("inviteCreate", (invite) => {
-    client.services.security.recordInviteChange(client, invite, "invite_create")
-      .catch((error) => console.error("[security] Invite-create monitor failed:", error.message));
-  });
-  client.on("inviteDelete", (invite) => {
-    client.services.security.recordInviteChange(client, invite, "invite_delete")
-      .catch((error) => console.error("[security] Invite-delete monitor failed:", error.message));
   });
 
   // One high-impact permission grant can be the start of a nuke, so it is
