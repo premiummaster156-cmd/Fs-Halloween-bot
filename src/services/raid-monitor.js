@@ -186,7 +186,6 @@ class RaidMonitor {
           metadataComplete = false;
           continue;
         }
-        invites.set(invite.code, invite);
         snapshot.invites.set(invite.code, {
           code: invite.code,
           uses,
