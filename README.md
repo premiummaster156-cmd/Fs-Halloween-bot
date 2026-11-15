@@ -8,6 +8,8 @@ The same Discord application also supports a separate **CoopFT** community perso
 
 See the dedicated [CoopFT setup and operations guide](docs/COOPFT_SETUP.md) for the full channel layout, 10 staff ranks, 5 HR roles, role gradient/icon feature requirements, tickets, permissions, lifecycle logging, audit logging and deployment steps.
 
+Configure or repair the CoopFT server on demand from the hosting console with `npm run coopft:setup`. This command is not part of the normal bot start/restart process.
+
 ## Requirements
 
 - Node.js 22 or newer (Node.js 22 and 24 are CI-tested)
