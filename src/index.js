@@ -294,20 +294,6 @@ async function start() {
     );
   });
 
-  client.on("guildMemberUpdate", (oldMember, newMember) => {
-    if (newMember.guild.id !== coopftGuildId) return;
-    coopftCommunity.handleMemberRoleChange(oldMember, newMember).catch((error) =>
-      console.error("[coopft] Staff role synchronization failed:", error.message)
-    );
-  });
-
-  client.on("guildMemberRemove", (member) => {
-    if (member.guild.id !== coopftGuildId) return;
-    coopftCommunity.handleMemberLeave(member).catch((error) =>
-      console.error("[coopft] Staff departure synchronization failed:", error.message)
-    );
-  });
-
   client.on(Events.InteractionCreate, async (interaction) => {
     // The same Discord application has two isolated server personas. CoopFT
     // receives only its staff/ticket commands; Fukishōkai receives the game bot.
@@ -607,8 +593,14 @@ async function start() {
   // Audit-log entry events are included in Guild Moderation and let us spot kicks
   // without requesting the privileged Guild Members intent.
   client.on("guildAuditLogEntryCreate", (entry, guild) => {
-    if (guild.id !== fukishokaiGuildId || entry.action !== AuditLogEvent.MemberKick) return;
     const targetId = entry.targetId || entry.target?.id;
+    if (guild.id === coopftGuildId && entry.action === AuditLogEvent.MemberRoleUpdate && targetId) {
+      // Audit entry identifies one exact member; no member-list or roster fetch is used.
+      guild.members.fetch(targetId).then((member) => coopftCommunity.syncStaffMember(guild, member))
+        .catch((error) => console.warn("[coopft] Could not sync staff audit entry:", error.message));
+      return;
+    }
+    if (guild.id !== fukishokaiGuildId || entry.action !== AuditLogEvent.MemberKick) return;
     if (targetId) monitorSecurityChange(guild, targetId, "member_kick", AuditLogEvent.MemberKick);
   });
 
