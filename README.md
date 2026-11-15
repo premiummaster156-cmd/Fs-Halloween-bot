@@ -251,3 +251,6 @@ Discord client event listeners are guarded so synchronous exceptions and rejecte
 The Bot-Hosting.net platform documents automatic restarts after crashes. File logs are a second diagnostic copy, but a local project-directory log can still be lost if the host rebuilds or replaces the container. Use a persistent host directory for `BOT_LOG_DIR` if the deployment provides one, and periodically download backups. A log file does not replace fixing the underlying error.
 
 When the bot stops, inspect the **first** error in `logs/bot-runtime.log`, not just the last line. The first failure is often the cause; later messages may only be shutdown symptoms.
+
+
+The runtime also records process memory (RSS, V8 heap and external/native allocations) every five minutes. By default it warns when RSS crosses **200 MB**, which is a useful early warning for the Bot-Hosting.net Free plan's published **256 MB RAM** limit. Set `BOT_MEMORY_WARN_MB=0` to disable the warning or choose another threshold for a different plan. The monitor is diagnostic only; it cannot prevent the host from killing a process that exceeds its memory limit.
