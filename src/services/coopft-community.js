@@ -1499,8 +1499,8 @@ class CoopFTCommunityService {
     if (decision === "accept" && !member) throw new Error("The applicant is no longer in CoopFT. The application was left pending.");
     const newStatus = decision === "accept" ? "approved" : "declined";
     const updated = await this.pool.query(
-      "UPDATE coopft_applications SET status=$3,reviewed_by=$4,reviewed_at=NOW() WHERE guild_id=$1 AND id=$2 AND status='pending' RETURNING id",
-      [interaction.guildId, applicationId, newStatus, interaction.user.id]
+      "UPDATE coopft_applications SET status=$3,reviewed_by=$4,reviewed_at=NOW(),review_note=$5 WHERE guild_id=$1 AND id=$2 AND status='pending' RETURNING id",
+      [interaction.guildId, applicationId, newStatus, interaction.user.id, reason]
     );
     if (!updated.rowCount) throw new Error("Another reviewer has already processed this application.");
     if (decision === "accept") {
