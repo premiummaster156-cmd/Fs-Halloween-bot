@@ -315,9 +315,10 @@ async function start() {
       if (persona === "coopft") {
         try {
           await coopftSetupPromise;
-          if (coopftSetupError) {
+          const isSetupCommand = interaction.isChatInputCommand() && interaction.commandName === "coopft-setup";
+          if (coopftSetupError && !isSetupCommand) {
             if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
-              await interaction.reply({ content: "CoopFT setup is incomplete. Please contact the server owner; no economy commands are enabled here.", flags: MessageFlags.Ephemeral });
+              await interaction.reply({ content: "CoopFT setup is incomplete. A server owner can run /coopft-setup to repair it. No economy commands are enabled here.", flags: MessageFlags.Ephemeral });
             }
             return;
           }
@@ -334,7 +335,17 @@ async function start() {
               });
               return;
             }
-            await command.execute(interaction, { ...client.services, coopft: coopftCommunity });
+            if (isSetupCommand) {
+              try {
+                await command.execute(interaction, { ...client.services, coopft: coopftCommunity });
+                coopftSetupError = null;
+              } catch (error) {
+                coopftSetupError = error;
+                throw error;
+              }
+            } else {
+              await command.execute(interaction, { ...client.services, coopft: coopftCommunity });
+            }
             return;
           }
           if (interaction.isRepliable() && !interaction.isAutocomplete()) {
