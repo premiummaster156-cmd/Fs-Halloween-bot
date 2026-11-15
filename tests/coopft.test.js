@@ -54,7 +54,7 @@ test("the CoopFT staff, HR and specialist application roles are distinct", () =>
 test("CoopFT has a distinct 3D custom emoji pack, role guide, applications and voice channels", () => {
   assert.equal(EMOJI_SPRITE.length, 28);
   assert.equal(new Set(EMOJI_SPRITE).size, 28);
-  assert.ok(EMOJI_SPRITE.includes("cf_community"));
+  assert.ok(EMOJI_SPRITE.includes("cf3d_community"));
   assert.ok(PUBLIC_CHANNELS.some((channel) => channel.key === "open_ticket"));
   assert.ok(PUBLIC_CHANNELS.some((channel) => channel.key === "role_guide"));
   assert.ok(PUBLIC_CHANNELS.some((channel) => channel.key === "applications"));
