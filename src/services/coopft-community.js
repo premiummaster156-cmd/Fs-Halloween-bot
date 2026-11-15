@@ -656,10 +656,10 @@ class CoopFTCommunityService {
   }
 
   assertHRRoleChangeAuthority(actor, target, guild, currentRoleKey, nextRoleKey = null) {
-    if (actor?.id === guild.ownerId) return;
     if (!actor || !target || actor.id === target.id) {
       throw new Error("Ask another authorized CoopFT manager to make this HR change.");
     }
+    if (actor.id === guild.ownerId) return;
     if (target.id === guild.ownerId) {
       throw new Error("Only the server owner can change the server owner's HR assignments.");
     }

@@ -103,3 +103,14 @@ test("HR managers have limited delegation authority and cannot grant senior HR r
     /HR Managers can manage/
   );
 });
+
+
+test("no one, including the server owner, can change their own HR role", () => {
+  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) }, { guildId: "guild-1" });
+  const owner = { id: "server-owner", roles: { cache: new Set() } };
+  const guild = { ownerId: "server-owner" };
+  assert.throws(
+    () => service.assertHRRoleChangeAuthority(owner, owner, guild, null, "hr_director"),
+    /another authorized CoopFT manager/
+  );
+});

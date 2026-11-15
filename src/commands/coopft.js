@@ -72,26 +72,25 @@ const hrManageCommand = {
       .addUserOption((o) => o.setName("member").setDescription("Member to update").setRequired(true))
     ),
   async execute(interaction, services) {
+    await interaction.deferReply({ ephemeral: true });
     const subcommand = interaction.options.getSubcommand();
     const user = interaction.options.getUser("member", true);
     const member = await interaction.guild.members.fetch(user.id).catch(() => null);
     if (!member) {
-      return interaction.reply({ content: "That member is no longer in this server.", ephemeral: true });
+      return interaction.editReply({ content: "That member is no longer in this server." });
     }
     if (subcommand === "remove") {
       const result = await services.coopft.removeHRRole(interaction, member);
-      return interaction.reply({
-        content: "✅ Removed **" + result.roleName + "** from **" + member.user.tag + "**. The HR directory has been updated.",
-        ephemeral: true
+      return interaction.editReply({
+        content: "✅ Removed **" + result.roleName + "** from **" + member.user.tag + "**. The HR directory has been updated."
       });
     }
     const roleKey = interaction.options.getString("role", true);
     const result = await services.coopft.assignHRRole(interaction, member, roleKey);
-    return interaction.reply({
+    return interaction.editReply({
       content: result.alreadyAssigned
         ? "**" + member.user.tag + "** already has **" + result.roleName + "**."
-        : "✅ Assigned **" + result.roleName + "** to **" + member.user.tag + "**. The HR directory has been updated.",
-      ephemeral: true
+        : "✅ Assigned **" + result.roleName + "** to **" + member.user.tag + "**. The HR directory has been updated."
     });
   }
 };
