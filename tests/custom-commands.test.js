@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { inspectCommandSource, runInIsolatedProcess, toApplicationCommand } = require("../src/services/custom-commands");
+const { inspectCommandSource, runInIsolatedProcess, toApplicationCommand, createConcurrencyGate } = require("../src/services/custom-commands");
 
 const commandSource = String.raw`const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 
@@ -152,4 +152,46 @@ test("editing a workspace JavaScript file is picked up by the next command invoc
   } finally {
     workspace.readCommandFile = originalRead;
   }
+});
+
+
+test("custom command runner limits active isolates and rejects excess queued work", async () => {
+  const gate = createConcurrencyGate({ maxConcurrent: 1, maxQueued: 1, queueTimeoutMs: 500 });
+  let releaseFirst;
+  const first = gate.run(() => new Promise((resolve) => { releaseFirst = resolve; }));
+  const second = gate.run(async () => "second");
+
+  assert.deepEqual(gate.stats(), { active: 1, queued: 1, maxConcurrent: 1, maxQueued: 1 });
+  await assert.rejects(
+    gate.run(async () => "third"),
+    (error) => error.code === "CUSTOM_COMMAND_BUSY"
+  );
+
+  releaseFirst("first");
+  assert.equal(await first, "first");
+  assert.equal(await second, "second");
+  assert.deepEqual(gate.stats(), { active: 0, queued: 0, maxConcurrent: 1, maxQueued: 1 });
+});
+
+test("custom command runner releases capacity when a task fails", async () => {
+  const gate = createConcurrencyGate({ maxConcurrent: 1, maxQueued: 0 });
+  await assert.rejects(gate.run(async () => { throw new Error("runner failed"); }), /runner failed/);
+  assert.deepEqual(gate.stats(), { active: 0, queued: 0, maxConcurrent: 1, maxQueued: 0 });
+  assert.equal(await gate.run(async () => "recovered"), "recovered");
+});
+
+test("custom command runner expires queued work instead of allowing an unbounded wait", async () => {
+  const gate = createConcurrencyGate({ maxConcurrent: 1, maxQueued: 1, queueTimeoutMs: 100 });
+  let releaseFirst;
+  const first = gate.run(() => new Promise((resolve) => { releaseFirst = resolve; }));
+  const queued = gate.run(async () => "too late");
+
+  await assert.rejects(
+    queued,
+    (error) => error.code === "CUSTOM_COMMAND_BUSY" && /queue is full/.test(error.message)
+  );
+  assert.deepEqual(gate.stats(), { active: 1, queued: 0, maxConcurrent: 1, maxQueued: 1 });
+  releaseFirst("first");
+  assert.equal(await first, "first");
+  assert.deepEqual(gate.stats(), { active: 0, queued: 0, maxConcurrent: 1, maxQueued: 1 });
 });
