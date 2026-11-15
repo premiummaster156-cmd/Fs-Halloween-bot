@@ -574,7 +574,7 @@ class CoopFTCommunityService {
       category = guild.channels.cache.find((channel) =>
         channel.type === ChannelType.GuildCategory &&
         channel.name === name &&
-        channel.topic === "coopft-managed:v1:" + key
+        channel.topic === "cf1:" + key
       ) || null;
     }
     let created = false;
@@ -612,7 +612,7 @@ class CoopFTCommunityService {
     if (spec.fallbackChannelType && channelTypes[spec.fallbackChannelType] !== undefined) {
       acceptedTypes.push(channelTypes[spec.fallbackChannelType]);
     }
-    const marker = "coopft-managed:v1:" + spec.key;
+    const marker = "cf1:" + spec.key;
     let channel = savedId ? await guild.channels.fetch(savedId).catch(() => null) : null;
     if (channel && !acceptedTypes.includes(channel.type)) channel = null;
     if (!channel) {
@@ -665,7 +665,7 @@ class CoopFTCommunityService {
     if (!savedId) return false;
     const channel = await guild.channels.fetch(savedId).catch(() => null);
     if (!channel) return false;
-    if (channel.topic !== "coopft-managed:v1:" + key) return false;
+    if (channel.topic !== "cf1:" + key) return false;
     await channel.delete("Remove retired CoopFT-managed channel: " + key);
     await this.setSetting(guild.id, "resource:" + resourceKey, null);
     return true;
