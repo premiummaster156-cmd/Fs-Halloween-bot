@@ -7,6 +7,16 @@ The Fukishōkai economy bot and CoopFT community system use the same Discord app
 - Fukishōkai economy, boosters, activity rewards, games, custom slash commands, admin dashboard and raid/security workflows are accepted only in the Fukishōkai server.
 - CoopFT receives only `/staff`, `/staff-manage`, `/hr-manage`, `/ticket`, `/applications-admin`, and `/coopft-setup`. It has no Fukishōkai economy, player wallets, candy rewards, inventory, jobs, heists, or game dashboard.
 
+## Fukishōkai isolation and setup safety
+
+The CoopFT server ID is hard-locked to `1498271944456540210`. A different `COOPFT_GUILD_ID` value makes the application fail closed at configuration load, and configuring Fukishōkai to the same ID is also rejected. The setup script separately checks the fixed ID before it runs database migrations, logs in to Discord or fetches a guild. It always calls `guilds.fetch("1498271944456540210")`; it does not use a general server list or select the current/first server.
+
+The CoopFT community service repeats the ID check at the start of setup and before every resource-mutating helper (role, channel, category, emoji and cleanup operations). A call with a Fukishōkai guild object is rejected before it performs a Discord fetch or mutation. Runtime routing keeps CoopFT commands and staff synchronization inside the CoopFT persona; Fukishōkai game, booster, raid and economy listeners remain guarded by the Fukishōkai server ID.
+
+The hosting command now uses `migrateCoopFT()`, not the general bot migration. It applies only numbered `*_coopft_*.sql` migrations (currently `0001`, `0002` and `0003`) and does not load the general `schema.sql` bootstrap, inspect the `players` table or add Fukishōkai player constraints. It writes the shared `schema_migrations` ledger and creates/updates only the `coopft_*` tables. It does not change wallets, levels, inventories, roles, channels or members in Fukishōkai.
+
+This isolation applies to `npm run coopft:setup`. The separate `npm run deploy-commands` command is a command-registration tool and may publish both personas' slash-command definitions; it is not called by CoopFT setup and does not create or edit Discord channels/roles.
+
 ## Manual setup from the hosting console
 
 CoopFT server configuration does **not** run during normal bot startup, restarts, or when the bot joins the server. This prevents every restart from re-checking or changing Discord roles, channels, panels and messages.
@@ -61,18 +71,32 @@ Five specialist application roles are created separately: War Manager, Referee, 
 
 | Role | Global Discord permissions |
 |---|---|
-| Owner | All permissions, including Administrator |
-| Co-Owner | All permissions, including Administrator |
-| High Rank Supervisor | All permissions except Administrator, Manage Server and Manage Channels |
-| Other staff ranks | No global permission bits |
-| HR roles | No global permission bits |
-| Specialist application roles | No global permission bits |
+| Owner | Every permission, including Administrator |
+| Co-Owner | Every permission, including Administrator |
+| High Rank Supervisor | Every permission except Administrator, Manage Server and Manage Channels |
+| Apex | Kick/timeout members, moderate messages, view audit logs, manage threads/events/nicknames |
+| Overseer | Kick/timeout members, moderate messages, view audit logs, manage threads |
+| Staff Supervisor | Kick/timeout members, moderate messages, manage threads |
+| Head Moderator | Kick/timeout members, moderate messages, view audit logs |
+| Senior Moderator | Timeout members, moderate messages, manage threads |
+| Moderator | Timeout members, moderate messages |
+| Junior Moderator | Moderate messages and create public threads; no kick/timeout |
+| HR Director | Manage recruitment threads, create private threads and reply in threads |
+| HR Manager | Manage recruitment threads, create private threads and reply in threads |
+| HR Recruiter | Create public/private threads and reply in threads |
+| HR Coordinator | Create public/private threads and reply in threads |
+| HR Trainee | Create public threads and reply in threads |
+| Specialist application roles | No global Discord permissions |
 
 Owner and Co-Owner are full administrators. Discord's Administrator permission bypasses channel-specific permission overwrites, so members with either role can access private channels regardless of the ordinary Staff HQ restrictions. Assign these two roles only to people you fully trust.
 
-High Rank Supervisor receives the full remaining permission set, including Manage Roles, moderation permissions and other server functions, but cannot administer the server, manage channels or hold Administrator. Discord's normal role hierarchy still applies when they manage roles.
+High Rank Supervisor receives the full remaining permission set, including Manage Roles, ban/kick/moderation permissions and other server functions, but cannot administer the server, manage channels or hold Administrator. Discord's normal role hierarchy still applies when they manage roles.
 
-Each role receives a distinct colour palette, a Unicode role-icon attempt, and a position in the managed staff structure. Actual gradient colours require the server's Discord `ENHANCED_ROLE_COLORS` feature; role icons require `ROLE_ICONS`. If either feature is unavailable, the role keeps a solid colour and its icon still appears inline in bot embeds. The role permissions above are explicitly reapplied during every manual setup/repair run, so later runs will not reset the leadership permissions.
+The other staff ranks receive graduated moderation powers. Junior Moderator cannot kick or timeout members. Apex has event, nickname and audit-log tools; Overseer has audit-log access; only roles explicitly listed above receive those elevated capabilities.
+
+HR permissions are deliberately narrower: HR roles can work with recruitment threads, but cannot kick or ban members, timeout members, manage roles, manage channels, manage the server or view the server-wide audit log. Specialist application roles remain permission-neutral; Ticket Staff receives ticket access through channel overrides and the bot's ticket workflow after approval.
+
+Each role receives a distinct colour palette, a Unicode role-icon attempt, and a position in the managed staff structure. Actual gradient colours require the server's Discord `ENHANCED_ROLE_COLORS` feature; role icons require `ROLE_ICONS`. If either feature is unavailable, the role keeps a solid colour and its icon still appears inline in bot embeds. Every role's permission bitfield is explicitly reapplied during manual setup/repair, so later runs will not reset the configured permission hierarchy.
 
 The bot will not move its own role. Place the bot's highest role **below roles you want protected and above the new CoopFT-managed roles**. Roles above the bot's highest role are outside its control.
 
