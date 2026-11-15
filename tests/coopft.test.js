@@ -139,6 +139,53 @@ test("the generated 3D emoji artwork sprite contains 28 separate transparent ico
   }
 });
 
+test("manual setup uploads all 28 3D CoopFT emblems as separate Discord-sized PNGs", async () => {
+  const { PermissionFlagsBits } = require("discord.js");
+  const { loadImage } = require("@napi-rs/canvas");
+  const uploads = [];
+  const pool = { query: async () => ({ rows: [] }) };
+  const service = new CoopFTCommunityService(pool, { guildId: "guild-1" });
+  const guild = {
+    id: "guild-1",
+    emojis: {
+      cache: { map: () => [] },
+      create: async (options) => {
+        uploads.push(options);
+        return { id: "emoji-" + options.name, name: options.name };
+      }
+    },
+    members: {
+      me: {
+        permissions: {
+          has: (permission) => permission === PermissionFlagsBits.CreateGuildExpressions
+        }
+      }
+    }
+  };
+
+  const result = await service.ensureEmojis(guild);
+  assert.equal(result.created, 28);
+  assert.equal(result.available, 0);
+  assert.deepEqual(result.failed, []);
+  assert.equal(uploads.length, 28);
+  assert.deepEqual(uploads.map((item) => item.name), EMOJI_SPRITE);
+
+  const uniqueImages = new Set();
+  for (const upload of uploads) {
+    assert.ok(Buffer.isBuffer(upload.attachment));
+    assert.ok(upload.attachment.length < 256 * 1024, upload.name + " must fit Discord's 256 KiB limit");
+    assert.equal(upload.attachment.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+    const image = await loadImage(upload.attachment);
+    assert.equal(image.width, 128);
+    assert.equal(image.height, 128);
+    uniqueImages.add(upload.attachment.toString("base64"));
+  }
+  assert.equal(uniqueImages.size, 28);
+  for (const name of EMOJI_SPRITE) {
+    assert.equal(service.emojis.get(name), "emoji-" + name);
+  }
+});
+
 test("ticket types are distinct and channel names are safely normalized", () => {
   assert.deepEqual(Object.keys(TICKET_TYPES).sort(), ["bug", "custom_bot", "suggestion", "support"]);
   assert.equal(safeChannelName("Tommy Gun / Staff"), "tommy-gun-staff");
