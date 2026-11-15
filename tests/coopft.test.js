@@ -104,13 +104,37 @@ test("application availability defaults to open and can be switched per position
   assert.equal(await service.isApplicationOpen("guild-1", "referee"), true);
 });
 
-test("all 27 CoopFT custom emoji illustrations render to transparent PNG images", () => {
+test("all 28 CoopFT vector fallbacks render to transparent PNG images", () => {
   for (const [index, name] of EMOJI_SPRITE.entries()) {
     const canvas = createCanvas(128, 128);
     drawCoopFTEmoji(canvas.getContext("2d"), name, index);
     const png = canvas.toBuffer("image/png");
     assert.ok(png.length > 100, name + " should produce a PNG image");
     assert.equal(png.subarray(0, 8).toString("hex"), "89504e470d0a1a0a", name + " should have a PNG signature");
+  }
+});
+
+test("the generated 3D emoji artwork sprite contains 28 separate transparent icon tiles", async () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const { loadImage } = require("@napi-rs/canvas");
+  const encoded = fs.readFileSync(path.resolve(__dirname, "../assets/coopft-emojis.png.b64"), "utf8").trim();
+  const image = await loadImage(Buffer.from(encoded, "base64"));
+  assert.equal(image.width, 128);
+  assert.equal(image.height, 224);
+  for (let index = 0; index < EMOJI_SPRITE.length; index += 1) {
+    const canvas = createCanvas(128, 128);
+    const context = canvas.getContext("2d");
+    context.drawImage(image, (index % 4) * 32, Math.floor(index / 4) * 32, 32, 32, 0, 0, 128, 128);
+    const pixels = context.getImageData(0, 0, 128, 128).data;
+    let transparent = false;
+    let visible = false;
+    for (let offset = 3; offset < pixels.length; offset += 4) {
+      if (pixels[offset] === 0) transparent = true;
+      if (pixels[offset] > 0) visible = true;
+      if (transparent && visible) break;
+    }
+    assert.ok(transparent && visible, EMOJI_SPRITE[index] + " should be an isolated transparent image tile");
   }
 });
 
