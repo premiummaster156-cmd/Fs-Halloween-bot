@@ -294,6 +294,13 @@ async function start() {
     );
   });
 
+  client.on(Events.GuildMemberRemove, (member) => {
+    if (member.guild.id !== coopftGuildId) return;
+    coopftCommunity.handleMemberLeave(member).catch((error) =>
+      console.warn("[coopft] Could not update staff directory after member departure:", error.message)
+    );
+  });
+
   client.on(Events.InteractionCreate, async (interaction) => {
     // The same Discord application has two isolated server personas. CoopFT
     // receives only its staff/ticket commands; Fukishōkai receives the game bot.
