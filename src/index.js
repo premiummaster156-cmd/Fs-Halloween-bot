@@ -130,18 +130,14 @@ async function start() {
   if (!settings.discordToken) throw new Error("DISCORD_TOKEN is missing.");
   if (!settings.clientId) throw new Error("CLIENT_ID is missing.");
   await migrate();
-  // Keep startup compatible with Discord's currently approved intents.
-  // Server Members Intent review is pending, so GuildMembers must not be requested yet.
-  // Message Content is also intentionally excluded until it is separately approved.
-  const gatewayIntents = [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.GuildModeration
-  ];
+  // Safest pending-review mode: request only the non-privileged Guilds intent.
+  // GuildMessages and GuildModeration are temporarily omitted too, so Discord
+  // receives the smallest possible Gateway intent set while the review is pending.
+  const gatewayIntents = [GatewayIntentBits.Guilds];
   if (settings.aiMessageMonitorEnabled) {
-    console.warn("[discord] AI Watch is configured but paused: Message Content Intent is not being requested while privileged-intent approval is pending.");
+    console.warn("[discord] AI Watch is paused until Message Content Intent approval.");
   }
-  console.warn("[discord] Server member join monitoring is paused until Discord approves Server Members Intent.");
+  console.warn("[discord] Member, message, and moderation gateway event monitoring is paused while privileged-intent approval is pending.");
   const client = new Client({ intents: gatewayIntents });
   runtimeClient = client;
   guardEmitter(client, {
