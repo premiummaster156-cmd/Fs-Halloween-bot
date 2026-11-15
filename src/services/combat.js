@@ -18,7 +18,8 @@ const STARTER_LOADOUT = Object.freeze({
   spirit_art_id: "ember_art",
   armor_id: "training_vest",
   accessory_one_id: "worn_charm",
-  accessory_two_id: null
+  accessory_two_id: null,
+  relic_id: null
 });
 const MASTERY_XP_CAP = 60025;
 const MASTERY_TRACKS = Object.freeze([
@@ -37,11 +38,11 @@ class CombatService {
   async ensureProfileTx(client, guildId, userId) {
     await ensurePlayerTx(client, guildId, userId);
     await client.query(
-      "INSERT INTO combat_loadouts (guild_id, user_id, weapon_id, style_id, spirit_art_id, armor_id, accessory_one_id, accessory_two_id) " +
-      "VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (guild_id, user_id) DO NOTHING",
+      "INSERT INTO combat_loadouts (guild_id, user_id, weapon_id, style_id, spirit_art_id, armor_id, accessory_one_id, accessory_two_id, relic_id) " +
+      "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (guild_id, user_id) DO NOTHING",
       [guildId, userId, STARTER_LOADOUT.weapon_id, STARTER_LOADOUT.style_id,
         STARTER_LOADOUT.spirit_art_id, STARTER_LOADOUT.armor_id,
-        STARTER_LOADOUT.accessory_one_id, STARTER_LOADOUT.accessory_two_id]
+        STARTER_LOADOUT.accessory_one_id, STARTER_LOADOUT.accessory_two_id, STARTER_LOADOUT.relic_id]
     );
     for (const itemId of STARTER_ITEM_IDS) {
       await client.query(
@@ -59,7 +60,7 @@ class CombatService {
         [guildId, userId]
       );
       const loadoutResult = await client.query(
-        "SELECT weapon_id, style_id, spirit_art_id, armor_id, accessory_one_id, accessory_two_id " +
+        "SELECT weapon_id, style_id, spirit_art_id, armor_id, accessory_one_id, accessory_two_id, relic_id " +
         "FROM combat_loadouts WHERE guild_id = $1 AND user_id = $2",
         [guildId, userId]
       );
@@ -174,7 +175,7 @@ class CombatService {
           throw new DomainError("Both accessory slots are occupied. Choose which slot to replace.", "COMBAT_ACCESSORY_SLOTS_FULL");
         }
       }
-      const allowedColumns = new Set(["weapon_id", "style_id", "spirit_art_id", "armor_id", "accessory_one_id", "accessory_two_id"]);
+      const allowedColumns = new Set(["weapon_id", "style_id", "spirit_art_id", "armor_id", "accessory_one_id", "accessory_two_id", "relic_id"]);
       if (!allowedColumns.has(column)) {
         throw new DomainError("That item cannot be equipped in a combat slot.", "COMBAT_SLOT_INVALID");
       }
