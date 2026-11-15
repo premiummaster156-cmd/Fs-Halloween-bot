@@ -5,7 +5,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { migrate, checksum, readVersionedMigrations } = require("../src/database/migrate");
+const { migrate, migrateCoopFT, checksum, readVersionedMigrations } = require("../src/database/migrate");
 
 function createFixture(options = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fukishokai-migrations-"));
@@ -95,6 +95,40 @@ test("versioned migrations run in numeric filename order under the advisory lock
     assert.equal(fixture.checksums.get("0001_add_first_table.sql"), checksum("CREATE TABLE first_table (id INTEGER);"));
     assert.equal(fixture.checksums.get("0002_add_second_table.sql"), checksum("CREATE TABLE second_table (id INTEGER);"));
     assert.match(fixture.queries[0].sql, /pg_advisory_xact_lock/);
+  } finally {
+    fixture.cleanup();
+  }
+});
+
+test("CoopFT setup migrations apply only CoopFT tables and skip the global player schema", async () => {
+  const fixture = createFixture({
+    files: {
+      "0001_coopft_community.sql": "CREATE TABLE coopft_community_settings (guild_id TEXT);",
+      "0002_coopft_applications.sql": "CREATE TABLE coopft_applications (id UUID);",
+      "0003_coopft_application_notifications.sql": "CREATE TABLE coopft_application_subscriptions (guild_id TEXT);",
+      "0004_add_player_economy_column.sql": "ALTER TABLE players ADD COLUMN should_not_run BOOLEAN;"
+    }
+  });
+  try {
+    await migrateCoopFT({
+      databaseUrl: "postgresql://test.invalid/db",
+      // This file deliberately does not exist: the isolated path must not load schema.sql.
+      schemaPath: path.join(fixture.directory, "must-not-read-schema.sql"),
+      migrationDirectory: fixture.migrationDirectory,
+      transactionFn: fixture.transactionFn
+    });
+    assert.deepEqual(fixture.statements, [
+      "CREATE TABLE coopft_community_settings (guild_id TEXT);",
+      "CREATE TABLE coopft_applications (id UUID);",
+      "CREATE TABLE coopft_application_subscriptions (guild_id TEXT);"
+    ]);
+    assert.equal(fixture.checksums.has("schema.sql"), false);
+    assert.equal(fixture.checksums.has("0004_add_player_economy_column.sql"), false);
+    assert.equal(
+      fixture.queries.some((query) => /players|player_economy/.test(query.sql)),
+      false,
+      "CoopFT-only migration mode must not query or alter Fukishokai player tables"
+    );
   } finally {
     fixture.cleanup();
   }
