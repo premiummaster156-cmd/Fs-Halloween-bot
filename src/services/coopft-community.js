@@ -9,7 +9,7 @@ const {
   MessageFlags, PermissionFlagsBits, Routes
 } = require("discord.js");
 const {
-  STAFF_RANKS, HR_ROLES, APPLICATION_ROLES, EMOJI_SPRITE, PUBLIC_CHANNELS, PRIVATE_CHANNELS
+  STAFF_RANKS, HR_ROLES, APPLICATION_ROLES, EMOJI_SPRITE, CATEGORY_NAMES, PUBLIC_CHANNELS, PRIVATE_CHANNELS
 } = require("../config/coopft-design");
 const { COOPFT_DEFAULT_GUILD_ID, coopftGuildId } = require("../config/server-personas");
 
@@ -742,9 +742,9 @@ class CoopFTCommunityService {
     };
 
     await this.removeManagedChannel(guild, "help_study");
-    const startCategory = (await this.ensureCategory(guild, "start_here", "✦ START HERE")).channel;
-    const communityCategory = (await this.ensureCategory(guild, "community", "✦ COMMUNITY")).channel;
-    const servicesCategory = (await this.ensureCategory(guild, "services", "✦ COOPFT SERVICES")).channel;
+    const startCategory = (await this.ensureCategory(guild, "start_here", CATEGORY_NAMES.start_here)).channel;
+    const communityCategory = (await this.ensureCategory(guild, "community", CATEGORY_NAMES.community)).channel;
+    const servicesCategory = (await this.ensureCategory(guild, "services", CATEGORY_NAMES.services)).channel;
     const publicByKey = {};
     const startKeys = new Set(["welcome", "rules", "announcements", "introductions", "role_guide"]);
     const communityKeys = new Set(["general", "media", "showcase", "your_creation", "announcement_stage", "community_voice", "event_voice"]);
@@ -754,7 +754,7 @@ class CoopFTCommunityService {
         : communityKeys.has(spec.key) ? communityCategory : servicesCategory;
       publicByKey[spec.key] = await createChannel(spec, parent);
     }
-    publicByKey.staff_directory = await createChannel({ key: "staff_directory", name: "staff-directory" }, servicesCategory);
+    publicByKey.staff_directory = await createChannel({ key: "staff_directory", name: "⌗・staff-directory" }, servicesCategory);
 
     const cleanup = await this.cleanupEditableRoles(guild);
     this.roles.clear();
@@ -771,7 +771,7 @@ class CoopFTCommunityService {
     }
 
     const staffOverwrites = await this.staffPermissionOverwrites(guild);
-    const staffCategory = (await this.ensureCategory(guild, "staff_hq", "✦ STAFF HQ", staffOverwrites)).channel;
+    const staffCategory = (await this.ensureCategory(guild, "staff_hq", CATEGORY_NAMES.staff_hq, staffOverwrites)).channel;
     const privateByKey = {};
     for (const spec of PRIVATE_CHANNELS) {
       const result = await this.ensureChannel(guild, spec, staffCategory);
@@ -817,7 +817,7 @@ class CoopFTCommunityService {
       { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
       { id: me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] }
     ];
-    await this.ensureCategory(guild, "tickets", "✦ PRIVATE TICKETS", ticketOverwrites);
+    await this.ensureCategory(guild, "tickets", CATEGORY_NAMES.tickets, ticketOverwrites);
 
     await this.updateStaffDirectory(guild);
     await this.ensureTicketPanel(guild, publicByKey.open_ticket);
@@ -1548,7 +1548,7 @@ class CoopFTCommunityService {
       }))
     ];
     const channel = await guild.channels.create({
-      name: "ticket-" + safeChannelName(member.user.username),
+      name: "▣・ticket-" + safeChannelName(member.user.username),
       type: ChannelType.GuildText,
       parent: category.id,
       permissionOverwrites: overwrites,
@@ -2248,7 +2248,7 @@ class CoopFTCommunityService {
         .setTimestamp()],
       allowedMentions: { parse: [] }
     }).catch(() => {});
-    await channel.setName("closed-" + safeChannelName(channel.name).slice(0, 65)).catch(() => {});
+    await channel.setName("⌁・closed-" + safeChannelName(channel.name).slice(0, 58)).catch(() => {});
   }
 }
 
