@@ -1,11 +1,23 @@
 "use strict";
 
+const { PermissionFlagsBits, PermissionsBitField } = require("discord.js");
+
+// Owner and Co-Owner intentionally receive the complete Discord permission set,
+// including Administrator. High Rank Supervisor receives everything except the
+// three explicitly reserved permissions.
+const OWNER_PERMISSIONS = PermissionsBitField.All;
+const HIGH_RANK_SUPERVISOR_PERMISSIONS = PermissionsBitField.All & ~(
+  PermissionFlagsBits.Administrator |
+  PermissionFlagsBits.ManageGuild |
+  PermissionFlagsBits.ManageChannels
+);
+
 // Ten operational staff ranks, five HR roles, and five separate application tracks.
-// All generated roles start with no Discord permission bits.
+// Staff privileges are defined explicitly; all other generated roles default to none.
 const STAFF_RANKS = Object.freeze([
-  { key: "owner", name: "Owner", icon: "👑", emoji: "cf3d_crown", primary: 0x7A101C, secondary: 0xE13D4B, description: "Leads CoopFT, sets the community direction, makes final decisions, and protects the long-term vision." },
-  { key: "co_owner", name: "Co-Owner", icon: "🛡️", emoji: "cf3d_shield", primary: 0x7E2732, secondary: 0xC84B60, description: "Supports the Owner, coordinates major operations, and steps in to keep the community running smoothly." },
-  { key: "high_rank_supervisor", name: "High Rank Supervisor", icon: "🌟", emoji: "cf3d_star", primary: 0xA67821, secondary: 0xF3D17A, description: "Oversees senior leadership, handles escalations, and keeps teams aligned with community standards." },
+  { key: "owner", name: "Owner", icon: "👑", emoji: "cf3d_crown", primary: 0x7A101C, secondary: 0xE13D4B, permissions: OWNER_PERMISSIONS, description: "Leads CoopFT, sets the community direction, makes final decisions, and protects the long-term vision." },
+  { key: "co_owner", name: "Co-Owner", icon: "🛡️", emoji: "cf3d_shield", primary: 0x7E2732, secondary: 0xC84B60, permissions: OWNER_PERMISSIONS, description: "Supports the Owner, coordinates major operations, and steps in to keep the community running smoothly." },
+  { key: "high_rank_supervisor", name: "High Rank Supervisor", icon: "🌟", emoji: "cf3d_star", primary: 0xA67821, secondary: 0xF3D17A, permissions: HIGH_RANK_SUPERVISOR_PERMISSIONS, description: "Oversees senior leadership, handles escalations, and keeps teams aligned with community standards." },
   { key: "apex", name: "Apex", icon: "💎", emoji: "cf3d_gem", primary: 0x153D9A, secondary: 0x35B5F5, description: "A senior operational role trusted with high-impact projects, quality checks, and cross-team coordination." },
   { key: "overseer", name: "Overseer", icon: "🦋", emoji: "cf3d_butterfly", primary: 0x542A93, secondary: 0xB26AF2, description: "Monitors team performance, supports supervisors, and helps resolve complicated operational issues." },
   { key: "staff_supervisor", name: "Staff Supervisor", icon: "🍃", emoji: "cf3d_leaf", primary: 0x176B45, secondary: 0x62C987, description: "Guides day-to-day staff work, checks consistency, and helps teammates improve." },
@@ -74,4 +86,7 @@ const PRIVATE_CHANNELS = Object.freeze([
   { key: "server_logs", name: "server-logs" }
 ]);
 
-module.exports = { STAFF_RANKS, HR_ROLES, APPLICATION_ROLES, EMOJI_SPRITE, PUBLIC_CHANNELS, PRIVATE_CHANNELS };
+module.exports = {
+  STAFF_RANKS, HR_ROLES, APPLICATION_ROLES, EMOJI_SPRITE, PUBLIC_CHANNELS, PRIVATE_CHANNELS,
+  OWNER_PERMISSIONS, HIGH_RANK_SUPERVISOR_PERMISSIONS
+};
