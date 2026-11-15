@@ -5,9 +5,9 @@ require("dotenv").config();
 const { Client, Events, GatewayIntentBits } = require("discord.js");
 const settings = require("../src/config/settings");
 const { pool } = require("../src/database/pool");
-const { migrate } = require("../src/database/migrate");
+const { migrateCoopFT } = require("../src/database/migrate");
 const { CoopFTCommunityService } = require("../src/services/coopft-community");
-const { coopftGuildId } = require("../src/config/server-personas");
+const { COOPFT_DEFAULT_GUILD_ID, coopftGuildId } = require("../src/config/server-personas");
 
 function waitForClientReady(client) {
   return new Promise((resolve, reject) => {
@@ -32,7 +32,7 @@ async function runCoopFTSetup(options = {}) {
   const token = options.token ?? settings.discordToken;
   const guildId = String(options.guildId ?? coopftGuildId).trim();
   const databasePool = options.databasePool || pool;
-  const migrateDatabase = options.migrateDatabase || migrate;
+  const migrateDatabase = options.migrateDatabase || migrateCoopFT;
   const createClient = options.clientFactory || (() => new Client({
     // Setup only needs guild/resource access. It does not enumerate members.
     intents: [GatewayIntentBits.Guilds]
@@ -43,8 +43,18 @@ async function runCoopFTSetup(options = {}) {
   const closePool = options.closePool !== false;
 
   if (!token) throw new Error("DISCORD_TOKEN is missing.");
-  if (!/^\d{17,20}$/.test(guildId)) {
+  if (!/^\\d{17,20}$/.test(guildId)) {
     throw new Error("COOPFT_GUILD_ID must be a valid Discord server ID.");
+  }
+  const testOnlyAllowGuildIdOverride = options.testOnlyAllowGuildIdOverride === true;
+  if (guildId !== COOPFT_DEFAULT_GUILD_ID && !testOnlyAllowGuildIdOverride) {
+    throw new Error(
+      "Safety lock: CoopFT setup is allowed only for server " +
+      COOPFT_DEFAULT_GUILD_ID + ". Refusing to run against " + guildId + "."
+    );
+  }
+  if (coopftGuildId !== COOPFT_DEFAULT_GUILD_ID && !testOnlyAllowGuildIdOverride) {
+    throw new Error("Safety lock: the configured CoopFT persona does not match its verified server ID.");
   }
 
   let client = null;
