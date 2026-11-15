@@ -4,7 +4,7 @@ A Fukishokai-branded Discord economy game and Halloween event bot. It shares one
 
 ## Requirements
 
-- Node.js 20+
+- Node.js 22 or newer (Node.js 22 and 24 are CI-tested)
 - A Discord application and bot token
 - PostgreSQL (the Neon Free plan is supported through DATABASE_URL)
 
@@ -21,7 +21,7 @@ Cloud alternatives have trade-offs: Render's free web services sleep after 15 mi
 
 ## Setup on Windows
 
-1. Install Node.js 20 or newer. Keep the existing `.env` file if you already have one; otherwise, in PowerShell from the project folder run `Copy-Item .env.example .env`.
+1. Install Node.js 22 or newer. Keep the existing `.env` file if you already have one; otherwise, in PowerShell from the project folder run `Copy-Item .env.example .env`.
 2. Create a Discord application and bot in the [Discord Developer Portal](https://discord.com/developers/applications). Copy the bot token and application ID into `.env` as `DISCORD_TOKEN` and `CLIENT_ID`. Keep the token private; never paste it into chat or commit `.env`.
 3. Create a database on the [Neon Free plan](https://neon.com/pricing) and copy its connection string into `DATABASE_URL` in `.env`. Neon Free is listed as $0/month with no credit card required. Do not share the connection string.
 4. Optionally set `GUILD_ID` to your Discord server ID to register commands there immediately. Leave it empty to register global commands.
@@ -83,7 +83,7 @@ Equipment bonuses apply only while equipped. Every item can be upgraded five tim
 
 ## Reset all player/game data from the hosting console
 
-The reset utility clears gameplay data for ordinary members across every guild using this database. It checks the Discord bot owner, each Discord server owner, and every member who currently has the **Admin Role** configured for that guild in its admin panel. Those users' records are protected in every player-data table.
+The reset utility clears gameplay data for ordinary members across every guild using this database. It protects the bot owner, both configured Fukishōkai Kings (`settings.kingIds`), each Discord server owner, and every member who currently has the **Admin Role** configured for that guild in its admin panel. Those users' records are protected in every player-data table.
 
 It resets everyone else’s FC and bank balances, levels, XP, careers and job progress, lifetime earnings/spending, inventory, equipped gear and upgrades, cooldowns, economy history, Candy/event balances and claims, daily/weekly activity, achievements, Party Game stats, heists and Arena battles. The player's row is reset, so both their selected job and all owned items are removed.
 
@@ -103,7 +103,7 @@ Execute after checking the protected-account count and eligible rows:
 npm run reset:player-data -- --confirm RESET_ALL_PLAYER_DATA
 \`\`\`
 
-The operation is transactional, locks the affected tables and excludes protected users by guild ID + Discord user ID. Any error rolls the entire reset back. Tables without a recognized guild/member identity are skipped rather than being blindly emptied.
+The operation is transactional and excludes protected users by guild ID + Discord user ID. It does not take ACCESS EXCLUSIVE table locks; stop/pause the bot first so gameplay writes cannot race with the reset. Any error rolls the entire reset back. Tables without a recognized guild/member identity are skipped rather than being blindly emptied.
 ## Quick start for members
 
 1. Run **/menu**.
@@ -262,3 +262,10 @@ The RPG expansion introduces a combat equipment system separate from the legacy 
 Players receive a free starter combat set. Additional equipment is purchased with FC, and the resulting build affects Rift Arena attack power, critical chance, defense, damage reduction and maximum HP. A combat build is saved for each player and locked for the duration of an active boss encounter. Weapon, fighting-style and Spirit Art mastery earn XP for each resolved Rift turn, with a level-50 cap.
 
 The combat system uses separate Neon tables (`combat_loadouts`, `combat_inventory` and `combat_mastery`) and does not reset or repurpose existing economy inventory, equipment, wallet, levels or server-booster rewards. The current implementation is the first playable foundation; weapon techniques, Spirit Art moves and awakenings, regions, dungeons, raids, forging and crafting are planned follow-on systems.
+## Database migrations
+
+The existing `schema.sql` is retained as the idempotent bootstrap for current installations. New schema changes must be added as immutable, numbered SQL files in `src/database/migrations/` (see that directory's README). The runner serializes migrations with a PostgreSQL advisory lock and stores SHA-256 checksums in `schema_migrations`. Test migrations before production deployment and back up Neon first. CI uses mocked transaction tests; it does not connect to production Neon.
+
+## Custom command runner limits
+
+JavaScript custom commands run in a separate `isolated-vm` child process. The bot limits this work to **one active runner by default**, with a queue of up to eight tasks and a 10-second queue wait limit. This conservative default helps protect Bot-Hosting.net's 256 MB Free tier from concurrent child-process memory spikes. On a larger plan, tune `CUSTOM_COMMAND_MAX_CONCURRENCY` (1–8) and `CUSTOM_COMMAND_MAX_QUEUE` (0–100) only after monitoring actual RSS usage. A saturated queue returns a retryable error instead of spawning unbounded processes.

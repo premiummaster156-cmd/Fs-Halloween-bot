@@ -6,20 +6,65 @@ const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
 const execFileAsync = promisify(execFile);
 const settings = require("../config/settings");
+const { fukishokaiGuildId } = require("../config/server-personas");
 const workspace = require("../services/admin-workspace");
 const { inspectCommandSource } = require("../services/custom-commands");
 const { audit, sendLog } = require("../utils/logging");
 
 const sessions = new Map();
 const oauthStates = new Map();
-const oauthAttempts = new Map();
 const workspaceApiAttempts = new Map();
+const oauthStartAttempts = new Map();
 const WINDOW_MS = 60_000;
 const SESSION_MS = 8 * 60 * 60 * 1000;
-const OAUTH_RATE_LIMIT = 20;
+const OAUTH_RATE_WINDOW_MS = 60_000;
+const OAUTH_RATE_LIMIT = 10;
 const MAX_OAUTH_STATES = 2000;
 const MAX_SESSIONS = 5000;
 const MAX_BODY = 96 * 1024;
+
+function pruneExpiredEntries(map, getExpiresAt, now = Date.now()) {
+  for (const [key, value] of map) {
+    const expiresAt = Number(getExpiresAt(value));
+    if (!Number.isFinite(expiresAt) || expiresAt <= now) map.delete(key);
+  }
+  return map.size;
+}
+
+function pruneAuthState(now = Date.now()) {
+  pruneExpiredEntries(oauthStates, (state) => Number(state?.createdAt) + 10 * 60 * 1000, now);
+  pruneExpiredEntries(sessions, (session) => session?.expiresAt, now);
+  pruneExpiredEntries(workspaceApiAttempts, (stamps) => Number(stamps?.[stamps.length - 1]) + WINDOW_MS, now);
+  pruneExpiredEntries(oauthStartAttempts, (stamps) => Number(stamps?.[stamps.length - 1]) + OAUTH_RATE_WINDOW_MS, now);
+}
+
+function rateLimitOAuthStart(req, now = Date.now()) {
+  const key = String(req.socket?.remoteAddress || "unknown").slice(0, 128);
+  const recent = (oauthStartAttempts.get(key) || []).filter((stamp) => now - stamp < OAUTH_RATE_WINDOW_MS);
+  if (recent.length >= OAUTH_RATE_LIMIT) return false;
+  recent.push(now);
+  oauthStartAttempts.set(key, recent);
+
+  if (oauthStartAttempts.size > 5000) {
+    for (const [address, stamps] of oauthStartAttempts) {
+      if (!stamps.length || now - stamps[stamps.length - 1] >= OAUTH_RATE_WINDOW_MS) oauthStartAttempts.delete(address);
+    }
+    while (oauthStartAttempts.size > 5000) {
+      oauthStartAttempts.delete(oauthStartAttempts.keys().next().value);
+    }
+  }
+  return true;
+}
+
+function storeOAuthState(state, guildId, now = Date.now()) {
+  for (const [storedState, value] of oauthStates) {
+    if (now - value.createdAt > 600_000) oauthStates.delete(storedState);
+  }
+  while (oauthStates.size >= MAX_OAUTH_STATES) {
+    oauthStates.delete(oauthStates.keys().next().value);
+  }
+  oauthStates.set(state, { createdAt: now, guildId });
+}
 
 function cookie(req, name) {
   const header = req.headers.cookie || "";
@@ -107,6 +152,7 @@ async function getDiscordUser(accessToken) {
 async function authoriseMember(client, services, userId, requestedGuildId) {
   const guildId = String(requestedGuildId || settings.ideGuildId || "");
   if (!/^\d{1,25}$/.test(guildId)) throw new Error("A valid server ID is required. Open Code Studio from the server's admin panel.");
+  if (!fukishokaiGuildId || guildId !== fukishokaiGuildId) throw new Error("Code Studio is available only for the Fukishōkai server persona.");
   const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId);
   const isServerOwner = userId === guild.ownerId;
   const isBotOwner = Boolean(settings.ownerId && userId === settings.ownerId);
@@ -167,36 +213,6 @@ function rateLimitWorkspaceApi(req) {
   }
   return true;
 }
-
-function pruneExpiredEntries(map, getExpiresAt, now = Date.now()) {
-  for (const [key, value] of map) {
-    const expiresAt = Number(getExpiresAt(value));
-    if (!Number.isFinite(expiresAt) || expiresAt <= now) map.delete(key);
-  }
-  return map.size;
-}
-
-function pruneAuthState(now = Date.now()) {
-  pruneExpiredEntries(oauthStates, (state) => Number(state?.createdAt) + 10 * 60 * 1000, now);
-  pruneExpiredEntries(sessions, (session) => session?.expiresAt, now);
-  pruneExpiredEntries(oauthAttempts, (stamps) => Number(stamps?.[stamps.length - 1]) + WINDOW_MS, now);
-  pruneExpiredEntries(workspaceApiAttempts, (stamps) => Number(stamps?.[stamps.length - 1]) + WINDOW_MS, now);
-}
-
-function rateLimitOAuth(req, now = Date.now()) {
-  const key = req.socket?.remoteAddress || "unknown";
-  const recent = (oauthAttempts.get(key) || []).filter((stamp) => now - stamp < WINDOW_MS);
-  if (recent.length >= OAUTH_RATE_LIMIT) {
-    oauthAttempts.set(key, recent);
-    return false;
-  }
-  recent.push(now);
-  oauthAttempts.set(key, recent);
-  if (oauthAttempts.size > 5000) {
-    pruneExpiredEntries(oauthAttempts, (stamps) => Number(stamps?.[stamps.length - 1]) + WINDOW_MS, now);
-  }
-  return true;
-}
 function safeCommandRecord(record, guildId = settings.ideGuildId) {
   return {
     id: record.id,
@@ -221,7 +237,8 @@ function isBrowserIdeEnabled(config = settings) {
 }
 
 function isIdeServerEnabled(config = settings) {
-  return Boolean((config.adminWorkspaceApiKey && config.ideGuildId) || isBrowserIdeEnabled(config));
+  const workspaceGuildMatches = Boolean(fukishokaiGuildId && String(config.ideGuildId || '') === fukishokaiGuildId);
+  return Boolean(workspaceGuildMatches && ((config.adminWorkspaceApiKey && config.ideGuildId) || isBrowserIdeEnabled(config)));
 }
 
 function createIdeServer(client, services) {
@@ -250,18 +267,18 @@ function createIdeServer(client, services) {
 
       if (req.method === "GET" && url.pathname === "/auth/discord") {
         pruneAuthState();
-        if (!rateLimitOAuth(req)) {
-          return json(res, 429, { error: "Too many sign-in attempts. Please wait a minute and try again." });
-        }
-        if (oauthStates.size >= MAX_OAUTH_STATES) {
-          return json(res, 503, { error: "Code Studio sign-in is temporarily at capacity. Please try again shortly." });
-        }
         const targetGuildId = String(url.searchParams.get("guildId") || settings.ideGuildId || "");
         if (!/^\d{1,25}$/.test(targetGuildId)) {
           return json(res, 400, { error: "Open Code Studio from a server's admin panel to select the server first." });
         }
+        if (!fukishokaiGuildId || targetGuildId !== fukishokaiGuildId) {
+          return json(res, 403, { error: "Code Studio is available only for the Fukishōkai server persona." });
+        }
+        if (!rateLimitOAuthStart(req)) {
+          return json(res, 429, { error: "Too many sign-in attempts. Wait a minute and try again." });
+        }
         const state = crypto.randomBytes(24).toString("hex");
-        oauthStates.set(state, { createdAt: Date.now(), guildId: targetGuildId });
+        storeOAuthState(state, targetGuildId);
         const params = new URLSearchParams({
           client_id: settings.clientId,
           response_type: "code",
@@ -343,8 +360,8 @@ function createIdeServer(client, services) {
 
         // The bearer-key integration is server-scoped; it does not use a browser OAuth session.
         const guildId = String(settings.ideGuildId || "");
-        if (!/^[0-9]{1,25}$/.test(guildId)) {
-          return json(res, 503, { error: "Configure IDE_GUILD_ID (or GUILD_ID) to scope the AI workspace API to one server." });
+        if (!/^[0-9]{1,25}$/.test(guildId) || !fukishokaiGuildId || guildId !== fukishokaiGuildId) {
+          return json(res, 503, { error: "Configure IDE_GUILD_ID to match FUKISHOKAI_GUILD_ID. The AI workspace API is not available in CoopFT." });
         }
         const filesPath = "/api/ai/workspace/files";
         const fileRoute = url.pathname.match(/^\/api\/ai\/workspace\/files\/([a-z0-9_-]{1,32}\.js)$/i);
@@ -532,5 +549,5 @@ async function startIdeServer(client, services) {
 
 module.exports = {
   startIdeServer, createIdeServer, isBrowserIdeEnabled, isIdeServerEnabled,
-  authoriseMember, pruneExpiredEntries
+  authoriseMember, rateLimitOAuthStart, pruneExpiredEntries
 };

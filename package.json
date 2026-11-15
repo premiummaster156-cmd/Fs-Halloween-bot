@@ -5,7 +5,7 @@
   "description": "Fukishokai economy and Halloween event bot",
   "main": "src/index.js",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "scripts": {
     "start": "node --no-node-snapshot src/index.js",
@@ -19,7 +19,7 @@
     "discord.js": "^14.19.3",
     "dotenv": "^16.4.7",
     "pg": "^8.13.1",
-    "isolated-vm": "4.7.2",
+    "isolated-vm": "6.0.2",
     "@napi-rs/canvas": "^1.1.0"
   }
 }

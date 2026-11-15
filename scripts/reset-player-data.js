@@ -110,7 +110,8 @@ function discordErrorCode(error) {
   return Number(error?.code ?? error?.rawError?.code ?? error?.data?.code);
 }
 async function resolveProtectedUsers(client, identities, {
-  rest, botOwnerId = settings.ownerId, fallbackAdminRoleId = settings.adminRoleIds[0] || null
+  rest, botOwnerId = settings.ownerId, fallbackAdminRoleId = settings.adminRoleIds[0] || null,
+  kingIds = settings.kingIds
 } = {}) {
   const guildIds = Array.from(new Set(identities.map((row) => row.guild_id)));
   const protectedUsers = new Map();
@@ -126,6 +127,11 @@ async function resolveProtectedUsers(client, identities, {
   for (const guildId of guildIds) {
     if (botOwnerId && identities.some((row) => row.guild_id === guildId && row.user_id === botOwnerId)) {
       protect(guildId, botOwnerId, "bot owner");
+    }
+    for (const kingId of Array.isArray(kingIds) ? kingIds : []) {
+      if (kingId && identities.some((row) => row.guild_id === guildId && row.user_id === String(kingId))) {
+        protect(guildId, kingId, "Fukishōkai King");
+      }
     }
   }
   if (guildIds.length && (!rest || typeof rest.get !== "function")) {
@@ -269,7 +275,8 @@ function writeSummary(logger, { database, plans, counts, protectedUsers, perform
 }
 async function runReset({
   dbPool = pool, confirm = false, logger = console, rest,
-  botOwnerId = settings.ownerId, fallbackAdminRoleId = settings.adminRoleIds[0] || null
+  botOwnerId = settings.ownerId, fallbackAdminRoleId = settings.adminRoleIds[0] || null,
+  kingIds = settings.kingIds
 } = {}) {
   const client = await dbPool.connect();
   let inTransaction = false;
@@ -284,7 +291,7 @@ async function runReset({
 
     const { columns, plans, skippedTables } = await buildDeletePlans(client, tables);
     const identities = await getPlayerIdentities(client, tables, columns);
-    const protection = await resolveProtectedUsers(client, identities, { rest, botOwnerId, fallbackAdminRoleId });
+    const protection = await resolveProtectedUsers(client, identities, { rest, botOwnerId, fallbackAdminRoleId, kingIds });
     await createProtectedUserTable(client, protection.users);
     const counts = await getCounts(client, plans);
 

@@ -2,7 +2,7 @@
 
 **Repository:** https://github.com/premiummaster156-cmd/Fs-Halloween-bot  
 **Default branch:** `main`  
-**Runtime:** Node.js 20+, Discord.js 14, PostgreSQL on Neon  
+**Runtime:** Node.js 22+, Discord.js 14, PostgreSQL on Neon  
 **Last updated:** 2026-11-15 — Discord approved GuildMembers for actual-join raid detection; runtime intent set and handoff/README updated
 **Working rule:** `main` is the only development branch. Do not create feature branches. Inspect and update `main` directly, keep this file current, and verify CI before reporting completion.
 
@@ -83,11 +83,11 @@ Abilities retain their passive equipment stats and have their one-use Arena powe
 
 - Preview with \`npm run reset:player-data\`; execute with \`npm run reset:player-data -- --confirm RESET_ALL_PLAYER_DATA\`.
 - Back up Neon and stop the bot first. The reset requires \`DISCORD_TOKEN\` and \`OWNER_ID\` to verify Discord server owners, bot owner and currently configured Admin Role members. Any failed verification aborts without deletion.
-- Bot owner, each guild/server owner and users holding that guild's configured Admin Role are excluded from every user-scoped delete.
+- Bot owner, both configured Fukishōkai Kings (`settings.kingIds`), each guild/server owner and users holding that guild's configured Admin Role are excluded from every user-scoped delete.
 - Everyone else has FC/bank, level/XP, job/career, lifetime stats, owned/equipped items and upgrades, Candy/event records, activity/quests/achievements, party stats, heists and Arena progress reset.
 - Admin-panel settings, event configuration, custom commands, leaderboard exclusions, audit history and security restrictions remain unchanged.
 - Discord boost status and boost-message idempotency history are preserved to prevent re-granting old boost rewards; booster equipment itself is removed with inventory.
-- Tables without a recognized guild/member identity are skipped. The reset is transactional and rolls back on any error.
+- Tables without a recognized guild/member identity are skipped. The reset is transactional and rolls back on any error. It does not take ACCESS EXCLUSIVE table locks; stop/pause the bot first to prevent concurrent gameplay writes.
 ## Validation and deployment status
 
 The final code and balance are committed directly to `main` in commit `f8de471f1a91ab46d53ff281ea6de4c2e80ff86d`. GitHub Actions run **42331427414** passed on that exact `main` commit: dependency installation, syntax validation, slash-command validation and **149 tests passed, 0 failed**. The earlier source snapshot run 42289846723 also passed 149/149. The previous PR #28 was closed after its 20-file contents were committed directly to `main`; it is no longer an active change path. Neon migration and full Discord test-server interaction checks remain manual deployment checks. Do not report the bot as live from this repository update alone.
@@ -174,16 +174,16 @@ The user approved a full reliability, security, database, gameplay, dashboard an
 
 ### Verified issue still to fix
 
-- `package.json` declares `isolated-vm` and `@napi-rs/canvas`, but the root dependencies in `package-lock.json` omit both, and no corresponding `node_modules` lock entries were found. CI currently runs `npm install`, which can update the lock during installation and mask the mismatch. Regenerate and commit the lockfile using a supported Node/npm environment before changing CI to `npm ci`.
-- Node.js 20 reached end-of-life on 2026-03-24. Latest official Node.js release schedule marks Node 26 as Active LTS and Node 24 as Maintenance LTS as of 2026-11-09. Select the target Node version after validating compatibility of `discord.js`, `isolated-vm`, `@napi-rs/canvas`, and the hosting provider; do not perform a blind runtime bump.
-- The migration script currently re-runs the full `schema.sql` on every startup and then adds constraints manually. Design ordered, versioned migrations with a migration lock and PostgreSQL integration tests before changing production database behavior.
+- Node.js 20 is end-of-life. The bot now requires Node.js >=22 and pins `isolated-vm` 6.0.2, which declares Node.js >=22 support. GitHub Actions successfully installs dependencies, validates syntax and slash commands, and passes all 238 tests on Node.js 22 and 24. Node.js 20 is intentionally removed from the supported CI matrix. Confirm the actual hosting provider's runtime is Node.js 22 or 24 before deploying this upgrade; Node.js 26 has not been tested here.
+- Regenerated and committed `package-lock.json` with all declared dependencies (`@napi-rs/canvas` 1.1.1 and `isolated-vm` 6.0.2). CI now uses `npm ci` on Node.js 22 and 24; both matrix jobs install from the committed lockfile before syntax, slash-command and test validation.
+- `schema.sql` remains the idempotent legacy bootstrap for existing installations. A numbered, immutable SQL migration runner now applies new migrations in lexical order under the existing transaction-scoped advisory lock, records SHA-256 checksums, and fails closed if an applied migration is edited. Unit tests use a transaction mock; disposable Neon/PostgreSQL integration tests and the gradual conversion of legacy bootstrap DDL remain outstanding.
 - The interaction flow performs some database/access checks before acknowledgement. Refactor in small steps so potentially slow interactions defer/reply before long operations while preserving ephemeral/public response behavior and avoiding duplicate replies.
 - The bearer-key AI workspace API needs explicit draft-by-default/publish authorization and rate limits before being considered production-hardened.
 
 ### Upgrade workflow and guardrails
 
 1. Repair dependency/CI reproducibility and interaction acknowledgement.
-2. Add safe, versioned Neon migrations and real PostgreSQL integration tests.
+2. Add disposable Neon/PostgreSQL integration tests and gradually move legacy bootstrap changes into numbered migrations.
 3. Harden admin workspace and custom-command publishing/execution.
 4. Improve anti-abuse/security and transaction correctness.
 5. Audit and balance every existing gameplay system while preserving documented season rules.
@@ -199,10 +199,10 @@ Keep Neon PostgreSQL; request the now-approved `GuildMembers` intent only for ac
 - CI runs triggered by these changes are tracked at [run 42615623367](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/42615623367); confirm the latest run result before claiming all changes passed. The previous commit-specific CI runs for the trade expiry fix and initial API hardening completed successfully.
 - The Bot Protect V3 repository has no declared license in its GitHub repository metadata. Do not copy or transplant its source code; use only independently implemented feature ideas. Its `Intents.all()`, global JSON persistence and destructive anti-join/mass-role behavior remain reasons not to merge it.
 
-- `src/database/migrate.js`: added a PostgreSQL transaction-scoped advisory lock before applying the idempotent schema/backfills. This serializes concurrent startup migration attempts across multiple bot instances. It does not yet replace the schema file with fully versioned migration files; that remains a planned database-hardening task.
+- `src/database/migrate.js`: serializes startup migrations with a PostgreSQL transaction-scoped advisory lock. It retains the existing idempotent `schema.sql` bootstrap and now supports ordered `NNNN_description.sql` migrations.
 - CI run for the latest migration-lock commit: [42615755679](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/42615755679). Check its final status before reporting the latest commit as validated.
 
-- `src/database/migrate.js` records a SHA-256 checksum for `schema.sql` in `schema_migrations` and reapplies the idempotent schema only when content changes. It verifies the level cap; this is an intermediate safe migration improvement, not a substitute for a fully ordered per-release migration directory with PostgreSQL integration coverage.
+- `src/database/migrate.js` records checksums for the legacy `schema.sql` bootstrap and each numbered migration. Applied numbered migrations are immutable; a checksum mismatch aborts the transaction with instructions to create a new migration. `src/database/migrations/README.md` documents the naming and rollout rules. No new migration SQL has been applied to Neon as part of this PR.
 - CI run for this schema-checksum change: [42615869661](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/42615869661). Verify its final result.
 
 ## Trade invitation acceptance flow — November 9, 2026
@@ -327,15 +327,34 @@ This is an explicit user requirement and overrides any older handoff/README word
 - Regression coverage was added in `tests/gateway-intents.test.js` to assert the exact intent set and that `GuildPresences` / `MessageContent` stay absent.
 - **Verified on current pre-validation-note HEAD:** commit `8211066d6dee36e4cd0292372b4a3d68c129bfc7`; GitHub Actions run [43706181438](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/43706181438) passed dependency installation, source syntax validation, slash-command validation and **234 tests passed / 0 failed**, including the new exact Gateway-intent boundary test. This does not verify the live Discord Gateway connection, Developer Portal toggle, Manage Server invite access, Neon migration or live DM delivery.
 
-## Main-only command and Code Studio hardening — November 15, 2026
+## Upgrade branch — runtime and database hardening (November 15, 2026)
 
-- Continue development directly on `main`. Do not create additional branches. The pre-existing draft PR #29 remains separate and was not merged or modified in this phase.
-- Built-in slash commands in `src/index.js` now acknowledge/defer before database-backed admin, restriction, rate-limit and command-channel preflight checks. Normal public/private success visibility remains unchanged.
-- Added `respondPrivate` to `src/ui.js`. Private denials after a public defer delete the pending public placeholder and use an ephemeral follow-up; if deletion fails, the public placeholder is replaced with generic wording before the private explanation is sent.
-- Custom slash-command lookup still occurs before acknowledgement because its configured response visibility is stored in the database. Dashboard button/select/modal flows were not generically deferred because some routes must open modals or update their source message.
-- Added regression coverage for public/private deferred responses, deletion failure fallback and slash-command acknowledgement order.
-- Code Studio OAuth state and session maps are now bounded and cleaned: OAuth initiation is limited to 20 requests per source address per minute, pending states expire after 10 minutes and are pruned, pending OAuth states are capped at 2,000, and sessions are capped at 5,000 with expired sessions pruned before new sessions are created.
-- CI actions are pinned by full commit SHA to Node 24-native `actions/checkout@v7.0.1` and `actions/setup-node@v7.0.0`; the Node 20 action-runtime deprecation warning is gone.
-- Latest main validation: commit `3553ccf3b022c0d52378958b5de6b3b0c070a6c7`, workflow run [43714558989](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/43714558989) passed syntax checks, slash-command validation and **241 tests / 0 failures**.
-- The application runtime baseline on `main` remains Node.js >=20 for now. `package-lock.json` still does not fully record all direct dependencies declared in `package.json`, and CI currently uses `npm install` rather than `npm ci`; do not claim lockfile-reproducible installs yet. Upgrade the runtime/dependency baseline and switch to `npm ci` only after the actual Bot-Hosting.net runtime is confirmed and the lockfile is regenerated/validated.
-- No production deployment, live Neon migration, player-data reset or Discord moderation action was performed.
+- Hosting provider confirmed by user: Bot-Hosting.net. Its deployment API documents selecting Node.js runtime version 24; the live deployment setting has not been inspected or changed.
+- Node.js >=22 is now required; `isolated-vm` is pinned to 6.0.2. The committed lockfile includes all declared dependencies, and CI uses read-only `npm ci`.
+- CI validates Node.js 22 and 24 with pinned GitHub Actions SHAs. Latest verified run: 43710942377; both matrix jobs passed syntax checks, 4 slash-command definitions and 238 tests / 0 failures.
+- The versioned migration runner is covered by four mock-transaction tests: ordered application, idempotent re-run, immutable checksum enforcement and filename/empty-file validation. This is not a live PostgreSQL integration test.
+- The reset utility now protects both configured Kings as well as existing protected identities. The destructive reset was not executed; no Neon data was changed.
+
+## Custom-command runtime resource limits — November 15, 2026
+
+- `src/services/custom-commands.js` now uses a process-wide concurrency gate for isolated JavaScript runners. Default: one active child process, up to eight queued jobs, and a 10-second queue wait limit. Queue saturation/timeouts return `CUSTOM_COMMAND_BUSY` rather than spawning unbounded child processes.
+- Larger hosting plans may tune `CUSTOM_COMMAND_MAX_CONCURRENCY` (1–8) and `CUSTOM_COMMAND_MAX_QUEUE` (0–100); monitor RSS before increasing limits. The default is conservative for Bot-Hosting.net's 256 MB Free tier.
+- The child runner now handles stdin/stdout/stderr stream errors as rejected runner tasks. Existing 48 MB isolate limit, 4-second outer process timeout, 2-second in-isolate execution deadline and output caps remain in place.
+- Added tests for concurrency, queue capacity, queue expiry, capacity release after failure and the one-runner default.
+- Latest CI run for the custom-runner change: [43711302318](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/43711302318), Node 22 and 24 both passed; Node 22 reports 244 tests passed / 0 failed. No production deployment or live Discord command execution was performed.
+
+## CI action runtime refresh — November 15, 2026
+
+- Replaced the old Node 20-based CI actions with pinned Node 24-native releases: `actions/checkout@v7.0.1` and `actions/setup-node@v7.0.0` (both pinned to full commit SHAs).
+- Latest current-head validation: [GitHub Actions run 43711484877](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/43711484877). Node 22 and Node 24 jobs both passed 244 tests / 0 failures, syntax checks and all 4 slash-command definitions. The prior Node 20 action-runtime deprecation warning is gone.
+
+
+## Interaction, activity fairness and migration integration hardening — November 15, 2026
+
+- Slash commands now defer before database-backed admin/access/rate/channel checks. Their successful response visibility remains unchanged. A preflight denial on a normally public command deletes its empty public deferred placeholder and returns an ephemeral follow-up; private commands keep an ephemeral deferred response.
+- Added response regression tests for public deferred, private deferred and unacknowledged interactions.
+- Weekly message counting now uses a PostgreSQL conditional upsert with a five-second per-member/per-guild counter window. Rapid message bursts do not increase weekly activity or earn chat FC/XP. Message content is not read or stored; existing daily FC and XP caps and eligible-message reward calculations remain unchanged.
+- CI now starts a disposable PostgreSQL 16 service. A new integration test runs the actual legacy `schema.sql` bootstrap against PostgreSQL, verifies the real tables and level cap constraint, exercises a numbered migration, checks idempotence and checksum immutability, and confirms a failed DDL migration rolls back its ledger entry. It uses only the ephemeral CI database, never Neon.
+- Browser OAuth starts are limited to 10 per source IP per minute; pending OAuth states are expired and the in-memory state map is capped at 5,000 entries.
+- Corrected custom-command queue expiry diagnostics to distinguish a wait-limit timeout from an immediately full queue.
+- No player data was reset, no production database was migrated, and no deployment or live Discord moderation action was performed.

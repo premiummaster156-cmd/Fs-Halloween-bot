@@ -271,55 +271,23 @@ test("AI workspace bearer-key API saves valid JavaScript as an inactive draft by
 });
 
 
-test("Code Studio removes expired OAuth states and sessions from bounded stores", () => {
+test("Code Studio prunes expired OAuth states and sessions from bounded stores", () => {
   const { pruneExpiredEntries } = require("../src/web/ide-server");
   const entries = new Map([
     ["expired", { expiresAt: 99 }],
     ["active", { expiresAt: 101 }],
     ["invalid", {}]
   ]);
-
   assert.equal(pruneExpiredEntries(entries, (entry) => entry.expiresAt, 100), 1);
   assert.deepEqual([...entries.keys()], ["active"]);
 });
 
-test("browser Code Studio limits OAuth initiation attempts per source address", async () => {
-  const { createIdeServer } = require("../src/web/ide-server");
-  const previous = {
-    discordClientSecret: settings.discordClientSecret,
-    idePublicUrl: settings.idePublicUrl,
-    ideGuildId: settings.ideGuildId,
-    clientId: settings.clientId
-  };
-  settings.discordClientSecret = "test-discord-client-secret";
-  settings.idePublicUrl = "https://studio.example.com";
-  settings.ideGuildId = "123456789012345678";
-  settings.clientId = "123456789012345678";
-  const server = createIdeServer({}, {});
-
-  try {
-    await new Promise((resolve, reject) => {
-      server.once("error", reject);
-      server.listen(0, "127.0.0.1", resolve);
-    });
-    const address = server.address();
-    for (let attempt = 0; attempt < 20; attempt += 1) {
-      const response = await fetch("http://127.0.0.1:" + address.port + "/auth/discord", {
-        redirect: "manual"
-      });
-      assert.equal(response.status, 302);
-    }
-
-    const limited = await fetch("http://127.0.0.1:" + address.port + "/auth/discord", {
-      redirect: "manual"
-    });
-    assert.equal(limited.status, 429);
-    assert.match((await limited.json()).error, /sign-in attempts/i);
-  } finally {
-    await new Promise((resolve) => server.close(resolve));
-    settings.discordClientSecret = previous.discordClientSecret;
-    settings.idePublicUrl = previous.idePublicUrl;
-    settings.ideGuildId = previous.ideGuildId;
-    settings.clientId = previous.clientId;
+test("CoopFT and Fukishokai OAuth start throttling has a fixed per-address limit", () => {
+  const { rateLimitOAuthStart } = require("../src/web/ide-server");
+  const req = { socket: { remoteAddress: "coopft-oauth-test" } };
+  const now = 1_900_000_000_000;
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    assert.equal(rateLimitOAuthStart(req, now + attempt), true);
   }
+  assert.equal(rateLimitOAuthStart(req, now + 11), false);
 });

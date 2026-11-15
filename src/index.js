@@ -17,6 +17,9 @@ const balancing = require("./config/game-balancing");
 const { pool } = require("./database/pool");
 const { migrate } = require("./database/migrate");
 const { loadCommands } = require("./commands");
+const { loadCoopFTCommands } = require("./commands/coopft");
+const { CoopFTCommunityService } = require("./services/coopft-community");
+const { personaForGuild, coopftGuildId, fukishokaiGuildId } = require("./config/server-personas");
 const { handleDashboardInteraction } = require("./commands/dashboard");
 const { EconomyService } = require("./services/economy");
 const { JobsGame } = require("./games/jobs");
@@ -41,7 +44,9 @@ const { EconomyEventService } = require("./services/economy-events");
 const { AdminMessagingService } = require("./services/admin-messaging");
 const { AdminAbuseService } = require("./services/admin-abuse");
 const { AIMessageMonitor } = require("./services/ai-message-monitor");
-const { respond, respondPrivate } = require("./ui");
+const { respond, respondPrivately } = require("./ui");
+const { isPrivateCommandReply } = require("./utils/interaction-visibility");
+const { isModalLaunchInteraction, acknowledgeDashboardInteraction } = require("./utils/dashboard-interactions");
 
 async function handleTradeInvitationButton(interaction, client) {
   const [, decision, guildId, tradeId] = interaction.customId.split(":");
@@ -127,6 +132,8 @@ async function handleTradeInvitationButton(interaction, client) {
 }
 
 let runtimeClient = null;
+let coopftSetupPromise = Promise.resolve();
+let coopftSetupError = null;
 
 async function start() {
   if (!settings.discordToken) throw new Error("DISCORD_TOKEN is missing.");
@@ -205,10 +212,13 @@ async function start() {
   economy.client = client;
   const serverBoosters = new ServerBoosterService(pool);
   const customCommands = new CustomCommandService(pool);
+  const coopftCommunity = new CoopFTCommunityService(pool);
+  const coopftCommands = loadCoopFTCommands();
   const restoredCommandFiles = await customCommands.restoreWorkspaceFiles();
   console.log("[workspace] Restored " + restoredCommandFiles + " JavaScript command file(s).");
   client.services = {
     pool, balancing, economy, inventory, combat, guildSettings, security, raidMonitor, serverBoosters, customCommands,
+    coopft: coopftCommunity,
     partyGames: new PartyGameService(pool, economy),
     trades: new TradeService(pool),
     economyEvents,
@@ -226,29 +236,143 @@ async function start() {
     weeklyQuests: new WeeklyQuestService(pool)
   };
   client.commands = loadCommands();
+  client.coopftCommands = coopftCommands;
 
   client.once(Events.ClientReady, (ready) => {
-    console.log("[bot] Logged in as " + ready.user.tag + " with " + client.commands.size + " commands.");
-    for (const guild of ready.guilds.cache.values()) {
-      raidMonitor.initializeGuild(guild).catch((error) =>
-        console.warn("[raid-monitor] Startup invite baseline failed:", error.message)
-      );
+    console.log("[bot] Logged in as " + ready.user.tag + " with " + client.commands.size + " Fukishōkai commands and " + client.coopftCommands.size + " CoopFT commands.");
+
+    if (fukishokaiGuildId) {
+      const fsGuild = ready.guilds.cache.get(fukishokaiGuildId);
+      if (fsGuild) {
+        const me = fsGuild.members.me;
+        me?.setNickname("Fukishōkai", "Per-server Fukishōkai identity").catch((error) =>
+          console.warn("[fukishokai] Could not set server nickname:", error.message)
+        );
+        raidMonitor.initializeGuild(fsGuild).catch((error) =>
+          console.warn("[raid-monitor] Startup invite baseline failed:", error.message)
+        );
+      }
     }
+
+    coopftSetupPromise = (async () => {
+      const coopftGuild = ready.guilds.cache.get(coopftGuildId) ||
+        await client.guilds.fetch(coopftGuildId).catch(() => null);
+      if (!coopftGuild) {
+        console.warn("[coopft] Bot is not in configured CoopFT server " + coopftGuildId + "; automatic setup will run when it joins.");
+        return;
+      }
+      const result = await coopftCommunity.bootstrap(coopftGuild);
+      console.info("[coopft] Setup verified. Created " + result.createdRoles + " roles, " +
+        result.createdChannels + " channels and " + result.createdEmojis + " emojis.");
+    })().catch((error) => {
+      coopftSetupError = error;
+      console.error("[coopft] Automatic setup failed:", error.message);
+    });
   });
 
   client.on(Events.GuildCreate, (guild) => {
-    raidMonitor.initializeGuild(guild).catch((error) =>
-      console.warn("[raid-monitor] New-server invite baseline failed:", error.message)
-    );
+    if (guild.id === fukishokaiGuildId) {
+      raidMonitor.initializeGuild(guild).catch((error) =>
+        console.warn("[raid-monitor] Fukishōkai invite baseline failed:", error.message)
+      );
+    }
+    if (guild.id === coopftGuildId) {
+      coopftSetupPromise = coopftCommunity.bootstrap(guild).then((result) => {
+        coopftSetupError = null;
+        console.info("[coopft] First-join setup completed:", result);
+      }).catch((error) => {
+        coopftSetupError = error;
+        console.error("[coopft] First-join setup failed:", error.message);
+      });
+    }
   });
 
   client.on(Events.GuildMemberAdd, (member) => {
+    if (member.guild.id !== fukishokaiGuildId) return;
     raidMonitor.handleMemberJoin(member, client).catch((error) =>
       console.error("[raid-monitor] Could not process member join:", error.message)
     );
   });
 
+  client.on(Events.GuildMemberRemove, (member) => {
+    if (member.guild.id !== coopftGuildId) return;
+    coopftCommunity.handleMemberLeave(member).catch((error) =>
+      console.warn("[coopft] Could not update staff directory after member departure:", error.message)
+    );
+  });
+
   client.on(Events.InteractionCreate, async (interaction) => {
+    // The same Discord application has two isolated server personas. CoopFT
+    // receives only its staff/ticket commands; Fukishōkai receives the game bot.
+    // DM trade buttons remain bound to their encoded Fukishōkai guild only.
+    const dmFukishokaiTrade = !interaction.guildId &&
+      interaction.isButton?.() &&
+      interaction.customId?.startsWith("trade-invite:") &&
+      interaction.customId.split(":")[2] === fukishokaiGuildId;
+
+    if (!dmFukishokaiTrade) {
+      const persona = personaForGuild(interaction.guildId);
+      if (persona === "coopft") {
+        try {
+          await coopftSetupPromise;
+          const isSetupCommand = interaction.isChatInputCommand() && interaction.commandName === "coopft-setup";
+          if (coopftSetupError && !isSetupCommand) {
+            if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
+              await interaction.reply({ content: "CoopFT setup is incomplete. A server owner can run /coopft-setup to repair it. No economy commands are enabled here.", flags: MessageFlags.Ephemeral });
+            }
+            return;
+          }
+          if (interaction.isButton() && interaction.customId?.startsWith("cf-ticket:")) {
+            await coopftCommunity.handleButton(interaction);
+            return;
+          }
+          if (interaction.isChatInputCommand()) {
+            const command = coopftCommands.get(interaction.commandName);
+            if (!command) {
+              await interaction.reply({
+                content: "That command is not part of CoopFT. Fukishōkai economy and game systems are intentionally disabled in this server.",
+                flags: MessageFlags.Ephemeral
+              });
+              return;
+            }
+            if (isSetupCommand) {
+              try {
+                await command.execute(interaction, { ...client.services, coopft: coopftCommunity });
+                coopftSetupError = null;
+              } catch (error) {
+                coopftSetupError = error;
+                throw error;
+              }
+            } else {
+              await command.execute(interaction, { ...client.services, coopft: coopftCommunity });
+            }
+            return;
+          }
+          if (interaction.isRepliable() && !interaction.isAutocomplete()) {
+            await interaction.reply({ content: "This interaction is not available in the CoopFT bot persona.", flags: MessageFlags.Ephemeral });
+          }
+        } catch (error) {
+          console.error("[coopft] Interaction failed:", error.code || error.name, error.message);
+          try {
+            const payload = { content: "The CoopFT action could not be completed. Please try again or contact staff.", embeds: [], components: [] };
+            if (interaction.deferred) await interaction.editReply(payload);
+            else if (!interaction.replied) await interaction.reply({ ...payload, flags: MessageFlags.Ephemeral });
+            else await interaction.followUp({ ...payload, flags: MessageFlags.Ephemeral });
+          } catch (_) {}
+        }
+        return;
+      }
+
+      if (persona !== "fukishokai") {
+        if (interaction.isRepliable() && !interaction.isAutocomplete() && !interaction.replied && !interaction.deferred) {
+          await interaction.reply({
+            content: "This bot is configured only for its Fukishōkai and CoopFT servers.",
+            flags: MessageFlags.Ephemeral
+          }).catch(() => {});
+        }
+        return;
+      }
+    }
     if (interaction.isButton() && interaction.customId.startsWith("trade-invite:")) {
       try {
         await handleTradeInvitationButton(interaction, client);
@@ -278,10 +402,17 @@ async function start() {
       (interaction.customId.startsWith("dash:") || interaction.customId.startsWith("admin:"));
 
     if (isDashboardInteraction) {
+      let dashboardInteraction = interaction;
       try {
+        // Modal-launch controls must call showModal() as their initial response.
+        // All other components are acknowledged before the database-backed checks.
+        if (!isModalLaunchInteraction(interaction)) {
+          dashboardInteraction = await acknowledgeDashboardInteraction(interaction);
+        }
+
         const access = await security.checkAccess(interaction);
         if (!access.allowed) {
-          return interaction.reply({
+          return dashboardInteraction.reply({
             content: access.expiresAt
               ? "Bot access is temporarily paused until <t:" + Math.floor(new Date(access.expiresAt).getTime() / 1000) + ":R>. Contact a server owner if you think this is a mistake."
               : "Bot access has been restricted by a server owner. Contact the server owner if you think this is a mistake.",
@@ -290,11 +421,11 @@ async function start() {
         }
         const rate = await security.checkComponentRate(interaction);
         if (!rate.allowed) {
-          return interaction.reply({ content: "You're clicking through the dashboard very quickly. Please pause for a moment and try again.", flags: MessageFlags.Ephemeral });
+          return dashboardInteraction.reply({ content: "You're clicking through the dashboard very quickly. Please pause for a moment and try again.", flags: MessageFlags.Ephemeral });
         }
         await serverBoosters.syncMember(interaction.member, interaction.guild)
           .catch((error) => console.warn("[boosters] Could not refresh member boost status:", error.message));
-        await handleDashboardInteraction(interaction, client.services);
+        await handleDashboardInteraction(dashboardInteraction, client.services);
       } catch (error) {
         console.error("[dashboard] Interaction failed:", error.code || error.name, error.message);
         if (error.code === "COOLDOWN") {
@@ -308,7 +439,7 @@ async function start() {
           });
         }
         try {
-          await respond(interaction, {
+          await respond(dashboardInteraction, {
             kind: error.code === "COOLDOWN" ? "warning" : "error",
             icon: error.code === "COOLDOWN" ? "cooldown" : "failed",
             title: error.code === "COOLDOWN" ? "Please wait" : "Action could not be completed",
@@ -324,27 +455,13 @@ async function start() {
     if (!interaction.isChatInputCommand()) return;
     if (!interaction.inGuild()) return respond(interaction, { kind: "error", ephemeral: true, title: "Server Only", description: "Use this command inside Fukishokai." });
 
+    // Resolve custom-command visibility before deferring so its original response
+    // retains the configured public/private behavior. Built-in command lookup is local.
     const command = client.commands.get(interaction.commandName);
     const customCommand = command ? null : await client.services.customCommands.getByName(interaction.guildId, interaction.commandName);
-    if (!command && !customCommand) {
-      return respond(interaction, {
-        kind: "error", ephemeral: true, title: "Command unavailable",
-        description: "This command is not available in the bot's current version. Ask an owner to check the command manager."
-      });
-    }
-    if (customCommand && !customCommand.is_active) {
-      return respond(interaction, {
-        kind: "warning", ephemeral: true, title: "Command not activated",
-        description: "This custom command has been deployed but is not active yet. An authorized administrator must activate it in the admin panel."
-      });
-    }
+    const privateReply = isPrivateCommandReply(command, customCommand);
 
-    // Acknowledge built-in commands before database-backed permission/rate/channel checks.
-    // Keep visibility aligned with the command's existing public/private response contract.
     const startedAt = Date.now();
-    const privateReply = command
-      ? command.data.name === "admin-panel" || command.data.name === "menu"
-      : customCommand.definition?.response?.visibility === "private";
     try {
       await interaction.deferReply(privateReply ? { flags: MessageFlags.Ephemeral } : {});
     } catch (error) {
@@ -352,57 +469,55 @@ async function start() {
       return;
     }
 
-    // Permission and policy denials must remain private even when the command's normal
-    // successful response is public. respondPrivate removes the public deferred placeholder
-    // before sending the private explanation.
-    try {
-      const ownerAccess = await security.hasAdminAccess(interaction.guild, interaction.user.id);
-      if (interaction.commandName === "admin-panel" && !ownerAccess) {
-        await security.recordUnauthorizedAdminAttempt(interaction);
-        await respondPrivate(interaction, {
-          kind: "error", title: "Owner access required",
-          description: "Only the server owner, configured bot owner, or Admin Role selected in /admin-panel can open the administration console."
-        });
-        return;
-      }
-
-      const access = await security.checkAccess(interaction);
-      if (!access.allowed) {
-        await respondPrivate(interaction, {
-          kind: "error", title: "Bot access restricted",
-          description: access.expiresAt
-            ? "Bot access is paused until <t:" + Math.floor(new Date(access.expiresAt).getTime() / 1000) + ":R>."
-            : "Bot access has been restricted by a server owner."
-        });
-        return;
-      }
-
-      const rate = await security.checkCommandRate(interaction);
-      if (!rate.allowed) {
-        await respondPrivate(interaction, {
-          kind: "warning", title: "Slow down a little",
-          description: "The bot is rate-limiting repeated command requests. Please wait a few seconds."
-        });
-        return;
-      }
-
-      const memberCommandsChannelId = await guildSettings.get(interaction.guildId, "memberCommandsChannelId");
-      if (!ownerAccess && memberCommandsChannelId && interaction.channelId !== memberCommandsChannelId) {
-        await respondPrivate(interaction, {
-          kind: "error", title: "Use the game channel",
-          description: "Use Fukishokai commands in <#" + memberCommandsChannelId + ">. This notice is private."
-        });
-        return;
-      }
-    } catch (error) {
-      console.error("[interaction] Command preflight failed:", error.code || error.name, error.message);
-      await respondPrivate(interaction, {
-        kind: "error", title: "Command temporarily unavailable",
-        description: "The bot could not verify access and command limits right now. Please try again shortly."
-      }).catch((replyError) => {
-        console.error("[interaction] Could not send private preflight failure:", replyError.code || replyError.name, replyError.message);
+    // All database-backed preflight checks run after the initial acknowledgement.
+    // A public command's denial is converted to an ephemeral follow-up by
+    // respondPrivately(), after deleting the empty public deferred response.
+    const ownerAccess = await security.hasAdminAccess(interaction.guild, interaction.user.id);
+    if (interaction.commandName === "admin-panel" && !ownerAccess) {
+      await security.recordUnauthorizedAdminAttempt(interaction);
+      return respondPrivately(interaction, {
+        kind: "error", title: "Owner access required",
+        description: "Only the server owner, configured bot owner, or Admin Role selected in /admin-panel can open the administration console."
       });
-      return;
+    }
+
+    const access = await security.checkAccess(interaction);
+    if (!access.allowed) {
+      return respondPrivately(interaction, {
+        kind: "error", title: "Bot access restricted",
+        description: access.expiresAt
+          ? "Bot access is paused until <t:" + Math.floor(new Date(access.expiresAt).getTime() / 1000) + ":R>."
+          : "Bot access has been restricted by a server owner."
+      });
+    }
+
+    if (!command && !customCommand) {
+      return respondPrivately(interaction, {
+        kind: "error", title: "Command unavailable",
+        description: "This command is not available in the bot's current version. Ask an owner to check the command manager."
+      });
+    }
+    if (customCommand && !customCommand.is_active) {
+      return respondPrivately(interaction, {
+        kind: "warning", title: "Command not activated",
+        description: "This custom command has been deployed but is not active yet. An authorized administrator must activate it in the admin panel."
+      });
+    }
+
+    const rate = await security.checkCommandRate(interaction);
+    if (!rate.allowed) {
+      return respondPrivately(interaction, {
+        kind: "warning", title: "Slow down a little",
+        description: "The bot is rate-limiting repeated command requests. Please wait a few seconds."
+      });
+    }
+
+    const memberCommandsChannelId = await guildSettings.get(interaction.guildId, "memberCommandsChannelId");
+    if (!ownerAccess && memberCommandsChannelId && interaction.channelId !== memberCommandsChannelId) {
+      return respondPrivately(interaction, {
+        kind: "error", title: "Use the game channel",
+        description: "Use Fukishokai commands in <#" + memberCommandsChannelId + ">. This notice is private."
+      });
     }
 
     try {
@@ -439,7 +554,7 @@ async function start() {
   });
 
   client.on(Events.MessageCreate, async (message) => {
-    if (!message.guildId) return;
+    if (!message.guildId || message.guildId !== fukishokaiGuildId) return;
 
     // Discord's GUILD_BOOST system message records the member who performed a boost.
     // The unique message ID prevents retries or duplicate gateway delivery from granting twice.
@@ -474,6 +589,7 @@ async function start() {
   });
 
   client.on(Events.GuildUpdate, (_oldGuild, newGuild) => {
+    if (newGuild.id !== fukishokaiGuildId) return;
     if (Number.isFinite(Number(newGuild.premiumSubscriptionCount))) {
       serverBoosters.syncGuild(newGuild.id, newGuild.premiumSubscriptionCount)
         .catch((error) => console.warn("[boosters] Guild boost-tier sync failed:", error.message));
@@ -483,6 +599,7 @@ async function start() {
   // Anti-nuke monitoring attributes high-impact changes through Discord audit logs.
   // This subsystem is alert-only: it never changes roles, permissions or member status.
   const monitorSecurityChange = (guild, targetId, kind, auditType) => {
+    if (!guild || guild.id !== fukishokaiGuildId) return;
     client.services.security.recordDestructiveChange(client, guild, targetId, kind, auditType)
       .catch((error) => console.error("[security] " + kind + " monitor failed:", error.message));
   };
@@ -494,8 +611,20 @@ async function start() {
   // Audit-log entry events are included in Guild Moderation and let us spot kicks
   // without requesting the privileged Guild Members intent.
   client.on("guildAuditLogEntryCreate", (entry, guild) => {
-    if (entry.action !== AuditLogEvent.MemberKick) return;
     const targetId = entry.targetId || entry.target?.id;
+    if (guild.id === coopftGuildId && entry.action === AuditLogEvent.MemberRoleUpdate && targetId) {
+      // Ignore the bot's own role writes; those are recorded by /staff-manage.
+      // Manual changes are checked against the exact executor and target IDs.
+      const executorId = entry.executorId || entry.executor?.id;
+      if (!executorId || executorId === client.user.id) return;
+      Promise.all([
+        guild.members.fetch(targetId),
+        guild.members.fetch(executorId)
+      ]).then(([member, actor]) => coopftCommunity.syncStaffMember(guild, member, actor))
+        .catch((error) => console.warn("[coopft] Could not sync staff audit entry:", error.message));
+      return;
+    }
+    if (guild.id !== fukishokaiGuildId || entry.action !== AuditLogEvent.MemberKick) return;
     if (targetId) monitorSecurityChange(guild, targetId, "member_kick", AuditLogEvent.MemberKick);
   });
 
@@ -514,6 +643,7 @@ async function start() {
     [PermissionFlagsBits.ManageGuildExpressions, "Manage Expressions"]
   ];
   client.on("roleUpdate", (oldRole, newRole) => {
+    if (newRole.guild.id !== fukishokaiGuildId) return;
     const granted = criticalRolePermissions
       .filter(([permission]) => newRole.permissions.has(permission) && !oldRole.permissions.has(permission))
       .map(([, label]) => label);
@@ -523,6 +653,7 @@ async function start() {
     ).catch((error) => console.error("[security] Role permission escalation monitor failed:", error.message));
   });
   client.on("channelUpdate", (oldChannel, newChannel) => {
+    if (newChannel.guild.id !== fukishokaiGuildId) return;
     const oldOverwrites = oldChannel.permissionOverwrites?.cache;
     const newOverwrites = newChannel.permissionOverwrites?.cache;
     if (!oldOverwrites || !newOverwrites) return;

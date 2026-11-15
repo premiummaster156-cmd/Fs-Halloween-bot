@@ -47,11 +47,19 @@ const colors = {
   neutral: () => settings.brand.neutral
 };
 
-async function respond(interaction, options = {}) {
+function buildResponsePayload(options = {}) {
   const color = colors[options.kind] ? colors[options.kind]() : colors.info();
   const icon = options.icon || (options.kind === "error" || options.kind === "warning" ? "failed" : null);
   const embed = createEmbed({ ...options, icon, color });
-  const payload = { embeds: [embed], flags: options.ephemeral ? MessageFlags.Ephemeral : undefined, components: options.components || [] };
+  return {
+    embeds: [embed],
+    flags: options.ephemeral ? MessageFlags.Ephemeral : undefined,
+    components: options.components || []
+  };
+}
+
+async function respond(interaction, options = {}) {
+  const payload = buildResponsePayload(options);
   if (interaction.deferred || interaction.replied) {
     delete payload.flags;
     return interaction.editReply(payload);
@@ -59,38 +67,30 @@ async function respond(interaction, options = {}) {
   return interaction.reply(payload);
 }
 
-
-async function respondPrivate(interaction, options = {}) {
-  const color = colors[options.kind] ? colors[options.kind]() : colors.info();
-  const icon = options.icon || (options.kind === "error" || options.kind === "warning" ? "failed" : null);
-  const embed = createEmbed({ ...options, icon, color });
-  const payload = { embeds: [embed], components: options.components || [] };
-  const privatePayload = { ...payload, flags: MessageFlags.Ephemeral };
-
-  if (interaction.deferred && interaction.ephemeral === true) {
-    return interaction.editReply(payload);
-  }
-
-  if (interaction.deferred && interaction.ephemeral !== true) {
+// Keep preflight denial details private even when the command was initially
+// deferred publicly to preserve its normal successful response visibility.
+async function respondPrivately(interaction, options = {}) {
+  const payload = buildResponsePayload({ ...options, ephemeral: true });
+  if (interaction.deferred && interaction.ephemeral === false) {
     try {
       await interaction.deleteReply();
     } catch (_) {
-      // If Discord cannot remove the public "thinking" placeholder, replace it
-      // with a generic message before sending the detailed private explanation.
       await interaction.editReply({
         content: "This command could not be completed. Please check your private reply for details.",
         embeds: [],
         components: []
       }).catch(() => null);
     }
-    return interaction.followUp(privatePayload);
+    return interaction.followUp({ ...payload, flags: MessageFlags.Ephemeral });
   }
-
   if (interaction.replied) {
-    return interaction.followUp(privatePayload);
+    return interaction.followUp({ ...payload, flags: MessageFlags.Ephemeral });
   }
-
-  return interaction.reply(privatePayload);
+  if (interaction.deferred) {
+    delete payload.flags;
+    return interaction.editReply(payload);
+  }
+  return interaction.reply({ ...payload, flags: MessageFlags.Ephemeral });
 }
 
-module.exports = { createEmbed, respond, respondPrivate };
+module.exports = { createEmbed, respond, respondPrivately };

@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { MessageFlags } = require("discord.js");
-const { respondPrivate } = require("../src/ui");
+const { respondPrivately } = require("../src/ui");
 
 test("private denial edits an interaction that was already deferred privately", async () => {
   const calls = [];
@@ -12,7 +12,7 @@ test("private denial edits an interaction that was already deferred privately", 
     followUp: async () => { throw new Error("should not send a second response"); }
   };
 
-  await respondPrivate(interaction, { kind: "error", title: "Denied", description: "Private details" });
+  await respondPrivately(interaction, { kind: "error", title: "Denied", description: "Private details" });
 
   assert.equal(calls.length, 1);
   assert.equal(calls[0][0], "editReply");
@@ -28,7 +28,7 @@ test("private denial removes a public deferred placeholder before following up p
     followUp: async (payload) => { calls.push(["followUp", payload]); return payload; }
   };
 
-  await respondPrivate(interaction, { kind: "error", title: "Denied", description: "Private details" });
+  await respondPrivately(interaction, { kind: "error", title: "Denied", description: "Private details" });
 
   assert.equal(calls[0], "deleteReply");
   assert.equal(calls[1][0], "followUp");
@@ -46,7 +46,7 @@ test("private denial uses a generic public fallback if deferred reply deletion f
     followUp: async (payload) => { calls.push(["followUp", payload]); return payload; }
   };
 
-  await respondPrivate(interaction, { kind: "error", title: "Denied", description: "Private details" });
+  await respondPrivately(interaction, { kind: "error", title: "Denied", description: "Private details" });
 
   assert.equal(calls[0][0], "editReply");
   assert.match(calls[0][1].content, /private reply/);
@@ -63,7 +63,7 @@ test("private denial replies ephemerally when the interaction has not been ackno
     reply: async (payload) => { response = payload; return payload; }
   };
 
-  await respondPrivate(interaction, { kind: "warning", title: "Slow down", description: "Wait" });
+  await respondPrivately(interaction, { kind: "warning", title: "Slow down", description: "Wait" });
 
   assert.equal(response.flags, MessageFlags.Ephemeral);
   assert.match(response.embeds[0].data.description, /Wait/);

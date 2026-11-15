@@ -16,7 +16,7 @@ const schemaColumns = {
 };
 
 function makeRest() {
-  const guilds = { g1: { owner_id: "server-owner" }, g2: { owner_id: "server-owner-2" } };
+  const guilds = { g1: { owner_id: "server-owner" }, g2: { owner_id: "king-server-owner" } };
   const members = {
     "g1:role-admin": ["admin-role"], "g1:regular": [],
     "g2:role-admin-2": ["admin-role-2"], "g2:regular-2": []
@@ -45,10 +45,11 @@ function makeFakePool({ failOnDelete = null } = {}) {
   const calls = [];
   const identityRows = [
     { guild_id: "g1", user_id: "bot-owner" },
+    { guild_id: "g1", user_id: "king-founder" },
     { guild_id: "g1", user_id: "server-owner" },
     { guild_id: "g1", user_id: "role-admin" },
     { guild_id: "g1", user_id: "regular" },
-    { guild_id: "g2", user_id: "server-owner-2" },
+    { guild_id: "g2", user_id: "king-server-owner" },
     { guild_id: "g2", user_id: "role-admin-2" },
     { guild_id: "g2", user_id: "regular-2" }
   ];
@@ -112,21 +113,23 @@ test("confirmation phrase is mandatory for destructive mode", () => {
   assert.throws(() => parseConfirmation(["--confirm", "yes"]), /Invalid arguments/);
 });
 
-test("bot owner, each guild owner and configured Admin Role members are protected", async () => {
+test("bot owner, both Kings, each guild owner and configured Admin Role members are protected", async () => {
   const fake = makeFakePool();
   const identities = [
-    { guild_id: "g1", user_id: "bot-owner" }, { guild_id: "g1", user_id: "server-owner" },
+    { guild_id: "g1", user_id: "bot-owner" }, { guild_id: "g1", user_id: "king-founder" },
+    { guild_id: "g1", user_id: "server-owner" },
     { guild_id: "g1", user_id: "role-admin" }, { guild_id: "g1", user_id: "regular" },
-    { guild_id: "g2", user_id: "server-owner-2" }, { guild_id: "g2", user_id: "role-admin-2" },
+    { guild_id: "g2", user_id: "king-server-owner" }, { guild_id: "g2", user_id: "role-admin-2" },
     { guild_id: "g2", user_id: "regular-2" }
   ];
   const protection = await resolveProtectedUsers(fake.client, identities, {
-    rest: makeRest(), botOwnerId: "bot-owner", fallbackAdminRoleId: null
+    rest: makeRest(), botOwnerId: "bot-owner", fallbackAdminRoleId: null,
+    kingIds: ["king-founder", "king-server-owner"]
   });
   const keys = new Set(protection.users.map((x) => x.guild_id + ":" + x.user_id));
   assert.deepEqual(Array.from(keys).sort(), [
-    "g1:bot-owner", "g1:role-admin", "g1:server-owner",
-    "g2:role-admin-2", "g2:server-owner-2"
+    "g1:bot-owner", "g1:king-founder", "g1:role-admin", "g1:server-owner",
+    "g2:king-server-owner", "g2:role-admin-2"
   ]);
 });
 
@@ -147,22 +150,22 @@ test("default run previews eligible rows and never deletes", async () => {
   const output = [];
   const result = await runReset({
     dbPool: fake.pool, rest: makeRest(), botOwnerId: "bot-owner",
-    fallbackAdminRoleId: null,
+    kingIds: ["king-founder", "king-server-owner"], fallbackAdminRoleId: null,
     logger: { log: (...parts) => output.push(parts.join(" ")), error() {} }
   });
   assert.equal(result.performed, false);
-  assert.equal(result.protectedUsers.length, 5);
+  assert.equal(result.protectedUsers.length, 6);
   assert.ok(fake.calls.some((call) => call.sql.startsWith("SELECT COUNT(*)")));
   assert.equal(fake.calls.some((call) => call.sql.startsWith("DELETE FROM")), false);
   assert.match(output.join("\n"), /DRY RUN/);
-  assert.match(output.join("\n"), /Protected accounts: 5/);
+  assert.match(output.join("\n"), /Protected accounts: 6/);
 });
 
-test("confirmed run locks and deletes only unprotected rows", async () => {
+test("confirmed run transactionally deletes only unprotected rows", async () => {
   const fake = makeFakePool();
   const result = await runReset({
     dbPool: fake.pool, rest: makeRest(), botOwnerId: "bot-owner",
-    fallbackAdminRoleId: null, confirm: true,
+    kingIds: ["king-founder", "king-server-owner"], fallbackAdminRoleId: null, confirm: true,
     logger: { log() {}, error() {} }
   });
   const statements = fake.calls.map((call) => call.sql);

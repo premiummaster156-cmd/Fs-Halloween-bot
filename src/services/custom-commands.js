@@ -214,8 +214,83 @@ function buildReply(interaction, definition) {
 
 
 
+function createConcurrencyGate(options = {}) {
+  const configuredConcurrency = Number(options.maxConcurrent);
+  const configuredQueue = Number(options.maxQueued);
+  const configuredTimeout = Number(options.queueTimeoutMs);
+  const maxConcurrent = Math.max(1, Math.min(8,
+    Number.isFinite(configuredConcurrency) && configuredConcurrency > 0
+      ? Math.floor(configuredConcurrency) : 1
+  ));
+  const maxQueued = Math.max(0, Math.min(100,
+    Number.isFinite(configuredQueue) && configuredQueue >= 0
+      ? Math.floor(configuredQueue) : 8
+  ));
+  const queueTimeoutMs = Math.max(100, Math.min(120000,
+    Number.isFinite(configuredTimeout) && configuredTimeout > 0
+      ? Math.floor(configuredTimeout) : 10000
+  ));
+  let active = 0;
+  const queue = [];
+
+  function busyError(message) {
+    const error = new Error(message);
+    error.code = "CUSTOM_COMMAND_BUSY";
+    return error;
+  }
+
+  function run(task) {
+    if (typeof task !== "function") return Promise.reject(new TypeError("A command runner task is required."));
+    let acquired;
+    if (active < maxConcurrent) {
+      active += 1;
+      acquired = Promise.resolve();
+    } else if (queue.length >= maxQueued) {
+      return Promise.reject(busyError("The custom-command runner is busy. Please try again shortly."));
+    } else {
+      acquired = new Promise((resolve, reject) => {
+        const entry = { resolve, reject, timer: null };
+        entry.timer = setTimeout(() => {
+          const index = queue.indexOf(entry);
+          if (index !== -1) {
+            queue.splice(index, 1);
+            reject(busyError("The custom-command runner queue wait limit expired. Please try again shortly."));
+          }
+        }, queueTimeoutMs);
+        queue.push(entry);
+      });
+    }
+
+    return acquired.then(async () => {
+      try {
+        return await task();
+      } finally {
+        const next = queue.shift();
+        if (next) {
+          clearTimeout(next.timer);
+          next.resolve();
+        } else {
+          active -= 1;
+        }
+      }
+    });
+  }
+
+  return {
+    run,
+    stats: () => ({ active, queued: queue.length, maxConcurrent, maxQueued })
+  };
+}
+
+const configuredRunnerConcurrency = Number(process.env.CUSTOM_COMMAND_MAX_CONCURRENCY);
+const configuredRunnerQueue = Number(process.env.CUSTOM_COMMAND_MAX_QUEUE);
+const commandRunnerGate = createConcurrencyGate({
+  maxConcurrent: Number.isFinite(configuredRunnerConcurrency) ? configuredRunnerConcurrency : 1,
+  maxQueued: Number.isFinite(configuredRunnerQueue) ? configuredRunnerQueue : 8
+});
+
 function runInIsolatedProcess(source, mode, input = {}) {
-  return new Promise((resolve, reject) => {
+  return commandRunnerGate.run(() => new Promise((resolve, reject) => {
     const runner = path.join(__dirname, "custom-command-runner.js");
     const child = spawn(process.execPath, ["--no-node-snapshot", runner], {
       cwd: os.tmpdir(),
@@ -247,6 +322,15 @@ function runInIsolatedProcess(source, mode, input = {}) {
       stderr = (stderr + chunk.toString("utf8")).slice(-4000);
     });
     child.on("error", (error) => finish(new Error("Could not start the isolated JavaScript runner: " + error.message)));
+    child.stdin.on("error", (error) =>
+      finish(new Error("Could not send input to the isolated JavaScript runner: " + error.message))
+    );
+    child.stdout.on("error", (error) =>
+      finish(new Error("Could not read isolated JavaScript runner output: " + error.message))
+    );
+    child.stderr.on("error", (error) =>
+      finish(new Error("Could not read isolated JavaScript runner diagnostics: " + error.message))
+    );
     child.on("close", (code) => {
       if (settled) return;
       let result;
@@ -256,7 +340,7 @@ function runInIsolatedProcess(source, mode, input = {}) {
       finish(null, result);
     });
     child.stdin.end(JSON.stringify({ source, mode, input }));
-  });
+  }));
 }
 
 function inspectCommandSource(source) {
@@ -634,5 +718,6 @@ module.exports = {
   buildReply,
   inspectCommandSource,
   runInIsolatedProcess,
+  createConcurrencyGate,
   normalizeCustomReply
 };
