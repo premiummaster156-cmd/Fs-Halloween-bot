@@ -42,6 +42,7 @@ const { AdminMessagingService } = require("./services/admin-messaging");
 const { AdminAbuseService } = require("./services/admin-abuse");
 const { AIMessageMonitor } = require("./services/ai-message-monitor");
 const { respond, respondPrivately } = require("./ui");
+const { isPrivateCommandReply } = require("./utils/interaction-visibility");
 const { isModalLaunchInteraction, acknowledgeDashboardInteraction } = require("./utils/dashboard-interactions");
 
 async function handleTradeInvitationButton(interaction, client) {
@@ -336,10 +337,7 @@ async function start() {
     // retains the configured public/private behavior. Built-in command lookup is local.
     const command = client.commands.get(interaction.commandName);
     const customCommand = command ? null : await client.services.customCommands.getByName(interaction.guildId, interaction.commandName);
-    const privateReply = !command ||
-      command.data.name === "admin-panel" ||
-      command.data.name === "menu" ||
-      customCommand?.definition?.response?.visibility === "private";
+    const privateReply = isPrivateCommandReply(command, customCommand);
 
     const startedAt = Date.now();
     try {
