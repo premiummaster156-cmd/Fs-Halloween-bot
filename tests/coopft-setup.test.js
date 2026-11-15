@@ -10,7 +10,7 @@ const { runCoopFTSetup } = require("../scripts/setup-coopft");
 
 test("the hosting-console setup migrates, connects to only CoopFT, and runs bootstrap once", async () => {
   const order = [];
-  const guildId = "12345678901234567";
+  const guildId = "123456789012345678";
   const guild = { id: guildId, name: "CoopFT" };
   const client = new EventEmitter();
   client.login = async (token) => {
@@ -85,7 +85,7 @@ test("the hosting-console setup rejects missing credentials before connecting", 
   await assert.rejects(
     runCoopFTSetup({
       token: "",
-      guildId: "12345678901234567",
+      guildId: "123456789012345678",
       testOnlyAllowGuildIdOverride: true,
       migrateDatabase: async () => { migrated = true; },
       clientFactory: () => { connected = true; return new EventEmitter(); },
@@ -99,7 +99,7 @@ test("the hosting-console setup rejects missing credentials before connecting", 
 
 test("the hosting-console setup closes the client and pool when bootstrap fails", async () => {
   const order = [];
-  const guildId = "12345678901234567";
+  const guildId = "123456789012345678";
   const client = new EventEmitter();
   client.login = async () => queueMicrotask(() => client.emit(Events.ClientReady, client));
   client.guilds = { fetch: async () => ({ id: guildId, name: "CoopFT" }) };
