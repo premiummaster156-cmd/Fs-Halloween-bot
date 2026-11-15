@@ -134,6 +134,8 @@ async function start() {
   // GuildMessages and GuildModeration are temporarily omitted too, so Discord
   // receives the smallest possible Gateway intent set while the review is pending.
   const gatewayIntents = [GatewayIntentBits.Guilds];
+  // Deliberately disabled until Discord approves the required privileged intents.
+  const aiMessageMonitorConfigured = false;
   if (settings.aiMessageMonitorEnabled) {
     console.warn("[discord] AI Watch is paused until Message Content Intent approval.");
   }
