@@ -286,3 +286,31 @@ This is an explicit user requirement and overrides any older handoff/README word
 
 
 - Added a five-minute process memory sample (RSS, V8 heap and external/native memory). Default warning threshold is 200 MB, configurable with `BOT_MEMORY_WARN_MB` (0 disables the warning). This is intended to reveal whether the host's memory ceiling is the stop cause; it cannot catch an OS/container OOM kill.
+
+## Discord privileged-intent pending mode — November 15, 2026
+
+- Current Gateway client initialization in `src/index.js` requests only `GatewayIntentBits.Guilds`.
+- `GuildMembers`, `GuildMessages`, `GuildModeration`, and `MessageContent` are intentionally not requested while Discord's privileged-intent review remains pending.
+- AI Watch is forcibly paused in startup until Message Content approval; setting `AI_MESSAGE_MONITOR_ENABLED=true` does not override this safety gate.
+- Member-join, message-create and moderation gateway event monitoring are therefore paused. Slash commands and the private dashboard continue to work.
+- Do not re-enable privileged intents until the corresponding Discord approval is actually granted. The goal is to restore only the specific features that each approved intent requires.
+
+## PostgreSQL TLS deprecation cleanup — November 15, 2026
+
+- `src/database/pool.js` normalizes legacy `sslmode=require`, `prefer`, or `verify-ca` connection-string aliases to explicit `sslmode=verify-full`.
+- Neon URLs without an explicit `sslmode` also receive `sslmode=verify-full`.
+- The connection pool no longer overrides certificate verification with `rejectUnauthorized: false`; node-postgres uses the verified SSL mode from the connection string.
+- Tests in `tests/database-pool.test.js` cover legacy alias normalization, preservation of unrelated URL parameters, Neon URLs without an SSL mode, and unchanged explicit `verify-full`/local URLs.
+- This intentionally preserves or strengthens certificate and hostname verification. If a deployment uses a custom/private CA, configure its trusted CA rather than disabling verification.
+
+## RPG combat foundation — November 15, 2026
+
+- Added `src/config/combat-content.js` with original combat equipment across six categories: weapons, fighting styles, Spirit Arts, armor, accessories and Relics (24 catalog items in the current starter catalog).
+- Added `src/services/combat.js`. Existing players receive a separate free starter combat set when opening the Armory or starting a Rift battle. Starter ownership is idempotent and does not modify `inventory`, `equipped_items`, player level, wallet, FC, booster rewards or existing economy gear.
+- Persistent Neon tables: `combat_loadouts`, `combat_inventory`, and `combat_mastery`. `boss_battles.combat_snapshot` stores the selected build at encounter start.
+- The loadout has one weapon, one fighting style, one Spirit Art, one armor piece, two accessory slots and one Relic slot. Equipment cannot be changed during an active Rift encounter.
+- FC purchases use the existing economy transaction/ledger. Combat equipment is separate from the legacy economy shop and all five server-boost-exclusive Mythic items remain unchanged.
+- Rift Arena now uses the saved combat build for bonus attack, critical chance, defense, damage reduction and maximum HP. A build snapshot is locked for the encounter, so players cannot swap gear during a fight.
+- Weapon, fighting-style and Spirit Art mastery gain 10 XP per resolved Rift turn and cap at level 50. Mastery contributes small stats at encounter start. The active weapon-move unlock tree, Spirit Art move/awakening abilities, regions, dungeons, raids, forging and crafting are not yet implemented; continue those in later phases.
+- The new `armory` page is linked from the existing private `/menu`, Rift Arena and Game Room. It supports buying and equipping combat gear without adding a collection of extra slash commands.
+- Schema additions are idempotent and run through the existing checksum-based startup migration. No database reset, player wipe or backfill of legacy economy inventory is required.
