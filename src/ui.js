@@ -47,11 +47,19 @@ const colors = {
   neutral: () => settings.brand.neutral
 };
 
-async function respond(interaction, options = {}) {
+function buildResponsePayload(options = {}) {
   const color = colors[options.kind] ? colors[options.kind]() : colors.info();
   const icon = options.icon || (options.kind === "error" || options.kind === "warning" ? "failed" : null);
   const embed = createEmbed({ ...options, icon, color });
-  const payload = { embeds: [embed], flags: options.ephemeral ? MessageFlags.Ephemeral : undefined, components: options.components || [] };
+  return {
+    embeds: [embed],
+    flags: options.ephemeral ? MessageFlags.Ephemeral : undefined,
+    components: options.components || []
+  };
+}
+
+async function respond(interaction, options = {}) {
+  const payload = buildResponsePayload(options);
   if (interaction.deferred || interaction.replied) {
     delete payload.flags;
     return interaction.editReply(payload);
@@ -59,4 +67,23 @@ async function respond(interaction, options = {}) {
   return interaction.reply(payload);
 }
 
-module.exports = { createEmbed, respond };
+// Keep preflight denial details private even when the command was initially
+// deferred publicly to preserve its normal successful response visibility.
+async function respondPrivately(interaction, options = {}) {
+  const payload = buildResponsePayload({ ...options, ephemeral: true });
+  if (interaction.deferred && interaction.ephemeral === false) {
+    try {
+      await interaction.deleteReply();
+    } catch (_) {
+      // The private follow-up is still safe to send if the placeholder cannot be removed.
+    }
+    return interaction.followUp({ ...payload, flags: MessageFlags.Ephemeral });
+  }
+  if (interaction.deferred || interaction.replied) {
+    delete payload.flags;
+    return interaction.editReply(payload);
+  }
+  return interaction.reply(payload);
+}
+
+module.exports = { createEmbed, respond, respondPrivately };

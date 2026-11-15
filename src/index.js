@@ -41,7 +41,7 @@ const { EconomyEventService } = require("./services/economy-events");
 const { AdminMessagingService } = require("./services/admin-messaging");
 const { AdminAbuseService } = require("./services/admin-abuse");
 const { AIMessageMonitor } = require("./services/ai-message-monitor");
-const { respond } = require("./ui");
+const { respond, respondPrivately } = require("./ui");
 
 async function handleTradeInvitationButton(interaction, client) {
   const [, decision, guildId, tradeId] = interaction.customId.split(":");
@@ -324,65 +324,72 @@ async function start() {
     if (!interaction.isChatInputCommand()) return;
     if (!interaction.inGuild()) return respond(interaction, { kind: "error", ephemeral: true, title: "Server Only", description: "Use this command inside Fukishokai." });
 
+    // Resolve custom-command visibility before deferring so its original response
+    // retains the configured public/private behavior. Built-in command lookup is local.
+    const command = client.commands.get(interaction.commandName);
+    const customCommand = command ? null : await client.services.customCommands.getByName(interaction.guildId, interaction.commandName);
+    const privateReply = !command ||
+      command.data.name === "admin-panel" ||
+      command.data.name === "menu" ||
+      customCommand?.definition?.response?.visibility === "private";
+
+    const startedAt = Date.now();
+    try {
+      await interaction.deferReply(privateReply ? { flags: MessageFlags.Ephemeral } : {});
+    } catch (error) {
+      console.error("[interaction] Could not acknowledge /" + interaction.commandName + ":", error.code || error.name, error.message);
+      return;
+    }
+
+    // All database-backed preflight checks run after the initial acknowledgement.
+    // A public command's denial is converted to an ephemeral follow-up by
+    // respondPrivately(), after deleting the empty public deferred response.
     const ownerAccess = await security.hasAdminAccess(interaction.guild, interaction.user.id);
     if (interaction.commandName === "admin-panel" && !ownerAccess) {
       await security.recordUnauthorizedAdminAttempt(interaction);
-      return respond(interaction, {
-        kind: "error", ephemeral: true, title: "Owner access required",
+      return respondPrivately(interaction, {
+        kind: "error", title: "Owner access required",
         description: "Only the server owner, configured bot owner, or Admin Role selected in /admin-panel can open the administration console."
       });
     }
 
     const access = await security.checkAccess(interaction);
     if (!access.allowed) {
-      return respond(interaction, {
-        kind: "error", ephemeral: true, title: "Bot access restricted",
+      return respondPrivately(interaction, {
+        kind: "error", title: "Bot access restricted",
         description: access.expiresAt
           ? "Bot access is paused until <t:" + Math.floor(new Date(access.expiresAt).getTime() / 1000) + ":R>."
           : "Bot access has been restricted by a server owner."
       });
     }
 
-    const command = client.commands.get(interaction.commandName);
-    const customCommand = command ? null : await client.services.customCommands.getByName(interaction.guildId, interaction.commandName);
     if (!command && !customCommand) {
-      return respond(interaction, {
-        kind: "error", ephemeral: true, title: "Command unavailable",
+      return respondPrivately(interaction, {
+        kind: "error", title: "Command unavailable",
         description: "This command is not available in the bot's current version. Ask an owner to check the command manager."
       });
     }
     if (customCommand && !customCommand.is_active) {
-      return respond(interaction, {
-        kind: "warning", ephemeral: true, title: "Command not activated",
+      return respondPrivately(interaction, {
+        kind: "warning", title: "Command not activated",
         description: "This custom command has been deployed but is not active yet. An authorized administrator must activate it in the admin panel."
       });
     }
 
     const rate = await security.checkCommandRate(interaction);
     if (!rate.allowed) {
-      return respond(interaction, {
-        kind: "warning", ephemeral: true, title: "Slow down a little",
+      return respondPrivately(interaction, {
+        kind: "warning", title: "Slow down a little",
         description: "The bot is rate-limiting repeated command requests. Please wait a few seconds."
       });
     }
 
     const memberCommandsChannelId = await guildSettings.get(interaction.guildId, "memberCommandsChannelId");
     if (!ownerAccess && memberCommandsChannelId && interaction.channelId !== memberCommandsChannelId) {
-      return respond(interaction, {
-        kind: "error", ephemeral: true, title: "Use the game channel",
+      return respondPrivately(interaction, {
+        kind: "error", title: "Use the game channel",
         description: "Use Fukishokai commands in <#" + memberCommandsChannelId + ">. This notice is private."
       });
-    }
-
-    const startedAt = Date.now();
-    const privateReply = command
-      ? command.data.name === "admin-panel" || command.data.name === "menu"
-      : customCommand.definition?.response?.visibility === "private";
-    try {
-      await interaction.deferReply(privateReply ? { flags: MessageFlags.Ephemeral } : {});
-    } catch (error) {
-      console.error("[interaction] Could not acknowledge /" + interaction.commandName + ":", error.code || error.name, error.message);
-      return;
     }
 
     try {
