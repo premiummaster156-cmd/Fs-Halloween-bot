@@ -63,7 +63,7 @@ The bot will not move its own role. Place the bot's highest role **below roles y
 
 ## Custom emojis
 
-The bot generates 27 distinct, transparent custom emoji illustrations with `@napi-rs/canvas`: metallic and gem-styled emblems such as shields, crowns, stars, flames, keys, tickets, scrolls, gears, crystals, a megaphone, a referee scale, an observer eye and voice symbols. The same icon set appears in rules, role explanations, welcome and announcement embeds, suggestions, application panels, staff updates and ticket panels. The bot needs **Manage Expressions** to upload them. If Discord denies emoji creation or the server reaches its emoji limit, embeds and buttons fall back to Unicode emoji. The icon IDs are saved in Neon and reloaded after bot restarts; restarting does not upload or recreate the emoji pack.
+The bot uses **28 individually illustrated 3D-style metallic and gemstone emblems** stored in `assets/coopft-emojis.png.b64`. Each tile has a distinct purpose: crowns, shields, rank stars, diamonds, butterflies, leaves, flames, ice crystals, keys, tickets, scrolls, headsets, gears, bells, handshakes, sparks, war swords, referee scales, observer eyes, helper emblems, application clipboards, a role guide, rules scroll, megaphone, voice waveform, idea bulb, ticket-staff badge and community group. During the manual setup run, `@napi-rs/canvas` crops each 32×32 tile from the 4×7 source sheet and uploads it as its own 128×128 transparent Discord emoji. The emblems appear in the rules, role explanations, welcome and announcement embeds, suggestions, application panels, staff updates and ticket panels. The bot needs **Manage Expressions** to upload them. If Discord denies emoji creation or the server reaches its emoji limit, embeds and buttons fall back to Unicode emoji. The saved emoji IDs are reloaded from Neon after bot restarts; ordinary restarts do not re-upload or recreate the pack.
 
 ## Rules, role explanations and applications
 
@@ -76,6 +76,8 @@ The `#applications` panel offers five separate tracks: War Manager, Referee, Obs
 Use `/applications-admin open position:` or `/applications-admin close position:` to control each application track. The public panel updates its OPEN/CLOSED status and enables or disables that position's button. All five positions default to open on first setup. Members can also choose **Manage opening alerts** on the public panel and opt in to private DMs for selected positions. When a manager reopens one of those positions, only its opted-in subscribers are notified; no one is subscribed by default. Users can clear their notification selections at any time.
 
 The `#suggestions` channel receives a dedicated guide embed that explains how to write useful suggestions and what review may look like.
+
+The application records and notification subscriptions are stored in Neon using immutable migrations `0002_coopft_applications.sql` and `0003_coopft_application_notifications.sql`. Both migrations are applied by the normal migration runner and by `npm run coopft:setup` before Discord resources are touched.
 
 ## Tickets
 
