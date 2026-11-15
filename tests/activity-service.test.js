@@ -35,8 +35,9 @@ test("rapid repeat messages are excluded atomically before player or reward writ
     weekStart: result.weekStart
   });
   assert.equal(queries.length, 1);
-  assert.equal(queries[0].params.length, 3);
-  assert.match(queries[0].sql, /last_counted_at <= NOW\(\) - INTERVAL '5 seconds'/);
+  assert.equal(queries[0].params.length, 4);
+  assert.equal(queries[0].params[3], MESSAGE_COUNT_COOLDOWN_SECONDS);
+  assert.match(queries[0].sql, /last_counted_at <= NOW\(\) - \(\$4 \* INTERVAL '1 second'\)/);
   assert.equal(MESSAGE_COUNT_COOLDOWN_SECONDS, 5);
 });
 
