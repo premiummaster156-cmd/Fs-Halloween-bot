@@ -97,12 +97,12 @@ test("CoopFT category and channel names use distinctive emoji-free typography", 
   for (const name of Object.values(CATEGORY_NAMES)) {
     assert.match(name, /^╭────〔 [A-Z ]+ 〕────╮$/u);
     assert.ok(name.length <= 100);
-    assert.equal(/\\p{Extended_Pictographic}/u.test(name), false, name + " must not contain emoji");
+    assert.equal(/\p{Extended_Pictographic}/u.test(name), false, name + " must not contain emoji");
   }
   for (const channel of [...PUBLIC_CHANNELS, ...PRIVATE_CHANNELS]) {
-    assert.match(channel.name, /^[^\\p{L}\\p{N}\\s]+・[a-z0-9-]+$/u, channel.key);
+    assert.match(channel.name, /^[^\p{L}\p{N}\s]+・[a-z0-9-]+$/u, channel.key);
     assert.ok(channel.name.length <= 100, channel.key + " must fit Discord's channel-name limit");
-    assert.equal(/\\p{Extended_Pictographic}/u.test(channel.name), false, channel.key + " must not contain emoji");
+    assert.equal(/\p{Extended_Pictographic}/u.test(channel.name), false, channel.key + " must not contain emoji");
   }
 });
 
