@@ -235,14 +235,21 @@ function drawCoopFTEmoji(ctx, name, index) {
 class CoopFTCommunityService {
   constructor(pool, options = {}) {
     this.pool = pool;
-    this.guildId = options.guildId || coopftGuildId;
+    const requestedGuildId = options.guildId || coopftGuildId;
+    if (requestedGuildId !== COOPFT_DEFAULT_GUILD_ID) {
+      throw new Error(
+        "Safety lock: CoopFTCommunityService can only be bound to server " +
+        COOPFT_DEFAULT_GUILD_ID + "."
+      );
+    }
+    this.guildId = COOPFT_DEFAULT_GUILD_ID;
     this.roles = new Map();
     this.applicationRoles = new Map();
     this.emojis = new Map();
   }
 
-  assertCoopFTGuild(guild, action = "change") {
-    if (!guild || guild.id !== COOPFT_DEFAULT_GUILD_ID || this.guildId !== COOPFT_DEFAULT_GUILD_ID) {
+  assertCoopFTGuildId(guildId, action = "access CoopFT data") {
+    if (guildId !== COOPFT_DEFAULT_GUILD_ID || this.guildId !== COOPFT_DEFAULT_GUILD_ID) {
       throw new Error(
         "Safety lock: refusing to " + action + " outside the verified CoopFT server " +
         COOPFT_DEFAULT_GUILD_ID + "."
@@ -250,7 +257,15 @@ class CoopFTCommunityService {
     }
   }
 
+  assertCoopFTGuild(guild, action = "change") {
+    if (!guild) {
+      throw new Error("Safety lock: refusing to " + action + " without a guild.");
+    }
+    this.assertCoopFTGuildId(guild.id, action);
+  }
+
   async getSetting(guildId, key) {
+    this.assertCoopFTGuildId(guildId, "read CoopFT settings");
     const result = await this.pool.query(
       "SELECT setting_value FROM coopft_community_settings WHERE guild_id=$1 AND setting_key=$2",
       [guildId, key]
@@ -259,6 +274,7 @@ class CoopFTCommunityService {
   }
 
   async setSetting(guildId, key, value) {
+    this.assertCoopFTGuildId(guildId, "write CoopFT settings");
     await this.pool.query(
       "INSERT INTO coopft_community_settings (guild_id,setting_key,setting_value) VALUES ($1,$2,$3::jsonb) " +
       "ON CONFLICT (guild_id,setting_key) DO UPDATE SET setting_value=EXCLUDED.setting_value,updated_at=NOW()",
