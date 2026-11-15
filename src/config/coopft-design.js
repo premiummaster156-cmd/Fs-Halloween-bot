@@ -18,8 +18,8 @@ const STAFF_RANKS = Object.freeze([
 const HR_ROLES = Object.freeze([
   { key: "hr_director", name: "HR Director", icon: "🔑", emoji: "cf3d_key", primary: 0x9C315C, secondary: 0xF07DB0, description: "Leads recruitment and staff development, maintains HR standards, and oversees the HR team." },
   { key: "hr_manager", name: "HR Manager", icon: "📜", emoji: "cf3d_scroll", primary: 0x8A356B, secondary: 0xD68DBA, description: "Coordinates recruitment activity, supports staff welfare, and manages approved junior HR assignments." },
-  { key: "hr_recruiter", name: "HR Recruiter", icon: "🤝", emoji: "cf3d_handshake", primary: 0x8A5B24, secondary: 0xE0B85F, description: "Reviews applications, communicates with candidates, and helps identify suitable team members." },
-  { key: "hr_coordinator", name: "HR Coordinator", icon: "🎟️", emoji: "cf3d_ticket", primary: 0x275B9A, secondary: 0x6EA8E8, description: "Organizes interviews, tracks application progress, and keeps recruitment records tidy." },
+  { key: "hr_recruiter", name: "HR Recruiter", icon: "🤝", emoji: "cf3d_handshake", primary: 0x8A5B24, secondary: 0xE0B85F, description: "Supports candidate communication, screening coordination and recruitment outreach under HR leadership." },
+  { key: "hr_coordinator", name: "HR Coordinator", icon: "🎟️", emoji: "cf3d_ticket", primary: 0x275B9A, secondary: 0x6EA8E8, description: "Coordinates interview scheduling, maintains recruitment records and supports HR-led candidate follow-up." },
   { key: "hr_trainee", name: "HR Trainee", icon: "🔔", emoji: "cf3d_bell", primary: 0x59616F, secondary: 0xA9B4C7, description: "Learns the HR workflow and assists with supervised administrative and candidate-support tasks." }
 ]);
 
