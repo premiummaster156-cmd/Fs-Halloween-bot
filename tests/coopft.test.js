@@ -114,3 +114,47 @@ test("no one, including the server owner, can change their own HR role", () => {
     /another authorized CoopFT manager/
   );
 });
+
+test("ensureRole repairs managed role properties and applies optional native gradient/icon styling", async () => {
+  const calls = [];
+  const role = {
+    id: "managed-role-1",
+    name: "Old role name",
+    color: 0,
+    hoist: false,
+    mentionable: true,
+    editable: true,
+    permissions: { bitfield: 8n },
+    edit: async (changes) => {
+      calls.push({ kind: "edit", changes });
+      Object.assign(role, changes);
+      return role;
+    }
+  };
+  const service = new CoopFTCommunityService({
+    query: async (sql) => ({ rows: [] })
+  }, { guildId: "guild-1" });
+  const guild = {
+    id: "guild-1",
+    features: ["ENHANCED_ROLE_COLORS", "ROLE_ICONS"],
+    roles: { cache: new Map([[role.id, role]]) },
+    client: {
+      rest: {
+        patch: async (route, options) => calls.push({ kind: "patch", route, options })
+      }
+    }
+  };
+
+  const result = await service.ensureRole(guild, STAFF_RANKS[0]);
+  assert.equal(result.role, role);
+  assert.equal(calls[0].kind, "edit");
+  assert.equal(calls[0].changes.name, "CF • Owner");
+  assert.equal(calls[0].changes.color, STAFF_RANKS[0].primary);
+  assert.deepEqual(calls[0].changes.permissions, []);
+  assert.equal(calls[0].changes.hoist, true);
+  assert.equal(calls[0].changes.mentionable, false);
+  assert.deepEqual(calls.filter((call) => call.kind === "patch").map((call) => call.options.body), [
+    { colors: { primary_color: STAFF_RANKS[0].primary, secondary_color: STAFF_RANKS[0].secondary, tertiary_color: null } },
+    { unicode_emoji: STAFF_RANKS[0].icon }
+  ]);
+});
