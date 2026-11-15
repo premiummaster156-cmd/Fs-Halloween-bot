@@ -1342,6 +1342,43 @@ async function handleSelection(i, s, scope, owner, action, parts) {
       { id: "quantity", label: "Quantity (max " + Math.min(99, entry.quantity) + ")", placeholder: "1", max: 2 }
     ]));
   }
+  if (scope === "dash" && action === "combat-buy") {
+    await i.deferUpdate();
+    const result = await s.combat.purchase(i.guildId, owner, value);
+    await safeAudit(i, s, "combat_item_purchased", null, {
+      itemId: result.item.id,
+      itemName: result.item.name,
+      price: result.price,
+      category: result.item.category
+    });
+    const payload = await renderMenu(i.guildId, owner, "armory", s);
+    if (payload.embeds?.[0]) {
+      payload.embeds[0].addFields({
+        name: "Purchase complete",
+        value: "**" + result.item.name + "** added to your combat inventory for " + result.price.toLocaleString() + " FC."
+      });
+    }
+    return i.editReply(payload);
+  }
+  if (scope === "dash" && action === "combat-equip") {
+    await i.deferUpdate();
+    const [itemId, accessorySlot] = value.split("|");
+    const result = await s.combat.equip(i.guildId, owner, itemId, accessorySlot || null);
+    await safeAudit(i, s, "combat_item_equipped", null, {
+      itemId: result.item.id,
+      itemName: result.item.name,
+      slot: result.slot,
+      replacedItemId: result.previousItem?.id || null
+    });
+    const payload = await renderMenu(i.guildId, owner, "armory", s);
+    if (payload.embeds?.[0]) {
+      payload.embeds[0].addFields({
+        name: "Loadout updated",
+        value: "**" + result.item.name + "** equipped in " + result.slot.replace(/_id$/, "").replace(/_/g, " ") + "."
+      });
+    }
+    return i.editReply(payload);
+  }
   if (scope === "dash" && action === "arena-start") {
     await i.deferUpdate();
     await s.arena.start(i.guildId, owner, value);
