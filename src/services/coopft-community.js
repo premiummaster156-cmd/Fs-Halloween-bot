@@ -951,7 +951,7 @@ class CoopFTCommunityService {
         value: role.key,
         description: "Notify me when " + role.name + " applications open",
         default: selected.has(role.key),
-        emoji: role.icon
+        emoji: this.emojis.has(role.emoji) ? { id: this.emojis.get(role.emoji), name: role.emoji } : role.icon
       })));
     const selectionRow = new ActionRowBuilder().addComponents(menu);
     const clearRow = new ActionRowBuilder().addComponents(
