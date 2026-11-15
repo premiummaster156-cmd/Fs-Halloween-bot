@@ -589,6 +589,7 @@ CREATE TABLE IF NOT EXISTS combat_loadouts (
   PRIMARY KEY (guild_id, user_id),
   CHECK (accessory_one_id IS NULL OR accessory_one_id <> accessory_two_id)
 );
+ALTER TABLE combat_loadouts ADD COLUMN IF NOT EXISTS relic_id TEXT;
 
 CREATE TABLE IF NOT EXISTS combat_inventory (
   guild_id TEXT NOT NULL,
