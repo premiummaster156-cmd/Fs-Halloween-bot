@@ -290,6 +290,38 @@ class CoopFTCommunityService {
     return result;
   }
 
+  async loadManagedRoles(guild) {
+    if (!guild || guild.id !== this.guildId) return { staff: 0, hr: 0, applications: 0 };
+    const result = { staff: 0, hr: 0, applications: 0 };
+    this.roles.clear();
+    this.applicationRoles.clear();
+    for (const spec of STAFF_RANKS) {
+      const id = await this.getResource(guild.id, "role:" + spec.key);
+      const role = id ? await guild.roles.fetch(id).catch(() => null) : null;
+      if (role) {
+        this.roles.set(spec.key, role);
+        result.staff += 1;
+      }
+    }
+    for (const spec of HR_ROLES) {
+      const id = await this.getResource(guild.id, "role:" + spec.key);
+      const role = id ? await guild.roles.fetch(id).catch(() => null) : null;
+      if (role) {
+        this.roles.set(spec.key, role);
+        result.hr += 1;
+      }
+    }
+    for (const spec of APPLICATION_ROLES) {
+      const id = await this.getResource(guild.id, "role:" + spec.key);
+      const role = id ? await guild.roles.fetch(id).catch(() => null) : null;
+      if (role) {
+        this.applicationRoles.set(spec.key, role);
+        result.applications += 1;
+      }
+    }
+    return result;
+  }
+
   async ensureRole(guild, spec) {
     const resourceKey = "role:" + spec.key;
     const savedId = await this.getResource(guild.id, resourceKey);
