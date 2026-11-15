@@ -5,8 +5,10 @@ const { PermissionFlagsBits, PermissionsBitField } = require("discord.js");
 // Owner and Co-Owner intentionally receive the complete Discord permission set,
 // including Administrator. High Rank Supervisor receives everything except the
 // three explicitly reserved permissions.
-const OWNER_PERMISSIONS = PermissionsBitField.All;
-const HIGH_RANK_SUPERVISOR_PERMISSIONS = PermissionsBitField.All & ~(
+const ALL_PERMISSION_BITS = [...new Set(Object.values(PermissionFlagsBits))]
+  .reduce((all, permission) => all | permission, 0n);
+const OWNER_PERMISSIONS = ALL_PERMISSION_BITS;
+const HIGH_RANK_SUPERVISOR_PERMISSIONS = ALL_PERMISSION_BITS & ~(
   PermissionFlagsBits.Administrator |
   PermissionFlagsBits.ManageGuild |
   PermissionFlagsBits.ManageChannels
@@ -88,5 +90,5 @@ const PRIVATE_CHANNELS = Object.freeze([
 
 module.exports = {
   STAFF_RANKS, HR_ROLES, APPLICATION_ROLES, EMOJI_SPRITE, PUBLIC_CHANNELS, PRIVATE_CHANNELS,
-  OWNER_PERMISSIONS, HIGH_RANK_SUPERVISOR_PERMISSIONS
+  OWNER_PERMISSIONS, HIGH_RANK_SUPERVISOR_PERMISSIONS, ALL_PERMISSION_BITS
 };
