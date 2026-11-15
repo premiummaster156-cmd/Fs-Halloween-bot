@@ -9,7 +9,8 @@ const {
 const {
   coopftGuildId, fukishokaiGuildId, personaForGuild, configuredGuildIds
 } = require("../src/config/server-personas");
-const { safeChannelName, TICKET_TYPES, CLEANUP_CONFIRMATION, CoopFTCommunityService } = require("../src/services/coopft-community");
+const { safeChannelName, TICKET_TYPES, CLEANUP_CONFIRMATION, CoopFTCommunityService, drawCoopFTEmoji } = require("../src/services/coopft-community");
+const { createCanvas } = require("@napi-rs/canvas");
 
 test("server personas are isolated and CoopFT uses the configured server ID", () => {
   assert.equal(coopftGuildId, process.env.COOPFT_GUILD_ID || "1498271944456540210");
@@ -101,6 +102,16 @@ test("application availability defaults to open and can be switched per position
   assert.equal(await service.isApplicationOpen("guild-1", "referee"), false);
   await service.setApplicationOpen({ id: "guild-1", channels: { fetch: async () => null } }, "referee", true);
   assert.equal(await service.isApplicationOpen("guild-1", "referee"), true);
+});
+
+test("all 27 CoopFT custom emoji illustrations render to transparent PNG images", () => {
+  for (const [index, name] of EMOJI_SPRITE.entries()) {
+    const canvas = createCanvas(128, 128);
+    drawCoopFTEmoji(canvas.getContext("2d"), name, index);
+    const png = canvas.toBuffer("image/png");
+    assert.ok(png.length > 100, name + " should produce a PNG image");
+    assert.equal(png.subarray(0, 8).toString("hex"), "89504e470d0a1a0a", name + " should have a PNG signature");
+  }
 });
 
 test("ticket types are distinct and channel names are safely normalized", () => {
