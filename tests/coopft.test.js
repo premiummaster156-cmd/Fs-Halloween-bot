@@ -270,6 +270,12 @@ test("CoopFT resource mutations refuse to touch the Fukishokai server", async ()
   await assert.rejects(service.ensureRole(fukishokaiGuild, STAFF_RANKS[0]), /verified CoopFT server/);
   await assert.rejects(service.ensureCategory(fukishokaiGuild, "unsafe", "unsafe"), /verified CoopFT server/);
   await assert.rejects(service.ensureChannel(fukishokaiGuild, { key: "unsafe", name: "unsafe" }, {}), /verified CoopFT server/);
+  await assert.rejects(service.getSetting(fukishokaiGuild.id, "resource:unsafe"), /verified CoopFT server/);
+  await assert.rejects(service.setSetting(fukishokaiGuild.id, "resource:unsafe", "channel-id"), /verified CoopFT server/);
+  assert.throws(
+    () => new CoopFTCommunityService({ query: async () => ({ rows: [] }) }, { guildId: fukishokaiGuild.id }),
+    /can only be bound to server/
+  );
   assert.equal(fetches, 0, "no Discord resource request may be made in Fukishokai");
 });
 
