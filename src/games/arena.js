@@ -206,7 +206,7 @@ class RiftArena {
       if (this.combat) {
         await this.combat.ensureProfileTx(client, guildId, userId);
         const loadoutResult = await client.query(
-          "SELECT weapon_id, style_id, spirit_art_id, armor_id, accessory_one_id, accessory_two_id " +
+          "SELECT weapon_id, style_id, spirit_art_id, armor_id, accessory_one_id, accessory_two_id, relic_id " +
           "FROM combat_loadouts WHERE guild_id = $1 AND user_id = $2",
           [guildId, userId]
         );
