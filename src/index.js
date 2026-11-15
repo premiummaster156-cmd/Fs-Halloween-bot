@@ -17,6 +17,9 @@ const balancing = require("./config/game-balancing");
 const { pool } = require("./database/pool");
 const { migrate } = require("./database/migrate");
 const { loadCommands } = require("./commands");
+const { loadCoopFTCommands } = require("./commands/coopft");
+const { CoopFTCommunityService } = require("./services/coopft-community");
+const { personaForGuild, coopftGuildId, fukishokaiGuildId } = require("./config/server-personas");
 const { handleDashboardInteraction } = require("./commands/dashboard");
 const { EconomyService } = require("./services/economy");
 const { JobsGame } = require("./games/jobs");
@@ -129,6 +132,8 @@ async function handleTradeInvitationButton(interaction, client) {
 }
 
 let runtimeClient = null;
+let coopftSetupPromise = Promise.resolve();
+let coopftSetupError = null;
 
 async function start() {
   if (!settings.discordToken) throw new Error("DISCORD_TOKEN is missing.");
@@ -207,10 +212,13 @@ async function start() {
   economy.client = client;
   const serverBoosters = new ServerBoosterService(pool);
   const customCommands = new CustomCommandService(pool);
+  const coopftCommunity = new CoopFTCommunityService(pool);
+  const coopftCommands = loadCoopFTCommands();
   const restoredCommandFiles = await customCommands.restoreWorkspaceFiles();
   console.log("[workspace] Restored " + restoredCommandFiles + " JavaScript command file(s).");
   client.services = {
     pool, balancing, economy, inventory, combat, guildSettings, security, raidMonitor, serverBoosters, customCommands,
+    coopft: coopftCommunity,
     partyGames: new PartyGameService(pool, economy),
     trades: new TradeService(pool),
     economyEvents,
@@ -228,29 +236,139 @@ async function start() {
     weeklyQuests: new WeeklyQuestService(pool)
   };
   client.commands = loadCommands();
+  client.coopftCommands = coopftCommands;
 
   client.once(Events.ClientReady, (ready) => {
-    console.log("[bot] Logged in as " + ready.user.tag + " with " + client.commands.size + " commands.");
-    for (const guild of ready.guilds.cache.values()) {
-      raidMonitor.initializeGuild(guild).catch((error) =>
-        console.warn("[raid-monitor] Startup invite baseline failed:", error.message)
-      );
+    console.log("[bot] Logged in as " + ready.user.tag + " with " + client.commands.size + " Fukishōkai commands and " + client.coopftCommands.size + " CoopFT commands.");
+
+    if (fukishokaiGuildId) {
+      const fsGuild = ready.guilds.cache.get(fukishokaiGuildId);
+      if (fsGuild) {
+        const me = fsGuild.members.me;
+        me?.setNickname("Fukishōkai", "Per-server Fukishōkai identity").catch((error) =>
+          console.warn("[fukishokai] Could not set server nickname:", error.message)
+        );
+        raidMonitor.initializeGuild(fsGuild).catch((error) =>
+          console.warn("[raid-monitor] Startup invite baseline failed:", error.message)
+        );
+      }
     }
+
+    coopftSetupPromise = (async () => {
+      const coopftGuild = ready.guilds.cache.get(coopftGuildId) ||
+        await client.guilds.fetch(coopftGuildId).catch(() => null);
+      if (!coopftGuild) {
+        console.warn("[coopft] Bot is not in configured CoopFT server " + coopftGuildId + "; automatic setup will run when it joins.");
+        return;
+      }
+      const result = await coopftCommunity.bootstrap(coopftGuild);
+      console.info("[coopft] Setup verified. Created " + result.createdRoles + " roles, " +
+        result.createdChannels + " channels and " + result.createdEmojis + " emojis.");
+    })().catch((error) => {
+      coopftSetupError = error;
+      console.error("[coopft] Automatic setup failed:", error.message);
+    });
   });
 
   client.on(Events.GuildCreate, (guild) => {
-    raidMonitor.initializeGuild(guild).catch((error) =>
-      console.warn("[raid-monitor] New-server invite baseline failed:", error.message)
-    );
+    if (guild.id === fukishokaiGuildId) {
+      raidMonitor.initializeGuild(guild).catch((error) =>
+        console.warn("[raid-monitor] Fukishōkai invite baseline failed:", error.message)
+      );
+    }
+    if (guild.id === coopftGuildId) {
+      coopftSetupPromise = coopftCommunity.bootstrap(guild).then((result) => {
+        coopftSetupError = null;
+        console.info("[coopft] First-join setup completed:", result);
+      }).catch((error) => {
+        coopftSetupError = error;
+        console.error("[coopft] First-join setup failed:", error.message);
+      });
+    }
   });
 
   client.on(Events.GuildMemberAdd, (member) => {
+    if (member.guild.id !== fukishokaiGuildId) return;
     raidMonitor.handleMemberJoin(member, client).catch((error) =>
       console.error("[raid-monitor] Could not process member join:", error.message)
     );
   });
 
+  client.on("guildMemberUpdate", (oldMember, newMember) => {
+    if (newMember.guild.id !== coopftGuildId) return;
+    coopftCommunity.handleMemberRoleChange(oldMember, newMember).catch((error) =>
+      console.error("[coopft] Staff role synchronization failed:", error.message)
+    );
+  });
+
+  client.on("guildMemberRemove", (member) => {
+    if (member.guild.id !== coopftGuildId) return;
+    coopftCommunity.handleMemberLeave(member).catch((error) =>
+      console.error("[coopft] Staff departure synchronization failed:", error.message)
+    );
+  });
+
   client.on(Events.InteractionCreate, async (interaction) => {
+    // The same Discord application has two isolated server personas. CoopFT
+    // receives only its staff/ticket commands; Fukishōkai receives the game bot.
+    // DM trade buttons remain bound to their encoded Fukishōkai guild only.
+    const dmFukishokaiTrade = !interaction.guildId &&
+      interaction.isButton?.() &&
+      interaction.customId?.startsWith("trade-invite:") &&
+      interaction.customId.split(":")[2] === fukishokaiGuildId;
+
+    if (!dmFukishokaiTrade) {
+      const persona = personaForGuild(interaction.guildId);
+      if (persona === "coopft") {
+        try {
+          await coopftSetupPromise;
+          if (coopftSetupError) {
+            if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
+              await interaction.reply({ content: "CoopFT setup is incomplete. Please contact the server owner; no economy commands are enabled here.", flags: MessageFlags.Ephemeral });
+            }
+            return;
+          }
+          if (interaction.isButton() && interaction.customId?.startsWith("cf-ticket:")) {
+            await coopftCommunity.handleButton(interaction);
+            return;
+          }
+          if (interaction.isChatInputCommand()) {
+            const command = coopftCommands.get(interaction.commandName);
+            if (!command) {
+              await interaction.reply({
+                content: "That command is not part of CoopFT. Fukishōkai economy and game systems are intentionally disabled in this server.",
+                flags: MessageFlags.Ephemeral
+              });
+              return;
+            }
+            await command.execute(interaction, { ...client.services, coopft: coopftCommunity });
+            return;
+          }
+          if (interaction.isRepliable() && !interaction.isAutocomplete()) {
+            await interaction.reply({ content: "This interaction is not available in the CoopFT bot persona.", flags: MessageFlags.Ephemeral });
+          }
+        } catch (error) {
+          console.error("[coopft] Interaction failed:", error.code || error.name, error.message);
+          try {
+            const payload = { content: "The CoopFT action could not be completed. Please try again or contact staff.", embeds: [], components: [] };
+            if (interaction.deferred) await interaction.editReply(payload);
+            else if (!interaction.replied) await interaction.reply({ ...payload, flags: MessageFlags.Ephemeral });
+            else await interaction.followUp({ ...payload, flags: MessageFlags.Ephemeral });
+          } catch (_) {}
+        }
+        return;
+      }
+
+      if (persona !== "fukishokai") {
+        if (interaction.isRepliable() && !interaction.isAutocomplete() && !interaction.replied && !interaction.deferred) {
+          await interaction.reply({
+            content: "This bot is configured only for its Fukishōkai and CoopFT servers.",
+            flags: MessageFlags.Ephemeral
+          }).catch(() => {});
+        }
+        return;
+      }
+    }
     if (interaction.isButton() && interaction.customId.startsWith("trade-invite:")) {
       try {
         await handleTradeInvitationButton(interaction, client);
@@ -432,7 +550,7 @@ async function start() {
   });
 
   client.on(Events.MessageCreate, async (message) => {
-    if (!message.guildId) return;
+    if (!message.guildId || message.guildId !== fukishokaiGuildId) return;
 
     // Discord's GUILD_BOOST system message records the member who performed a boost.
     // The unique message ID prevents retries or duplicate gateway delivery from granting twice.
@@ -467,6 +585,7 @@ async function start() {
   });
 
   client.on(Events.GuildUpdate, (_oldGuild, newGuild) => {
+    if (newGuild.id !== fukishokaiGuildId) return;
     if (Number.isFinite(Number(newGuild.premiumSubscriptionCount))) {
       serverBoosters.syncGuild(newGuild.id, newGuild.premiumSubscriptionCount)
         .catch((error) => console.warn("[boosters] Guild boost-tier sync failed:", error.message));
@@ -476,6 +595,7 @@ async function start() {
   // Anti-nuke monitoring attributes high-impact changes through Discord audit logs.
   // This subsystem is alert-only: it never changes roles, permissions or member status.
   const monitorSecurityChange = (guild, targetId, kind, auditType) => {
+    if (!guild || guild.id !== fukishokaiGuildId) return;
     client.services.security.recordDestructiveChange(client, guild, targetId, kind, auditType)
       .catch((error) => console.error("[security] " + kind + " monitor failed:", error.message));
   };
@@ -487,7 +607,7 @@ async function start() {
   // Audit-log entry events are included in Guild Moderation and let us spot kicks
   // without requesting the privileged Guild Members intent.
   client.on("guildAuditLogEntryCreate", (entry, guild) => {
-    if (entry.action !== AuditLogEvent.MemberKick) return;
+    if (guild.id !== fukishokaiGuildId || entry.action !== AuditLogEvent.MemberKick) return;
     const targetId = entry.targetId || entry.target?.id;
     if (targetId) monitorSecurityChange(guild, targetId, "member_kick", AuditLogEvent.MemberKick);
   });
@@ -507,6 +627,7 @@ async function start() {
     [PermissionFlagsBits.ManageGuildExpressions, "Manage Expressions"]
   ];
   client.on("roleUpdate", (oldRole, newRole) => {
+    if (newRole.guild.id !== fukishokaiGuildId) return;
     const granted = criticalRolePermissions
       .filter(([permission]) => newRole.permissions.has(permission) && !oldRole.permissions.has(permission))
       .map(([, label]) => label);
@@ -516,6 +637,7 @@ async function start() {
     ).catch((error) => console.error("[security] Role permission escalation monitor failed:", error.message));
   });
   client.on("channelUpdate", (oldChannel, newChannel) => {
+    if (newChannel.guild.id !== fukishokaiGuildId) return;
     const oldOverwrites = oldChannel.permissionOverwrites?.cache;
     const newOverwrites = newChannel.permissionOverwrites?.cache;
     if (!oldOverwrites || !newOverwrites) return;
