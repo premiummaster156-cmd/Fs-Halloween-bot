@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { MemberLifecycleService, formatDuration, serializeRoles } = require("../src/services/member-lifecycle");
+const { MemberLifecycleService, formatDuration, serializeRoles, auditChangesText } = require("../src/services/member-lifecycle");
 
 test("member tenure formatting is readable at day, hour and minute scales", () => {
   assert.equal(formatDuration(2 * 86400000 + 3 * 3600000 + 4 * 60000), "2d 3h 4m");
@@ -94,11 +94,24 @@ test("leave logs use the latest saved role snapshot and calculate server tenure"
   assert.match(embed.title, /MEMBER LEFT/);
   const fields = Object.fromEntries(embed.fields.map((field) => [field.name, field.value]));
   assert.match(fields["Previous roles"], /Senior Moderator/);
-  assert.match(fields["Joined server"], /2026/);
+  assert.match(fields["Joined server"], /<t:1794564000:F>/);
   assert.match(fields["Time in server"], /2d/);
   assert.equal(inserted.length, 1);
   assert.match(inserted[0].sql, /INSERT INTO audit_logs/);
   const details = JSON.parse(inserted[0].params[4]);
   assert.equal(details.roles[0].id, "role-7");
   assert.equal(details.joinedAt, snapshot.joinedAt);
+});
+
+
+test("server audit changes are rendered as readable before-and-after details", () => {
+  const rendered = auditChangesText({
+    changes: [
+      { key: "name", old: "old-channel", new: "new-channel" },
+      { key: "topic", old: null, new: "Community updates" }
+    ]
+  });
+  assert.match(rendered, /old-channel/);
+  assert.match(rendered, /new-channel/);
+  assert.match(rendered, /Community updates/);
 });

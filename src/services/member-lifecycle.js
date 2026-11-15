@@ -1,6 +1,6 @@
 "use strict";
 
-const { EmbedBuilder } = require("discord.js");
+const { EmbedBuilder, AuditLogEvent } = require("discord.js");
 const settings = require("../config/settings");
 const { coopftGuildId, fukishokaiGuildId } = require("../config/server-personas");
 
@@ -55,6 +55,36 @@ function rolesText(roles) {
   if (output.length > 1000) output = output.slice(0, 970) + "\n…and " + Math.max(0, lines.length - 1) + " more.";
   return output;
 }
+
+function auditValue(value) {
+  if (value === undefined) return "not set";
+  if (value === null) return "none";
+  let rendered;
+  try { rendered = typeof value === "string" ? value : JSON.stringify(value); }
+  catch (_) { rendered = String(value); }
+  return safeDisplay(rendered || "empty").slice(0, 180);
+}
+
+function auditChangesText(entry) {
+  const changes = Array.isArray(entry?.changes) ? entry.changes : [];
+  if (!changes.length) return "No field-level changes were provided.";
+  return changes.slice(0, 8).map((change) =>
+    "• **" + safeDisplay(change.key || "Change") + "**: " +
+    auditValue(change.old) + " → " + auditValue(change.new)
+  ).join("\n").slice(0, 1000);
+}
+
+const SERVER_AUDIT_ACTIONS = new Map([
+  [AuditLogEvent.ChannelCreate, { key: "channel_created", label: "CHANNEL CREATED", destination: "server", color: 0x32956B }],
+  [AuditLogEvent.ChannelUpdate, { key: "channel_updated", label: "CHANNEL UPDATED", destination: "server", color: 0xC18A37 }],
+  [AuditLogEvent.ChannelDelete, { key: "channel_deleted", label: "CHANNEL DELETED", destination: "server", color: 0xB84A55 }],
+  [AuditLogEvent.RoleCreate, { key: "role_created", label: "ROLE CREATED", destination: "server", color: 0x32956B }],
+  [AuditLogEvent.RoleUpdate, { key: "role_updated", label: "ROLE UPDATED", destination: "server", color: 0xC18A37 }],
+  [AuditLogEvent.RoleDelete, { key: "role_deleted", label: "ROLE DELETED", destination: "server", color: 0xB84A55 }],
+  [AuditLogEvent.MemberKick, { key: "member_kicked", label: "MEMBER KICKED", destination: "member", color: 0xB84A55 }],
+  [AuditLogEvent.MemberBanAdd, { key: "member_banned", label: "MEMBER BANNED", destination: "member", color: 0xB84A55 }],
+  [AuditLogEvent.MemberBanRemove, { key: "member_unbanned", label: "MEMBER UNBANNED", destination: "member", color: 0x32956B }]
+]);
 
 class MemberLifecycleService {
   constructor(pool, options = {}) {
@@ -127,6 +157,33 @@ class MemberLifecycleService {
       return true;
     } catch (error) {
       console.warn("[member-lifecycle] Member log send failed:", error.message);
+      return false;
+    }
+  }
+
+  async resolveServerLogChannel(guild) {
+    if (guild.id === this.coopftGuildId && this.coopftCommunity) {
+      const id = await this.coopftCommunity.getResource(guild.id, "channel:server_logs").catch(() => null);
+      if (id) return guild.channels.fetch(id).catch(() => null);
+    }
+    const id = this.guildSettings
+      ? await this.guildSettings.get(guild.id, "logChannelId").catch(() => null)
+      : null;
+    if (!id) return null;
+    return guild.channels.fetch(id).catch(() => null);
+  }
+
+  async sendServerLog(guild, embed) {
+    const channel = await this.resolveServerLogChannel(guild);
+    if (!channel || channel.guildId !== guild.id || !channel.isTextBased?.() || typeof channel.send !== "function") {
+      console.warn("[member-lifecycle] No usable private server-log channel configured for guild " + guild.id + ".");
+      return false;
+    }
+    try {
+      await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
+      return true;
+    } catch (error) {
+      console.warn("[member-lifecycle] Server log send failed:", error.message);
       return false;
     }
   }
@@ -221,11 +278,64 @@ class MemberLifecycleService {
     return true;
   }
 
-  async handleRoleUpdate(guild, memberId, actorId) {
+  async handleRoleUpdate(guild, memberId, actorId, entry = null, botUserId = null) {
     if (!guild || !this.supportsGuild(guild.id) || !memberId) return false;
     const member = await guild.members.fetch(memberId).catch(() => null);
     if (!member) return false;
-    await this.recordRoleSnapshot(member, actorId || "unknown", "audit_role_update");
+    const snapshot = await this.recordRoleSnapshot(member, actorId || "unknown", "audit_role_update");
+    if (actorId && actorId !== botUserId) {
+      const changes = auditChangesText(entry);
+      await this.writeAudit(guild.id, actorId, "member_roles_changed", memberId, {
+        roles: snapshot?.roles || [],
+        changes
+      });
+      const embed = new EmbedBuilder()
+        .setColor(0xC18A37)
+        .setTitle("MEMBER ROLES UPDATED")
+        .setDescription("<@" + memberId + "> • changed by <@" + actorId + ">")
+        .addFields(
+          { name: "Member ID", value: memberId, inline: true },
+          { name: "Changed by", value: actorId, inline: true },
+          { name: "Changes", value: changes, inline: false }
+        )
+        .setFooter({ text: "The new role state has been saved for future leave logs." })
+        .setTimestamp();
+      await this.sendServerLog(guild, embed);
+    }
+    return true;
+  }
+
+  async handleServerAuditEntry(guild, entry, botUserId = null) {
+    if (!guild || !this.supportsGuild(guild.id)) return false;
+    const action = SERVER_AUDIT_ACTIONS.get(entry?.action);
+    if (!action) return false;
+    const actorId = entry.executorId || entry.executor?.id || null;
+    if (actorId && actorId === botUserId) return false;
+    const targetId = entry.targetId || entry.target?.id || null;
+    const targetName = entry.target?.name || entry.target?.username || targetId || "Unknown";
+    const reason = String(entry.reason || "No reason supplied").slice(0, 900);
+    const changes = auditChangesText(entry);
+    const auditDetails = {
+      action: action.key,
+      targetName: String(targetName).slice(0, 180),
+      actorId,
+      reason,
+      changes
+    };
+    await this.writeAudit(guild.id, actorId || "unknown", "server_audit_" + action.key, targetId, auditDetails);
+    const embed = new EmbedBuilder()
+      .setColor(action.color)
+      .setTitle(action.label)
+      .setDescription("**Target:** " + safeDisplay(targetName) + (targetId ? " (" + targetId + ")" : ""))
+      .addFields(
+        { name: "Executor", value: actorId ? "<@" + actorId + "> (" + actorId + ")" : "Unknown", inline: false },
+        { name: "Reason", value: reason || "No reason supplied", inline: false },
+        { name: "Changes", value: changes, inline: false }
+      )
+      .setFooter({ text: "Server audit • Informational only; no automatic moderation action" })
+      .setTimestamp(asDate(entry.createdAt) || new Date());
+    if (action.destination === "member") await this.sendMemberLog(guild, embed);
+    else await this.sendServerLog(guild, embed);
     return true;
   }
 
@@ -254,5 +364,6 @@ module.exports = {
   formatDuration,
   serializeRoles,
   rolesText,
-  timestampText
+  timestampText,
+  auditChangesText
 };

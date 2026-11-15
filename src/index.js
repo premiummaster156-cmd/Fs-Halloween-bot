@@ -632,7 +632,7 @@ async function start() {
       [fukishokaiGuildId, coopftGuildId].filter(Boolean).includes(guild.id)
     ) {
       // Store role history with exact member fetches; no member-roster enumeration.
-      memberLifecycle.handleRoleUpdate(guild, targetId, executorId).catch((error) =>
+      memberLifecycle.handleRoleUpdate(guild, targetId, executorId, entry, client.user.id).catch((error) =>
         console.warn("[member-lifecycle] Could not store updated role snapshot:", error.message)
       );
 
@@ -644,6 +644,11 @@ async function start() {
           .catch((error) => console.warn("[coopft] Could not sync staff audit entry:", error.message));
       }
       return;
+    }
+    if ([fukishokaiGuildId, coopftGuildId].filter(Boolean).includes(guild.id)) {
+      memberLifecycle.handleServerAuditEntry(guild, entry, client.user.id).catch((error) =>
+        console.warn("[member-lifecycle] Could not publish server audit entry:", error.message)
+      );
     }
     if (guild.id !== fukishokaiGuildId || entry.action !== AuditLogEvent.MemberKick) return;
     if (targetId) monitorSecurityChange(guild, targetId, "member_kick", AuditLogEvent.MemberKick);
