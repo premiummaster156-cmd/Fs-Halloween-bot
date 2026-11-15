@@ -88,9 +88,15 @@ const setupCommand = {
     }
     await interaction.deferReply({ ephemeral: true });
     const result = await services.coopft.bootstrap(interaction.guild, { manual: true, actorId: interaction.user.id });
+    const cleanup = result.cleanup;
+    const cleanupText = cleanup?.awaitingConfirmation
+      ? "\\nRole cleanup preview: " + cleanup.candidates.length + " editable roles identified; none were deleted."
+      : cleanup?.completed
+        ? "\\nRole cleanup completed: " + cleanup.deleted + " roles deleted."
+        : "";
     return interaction.editReply({
       content: "✅ CoopFT setup checked. Created " + result.createdRoles + " roles, " +
-        result.createdChannels + " channels and " + result.createdEmojis + " emojis. Existing resources were reused."
+        result.createdChannels + " channels and " + result.createdEmojis + " emojis. Existing resources were reused." + cleanupText
     });
   }
 };
