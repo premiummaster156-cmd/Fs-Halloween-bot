@@ -1,3 +1,4 @@
+process.env.FUKISHOKAI_GUILD_ID = "123456789012345678";
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { isBrowserIdeEnabled, isIdeServerEnabled, authoriseMember } = require("../src/web/ide-server");
@@ -42,22 +43,24 @@ test("workspace server stays disabled without a guild and a supported feature", 
     idePublicUrl: ""
   }), false);
 });
-test("browser Code Studio can serve multiple servers without a fixed IDE_GUILD_ID", () => {
+test("browser Code Studio is pinned to the configured Fukishokai server persona", () => {
   const config = {
-    ideGuildId: "",
+    ideGuildId: "123456789012345678",
     adminWorkspaceApiKey: "",
     discordClientSecret: "discord-client-secret",
     idePublicUrl: "https://studio.example.com"
   };
   assert.equal(isBrowserIdeEnabled(config), true);
   assert.equal(isIdeServerEnabled(config), true);
+  assert.equal(isIdeServerEnabled({ ...config, ideGuildId: "123456789012345672" }), false);
+  assert.equal(isIdeServerEnabled({ ...config, ideGuildId: "" }), false);
 });
 
 test("Code Studio checks the trusted Admin Role in the exact server selected by the admin-panel link", async () => {
   const userId = "workspace-admin-" + randomUUID();
   const guilds = new Map();
   const roleByGuild = {
-    "123456789012345671": "trusted-role-a",
+    "123456789012345678": "trusted-role-a",
     "123456789012345672": "trusted-role-b"
   };
   for (const guildId of Object.keys(roleByGuild)) {
@@ -84,8 +87,8 @@ test("Code Studio checks the trusted Admin Role in the exact server selected by 
     }
   };
 
-  const access = await authoriseMember(client, services, userId, "123456789012345671");
-  assert.equal(access.guild.id, "123456789012345671");
+  const access = await authoriseMember(client, services, userId, "123456789012345678");
+  assert.equal(access.guild.id, "123456789012345678");
   await assert.rejects(
     authoriseMember(client, services, userId, "123456789012345672"),
     /limited to this server/

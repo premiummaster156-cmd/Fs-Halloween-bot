@@ -5,7 +5,7 @@ const { ActivityService, MESSAGE_COUNT_COOLDOWN_SECONDS } = require("../src/serv
 function makeMessage() {
   return {
     guildId: "guild-1",
-    user: { id: "member-1", bot: false },
+    author: { id: "member-1", bot: false },
     channelId: "channel-1"
   };
 }
