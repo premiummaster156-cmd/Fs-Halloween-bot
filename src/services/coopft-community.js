@@ -1048,28 +1048,29 @@ class CoopFTCommunityService {
       .setColor(0x344E83)
       .setTitle(this.emoji(guild.id, "cf3d_rolebook", "📚") + "  COOPFT • ROLE GUIDE")
       .setDescription([
-        "Every role has a purpose. This guide explains each team's responsibilities and permission level.",
+        "Every role has a purpose. Each entry lists its actual Discord permissions.",
         "",
-        "👑 **Owner and Co-Owner:** every Discord permission, including Administrator.",
-        "🌟 **High Rank Supervisor:** every Discord permission except Administrator, Manage Server and Manage Channels.",
-        "🛡️ **All other staff, HR and specialist roles:** no global Discord permissions; access is granted only through the configured channel overrides and bot authorization."
+        "👑 **Owner / Co-Owner:** full permissions, including Administrator.",
+        "🌟 **High Rank Supervisor:** all permissions except Administrator, Manage Server and Manage Channels.",
+        "🛡️ **Other staff and HR:** graduated operational permissions appropriate to their duties. Critical bot commands still use separate CoopFT authorization checks.",
+        "🎟️ **Specialist positions:** role identity only; no global server permissions."
       ].join("\n"))
       .setFooter({ text: "CoopFT • Clear roles. Clear responsibilities." });
     for (const role of STAFF_RANKS) embed.addFields({
       name: this.emoji(guild.id, role.emoji, role.icon) + "  " + role.name,
-      value: role.description,
+      value: role.description + "\n\n**Discord permissions:** " + role.permissionSummary,
       inline: false
     });
     embed.addFields({ name: this.emoji(guild.id, "cf3d_key", "🔑") + "  HUMAN RESOURCES", value: "The HR team handles recruitment, candidate communication and staff development.", inline: false });
     for (const role of HR_ROLES) embed.addFields({
       name: this.emoji(guild.id, role.emoji, role.icon) + "  " + role.name,
-      value: role.description,
+      value: role.description + "\n\n**Discord permissions:** " + role.permissionSummary,
       inline: false
     });
     embed.addFields({ name: this.emoji(guild.id, "cf3d_applications", "📝") + "  SPECIALIST POSITIONS", value: "These positions support events and community operations. They are separate from the staff-rank and HR hierarchies.", inline: false });
     for (const role of APPLICATION_ROLES) embed.addFields({
       name: this.emoji(guild.id, role.emoji, role.icon) + "  " + role.name,
-      value: role.description,
+      value: role.description + "\n\n**Discord permissions:** No global permissions; this role identifies the specialist team only.",
       inline: false
     });
     return embed;
