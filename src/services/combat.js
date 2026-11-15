@@ -141,6 +141,11 @@ class CombatService {
     if (!item) throw new DomainError("That combat item is not available.", "COMBAT_ITEM_INVALID");
     return this.transactionRunner(async (client) => {
       await this.ensureProfileTx(client, guildId, userId);
+      // Match RiftArena.start's player-row lock so a gear swap cannot race with encounter creation.
+      await client.query(
+        "SELECT user_id FROM players WHERE guild_id = $1 AND user_id = $2 FOR UPDATE",
+        [guildId, userId]
+      );
       const activeBattle = await client.query(
         "SELECT id FROM boss_battles WHERE guild_id = $1 AND user_id = $2 AND status = 'active' LIMIT 1 FOR UPDATE",
         [guildId, userId]
