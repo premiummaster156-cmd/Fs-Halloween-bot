@@ -7,9 +7,21 @@ The Fukishōkai economy bot and CoopFT community system use the same Discord app
 - Fukishōkai economy, boosters, activity rewards, games, custom slash commands, admin dashboard and raid/security workflows are accepted only in the Fukishōkai server.
 - CoopFT receives only `/staff`, `/staff-manage`, `/hr-manage`, `/ticket`, and `/coopft-setup`. It has no Fukishōkai economy, player wallets, candy rewards, inventory, jobs, heists, or game dashboard.
 
-## Automatic setup
+## Manual setup from the hosting console
 
-On startup, the bot checks CoopFT and creates missing resources. It stores resource IDs in Neon so restarts reuse existing resources rather than duplicating them. Running `/coopft-setup` repairs missing channels, roles, panels, and directory messages.
+CoopFT server configuration does **not** run during normal bot startup, restarts, or when the bot joins the server. This prevents every restart from re-checking or changing Discord roles, channels, panels and messages.
+
+Run this command manually from the repository root in your hosting provider's console whenever you first want to configure CoopFT or intentionally repair its layout:
+
+```sh
+npm run coopft:setup
+```
+
+The command applies the database migrations, connects a temporary Discord client to the configured CoopFT server, creates or repairs the channels, roles, panels, directories and branded emojis, then disconnects and closes its database pool. It targets `COOPFT_GUILD_ID` (default: `1498271944456540210`). Keep `DISCORD_TOKEN`, `DATABASE_URL` and `COOPFT_GUILD_ID` configured in the hosting environment.
+
+The command is safe to run again when you intentionally want to repair missing CoopFT resources. It reuses saved Neon resource IDs and does not wipe player data. It does **not** need to be added to the host's normal Start Command. Your regular `npm start` command only starts the bot and its event listeners; member lifecycle and audit logging continue after the initial setup has been completed.
+
+The in-server `/coopft-setup` command remains available as an optional manual repair action for authorized CoopFT managers. The hosting-console command is the preferred way to perform initial setup or a full repair.
 
 The setup creates these channel groups:
 
@@ -64,7 +76,7 @@ HR roles are created automatically but are not granted to anyone automatically. 
 
 The earlier request to delete every role the bot can manage is destructive: deleting a role also removes every member's assignment to that role, and the bot cannot reconstruct all those assignments from the approved event permissions.
 
-Therefore, the first startup makes a cleanup **preview**, stores the names/IDs/permissions of ordinary editable roles in Neon, and posts the candidate list to private `#staff-bot-updates`. It deletes nothing by default. After reviewing the list and backing up assignments, an operator may set:
+Therefore, the first manual setup run makes a cleanup **preview**, stores the names/IDs/permissions of ordinary editable roles in Neon, and posts the candidate list to private `#staff-bot-updates`. It deletes nothing by default. After reviewing the list and backing up assignments, an operator may set:
 
 ```env
 COOPFT_ROLE_CLEANUP_CONFIRM=DELETE_EDITABLE_ROLES
@@ -93,3 +105,8 @@ The bot must be higher than the roles it creates/manages and lower than protecte
 Set `COOPFT_GUILD_ID` and `FUKISHOKAI_GUILD_ID` (or the legacy Fukishōkai `GUILD_ID`) in the host environment, then run `npm run deploy-commands`. By default, the deploy script registers each persona's commands only in its own server and clears the global command set. To deploy one server for a test, set `DEPLOY_GUILD_ID` to that server's ID.
 
 Neon remains the only database. The migration `0001_coopft_community.sql` adds isolated CoopFT tables; it does not alter existing player economy tables or wipe data.
+
+## Hosting-console setup command
+
+After configuring the required environment variables and deploying the CoopFT slash commands, run `npm run coopft:setup` in the hosting console to create or repair the CoopFT server layout. Run it only when you intentionally want to configure or repair the server; do not add it to the normal process start command. Routine bot restarts do not perform server setup.
+
