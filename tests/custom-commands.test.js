@@ -195,3 +195,8 @@ test("custom command runner expires queued work instead of allowing an unbounded
   assert.equal(await first, "first");
   assert.deepEqual(gate.stats(), { active: 0, queued: 0, maxConcurrent: 1, maxQueued: 1 });
 });
+
+test("custom command runner defaults to one active isolate for memory-constrained hosting", () => {
+  const gate = createConcurrencyGate();
+  assert.deepEqual(gate.stats(), { active: 0, queued: 0, maxConcurrent: 1, maxQueued: 8 });
+});
