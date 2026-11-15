@@ -7,7 +7,7 @@ const STAFF_RANKS = Object.freeze([
   { key: "owner", name: "Owner", icon: "👑", emoji: "cf_crown", primary: 0x7A101C, secondary: 0xE13D4B },
   { key: "co_owner", name: "Co-Owner", icon: "🛡️", emoji: "cf_shield", primary: 0x7E2732, secondary: 0xC84B60 },
   { key: "high_rank_supervisor", name: "High Rank Supervisor", icon: "🌟", emoji: "cf_star", primary: 0xA67821, secondary: 0xF3D17A },
-  { key: "apex", name: "Apex", icon: "💎", emoji: "cf_sapphire", primary: 0x153D9A, secondary: 0x35B5F5 },
+  { key: "apex", name: "Apex", icon: "💎", emoji: "cf_gem", primary: 0x153D9A, secondary: 0x35B5F5 },
   { key: "overseer", name: "Overseer", icon: "🦋", emoji: "cf_butterfly", primary: 0x542A93, secondary: 0xB26AF2 },
   { key: "staff_supervisor", name: "Staff Supervisor", icon: "🍃", emoji: "cf_leaf", primary: 0x176B45, secondary: 0x62C987 },
   { key: "head_moderator", name: "Head Moderator", icon: "🔥", emoji: "cf_flame", primary: 0x9B2C16, secondary: 0xF47A3C },
@@ -25,10 +25,10 @@ const HR_ROLES = Object.freeze([
 ]);
 
 const EMOJI_SPRITE = Object.freeze([
-  "cf_crown", "cf_shield", "cf_star", "cf_sapphire",
-  "cf_butterfly", "cf_leaf", "cf_flame", "cf_ice",
-  "cf_key", "cf_ticket", "cf_scroll", "cf_headset",
-  "cf_gear", "cf_bell", "cf_handshake", "cf_spark"
+  "cf_bell", "cf_butterfly", "cf_crown", "cf_flame",
+  "cf_gear", "cf_gem", "cf_handshake", "cf_headset",
+  "cf_ice", "cf_key", "cf_leaf", "cf_scroll",
+  "cf_shield", "cf_spark", "cf_star", "cf_ticket"
 ]);
 
 const PUBLIC_CHANNELS = Object.freeze([
