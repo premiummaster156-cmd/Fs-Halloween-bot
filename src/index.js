@@ -9,7 +9,8 @@ const runtimeLogger = installConsoleFileLogging();
 installProcessErrorLogging(runtimeLogger);
 const memoryMonitor = startMemoryMonitor(runtimeLogger);
 
-const { Client, GatewayIntentBits, Events, MessageFlags, AuditLogEvent, MessageType, PermissionFlagsBits } = require("discord.js");
+const { Client, Events, MessageFlags, AuditLogEvent, MessageType, PermissionFlagsBits } = require("discord.js");
+const { getGatewayIntents } = require("./config/gateway-intents");
 const { DomainError } = require("./utils/core");
 const settings = require("./config/settings");
 const balancing = require("./config/game-balancing");
@@ -131,16 +132,17 @@ async function start() {
   if (!settings.discordToken) throw new Error("DISCORD_TOKEN is missing.");
   if (!settings.clientId) throw new Error("CLIENT_ID is missing.");
   await migrate();
-  // Safest pending-review mode: request only the non-privileged Guilds intent.
-  // GuildMessages and GuildModeration are temporarily omitted too, so Discord
-  // receives the smallest possible Gateway intent set while the review is pending.
-  const gatewayIntents = [GatewayIntentBits.Guilds];
-  // Deliberately disabled until Discord approves the required privileged intents.
+  // Discord Support approved GuildMembers under request 69920914 for actual-join
+  // raid detection. GuildMessages and GuildModeration are non-privileged intents
+  // required by existing message-activity/boost and audit-log event handlers.
+  // Do not request GuildPresences or MessageContent without separate approval.
+  const gatewayIntents = getGatewayIntents();
+  // AI Watch remains hard-disabled until Message Content access is separately approved.
   const aiMessageMonitorConfigured = false;
   if (settings.aiMessageMonitorEnabled) {
-    console.warn("[discord] AI Watch is paused until Message Content Intent approval.");
+    console.warn("[discord] AI Watch is paused: Message Content Intent has not been approved.");
   }
-  console.warn("[discord] Member, message, and moderation gateway event monitoring is paused while privileged-intent approval is pending.");
+  console.info("[discord] Gateway intents: Guilds, GuildMessages, GuildModeration, GuildMembers (approved for join-raid events only).");
   const client = new Client({ intents: gatewayIntents });
   runtimeClient = client;
   guardEmitter(client, {
