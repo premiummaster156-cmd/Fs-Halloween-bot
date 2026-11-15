@@ -41,7 +41,7 @@ const { EconomyEventService } = require("./services/economy-events");
 const { AdminMessagingService } = require("./services/admin-messaging");
 const { AdminAbuseService } = require("./services/admin-abuse");
 const { AIMessageMonitor } = require("./services/ai-message-monitor");
-const { respond } = require("./ui");
+const { respond, respondPrivate } = require("./ui");
 
 async function handleTradeInvitationButton(interaction, client) {
   const [, decision, guildId, tradeId] = interaction.customId.split(":");
@@ -324,25 +324,6 @@ async function start() {
     if (!interaction.isChatInputCommand()) return;
     if (!interaction.inGuild()) return respond(interaction, { kind: "error", ephemeral: true, title: "Server Only", description: "Use this command inside Fukishokai." });
 
-    const ownerAccess = await security.hasAdminAccess(interaction.guild, interaction.user.id);
-    if (interaction.commandName === "admin-panel" && !ownerAccess) {
-      await security.recordUnauthorizedAdminAttempt(interaction);
-      return respond(interaction, {
-        kind: "error", ephemeral: true, title: "Owner access required",
-        description: "Only the server owner, configured bot owner, or Admin Role selected in /admin-panel can open the administration console."
-      });
-    }
-
-    const access = await security.checkAccess(interaction);
-    if (!access.allowed) {
-      return respond(interaction, {
-        kind: "error", ephemeral: true, title: "Bot access restricted",
-        description: access.expiresAt
-          ? "Bot access is paused until <t:" + Math.floor(new Date(access.expiresAt).getTime() / 1000) + ":R>."
-          : "Bot access has been restricted by a server owner."
-      });
-    }
-
     const command = client.commands.get(interaction.commandName);
     const customCommand = command ? null : await client.services.customCommands.getByName(interaction.guildId, interaction.commandName);
     if (!command && !customCommand) {
@@ -358,22 +339,8 @@ async function start() {
       });
     }
 
-    const rate = await security.checkCommandRate(interaction);
-    if (!rate.allowed) {
-      return respond(interaction, {
-        kind: "warning", ephemeral: true, title: "Slow down a little",
-        description: "The bot is rate-limiting repeated command requests. Please wait a few seconds."
-      });
-    }
-
-    const memberCommandsChannelId = await guildSettings.get(interaction.guildId, "memberCommandsChannelId");
-    if (!ownerAccess && memberCommandsChannelId && interaction.channelId !== memberCommandsChannelId) {
-      return respond(interaction, {
-        kind: "error", ephemeral: true, title: "Use the game channel",
-        description: "Use Fukishokai commands in <#" + memberCommandsChannelId + ">. This notice is private."
-      });
-    }
-
+    // Acknowledge built-in commands before database-backed permission/rate/channel checks.
+    // Keep visibility aligned with the command's existing public/private response contract.
     const startedAt = Date.now();
     const privateReply = command
       ? command.data.name === "admin-panel" || command.data.name === "menu"
@@ -382,6 +349,59 @@ async function start() {
       await interaction.deferReply(privateReply ? { flags: MessageFlags.Ephemeral } : {});
     } catch (error) {
       console.error("[interaction] Could not acknowledge /" + interaction.commandName + ":", error.code || error.name, error.message);
+      return;
+    }
+
+    // Permission and policy denials must remain private even when the command's normal
+    // successful response is public. respondPrivate removes the public deferred placeholder
+    // before sending the private explanation.
+    try {
+      const ownerAccess = await security.hasAdminAccess(interaction.guild, interaction.user.id);
+      if (interaction.commandName === "admin-panel" && !ownerAccess) {
+        await security.recordUnauthorizedAdminAttempt(interaction);
+        await respondPrivate(interaction, {
+          kind: "error", title: "Owner access required",
+          description: "Only the server owner, configured bot owner, or Admin Role selected in /admin-panel can open the administration console."
+        });
+        return;
+      }
+
+      const access = await security.checkAccess(interaction);
+      if (!access.allowed) {
+        await respondPrivate(interaction, {
+          kind: "error", title: "Bot access restricted",
+          description: access.expiresAt
+            ? "Bot access is paused until <t:" + Math.floor(new Date(access.expiresAt).getTime() / 1000) + ":R>."
+            : "Bot access has been restricted by a server owner."
+        });
+        return;
+      }
+
+      const rate = await security.checkCommandRate(interaction);
+      if (!rate.allowed) {
+        await respondPrivate(interaction, {
+          kind: "warning", title: "Slow down a little",
+          description: "The bot is rate-limiting repeated command requests. Please wait a few seconds."
+        });
+        return;
+      }
+
+      const memberCommandsChannelId = await guildSettings.get(interaction.guildId, "memberCommandsChannelId");
+      if (!ownerAccess && memberCommandsChannelId && interaction.channelId !== memberCommandsChannelId) {
+        await respondPrivate(interaction, {
+          kind: "error", title: "Use the game channel",
+          description: "Use Fukishokai commands in <#" + memberCommandsChannelId + ">. This notice is private."
+        });
+        return;
+      }
+    } catch (error) {
+      console.error("[interaction] Command preflight failed:", error.code || error.name, error.message);
+      await respondPrivate(interaction, {
+        kind: "error", title: "Command temporarily unavailable",
+        description: "The bot could not verify access and command limits right now. Please try again shortly."
+      }).catch((replyError) => {
+        console.error("[interaction] Could not send private preflight failure:", replyError.code || replyError.name, replyError.message);
+      });
       return;
     }
 

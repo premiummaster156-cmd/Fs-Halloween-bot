@@ -59,4 +59,38 @@ async function respond(interaction, options = {}) {
   return interaction.reply(payload);
 }
 
-module.exports = { createEmbed, respond };
+
+async function respondPrivate(interaction, options = {}) {
+  const color = colors[options.kind] ? colors[options.kind]() : colors.info();
+  const icon = options.icon || (options.kind === "error" || options.kind === "warning" ? "failed" : null);
+  const embed = createEmbed({ ...options, icon, color });
+  const payload = { embeds: [embed], components: options.components || [] };
+  const privatePayload = { ...payload, flags: MessageFlags.Ephemeral };
+
+  if (interaction.deferred && interaction.ephemeral === true) {
+    return interaction.editReply(payload);
+  }
+
+  if (interaction.deferred && interaction.ephemeral !== true) {
+    try {
+      await interaction.deleteReply();
+    } catch (_) {
+      // If Discord cannot remove the public "thinking" placeholder, replace it
+      // with a generic message before sending the detailed private explanation.
+      await interaction.editReply({
+        content: "This command could not be completed. Please check your private reply for details.",
+        embeds: [],
+        components: []
+      }).catch(() => null);
+    }
+    return interaction.followUp(privatePayload);
+  }
+
+  if (interaction.replied) {
+    return interaction.followUp(privatePayload);
+  }
+
+  return interaction.reply(privatePayload);
+}
+
+module.exports = { createEmbed, respond, respondPrivate };
