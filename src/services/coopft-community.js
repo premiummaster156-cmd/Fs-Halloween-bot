@@ -997,6 +997,7 @@ class CoopFTCommunityService {
   }
 
   async showApplicationNotificationPreferences(interaction) {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const saved = await this.pool.query(
       "SELECT role_key FROM coopft_application_subscriptions WHERE guild_id=$1 AND member_id=$2",
       [interaction.guildId, interaction.user.id]
@@ -1021,10 +1022,9 @@ class CoopFTCommunityService {
         .setLabel("Clear all alerts")
         .setStyle(ButtonStyle.Secondary)
     );
-    await interaction.reply({
+    await interaction.editReply({
       content: "🔔 **Application opening alerts**\\nChoose which positions you want a private DM about when applications reopen. No messages are sent unless you opt in.",
-      components: [selectionRow, clearRow],
-      flags: MessageFlags.Ephemeral
+      components: [selectionRow, clearRow]
     });
   }
 
@@ -1033,6 +1033,7 @@ class CoopFTCommunityService {
       await interaction.reply({ content: "These notification settings are only available in CoopFT.", flags: MessageFlags.Ephemeral });
       return true;
     }
+    await interaction.deferUpdate();
     const selected = interaction.values.filter((value) => APPLICATION_ROLES.some((role) => role.key === value));
     await this.pool.query(
       "DELETE FROM coopft_application_subscriptions WHERE guild_id=$1 AND member_id=$2",
@@ -1046,7 +1047,7 @@ class CoopFTCommunityService {
         [interaction.guildId, interaction.user.id, ...selected]
       );
     }
-    await interaction.update({
+    await interaction.editReply({
       content: selected.length
         ? "✅ Alerts saved. I'll DM you when " + selected.map((key) => APPLICATION_ROLES.find((role) => role.key === key).name).join(", ") + " applications reopen."
         : "Application opening alerts are now turned off.",
@@ -1154,11 +1155,12 @@ class CoopFTCommunityService {
       return true;
     }
     if (action === "clear-notifications") {
+      await interaction.deferUpdate();
       await this.pool.query(
         "DELETE FROM coopft_application_subscriptions WHERE guild_id=$1 AND member_id=$2",
         [interaction.guildId, interaction.user.id]
       );
-      await interaction.update({ content: "Application opening alerts have been cleared.", components: [] });
+      await interaction.editReply({ content: "Application opening alerts have been cleared.", components: [] });
       return true;
     }
     if (action === "apply") {
