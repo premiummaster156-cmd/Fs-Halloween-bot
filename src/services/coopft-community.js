@@ -11,7 +11,7 @@ const {
 const {
   STAFF_RANKS, HR_ROLES, APPLICATION_ROLES, EMOJI_SPRITE, PUBLIC_CHANNELS, PRIVATE_CHANNELS
 } = require("../config/coopft-design");
-const { coopftGuildId } = require("../config/server-personas");
+const { COOPFT_DEFAULT_GUILD_ID, coopftGuildId } = require("../config/server-personas");
 
 const CLEANUP_CONFIRMATION = "DELETE_EDITABLE_ROLES";
 const STAFF_MANAGER_KEYS = new Set(["owner", "co_owner", "high_rank_supervisor"]);
@@ -241,6 +241,15 @@ class CoopFTCommunityService {
     this.emojis = new Map();
   }
 
+  assertCoopFTGuild(guild, action = "change") {
+    if (!guild || guild.id !== COOPFT_DEFAULT_GUILD_ID || this.guildId !== COOPFT_DEFAULT_GUILD_ID) {
+      throw new Error(
+        "Safety lock: refusing to " + action + " outside the verified CoopFT server " +
+        COOPFT_DEFAULT_GUILD_ID + "."
+      );
+    }
+  }
+
   async getSetting(guildId, key) {
     const result = await this.pool.query(
       "SELECT setting_value FROM coopft_community_settings WHERE guild_id=$1 AND setting_key=$2",
@@ -271,6 +280,7 @@ class CoopFTCommunityService {
   }
 
   async ensureEmojis(guild) {
+    this.assertCoopFTGuild(guild, "create or reuse custom emojis");
     const result = { created: 0, available: 0, failed: [] };
     // Rebuild from the current guild cache so deleted custom emojis never leave stale markup.
     this.emojis.clear();
@@ -379,6 +389,7 @@ class CoopFTCommunityService {
   }
 
   async ensureRole(guild, spec) {
+    this.assertCoopFTGuild(guild, "create or edit a CoopFT role");
     const resourceKey = "role:" + spec.key;
     const savedId = await this.getResource(guild.id, resourceKey);
     let role = savedId ? await guild.roles.fetch(savedId).catch(() => null) : null;
@@ -479,6 +490,7 @@ class CoopFTCommunityService {
   }
 
   async cleanupEditableRoles(guild) {
+    this.assertCoopFTGuild(guild, "clean up CoopFT roles");
     const alreadyDone = await this.getSetting(guild.id, "role_cleanup_complete");
     if (alreadyDone) return { deleted: 0, candidates: [], alreadyDone: true };
 
@@ -537,6 +549,7 @@ class CoopFTCommunityService {
   }
 
   async ensureCategory(guild, key, name, permissionOverwrites) {
+    this.assertCoopFTGuild(guild, "create or edit a CoopFT category");
     const resourceKey = "category:" + key;
     const savedId = await this.getResource(guild.id, resourceKey);
     let category = savedId ? await guild.channels.fetch(savedId).catch(() => null) : null;
@@ -567,6 +580,7 @@ class CoopFTCommunityService {
   }
 
   async ensureChannel(guild, spec, parent) {
+    this.assertCoopFTGuild(guild, "create or edit a CoopFT channel");
     const resourceKey = "channel:" + spec.key;
     const savedId = await this.getResource(guild.id, resourceKey);
     const channelTypes = {
@@ -628,6 +642,7 @@ class CoopFTCommunityService {
   }
 
   async removeManagedChannel(guild, key) {
+    this.assertCoopFTGuild(guild, "remove a CoopFT-managed channel");
     const resourceKey = "channel:" + key;
     const savedId = await this.getResource(guild.id, resourceKey);
     if (!savedId) return false;
@@ -670,6 +685,7 @@ class CoopFTCommunityService {
   }
 
   async bootstrap(guild, options = {}) {
+    this.assertCoopFTGuild(guild, "run server setup");
     if (!guild || guild.id !== this.guildId) throw new Error("CoopFT setup can only run in the configured CoopFT server.");
     const me = guild.members.me || await guild.members.fetchMe().catch(() => null);
     if (!me) throw new Error("The bot's server member could not be fetched.");
