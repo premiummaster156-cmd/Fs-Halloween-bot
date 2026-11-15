@@ -87,7 +87,7 @@ const setupCommand = {
       return interaction.reply({ content: "Only CoopFT management or the server owner can run this setup command.", ephemeral: true });
     }
     await interaction.deferReply({ ephemeral: true });
-    const result = await services.coopft.bootstrap(interaction.guild, { manual: true });
+    const result = await services.coopft.bootstrap(interaction.guild, { manual: true, actorId: interaction.user.id });
     return interaction.editReply({
       content: "✅ CoopFT setup checked. Created " + result.createdRoles + " roles, " +
         result.createdChannels + " channels and " + result.createdEmojis + " emojis. Existing resources were reused."
