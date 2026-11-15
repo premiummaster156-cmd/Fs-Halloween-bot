@@ -2,10 +2,12 @@ require("dotenv").config();
 const {
   installConsoleFileLogging,
   installProcessErrorLogging,
+  startMemoryMonitor,
   guardEmitter
 } = require("./utils/runtime-logger");
 const runtimeLogger = installConsoleFileLogging();
 installProcessErrorLogging(runtimeLogger);
+const memoryMonitor = startMemoryMonitor(runtimeLogger);
 
 const { Client, GatewayIntentBits, Events, MessageFlags, AuditLogEvent, MessageType, PermissionFlagsBits } = require("discord.js");
 const { DomainError } = require("./utils/core");
@@ -562,6 +564,7 @@ async function start() {
     shuttingDown = true;
     console.info("[bot] Graceful shutdown requested by", signal);
     if (security.maintenanceTimer) clearInterval(security.maintenanceTimer);
+    clearInterval(memoryMonitor);
 
     if (ideServer) {
       await new Promise((resolve) => {
