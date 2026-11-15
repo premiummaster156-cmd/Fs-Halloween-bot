@@ -29,6 +29,7 @@ test("the hosting-console setup migrates, connects to only CoopFT, and runs boot
   const result = await runCoopFTSetup({
     token: "test-token",
     guildId,
+    testOnlyAllowGuildIdOverride: true,
     migrateDatabase: async () => order.push("migrate"),
     clientFactory: () => client,
     serviceFactory: () => ({
@@ -61,6 +62,23 @@ test("the hosting-console setup migrates, connects to only CoopFT, and runs boot
   ]);
 });
 
+test("the hosting-console setup refuses any server other than the verified CoopFT ID before database or Discord access", async () => {
+  let migrated = false;
+  let connected = false;
+  await assert.rejects(
+    runCoopFTSetup({
+      token: "test-token",
+      guildId: "111111111111111111",
+      migrateDatabase: async () => { migrated = true; },
+      clientFactory: () => { connected = true; return new EventEmitter(); },
+      closePool: false
+    }),
+    /Safety lock: CoopFT setup is allowed only for server 1498271944456540210/
+  );
+  assert.equal(migrated, false);
+  assert.equal(connected, false);
+});
+
 test("the hosting-console setup rejects missing credentials before connecting", async () => {
   let connected = false;
   let migrated = false;
@@ -68,6 +86,7 @@ test("the hosting-console setup rejects missing credentials before connecting", 
     runCoopFTSetup({
       token: "",
       guildId: "12345678901234567",
+      testOnlyAllowGuildIdOverride: true,
       migrateDatabase: async () => { migrated = true; },
       clientFactory: () => { connected = true; return new EventEmitter(); },
       closePool: false
@@ -90,6 +109,7 @@ test("the hosting-console setup closes the client and pool when bootstrap fails"
     runCoopFTSetup({
       token: "test-token",
       guildId,
+      testOnlyAllowGuildIdOverride: true,
       migrateDatabase: async () => order.push("migrate"),
       clientFactory: () => client,
       serviceFactory: () => ({ bootstrap: async () => { throw new Error("permission denied"); } }),
