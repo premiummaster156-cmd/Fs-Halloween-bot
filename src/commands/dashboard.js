@@ -583,7 +583,7 @@ async function renderMenu(guildId, owner, page, s) {
     if (equip.length) controls.push(menu(owner, "equip", "Equip an item", equip));
     if (unequip.length) controls.push(menu(owner, "unequip", "Unequip an item", unequip));
     if (upgrade.length) controls.push(menu(owner, "upgrade-item", "Upgrade an item", upgrade));
-    controls.push(row(btn(owner, "shop", "Normal equipment shop", ButtonStyle.Primary, "🛒")));
+    controls.push(row(btn(owner, "armory", "Combat Armory", ButtonStyle.Success, "⚔️"), btn(owner, "shop", "Normal equipment shop", ButtonStyle.Primary, "🛒")));
     controls.push(nav);
 
     const allEquipment = [...standardItems, ...specialItems];
@@ -617,6 +617,72 @@ async function renderMenu(guildId, owner, page, s) {
           totalUpgradeLevels + " total upgrade levels · " + equippedUpgradeLevels + " equipped upgrade levels" +
           (nextUpgradeCosts.length ? "\nCheapest next upgrade: " + nextUpgradeCosts[0].toLocaleString() + " FC" : "") }
       ], controls);
+  }
+  if (page === "armory") {
+    const profile = await s.combat.getProfile(guildId, owner);
+    const itemById = new Map(profile.itemCatalog.map((item) => [item.id, item]));
+    const equippedRows = [
+      ["Weapon", profile.loadout.weapon_id, profile.mastery.weapon],
+      ["Fighting Style", profile.loadout.style_id, profile.mastery.fightingStyle],
+      ["Spirit Art", profile.loadout.spirit_art_id, profile.mastery.spiritArt],
+      ["Armor", profile.loadout.armor_id, null],
+      ["Accessory I", profile.loadout.accessory_one_id, null],
+      ["Accessory II", profile.loadout.accessory_two_id, null]
+    ];
+    const equippedText = equippedRows.map(([label, id, mastery]) => {
+      const item = itemById.get(id);
+      return "**" + label + ":** " + (item ? item.name + " · " + item.rarity : "Empty") +
+        (mastery ? "\nMastery: Level " + mastery.level + (mastery.level >= 50 ? " · MAX" : " · " + mastery.xp.toLocaleString() + " XP") : "");
+    });
+    const statLines = [
+      "**Attack bonus:** +" + profile.stats.attackBonus,
+      "**Defense:** " + profile.stats.defense,
+      "**Bonus HP:** +" + profile.stats.maxHpBonus,
+      "**Damage reduction:** " + (profile.stats.damageReduction * 100).toFixed(1) + "%",
+      "**Critical chance:** " + (profile.stats.critChance * 100).toFixed(1) + "%",
+      "**Damage bonus:** " + (profile.stats.damageBonus * 100).toFixed(1) + "%"
+    ];
+    const buyOptions = profile.shopItems.map((item) => ({
+      label: item.name,
+      value: item.id,
+      description: item.rarity + " · Lv " + item.minLevel + "+ · " + item.price.toLocaleString() + " FC"
+    }));
+    const equippedIds = new Set(Object.values(profile.loadout).filter(Boolean));
+    const equipOptions = [];
+    for (const item of profile.ownedItems) {
+      if (item.category === "accessory") {
+        if (profile.loadout.accessory_one_id !== item.id) {
+          equipOptions.push({ label: item.name + " → Accessory I", value: item.id + "|accessory_one_id", description: item.rarity + " · Accessory slot 1" });
+        }
+        if (profile.loadout.accessory_two_id !== item.id) {
+          equipOptions.push({ label: item.name + " → Accessory II", value: item.id + "|accessory_two_id", description: item.rarity + " · Accessory slot 2" });
+        }
+      } else if (!equippedIds.has(item.id)) {
+        equipOptions.push({ label: item.name, value: item.id, description: item.rarity + " · " + item.category.replace(/_/g, " ") });
+      }
+    }
+    const shopPreview = profile.shopItems.slice(0, 12).map((item) =>
+      "**" + item.name + "** · " + item.price.toLocaleString() + " FC · Level " + item.minLevel + "+"
+    );
+    const controls = [];
+    if (buyOptions.length) controls.push(menu(owner, "combat-buy", "Purchase combat equipment", buyOptions));
+    if (equipOptions.length) controls.push(menu(owner, "combat-equip", "Equip owned combat gear", equipOptions));
+    controls.push(row(btn(owner, "gear", "Economy Gear", ButtonStyle.Secondary), btn(owner, "arena", "Rift Arena", ButtonStyle.Success)));
+    controls.push(nav);
+    return panel("ARMORY  /  COMBAT LOADOUT",
+      "Your RPG combat build is separate from economy gear and server-boost Mythics. Equipment changes are locked during an active Rift battle. Starter gear is free; upgrades are purchased with FC.",
+      [
+        { name: "⚔️ Combat loadout", value: equippedText.join("\n").slice(0, 1024) },
+        { name: "📊 Combat stats", value: statLines.join("\n"), inline: true },
+        { name: "🎯 Mastery", value: "Weapon · Lv " + profile.mastery.weapon.level +
+          "\nFighting Style · Lv " + profile.mastery.fightingStyle.level +
+          "\nSpirit Art · Lv " + profile.mastery.spiritArt.level +
+          "\n\nEarn 10 mastery XP for each resolved Rift Arena turn. Mastery caps at level 50.", inline: true },
+        { name: "🛒 Available combat equipment", value: shopPreview.length ? shopPreview.join("\n").slice(0, 1024) : "You own every item currently in the Armory catalog." },
+        { name: "💰 Wallet", value: profile.wallet.toLocaleString() + " FC", inline: true },
+        { name: "⭐ Player level", value: String(profile.playerLevel), inline: true }
+      ],
+      controls, "info", "FUKISHOKAI  •  Combat progression / Armory");
   }
   if (page === "shop") {
     const shopItems = balancing.items.filter((item) => !item.boosterOnly);
@@ -675,7 +741,7 @@ async function renderMenu(guildId, owner, page, s) {
             value: boss.id,
             description: "Level " + boss.minLevel + "+ · " + boss.maxHp.toLocaleString() + " HP · +" + boss.rewardFc.toLocaleString() + " FC base"
           }))),
-          row(btn(owner, "gear", "Manage gear", ButtonStyle.Secondary), btn(owner, "games", "Game room", ButtonStyle.Secondary)),
+          row(btn(owner, "armory", "Combat Armory", ButtonStyle.Success), btn(owner, "gear", "Economy Gear", ButtonStyle.Secondary), btn(owner, "games", "Game room", ButtonStyle.Secondary)),
           nav
         ], "info", "FUKISHOKAI  •  Rift Arena / Boss selection");
     const imageBoss = targetBoss || { name: "The Rift", title: "Choose a challenger", minLevel: 1 };
@@ -694,7 +760,7 @@ async function renderMenu(guildId, owner, page, s) {
         { name: "🎭 Crime", value: "Attempt an operation for a possible reward. If caught, you pay a fine." },
         { name: "🎰 Casino", value: "Play Coin Flip, High Dice or Slots. You can lose the full wager." },
         { name: "🕵️ Heists", value: "Build a crew, pick roles and attempt a team mission." }
-      ], [row(btn(owner, "crime", "Crime", ButtonStyle.Secondary, "🎭"), btn(owner, "casino", "Casino", ButtonStyle.Secondary, "🎰"), btn(owner, "heists", "Heists", ButtonStyle.Primary, "🕵️"), btn(owner, "arena", "Rift Arena", ButtonStyle.Success, "⚔️")), nav]);
+      ], [row(btn(owner, "crime", "Crime", ButtonStyle.Secondary, "🎭"), btn(owner, "casino", "Casino", ButtonStyle.Secondary, "🎰"), btn(owner, "heists", "Heists", ButtonStyle.Primary, "🕵️"), btn(owner, "arena", "Rift Arena", ButtonStyle.Success, "⚔️"), btn(owner, "armory", "Armory", ButtonStyle.Secondary)), nav]);
   }
   if (page === "crime") {
     const p = await getPlayer(s.pool, guildId, owner);
@@ -1882,7 +1948,7 @@ async function handleButton(i, s) {
     if (roleNotice && payload.embeds[0]) payload.embeds[0].addFields({ name: "Final reward role", value: roleNotice });
     return i.editReply(payload);
   }
-  const pages = ["home", "profile", "earn", "career", "bank", "trade", "gear", "shop", "games", "arena", "crime", "casino", "heists", "weekly", "event-shop", "rankings", "achievements", "help"];
+  const pages = ["home", "profile", "earn", "career", "bank", "trade", "gear", "armory", "shop", "games", "arena", "crime", "casino", "heists", "weekly", "event-shop", "rankings", "achievements", "help"];
   if (pages.includes(action)) return i.update(await renderMenu(i.guildId, owner, action, s));
   if (action === "refresh") return i.update(await renderMenu(i.guildId, owner, "home", s));
   if (action === "admin-abuse-claim") {
