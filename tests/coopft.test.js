@@ -216,6 +216,28 @@ test("manual setup uploads all 28 3D CoopFT emblems as separate Discord-sized PN
   }
 });
 
+test("CoopFT setup refuses to configure elevated roles unless the bot has Administrator", async () => {
+  const service = new CoopFTCommunityService(
+    { query: async () => ({ rows: [] }) },
+    { guildId: "guild-1" }
+  );
+  const guild = {
+    id: "guild-1",
+    members: {
+      me: {
+        id: "bot-1",
+        permissions: {
+          has: (permission) => permission !== PermissionFlagsBits.Administrator
+        }
+      }
+    }
+  };
+  await assert.rejects(
+    service.bootstrap(guild),
+    /Administrator is required because Owner and Co-Owner must receive the Administrator permission/
+  );
+});
+
 test("ensureRole reapplies the restricted High Rank Supervisor permission set", async () => {
   const highRankSpec = STAFF_RANKS.find((role) => role.key === "high_rank_supervisor");
   const role = {
