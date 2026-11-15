@@ -78,9 +78,12 @@ async function migrate(options = {}) {
   const schemaPath = options.schemaPath || path.join(__dirname, "schema.sql");
   const migrationDirectory = options.migrationDirectory || path.join(__dirname, "migrations");
   const transactionFn = options.transactionFn || transaction;
-  const schemaSql = fs.readFileSync(schemaPath, "utf8");
-  const schemaChecksum = checksum(schemaSql);
-  const migrations = readVersionedMigrations(migrationDirectory);
+  const includeLegacySchema = options.includeLegacySchema !== false;
+  const includePlayerConstraints = options.includePlayerConstraints !== false;
+  const migrationFilter = typeof options.migrationFilter === "function" ? options.migrationFilter : () => true;
+  const schemaSql = includeLegacySchema ? fs.readFileSync(schemaPath, "utf8") : null;
+  const schemaChecksum = includeLegacySchema ? checksum(schemaSql) : null;
+  const migrations = readVersionedMigrations(migrationDirectory).filter(migrationFilter);
 
   await transactionFn(async (client) => {
     // Serialize startup migrations so multiple bot instances cannot race through DDL/backfills.
@@ -90,37 +93,52 @@ async function migrate(options = {}) {
       "migration_name TEXT PRIMARY KEY, checksum TEXT NOT NULL, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW())"
     );
 
-    const previousSchema = await client.query(
-      "SELECT checksum FROM schema_migrations WHERE migration_name = $1 FOR UPDATE",
-      [LEGACY_SCHEMA_NAME]
-    );
-    if (previousSchema.rows[0]?.checksum !== schemaChecksum) {
-      // Preserve the existing idempotent schema bootstrap for installations already in production.
-      await client.query(schemaSql);
-      await client.query(
-        "INSERT INTO schema_migrations (migration_name, checksum) VALUES ($1, $2) " +
-        "ON CONFLICT (migration_name) DO UPDATE SET checksum = EXCLUDED.checksum, applied_at = NOW()",
-        [LEGACY_SCHEMA_NAME, schemaChecksum]
+    if (includeLegacySchema) {
+      const previousSchema = await client.query(
+        "SELECT checksum FROM schema_migrations WHERE migration_name = $1 FOR UPDATE",
+        [LEGACY_SCHEMA_NAME]
       );
+      if (previousSchema.rows[0]?.checksum !== schemaChecksum) {
+        // Preserve the existing idempotent schema bootstrap for installations already in production.
+        await client.query(schemaSql);
+        await client.query(
+          "INSERT INTO schema_migrations (migration_name, checksum) VALUES ($1, $2) " +
+          "ON CONFLICT (migration_name) DO UPDATE SET checksum = EXCLUDED.checksum, applied_at = NOW()",
+          [LEGACY_SCHEMA_NAME, schemaChecksum]
+        );
+      }
     }
 
     // Numbered SQL migrations are immutable after application and execute in filename order.
     await applyVersionedMigrations(client, migrations);
 
-    const constraints = await client.query(
-      "SELECT conname FROM pg_constraint WHERE conrelid = 'players'::regclass " +
-      "AND conname = ANY($1::text[])",
-      [["players_level_600_check"]]
-    );
-    const existing = new Set(constraints.rows.map((row) => row.conname));
-    if (!existing.has("players_level_600_check")) {
-      await client.query(
-        "ALTER TABLE players ADD CONSTRAINT players_level_600_check CHECK (level BETWEEN 1 AND 600)"
+    if (includePlayerConstraints) {
+      const constraints = await client.query(
+        "SELECT conname FROM pg_constraint WHERE conrelid = 'players'::regclass " +
+        "AND conname = ANY($1::text[])",
+        [["players_level_600_check"]]
       );
+      const existing = new Set(constraints.rows.map((row) => row.conname));
+      if (!existing.has("players_level_600_check")) {
+        await client.query(
+          "ALTER TABLE players ADD CONSTRAINT players_level_600_check CHECK (level BETWEEN 1 AND 600)"
+        );
+      }
     }
   });
 
   console.log("[database] Schema and versioned migrations verified.");
+}
+
+async function migrateCoopFT(options = {}) {
+  const existingFilter = typeof options.migrationFilter === "function" ? options.migrationFilter : () => true;
+  return migrate({
+    ...options,
+    includeLegacySchema: false,
+    includePlayerConstraints: false,
+    migrationFilter: (migration) =>
+      /^[0-9]{4}_coopft_[a-z0-9_-]+\\.sql$/.test(migration.name) && existingFilter(migration)
+  });
 }
 
 if (require.main === module) {
@@ -134,6 +152,7 @@ if (require.main === module) {
 
 module.exports = {
   migrate,
+  migrateCoopFT,
   readVersionedMigrations,
   applyVersionedMigrations,
   checksum
