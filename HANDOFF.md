@@ -334,3 +334,11 @@ This is an explicit user requirement and overrides any older handoff/README word
 - CI validates Node.js 22 and 24 with pinned GitHub Actions SHAs. Latest verified run: 43710942377; both matrix jobs passed syntax checks, 4 slash-command definitions and 238 tests / 0 failures.
 - The versioned migration runner is covered by four mock-transaction tests: ordered application, idempotent re-run, immutable checksum enforcement and filename/empty-file validation. This is not a live PostgreSQL integration test.
 - The reset utility now protects both configured Kings as well as existing protected identities. The destructive reset was not executed; no Neon data was changed.
+
+## Custom-command runtime resource limits — November 15, 2026
+
+- `src/services/custom-commands.js` now uses a process-wide concurrency gate for isolated JavaScript runners. Default: one active child process, up to eight queued jobs, and a 10-second queue wait limit. Queue saturation/timeouts return `CUSTOM_COMMAND_BUSY` rather than spawning unbounded child processes.
+- Larger hosting plans may tune `CUSTOM_COMMAND_MAX_CONCURRENCY` (1–8) and `CUSTOM_COMMAND_MAX_QUEUE` (0–100); monitor RSS before increasing limits. The default is conservative for Bot-Hosting.net's 256 MB Free tier.
+- The child runner now handles stdin/stdout/stderr stream errors as rejected runner tasks. Existing 48 MB isolate limit, 4-second outer process timeout, 2-second in-isolate execution deadline and output caps remain in place.
+- Added tests for concurrency, queue capacity, queue expiry, capacity release after failure and the one-runner default.
+- Latest CI run for the custom-runner change: [43711302318](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/43711302318), Node 22 and 24 both passed; Node 22 reports 244 tests passed / 0 failed. No production deployment or live Discord command execution was performed.
