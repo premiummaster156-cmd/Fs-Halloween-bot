@@ -758,7 +758,7 @@ class CoopFTCommunityService {
 
     const cleanup = await this.cleanupEditableRoles(guild);
     this.roles.clear();
-    for (const spec of [...STAFF_RANKS, ...HR_ROLES]) {
+    for (const spec of STAFF_RANKS) {
       const result = await this.ensureRole(guild, spec);
       this.roles.set(spec.key, result.role);
       if (result.created) counts.createdRoles += 1;
