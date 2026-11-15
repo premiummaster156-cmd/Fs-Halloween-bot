@@ -29,6 +29,7 @@ const { PartyGameService } = require("./services/party-games");
 const { ActivityService } = require("./services/activity");
 const { WeeklyQuestService } = require("./services/weekly-quests");
 const { InventoryService } = require("./services/inventory");
+const { CombatService } = require("./services/combat");
 const { GuildSettingsService } = require("./services/guild-settings");
 const { SecurityService } = require("./services/security");
 const { RaidMonitor } = require("./services/raid-monitor");
@@ -176,6 +177,7 @@ async function start() {
   const adminAbuse = new AdminAbuseService(pool, economy);
   economy.economyEvents = economyEvents;
   const inventory = new InventoryService(pool, economy);
+  const combat = new CombatService(pool, economy);
   economy.inventory = inventory;
   const guildSettings = new GuildSettingsService(pool);
   const security = new SecurityService(pool, guildSettings);
@@ -204,7 +206,7 @@ async function start() {
   const restoredCommandFiles = await customCommands.restoreWorkspaceFiles();
   console.log("[workspace] Restored " + restoredCommandFiles + " JavaScript command file(s).");
   client.services = {
-    pool, balancing, economy, inventory, guildSettings, security, raidMonitor, serverBoosters, customCommands,
+    pool, balancing, economy, inventory, combat, guildSettings, security, raidMonitor, serverBoosters, customCommands,
     partyGames: new PartyGameService(pool, economy),
     trades: new TradeService(pool),
     economyEvents,
@@ -215,7 +217,7 @@ async function start() {
     crime: new CrimeGame(pool, economy, inventory),
     casino: new CasinoGame(pool, economy, inventory),
     heists: new HeistsGame(pool, economy, inventory),
-    arena: new RiftArena(pool, economy, inventory),
+    arena: new RiftArena(pool, economy, inventory, undefined, combat),
     achievements: new AchievementsGame(pool, economy),
     halloween: new HalloweenGame(pool, guildSettings),
     activity: new ActivityService(pool, economy),
