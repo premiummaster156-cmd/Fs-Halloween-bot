@@ -55,9 +55,24 @@ The setup creates ten staff roles:
 
 It also creates five Human Resources roles: HR Director, HR Manager, HR Recruiter, HR Coordinator, and HR Trainee.
 
-Five specialist application roles are created separately: War Manager, Referee, Observer, Helper and Ticket Staff. They have no moderation or administrative permission bits. Only Ticket Staff receives access to ticket handling after approval; approval assigns the selected specialist role to the applicant.
+Five specialist application roles are created separately: War Manager, Referee, Observer, Helper and Ticket Staff. They have no global Discord permission bits. Only Ticket Staff receives access to ticket handling after approval; approval assigns the selected specialist role to the applicant.
 
-Each role receives a distinct colour palette, a Unicode role-icon attempt, and a position in the managed staff structure. Actual gradient colours require the server's Discord `ENHANCED_ROLE_COLORS` feature; role icons require `ROLE_ICONS`. If either feature is unavailable, the role keeps a solid colour and its icon still appears inline in bot embeds. The system does not grant `Administrator` or other server permission bits to staff roles. Staff access is managed through private-channel overwrites and bot-side HR checks.
+**Discord permission hierarchy:**
+
+| Role | Global Discord permissions |
+|---|---|
+| Owner | All permissions, including Administrator |
+| Co-Owner | All permissions, including Administrator |
+| High Rank Supervisor | All permissions except Administrator, Manage Server and Manage Channels |
+| Other staff ranks | No global permission bits |
+| HR roles | No global permission bits |
+| Specialist application roles | No global permission bits |
+
+Owner and Co-Owner are full administrators. Discord's Administrator permission bypasses channel-specific permission overwrites, so members with either role can access private channels regardless of the ordinary Staff HQ restrictions. Assign these two roles only to people you fully trust.
+
+High Rank Supervisor receives the full remaining permission set, including Manage Roles, moderation permissions and other server functions, but cannot administer the server, manage channels or hold Administrator. Discord's normal role hierarchy still applies when they manage roles.
+
+Each role receives a distinct colour palette, a Unicode role-icon attempt, and a position in the managed staff structure. Actual gradient colours require the server's Discord `ENHANCED_ROLE_COLORS` feature; role icons require `ROLE_ICONS`. If either feature is unavailable, the role keeps a solid colour and its icon still appears inline in bot embeds. The role permissions above are explicitly reapplied during every manual setup/repair run, so later runs will not reset the leadership permissions.
 
 The bot will not move its own role. Place the bot's highest role **below roles you want protected and above the new CoopFT-managed roles**. Roles above the bot's highest role are outside its control.
 
