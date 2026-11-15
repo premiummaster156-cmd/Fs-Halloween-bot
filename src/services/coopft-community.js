@@ -939,7 +939,7 @@ class CoopFTCommunityService {
       ...statuses.map(({ role, open }) => new ButtonBuilder()
         .setCustomId("cf-application:apply:" + role.key)
         .setLabel(role.name)
-        .setEmoji(role.icon)
+        .setEmoji(this.emojis.has(role.emoji) ? { id: this.emojis.get(role.emoji), name: role.emoji } : role.icon)
         .setStyle(ButtonStyle.Primary)
         .setDisabled(!open))
     );
@@ -1181,6 +1181,8 @@ class CoopFTCommunityService {
     if (!category) throw new Error("The ticket category is not set up. Ask an administrator to run /coopft-setup.");
     const me = guild.members.me || await guild.members.fetchMe();
     const staffRoles = [...STAFF_RANKS, ...HR_ROLES].map((spec) => this.roles.get(spec.key)).filter(Boolean);
+    const ticketStaffRole = this.applicationRoles.get("ticket_staff");
+    if (ticketStaffRole) staffRoles.push(ticketStaffRole);
     const overwrites = [
       { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
       { id: member.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] },
@@ -1244,6 +1246,8 @@ class CoopFTCommunityService {
   isStaff(member) {
     if (!member?.roles?.cache) return false;
     const ids = new Set([...STAFF_RANKS, ...HR_ROLES].map((spec) => this.roles.get(spec.key)?.id).filter(Boolean));
+    const ticketStaffRole = this.applicationRoles.get("ticket_staff");
+    if (ticketStaffRole) ids.add(ticketStaffRole.id);
     return member.roles.cache.some((role) => ids.has(role.id));
   }
 
