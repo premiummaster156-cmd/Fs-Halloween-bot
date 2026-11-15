@@ -1008,7 +1008,13 @@ class CoopFTCommunityService {
     const embed = new EmbedBuilder()
       .setColor(0x344E83)
       .setTitle(this.emoji(guild.id, "cf3d_rolebook", "📚") + "  COOPFT • ROLE GUIDE")
-      .setDescription("Every role has a purpose. This guide explains each team's responsibilities. Role titles do not automatically grant Discord administrator permissions.")
+      .setDescription([
+        "Every role has a purpose. This guide explains each team's responsibilities and permission level.",
+        "",
+        "👑 **Owner and Co-Owner:** every Discord permission, including Administrator.",
+        "🌟 **High Rank Supervisor:** every Discord permission except Administrator, Manage Server and Manage Channels.",
+        "🛡️ **All other staff, HR and specialist roles:** no global Discord permissions; access is granted only through the configured channel overrides and bot authorization."
+      ].join("\\n"))
       .setFooter({ text: "CoopFT • Clear roles. Clear responsibilities." });
     for (const role of STAFF_RANKS) embed.addFields({
       name: this.emoji(guild.id, role.emoji, role.icon) + "  " + role.name,
