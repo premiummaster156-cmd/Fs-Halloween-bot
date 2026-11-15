@@ -869,7 +869,7 @@ class CoopFTCommunityService {
         key: "welcome", channel: publicChannels.welcome,
         embed: new EmbedBuilder().setColor(0x235A9A)
           .setTitle(this.emoji(guild.id, "cf_spark", "✨") + "  WELCOME TO COOPFT")
-          .setDescription("A community for people who build, share, learn and compete together. Start with **#rules**, say hello in **#introductions**, explore **#role-guide**, and visit **#applications** when you're ready to join a team.")
+          .setDescription("A community for people who build, share, learn and compete together. Start with **#rules**, say hello in **#introductions**, explore **#role-explanations**, and visit **#applications** when you're ready to join a team.")
           .addFields(
             { name: this.emoji(guild.id, "cf_rules", "📘") + " Start here", value: "Read the community code and explore the server.", inline: true },
             { name: this.emoji(guild.id, "cf_applications", "📝") + " Join a team", value: "See open positions and apply from the applications panel.", inline: true }
