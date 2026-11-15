@@ -23,13 +23,14 @@ test("CoopFT has ten distinct staff ranks and five HR roles", () => {
   }
 });
 
-test("CoopFT illustrated emoji registry contains 27 unique role and community emblems", () => {
-  assert.equal(EMOJI_SPRITE.length, 27);
-  assert.equal(new Set(EMOJI_SPRITE).size, 27);
+test("CoopFT illustrated emoji registry contains 28 unique role and community emblems", () => {
+  assert.equal(EMOJI_SPRITE.length, 28);
+  assert.equal(new Set(EMOJI_SPRITE).size, 28);
   assert.ok(EMOJI_SPRITE.includes("cf_gem"));
   assert.ok(EMOJI_SPRITE.includes("cf_rules"));
   assert.ok(EMOJI_SPRITE.includes("cf_applications"));
   assert.ok(EMOJI_SPRITE.includes("cf_announce"));
+  assert.ok(EMOJI_SPRITE.includes("cf_community"));
   for (const role of [...STAFF_RANKS, ...HR_ROLES, ...APPLICATION_ROLES]) {
     assert.ok(EMOJI_SPRITE.includes(role.emoji), role.key + " should have its custom emblem");
   }
