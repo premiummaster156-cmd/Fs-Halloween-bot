@@ -291,8 +291,8 @@ class CoopFTCommunityService {
         result.available += 1;
         continue;
       }
-      if (!canvasApi || !guild.members.me?.permissions?.has(PermissionFlagsBits.ManageGuildExpressions)) {
-        result.failed.push(name + ": missing Manage Expressions permission or canvas support");
+      if (!canvasApi || !guild.members.me?.permissions?.has(PermissionFlagsBits.CreateGuildExpressions)) {
+        result.failed.push(name + ": missing Create Expressions permission or canvas support");
         continue;
       }
       try {
