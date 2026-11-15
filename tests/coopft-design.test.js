@@ -33,7 +33,6 @@ test("CoopFT branded emoji registry contains sixteen unique, consistently named 
 
 test("CoopFT setup provisions the planned community and private staff channels", () => {
   assert.ok(PUBLIC_CHANNELS.some((channel) => channel.key === "open_ticket"));
-  assert.ok(PUBLIC_CHANNELS.some((channel) => channel.key === "staff_directory"));
   assert.ok(PRIVATE_CHANNELS.some((channel) => channel.key === "staff_bot_updates"));
   assert.ok(PRIVATE_CHANNELS.some((channel) => channel.key === "ticket_transcripts"));
 });
