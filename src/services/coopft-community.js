@@ -25,7 +25,7 @@ const TICKET_TYPES = Object.freeze({
 
 function rolePermissionArray(spec) {
   const bits = BigInt(spec.permissions ?? 0n);
-  return Object.values(PermissionFlagsBits).filter((permission) =>
+  return [...new Set(Object.values(PermissionFlagsBits))].filter((permission) =>
     typeof permission === "bigint" &&
     permission !== 0n &&
     (bits & permission) === permission
