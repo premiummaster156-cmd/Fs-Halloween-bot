@@ -720,77 +720,119 @@ class CoopFTCommunityService {
     return { ...counts, cleanup, emojiResult };
   }
 
-  buildRulesBanner() {
+  buildRulesEmblem() {
     const canvasApi = require("@napi-rs/canvas");
-    const canvas = canvasApi.createCanvas(1600, 720);
+    const canvas = canvasApi.createCanvas(768, 768);
     const ctx = canvas.getContext("2d");
-    const background = ctx.createLinearGradient(0, 0, 1600, 720);
-    background.addColorStop(0, "#080b18");
-    background.addColorStop(0.5, "#172247");
-    background.addColorStop(1, "#090d1e");
-    ctx.fillStyle = background;
-    ctx.fillRect(0, 0, 1600, 720);
-    const glow = ctx.createRadialGradient(1180, 345, 20, 1180, 345, 510);
-    glow.addColorStop(0, "rgba(94,135,255,0.42)");
-    glow.addColorStop(0.55, "rgba(126,65,200,0.2)");
+    const bg = ctx.createLinearGradient(0, 0, 768, 768);
+    bg.addColorStop(0, "#070b17");
+    bg.addColorStop(0.48, "#20234e");
+    bg.addColorStop(1, "#090e20");
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, 768, 768);
+    const glow = ctx.createRadialGradient(384, 325, 20, 384, 325, 380);
+    glow.addColorStop(0, "rgba(109,141,255,0.55)");
+    glow.addColorStop(0.58, "rgba(135,68,202,0.22)");
     glow.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = glow;
-    ctx.fillRect(500, 0, 1100, 720);
-    for (let i = 0; i < 115; i += 1) {
-      const x = (i * 149 + 31) % 1600;
-      const y = (i * 223 + 19) % 720;
+    ctx.fillRect(0, 0, 768, 768);
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = "rgba(205,185,255,0.52)";
+    ctx.strokeRect(24, 24, 720, 720);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(106,183,255,0.45)";
+    ctx.strokeRect(42, 42, 684, 684);
+    for (let i = 0; i < 70; i += 1) {
+      const x = (i * 113 + 27) % 768;
+      const y = (i * 197 + 53) % 768;
       ctx.beginPath();
-      ctx.arc(x, y, i % 11 === 0 ? 3 : 1.3, 0, Math.PI * 2);
-      ctx.fillStyle = i % 2 ? "rgba(202,211,255,0.72)" : "rgba(92,193,255,0.68)";
+      ctx.arc(x, y, i % 8 === 0 ? 3.2 : 1.4, 0, Math.PI * 2);
+      ctx.fillStyle = i % 2 ? "rgba(255,255,255,0.72)" : "rgba(115,190,255,0.75)";
       ctx.fill();
     }
     ctx.save();
-    ctx.translate(1190, 342);
-    ctx.shadowColor = "#769aff";
-    ctx.shadowBlur = 42;
+    ctx.translate(384, 335);
+    ctx.shadowColor = "#759fff";
+    ctx.shadowBlur = 48;
     ctx.beginPath();
-    ctx.moveTo(0, -225); ctx.lineTo(180, -160); ctx.lineTo(165, 75);
-    ctx.quadraticCurveTo(110, 200, 0, 252);
-    ctx.quadraticCurveTo(-110, 200, -165, 75);
-    ctx.lineTo(-180, -160); ctx.closePath();
-    const shield = ctx.createLinearGradient(-170, -220, 170, 230);
-    shield.addColorStop(0, "#f3e6ff"); shield.addColorStop(0.35, "#6759d6");
-    shield.addColorStop(0.72, "#165fac"); shield.addColorStop(1, "#79eaff");
-    ctx.fillStyle = shield; ctx.fill(); ctx.shadowBlur = 0;
-    ctx.strokeStyle = "#f3f8ff"; ctx.lineWidth = 12; ctx.stroke();
+    ctx.moveTo(0, -235);
+    ctx.lineTo(185, -165);
+    ctx.lineTo(168, 82);
+    ctx.quadraticCurveTo(118, 215, 0, 264);
+    ctx.quadraticCurveTo(-118, 215, -168, 82);
+    ctx.lineTo(-185, -165);
+    ctx.closePath();
+    const shield = ctx.createLinearGradient(-185, -235, 185, 260);
+    shield.addColorStop(0, "#f4e9ff");
+    shield.addColorStop(0.3, "#766be5");
+    shield.addColorStop(0.68, "#1765b9");
+    shield.addColorStop(1, "#7ceaff");
+    ctx.fillStyle = shield;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "#f4f8ff";
+    ctx.lineWidth = 13;
+    ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(0, -180); ctx.lineTo(115, -125); ctx.lineTo(102, 66);
-    ctx.lineTo(0, 188); ctx.lineTo(-102, 66); ctx.lineTo(-115, -125); ctx.closePath();
-    ctx.fillStyle = "rgba(8,15,40,0.58)"; ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,0.8)"; ctx.lineWidth = 5; ctx.stroke();
+    ctx.moveTo(0, -186);
+    ctx.lineTo(123, -132);
+    ctx.lineTo(108, 76);
+    ctx.lineTo(0, 205);
+    ctx.lineTo(-108, 76);
+    ctx.lineTo(-123, -132);
+    ctx.closePath();
+    ctx.fillStyle = "rgba(8,16,43,0.52)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.78)";
+    ctx.lineWidth = 6;
+    ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(-118, -185); ctx.lineTo(-73, -285); ctx.lineTo(-20, -210);
-    ctx.lineTo(0, -332); ctx.lineTo(33, -211); ctx.lineTo(86, -285);
-    ctx.lineTo(124, -180); ctx.closePath();
-    const crown = ctx.createLinearGradient(-130, -300, 130, -175);
-    crown.addColorStop(0, "#fff5cd"); crown.addColorStop(0.5, "#ad80ff"); crown.addColorStop(1, "#5adfff");
-    ctx.fillStyle = crown; ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 7; ctx.stroke();
+    ctx.moveTo(-135, -188);
+    ctx.lineTo(-84, -305);
+    ctx.lineTo(-27, -223);
+    ctx.lineTo(0, -365);
+    ctx.lineTo(38, -223);
+    ctx.lineTo(98, -304);
+    ctx.lineTo(139, -188);
+    ctx.closePath();
+    const crown = ctx.createLinearGradient(-140, -360, 140, -180);
+    crown.addColorStop(0, "#fff2ce");
+    crown.addColorStop(0.46, "#aa7dff");
+    crown.addColorStop(1, "#66e5ff");
+    ctx.fillStyle = crown;
+    ctx.fill();
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 8;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, -160);
+    ctx.lineTo(82, -25);
+    ctx.lineTo(0, 145);
+    ctx.lineTo(-82, -25);
+    ctx.closePath();
+    ctx.fillStyle = "rgba(97,187,255,0.46)";
+    ctx.fill();
+    ctx.strokeStyle = "#dff6ff";
+    ctx.lineWidth = 5;
+    ctx.stroke();
     ctx.restore();
-    const fade = ctx.createLinearGradient(0, 0, 920, 0);
-    fade.addColorStop(0, "rgba(5,8,18,0.95)"); fade.addColorStop(1, "rgba(5,8,18,0)");
-    ctx.fillStyle = fade; ctx.fillRect(0, 0, 970, 720);
-    ctx.textAlign = "left";
-    ctx.shadowColor = "rgba(0,0,0,0.8)"; ctx.shadowBlur = 18;
-    ctx.fillStyle = "#b6c9f5"; ctx.font = "bold 40px Arial";
-    ctx.fillText("COOPFT  /  COMMUNITY", 118, 260);
-    ctx.fillStyle = "#ffffff"; ctx.font = "bold 112px Arial";
-    ctx.fillText("THE COMMUNITY", 110, 405);
-    ctx.fillText("CODE", 110, 530);
-    ctx.shadowBlur = 0; ctx.fillStyle = "#a9bce0"; ctx.font = "28px Arial";
-    ctx.fillText("RESPECT  •  CREATE  •  GROW TOGETHER", 118, 600);
-    ctx.fillStyle = "#a953c9"; ctx.fillRect(118, 636, 290, 7);
+    ctx.textAlign = "center";
+    ctx.shadowColor = "rgba(0,0,0,0.9)";
+    ctx.shadowBlur = 14;
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 58px Arial";
+    ctx.fillText("COOPFT", 384, 666);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#c2d2ff";
+    ctx.font = "bold 20px Arial";
+    ctx.fillText("COMMUNITY  •  RULES  •  RESPECT", 384, 706);
     return canvas.toBuffer("image/png");
   }
 
   async ensureBrandMessages(guild, publicChannels) {
     let bannerAttachment = null;
     try {
-      bannerAttachment = new AttachmentBuilder(this.buildRulesBanner(), { name: "coopft-rules-banner.png" });
+      bannerAttachment = new AttachmentBuilder(this.buildRulesEmblem(), { name: "coopft-rules-crest.png" });
     } catch (error) {
       console.warn("[coopft] Could not render rules artwork; using the text-only rules embed:", error.message);
     }
@@ -819,7 +861,7 @@ class CoopFTCommunityService {
         "",
         this.emoji(guild.id, "cf_star", "🌟") + " **10 · HELP THE COMMUNITY GROW**\\nCredit creators, welcome newcomers and contribute in good faith."
       ].join("\\n"))
-      .setImage(bannerAttachment ? "attachment://coopft-rules-banner.png" : null)
+      .setThumbnail(bannerAttachment ? "attachment://coopft-rules-crest.png" : null)
       .setFooter({ text: "CoopFT • Respect the space. Elevate the community." });
     const entries = [
       { key: "rules", channel: publicChannels.rules, embed: rules, files: bannerAttachment ? [bannerAttachment] : [] },
