@@ -220,7 +220,7 @@ function createConcurrencyGate(options = {}) {
   const configuredTimeout = Number(options.queueTimeoutMs);
   const maxConcurrent = Math.max(1, Math.min(8,
     Number.isFinite(configuredConcurrency) && configuredConcurrency > 0
-      ? Math.floor(configuredConcurrency) : 2
+      ? Math.floor(configuredConcurrency) : 1
   ));
   const maxQueued = Math.max(0, Math.min(100,
     Number.isFinite(configuredQueue) && configuredQueue >= 0
@@ -285,7 +285,7 @@ function createConcurrencyGate(options = {}) {
 const configuredRunnerConcurrency = Number(process.env.CUSTOM_COMMAND_MAX_CONCURRENCY);
 const configuredRunnerQueue = Number(process.env.CUSTOM_COMMAND_MAX_QUEUE);
 const commandRunnerGate = createConcurrencyGate({
-  maxConcurrent: Number.isFinite(configuredRunnerConcurrency) ? configuredRunnerConcurrency : 2,
+  maxConcurrent: Number.isFinite(configuredRunnerConcurrency) ? configuredRunnerConcurrency : 1,
   maxQueued: Number.isFinite(configuredRunnerQueue) ? configuredRunnerQueue : 8
 });
 
