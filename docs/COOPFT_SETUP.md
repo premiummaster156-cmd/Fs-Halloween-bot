@@ -63,7 +63,7 @@ The bot will not move its own role. Place the bot's highest role **below roles y
 
 ## Custom emojis
 
-The bot uses **28 individually illustrated 3D-style metallic and gemstone emblems** stored in `assets/coopft-emojis.png.b64`. Each tile has a distinct purpose: crowns, shields, rank stars, diamonds, butterflies, leaves, flames, ice crystals, keys, tickets, scrolls, headsets, gears, bells, handshakes, sparks, war swords, referee scales, observer eyes, helper emblems, application clipboards, a role guide, rules scroll, megaphone, voice waveform, idea bulb, ticket-staff badge and community group. During the manual setup run, `@napi-rs/canvas` crops each 32×32 tile from the 4×7 source sheet and uploads it as its own 128×128 transparent Discord emoji. The emblems appear in the rules, role explanations, welcome and announcement embeds, suggestions, application panels, staff updates and ticket panels. The bot needs **Manage Expressions** to upload them. If Discord denies emoji creation or the server reaches its emoji limit, embeds and buttons fall back to Unicode emoji. The saved emoji IDs are reloaded from Neon after bot restarts; ordinary restarts do not re-upload or recreate the pack.
+The bot uses **28 individually illustrated 3D-style metallic and gemstone emblems** stored in `assets/coopft-emojis.png.b64`. Each tile has a distinct purpose: crowns, shields, rank stars, diamonds, butterflies, leaves, flames, ice crystals, keys, tickets, scrolls, headsets, gears, bells, handshakes, sparks, war swords, referee scales, observer eyes, helper emblems, application clipboards, a role guide, rules scroll, megaphone, voice waveform, idea bulb, ticket-staff badge and community group. During the manual setup run, `@napi-rs/canvas` crops each 32×32 tile from the 4×7 source sheet and uploads it as its own 128×128 transparent Discord emoji. The emblems appear in the rules, role explanations, welcome and announcement embeds, suggestions, application panels, staff updates and ticket panels. The bot needs Discord's **Create Expressions** permission to upload them. If the server only grants Manage Expressions, lacks Create Expressions, or reaches its emoji limit, that upload can fail; embeds and buttons then fall back to Unicode emoji. The saved emoji IDs are reloaded from Neon after bot restarts; ordinary restarts do not re-upload or recreate the pack.
 
 ## Rules, role explanations and applications
 
@@ -114,7 +114,7 @@ For full setup, invite/position the bot with:
 - Read Message History
 - Embed Links
 - Attach Files
-- Manage Expressions (for the custom emoji pack)
+- Create Expressions (optional; required for the custom emoji pack)
 - View Audit Log (for member-role, moderator-action, channel and role audit events)
 
 The bot must be higher than the roles it creates/manages and lower than protected roles. It never needs Administrator for this system. View Audit Log is required: Discord only sends the live Guild Audit Log Entry Create gateway event to bots with this permission.
