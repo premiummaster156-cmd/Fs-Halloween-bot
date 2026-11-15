@@ -1,6 +1,8 @@
 "use strict";
 
 const { randomUUID } = require("node:crypto");
+const fs = require("node:fs");
+const path = require("node:path");
 const {
   ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChannelType,
   EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder,
@@ -265,10 +267,21 @@ class CoopFTCommunityService {
     this.emojis.clear();
     const found = new Map(guild.emojis.cache.map((emoji) => [emoji.name, emoji]));
     let canvasApi = null;
+    let emojiImage = null;
     try {
       canvasApi = require("@napi-rs/canvas");
+      const encoded = fs.readFileSync(
+        path.resolve(__dirname, "../../assets/coopft-emojis.png.b64"),
+        "utf8"
+      ).trim();
+      if (!encoded) throw new Error("The generated CoopFT emoji sprite is empty.");
+      emojiImage = await canvasApi.loadImage(Buffer.from(encoded, "base64"));
+      if (emojiImage.width !== 128 || emojiImage.height !== 224) {
+        throw new Error("Expected the 128×224 4-by-7 CoopFT emoji sprite, received " +
+          emojiImage.width + "×" + emojiImage.height + ".");
+      }
     } catch (error) {
-      result.failed.push("emoji renderer unavailable: " + error.message);
+      result.failed.push("illustrated emoji source unavailable; vector fallback enabled: " + error.message);
     }
     for (let index = 0; index < EMOJI_SPRITE.length; index += 1) {
       const name = EMOJI_SPRITE[index];
@@ -285,7 +298,13 @@ class CoopFTCommunityService {
       try {
         const canvas = canvasApi.createCanvas(128, 128);
         const context = canvas.getContext("2d");
-        drawCoopFTEmoji(context, name, index);
+        if (emojiImage) {
+          const sourceX = (index % 4) * 32;
+          const sourceY = Math.floor(index / 4) * 32;
+          context.drawImage(emojiImage, sourceX, sourceY, 32, 32, 0, 0, 128, 128);
+        } else {
+          drawCoopFTEmoji(context, name, index);
+        }
         const created = await guild.emojis.create({
           attachment: canvas.toBuffer("image/png"),
           name,
