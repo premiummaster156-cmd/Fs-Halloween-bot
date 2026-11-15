@@ -44,3 +44,5 @@ CREATE TABLE IF NOT EXISTS coopft_tickets (
 );
 CREATE INDEX IF NOT EXISTS coopft_tickets_member_idx
   ON coopft_tickets (guild_id, opener_id, status, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS coopft_tickets_one_open_per_member_idx
+  ON coopft_tickets (guild_id, opener_id) WHERE status='open';
