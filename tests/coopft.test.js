@@ -6,7 +6,7 @@ const { PermissionFlagsBits, PermissionsBitField } = require("discord.js");
 const { loadCoopFTCommands } = require("../src/commands/coopft");
 const {
   STAFF_RANKS, HR_ROLES, APPLICATION_ROLES, EMOJI_SPRITE, PUBLIC_CHANNELS, PRIVATE_CHANNELS,
-  OWNER_PERMISSIONS, HIGH_RANK_SUPERVISOR_PERMISSIONS
+  OWNER_PERMISSIONS, HIGH_RANK_SUPERVISOR_PERMISSIONS, ALL_PERMISSION_BITS
 } = require("../src/config/coopft-design");
 const {
   coopftGuildId, fukishokaiGuildId, personaForGuild, configuredGuildIds
@@ -49,7 +49,10 @@ test("the CoopFT staff, HR and specialist application roles are distinct", () =>
     assert.ok(Number.isInteger(role.secondary));
     assert.ok(role.icon);
     assert.ok(role.emoji);
-    assert.equal(Object.hasOwn(role, "permissions"), false);
+    const expectedPermissions = role.key === "owner" || role.key === "co_owner"
+      ? ALL_PERMISSION_BITS
+      : role.key === "high_rank_supervisor" ? HIGH_RANK_SUPERVISOR_PERMISSIONS : 0n;
+    assert.equal(role.permissions ?? 0n, expectedPermissions, role.name + " has its configured permission set");
   }
 });
 
@@ -61,11 +64,11 @@ test("CoopFT leadership permissions match the explicitly requested hierarchy", (
     PermissionFlagsBits.ManageGuild |
     PermissionFlagsBits.ManageChannels;
 
-  assert.equal(OWNER_PERMISSIONS, PermissionsBitField.All);
-  assert.equal(owner.permissions, PermissionsBitField.All);
-  assert.equal(coOwner.permissions, PermissionsBitField.All);
-  assert.equal(HIGH_RANK_SUPERVISOR_PERMISSIONS, PermissionsBitField.All & ~reserved);
-  assert.equal(supervisor.permissions, PermissionsBitField.All & ~reserved);
+  assert.equal(OWNER_PERMISSIONS, ALL_PERMISSION_BITS);
+  assert.equal(owner.permissions, ALL_PERMISSION_BITS);
+  assert.equal(coOwner.permissions, ALL_PERMISSION_BITS);
+  assert.equal(HIGH_RANK_SUPERVISOR_PERMISSIONS, ALL_PERMISSION_BITS & ~reserved);
+  assert.equal(supervisor.permissions, ALL_PERMISSION_BITS & ~reserved);
   assert.equal(supervisor.permissions & reserved, 0n);
 
   for (const role of STAFF_RANKS.filter((item) =>
@@ -222,7 +225,7 @@ test("ensureRole reapplies the restricted High Rank Supervisor permission set", 
     hoist: true,
     mentionable: false,
     editable: true,
-    permissions: { bitfield: PermissionsBitField.All },
+    permissions: { bitfield: ALL_PERMISSION_BITS },
     edit: async (changes) => {
       role.permissions = { bitfield: new PermissionsBitField(changes.permissions).bitfield };
       return role;
@@ -354,7 +357,7 @@ test("ensureRole repairs managed role properties and applies optional native gra
   assert.equal(calls[0].changes.color, STAFF_RANKS[0].primary);
   assert.equal(
     new PermissionsBitField(calls[0].changes.permissions).bitfield,
-    PermissionsBitField.All,
+    OWNER_PERMISSIONS,
     "Owner must be repaired to the full Administrator permission set"
   );
   assert.equal(calls[0].changes.hoist, true);
