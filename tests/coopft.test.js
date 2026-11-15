@@ -112,7 +112,7 @@ test("CoopFT has a distinct 3D custom emoji pack, role guide, applications and v
 });
 
 test("each specialist application modal contains four required questions and one optional question", () => {
-  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) }, { guildId: "guild-1" });
+  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) }, { guildId: coopftGuildId });
   for (const role of APPLICATION_ROLES) {
     const modal = service.createApplicationModal(role).toJSON();
     assert.equal(modal.custom_id, "cf-application:submit:" + role.key);
@@ -136,12 +136,12 @@ test("application availability defaults to open and can be switched per position
       throw new Error("Unexpected SQL in application availability test.");
     }
   };
-  const service = new CoopFTCommunityService(pool, { guildId: "guild-1" });
-  assert.equal(await service.isApplicationOpen("guild-1", "referee"), true);
-  await service.setApplicationOpen({ id: "guild-1", channels: { fetch: async () => null } }, "referee", false);
-  assert.equal(await service.isApplicationOpen("guild-1", "referee"), false);
-  await service.setApplicationOpen({ id: "guild-1", channels: { fetch: async () => null } }, "referee", true);
-  assert.equal(await service.isApplicationOpen("guild-1", "referee"), true);
+  const service = new CoopFTCommunityService(pool, { guildId: coopftGuildId });
+  assert.equal(await service.isApplicationOpen(coopftGuildId, "referee"), true);
+  await service.setApplicationOpen({ id: coopftGuildId, channels: { fetch: async () => null } }, "referee", false);
+  assert.equal(await service.isApplicationOpen(coopftGuildId, "referee"), false);
+  await service.setApplicationOpen({ id: coopftGuildId, channels: { fetch: async () => null } }, "referee", true);
+  assert.equal(await service.isApplicationOpen(coopftGuildId, "referee"), true);
 });
 
 test("all 28 CoopFT vector fallbacks render to transparent PNG images", () => {
@@ -329,7 +329,7 @@ test("editable-role cleanup requires the exact one-time confirmation phrase", ()
 
 
 test("HR managers have limited delegation authority and cannot grant senior HR roles", () => {
-  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) }, { guildId: "guild-1" });
+  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) }, { guildId: coopftGuildId });
   for (const spec of HR_ROLES) service.roles.set(spec.key, { id: spec.key });
   for (const spec of STAFF_RANKS) service.roles.set(spec.key, { id: spec.key });
 
@@ -361,7 +361,7 @@ test("HR managers have limited delegation authority and cannot grant senior HR r
 
 
 test("no one, including the server owner, can change their own HR role", () => {
-  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) }, { guildId: "guild-1" });
+  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) }, { guildId: coopftGuildId });
   const owner = { id: "server-owner", roles: { cache: new Set() } };
   const guild = { ownerId: "server-owner" };
   assert.throws(
