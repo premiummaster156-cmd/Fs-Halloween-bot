@@ -572,3 +572,47 @@ BEGIN
     VALUES ('2026-11-08-exclude-player-transfers-from-lifetime-spending-v1');
   END IF;
 END $$;
+
+
+-- Persistent RPG combat loadouts are separate from economy equipment and booster Mythics.
+CREATE TABLE IF NOT EXISTS combat_loadouts (
+  guild_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  weapon_id TEXT NOT NULL DEFAULT 'ashen_katana',
+  style_id TEXT NOT NULL DEFAULT 'iron_fist',
+  spirit_art_id TEXT NOT NULL DEFAULT 'ember_art',
+  armor_id TEXT NOT NULL DEFAULT 'training_vest',
+  accessory_one_id TEXT,
+  accessory_two_id TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (guild_id, user_id),
+  CHECK (accessory_one_id IS NULL OR accessory_one_id <> accessory_two_id)
+);
+
+CREATE TABLE IF NOT EXISTS combat_inventory (
+  guild_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  item_id TEXT NOT NULL,
+  acquired_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (guild_id, user_id, item_id)
+);
+CREATE INDEX IF NOT EXISTS combat_inventory_member_idx
+  ON combat_inventory (guild_id, user_id, acquired_at DESC);
+
+CREATE TABLE IF NOT EXISTS combat_mastery (
+  guild_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  track_type TEXT NOT NULL CHECK (track_type IN ('weapon', 'fighting_style', 'spirit_art')),
+  track_id TEXT NOT NULL,
+  mastery_xp BIGINT NOT NULL DEFAULT 0 CHECK (mastery_xp BETWEEN 0 AND 60025),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (guild_id, user_id, track_type, track_id)
+);
+CREATE INDEX IF NOT EXISTS combat_mastery_member_idx
+  ON combat_mastery (guild_id, user_id, track_type);
+
+-- Store the combat build at battle start so it cannot be swapped mid-encounter.
+ALTER TABLE boss_battles
+  ADD COLUMN IF NOT EXISTS combat_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb;
