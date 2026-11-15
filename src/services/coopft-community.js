@@ -162,24 +162,56 @@ class CoopFTCommunityService {
     }
     await this.saveResource(guild.id, resourceKey, role.id);
 
-    // Gradient colours require the server's ENHANCED_ROLE_COLORS feature.
-    try {
-      await guild.client.rest.patch(Routes.guildRole(guild.id, role.id), {
-        body: { colors: { primary_color: spec.primary, secondary_color: spec.secondary, tertiary_color: null } },
-        reason: "CoopFT staff role visual style"
-      });
-    } catch (error) {
-      if (![400, 403, 50013, 50035].includes(error.status) && error.code !== 50013) {
-        console.warn("[coopft] Gradient style skipped for " + spec.name + ":", error.message);
+    // Repair the ordinary role properties on every setup run. This also gives
+    // servers without enhanced role colours a predictable solid-colour fallback.
+    const baseChanges = {};
+    const expectedName = "CF • " + spec.name;
+    if (role.name !== expectedName) baseChanges.name = expectedName;
+    if (role.color !== spec.primary) baseChanges.color = spec.primary;
+    if (role.hoist !== true) baseChanges.hoist = true;
+    if (role.mentionable !== false) baseChanges.mentionable = false;
+    const permissionBits = role.permissions?.bitfield;
+    if (permissionBits !== undefined && BigInt(permissionBits) !== 0n) baseChanges.permissions = [];
+    if (Object.keys(baseChanges).length) {
+      if (role.editable !== false && typeof role.edit === "function") {
+        try {
+          role = await role.edit({
+            ...baseChanges,
+            reason: "Repair CoopFT managed staff role properties"
+          });
+        } catch (error) {
+          console.warn("[coopft] Could not repair base styling for " + spec.name + ":", error.message);
+        }
+      } else {
+        console.warn("[coopft] Cannot repair " + spec.name + " because the role is above the bot or otherwise not editable.");
       }
     }
-    // Role icons require ROLE_ICONS. The embed keeps an icon even when unsupported.
-    try {
-      await guild.client.rest.patch(Routes.guildRole(guild.id, role.id), {
-        body: { unicode_emoji: spec.icon },
-        reason: "CoopFT staff role icon"
-      });
-    } catch (_) {}
+
+    // Enhanced gradients are optional. The primary solid colour above remains
+    // in place when the server does not have ENHANCED_ROLE_COLORS.
+    if (guild.features?.includes?.("ENHANCED_ROLE_COLORS") && role.editable !== false) {
+      try {
+        await guild.client.rest.patch(Routes.guildRole(guild.id, role.id), {
+          body: { colors: { primary_color: spec.primary, secondary_color: spec.secondary, tertiary_color: null } },
+          reason: "CoopFT staff role visual style"
+        });
+      } catch (error) {
+        console.warn("[coopft] Gradient styling unavailable for " + spec.name + "; solid colour fallback retained:", error.message);
+      }
+    }
+
+    // Discord role icons are feature-gated. Staff directory embeds always keep
+    // their own Unicode/custom-emoji icon when native role icons are unavailable.
+    if (guild.features?.includes?.("ROLE_ICONS") && role.editable !== false) {
+      try {
+        await guild.client.rest.patch(Routes.guildRole(guild.id, role.id), {
+          body: { unicode_emoji: spec.icon },
+          reason: "CoopFT staff role icon"
+        });
+      } catch (error) {
+        console.warn("[coopft] Native role icon unavailable for " + spec.name + "; embed icon fallback retained:", error.message);
+      }
+    }
     return { role, created };
   }
 
