@@ -983,26 +983,26 @@ class CoopFTCommunityService {
       .setDescription([
         "Welcome to **CoopFT** — a place to build, share, compete and meet good people. These standards apply to everyone.",
         "",
-        this.emoji(guild.id, "cf3d_handshake", "🤝") + " **01 · RESPECT COMES FIRST**\\nTreat every member with dignity. Harassment, hate speech, discrimination, threats and targeted abuse are not allowed.",
+        this.emoji(guild.id, "cf3d_handshake", "🤝") + " **01 · RESPECT COMES FIRST**\nTreat every member with dignity. Harassment, hate speech, discrimination, threats and targeted abuse are not allowed.",
         "",
-        this.emoji(guild.id, "cf3d_spark", "✨") + " **02 · KEEP IT CONSTRUCTIVE**\\nStay on topic, use the right channels, and keep disagreements civil. No flooding, spam pings or disruptive behavior.",
+        this.emoji(guild.id, "cf3d_spark", "✨") + " **02 · KEEP IT CONSTRUCTIVE**\nStay on topic, use the right channels, and keep disagreements civil. No flooding, spam pings or disruptive behavior.",
         "",
-        this.emoji(guild.id, "cf3d_shield", "🛡️") + " **03 · KEEP COOPFT SAFE**\\nNo scams, phishing, malware, malicious links, raids, impersonation or attempts to evade moderation.",
+        this.emoji(guild.id, "cf3d_shield", "🛡️") + " **03 · KEEP COOPFT SAFE**\nNo scams, phishing, malware, malicious links, raids, impersonation or attempts to evade moderation.",
         "",
-        this.emoji(guild.id, "cf3d_key", "🔐") + " **04 · PROTECT PRIVACY**\\nNever share passwords, tokens, private documents, personal addresses or another person's private information.",
+        this.emoji(guild.id, "cf3d_key", "🔐") + " **04 · PROTECT PRIVACY**\nNever share passwords, tokens, private documents, personal addresses or another person's private information.",
         "",
-        this.emoji(guild.id, "cf3d_ticket", "🎟️") + " **05 · NO UNAPPROVED ADVERTISING**\\nPromotions, server invites and commercial posts require staff approval. Use the appropriate showcase channels.",
+        this.emoji(guild.id, "cf3d_ticket", "🎟️") + " **05 · NO UNAPPROVED ADVERTISING**\nPromotions, server invites and commercial posts require staff approval. Use the appropriate showcase channels.",
         "",
-        this.emoji(guild.id, "cf3d_voice", "🎙️") + " **06 · RESPECT VOICE AND EVENTS**\\nNo disruptive audio, recording people without consent, or interrupting hosted sessions.",
+        this.emoji(guild.id, "cf3d_voice", "🎙️") + " **06 · RESPECT VOICE AND EVENTS**\nNo disruptive audio, recording people without consent, or interrupting hosted sessions.",
         "",
-        this.emoji(guild.id, "cf3d_idea", "💡") + " **07 · SHARE IDEAS THE RIGHT WAY**\\nUse #suggestions for proposals and #open-a-ticket for private support, reports or appeals.",
+        this.emoji(guild.id, "cf3d_idea", "💡") + " **07 · SHARE IDEAS THE RIGHT WAY**\nUse #suggestions for proposals and #open-a-ticket for private support, reports or appeals.",
         "",
-        this.emoji(guild.id, "cf3d_bell", "🔔") + " **08 · RESPECT MODERATION**\\nFollow staff instructions. If you disagree with a decision, appeal calmly through a ticket.",
+        this.emoji(guild.id, "cf3d_bell", "🔔") + " **08 · RESPECT MODERATION**\nFollow staff instructions. If you disagree with a decision, appeal calmly through a ticket.",
         "",
-        this.emoji(guild.id, "cf3d_gem", "💎") + " **09 · KEEP CONTENT APPROPRIATE**\\nNo explicit, exploitative or illegal content. Follow Discord's Terms of Service and Community Guidelines.",
+        this.emoji(guild.id, "cf3d_gem", "💎") + " **09 · KEEP CONTENT APPROPRIATE**\nNo explicit, exploitative or illegal content. Follow Discord's Terms of Service and Community Guidelines.",
         "",
-        this.emoji(guild.id, "cf3d_star", "🌟") + " **10 · HELP THE COMMUNITY GROW**\\nCredit creators, welcome newcomers and contribute in good faith."
-      ].join("\\n"))
+        this.emoji(guild.id, "cf3d_star", "🌟") + " **10 · HELP THE COMMUNITY GROW**\nCredit creators, welcome newcomers and contribute in good faith."
+      ].join("\n"))
       .setFooter({ text: "CoopFT • Respect the space. Elevate the community." });
     if (bannerAttachment) rules.setThumbnail("attachment://coopft-rules-crest.png");
     const entries = [
@@ -1050,14 +1050,22 @@ class CoopFTCommunityService {
       }
     ];
     for (const entry of entries) {
-      if (!entry.channel?.isTextBased?.() || typeof entry.channel.send !== "function") continue;
-      const savedId = await this.getResource(guild.id, "message:" + entry.key);
-      let message = savedId ? await entry.channel.messages.fetch(savedId).catch(() => null) : null;
-      const payload = { embeds: [entry.embed], files: entry.files || [], allowedMentions: { parse: [] } };
-      if (message) await message.edit(payload);
-      else {
-        message = await entry.channel.send(payload);
-        await this.saveResource(guild.id, "message:" + entry.key, message.id);
+      if (!entry.channel?.isTextBased?.() || typeof entry.channel.send !== "function") {
+        console.warn("[coopft] Brand message channel is unavailable:", entry.key);
+        continue;
+      }
+      try {
+        const savedId = await this.getResource(guild.id, "message:" + entry.key);
+        let message = savedId ? await entry.channel.messages.fetch(savedId).catch(() => null) : null;
+        const payload = { embeds: [entry.embed], files: entry.files || [], allowedMentions: { parse: [] } };
+        if (message) await message.edit(payload);
+        else {
+          message = await entry.channel.send(payload);
+          await this.saveResource(guild.id, "message:" + entry.key, message.id);
+        }
+        console.info("[coopft] Published " + entry.key + " message in #" + entry.channel.name + ".");
+      } catch (error) {
+        console.error("[coopft] Could not publish " + entry.key + " message in #" + entry.channel.name + ":", error.code || error.name, error.message);
       }
     }
   }
@@ -1516,7 +1524,17 @@ class CoopFTCommunityService {
       .setTitle(this.emoji(interaction.guildId, roleSpec.emoji, roleSpec.icon) + "  APPLICATION " + newStatus.toUpperCase())
       .setDescription(["Applicant: <@" + application.applicant_id + ">", "Reviewed by: <@" + interaction.user.id + ">", reason ? "Reason: " + reason : null].filter(Boolean).join("\n"))
       .setFooter({ text: "Application ID • " + applicationId });
-    await interaction.message.edit({ embeds: [reviewEmbed], components: [], allowedMentions: { parse: [] } }).catch(() => {});
+    let reviewMessage = interaction.message || null;
+    if (!reviewMessage && application.review_message_id) {
+      const reviewChannelId = await this.getResource(interaction.guildId, "channel:application_review");
+      const reviewChannel = reviewChannelId ? await interaction.guild.channels.fetch(reviewChannelId).catch(() => null) : null;
+      reviewMessage = reviewChannel?.messages
+        ? await reviewChannel.messages.fetch(application.review_message_id).catch(() => null)
+        : null;
+    }
+    if (reviewMessage) {
+      await reviewMessage.edit({ embeds: [reviewEmbed], components: [], allowedMentions: { parse: [] } }).catch(() => {});
+    }
     const applicant = await interaction.client.users.fetch(application.applicant_id).catch(() => null);
     if (applicant) {
       const dm = decision === "accept"
