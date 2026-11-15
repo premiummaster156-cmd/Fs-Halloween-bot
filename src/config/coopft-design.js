@@ -39,7 +39,7 @@ const EMOJI_SPRITE = Object.freeze([
   "cf_shield", "cf_spark", "cf_star", "cf_ticket",
   "cf_war", "cf_referee", "cf_observer", "cf_helper",
   "cf_ticket_staff", "cf_applications", "cf_rolebook", "cf_rules",
-  "cf_announce", "cf_voice", "cf_idea"
+  "cf_announce", "cf_voice", "cf_idea", "cf_community"
 ]);
 
 const PUBLIC_CHANNELS = Object.freeze([
