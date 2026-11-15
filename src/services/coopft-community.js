@@ -430,6 +430,13 @@ class CoopFTCommunityService {
             reason: "Repair CoopFT managed staff role properties"
           });
         } catch (error) {
+          if (baseChanges.permissions) {
+            throw new Error(
+              "Could not apply the configured Discord permissions to CF • " + spec.name +
+              ". Check that the bot has Administrator and that its highest role is above this role. " +
+              error.message
+            );
+          }
           console.warn("[coopft] Could not repair base styling for " + spec.name + ":", error.message);
         }
       } else {
@@ -661,13 +668,23 @@ class CoopFTCommunityService {
     const me = guild.members.me || await guild.members.fetchMe().catch(() => null);
     if (!me) throw new Error("The bot's server member could not be fetched.");
     const required = [
+      PermissionFlagsBits.Administrator,
       PermissionFlagsBits.ManageRoles, PermissionFlagsBits.ManageChannels,
       PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages,
       PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ReadMessageHistory,
       PermissionFlagsBits.AttachFiles, PermissionFlagsBits.ViewAuditLog
     ];
     const missing = required.filter((permission) => !me.permissions.has(permission));
-    if (missing.length) throw new Error("CoopFT setup requires Manage Roles, Manage Channels, View Channel, Send Messages, Embed Links, Read Message History and View Audit Log. Missing: " + missing.join(", "));
+    if (missing.length) {
+      const adminRequired = missing.includes(PermissionFlagsBits.Administrator);
+      throw new Error(
+        "CoopFT setup requires the bot to have Administrator, Manage Roles, Manage Channels, View Channel, Send Messages, Embed Links, Read Message History, Attach Files and View Audit Log. " +
+        (adminRequired
+          ? "Administrator is required because Owner and Co-Owner must receive the Administrator permission, and Discord only lets a bot grant permissions it already has. "
+          : "") +
+        "Missing: " + missing.join(", ")
+      );
+    }
 
     // Startup guild fetches can return a Guild before its child managers are warm.
     // Populate only guild-level resource caches; never enumerate the member roster.
