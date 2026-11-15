@@ -270,3 +270,16 @@ This is an explicit user requirement and overrides any older handoff/README word
 - The only mention allowed is the configured `halloweenRoleId` / Halloween reward role, and only when it exists, is not managed/@everyone, and is mentionable or the bot has `MentionEveryone` permission. `allowedMentions` is `{ parse: [], roles: [rewardRoleId] }` in that case.
 - Never use `@everyone` or `@here`. If the role is absent/unavailable or cannot be pinged, still announce without a ping and report that state in the private admin panel. If a role-mention send fails, retry with the role name as plain text and no mentions.
 - Audit log notification remains separate from the public event announcement. Tests verify the configured-role-only mention and no broad ping fallback.
+
+
+## Runtime resilience and persistent diagnostics — November 15, 2026
+
+- Added `src/utils/runtime-logger.js`. It mirrors console output to `logs/bot-runtime.log`, rotates the active file at 5 MB and retains up to five numbered backups. Override the location with `BOT_LOG_DIR`; for durable logs across host rebuilds, set it to a host-provided persistent directory if available.
+- The logger is initialized at the top of `src/index.js` after dotenv configuration, so startup, database migration, workspace restore, Discord login and runtime messages are captured.
+- Discord client and REST event listeners are guarded. Synchronous listener exceptions and rejected async listener promises are logged; interaction failures get a generic private fallback reply when a safe response is possible. Guarding preserves listener removal by original callback.
+- Process warnings and unhandled promise rejections are recorded. An unhandled promise rejection no longer triggers Node's default process termination; treat every such entry as a bug to investigate, because it can still indicate failed work.
+- `uncaughtExceptionMonitor` records truly uncaught synchronous faults, but deliberately does not suppress Node's exit. Do not resume a process after an uncaught exception. Bot-Hosting.net documents automatic crash restart; verify the deployment's restart policy in its panel.
+- Gateway shard reconnect/disconnect/error/resume and Discord REST rate-limit/invalid-request warnings are now logged.
+- Startup failure logs the full error and attempts to close the Discord client and PostgreSQL pool cleanly. SIGINT/SIGTERM shutdown closes the IDE server, Discord client and PostgreSQL pool.
+- Tests: `tests/runtime-logger.test.js` checks durable formatted logging, rotation, synchronous listener isolation, async rejection isolation and listener removal.
+- This reduces accidental process exits and preserves diagnostics, but cannot guarantee that no bug, memory exhaustion, host restart, network outage, invalid token or fatal Node/runtime fault can ever stop the bot. Inspect the first failure in `logs/bot-runtime.log`; file-based logs on ephemeral storage can be lost when the host replaces a container.
