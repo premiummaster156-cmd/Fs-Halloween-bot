@@ -66,39 +66,47 @@ const EMOJI_SPRITE = Object.freeze([
   "cf3d_voice", "cf3d_idea", "cf3d_ticket_staff", "cf3d_community"
 ]);
 
+const CATEGORY_NAMES = Object.freeze({
+  start_here: "╭────〔 START HERE 〕────╮",
+  community: "╭────〔 COMMUNITY 〕────╮",
+  services: "╭────〔 MEMBER SERVICES 〕────╮",
+  staff_hq: "╭────〔 STAFF OPERATIONS 〕────╮",
+  tickets: "╭────〔 SUPPORT DESK 〕────╮"
+});
+
 const PUBLIC_CHANNELS = Object.freeze([
-  { key: "welcome", name: "welcome" },
-  { key: "rules", name: "rules" },
-  { key: "announcements", name: "announcements", channelType: "announcement", fallbackChannelType: "text" },
-  { key: "introductions", name: "introductions" },
-  { key: "role_guide", name: "role-explanations" },
-  { key: "general", name: "general" },
-  { key: "media", name: "media" },
-  { key: "showcase", name: "showcase" },
-  { key: "your_creation", name: "your-creation" },
-  { key: "announcement_stage", name: "announcements-live", channelType: "stage", fallbackChannelType: "voice" },
-  { key: "community_voice", name: "community-voice", channelType: "voice" },
-  { key: "event_voice", name: "events-voice", channelType: "voice" },
-  { key: "open_ticket", name: "open-a-ticket" },
-  { key: "applications", name: "applications" },
-  { key: "bot_updates", name: "bot-updates" },
-  { key: "suggestions", name: "suggestions" },
-  { key: "bug_reports", name: "bug-reports" },
-  { key: "custom_bot_requests", name: "custom-bot-requests" }
+  { key: "welcome", name: "⌖・welcome" },
+  { key: "rules", name: "§・rules" },
+  { key: "announcements", name: "▰・announcements", channelType: "announcement", fallbackChannelType: "text" },
+  { key: "introductions", name: "◌・introductions" },
+  { key: "role_guide", name: "▤・role-explanations" },
+  { key: "general", name: "◈・general" },
+  { key: "media", name: "▧・media" },
+  { key: "showcase", name: "◇・showcase" },
+  { key: "your_creation", name: "⟡・your-creation" },
+  { key: "announcement_stage", name: "∿・announcements-live", channelType: "stage", fallbackChannelType: "voice" },
+  { key: "community_voice", name: "∿・community-voice", channelType: "voice" },
+  { key: "event_voice", name: "∿・events-voice", channelType: "voice" },
+  { key: "open_ticket", name: "▣・open-a-ticket" },
+  { key: "applications", name: "⌑・applications" },
+  { key: "bot_updates", name: "⌘・bot-updates" },
+  { key: "suggestions", name: "⌁・suggestions" },
+  { key: "bug_reports", name: "⌬・bug-reports" },
+  { key: "custom_bot_requests", name: "⌘・custom-bot-requests" }
 ]);
 
 const PRIVATE_CHANNELS = Object.freeze([
-  { key: "staff_team", name: "staff-team" },
-  { key: "staff_chat", name: "staff-chat" },
-  { key: "staff_announcements", name: "staff-announcements" },
-  { key: "staff_bot_updates", name: "staff-bot-updates" },
-  { key: "application_review", name: "application-review" },
-  { key: "ticket_transcripts", name: "ticket-transcripts" },
-  { key: "member_logs", name: "member-logs" },
-  { key: "server_logs", name: "server-logs" }
+  { key: "staff_team", name: "⌖・staff-team" },
+  { key: "staff_chat", name: "◌・staff-chat" },
+  { key: "staff_announcements", name: "▰・staff-announcements" },
+  { key: "staff_bot_updates", name: "⌘・staff-bot-updates" },
+  { key: "application_review", name: "⌑・application-review" },
+  { key: "ticket_transcripts", name: "▤・ticket-transcripts" },
+  { key: "member_logs", name: "⌁・member-logs" },
+  { key: "server_logs", name: "⌁・server-logs" }
 ]);
 
 module.exports = {
-  STAFF_RANKS, HR_ROLES, APPLICATION_ROLES, EMOJI_SPRITE, PUBLIC_CHANNELS, PRIVATE_CHANNELS,
+  STAFF_RANKS, HR_ROLES, APPLICATION_ROLES, EMOJI_SPRITE, CATEGORY_NAMES, PUBLIC_CHANNELS, PRIVATE_CHANNELS,
   OWNER_PERMISSIONS, HIGH_RANK_SUPERVISOR_PERMISSIONS, ALL_PERMISSION_BITS
 };
