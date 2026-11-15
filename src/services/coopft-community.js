@@ -1003,8 +1003,8 @@ class CoopFTCommunityService {
         "",
         this.emoji(guild.id, "cf3d_star", "🌟") + " **10 · HELP THE COMMUNITY GROW**\\nCredit creators, welcome newcomers and contribute in good faith."
       ].join("\\n"))
-      .setThumbnail(bannerAttachment ? "attachment://coopft-rules-crest.png" : null)
       .setFooter({ text: "CoopFT • Respect the space. Elevate the community." });
+    if (bannerAttachment) rules.setThumbnail("attachment://coopft-rules-crest.png");
     const entries = [
       { key: "rules", channel: publicChannels.rules, embed: rules, files: bannerAttachment ? [bannerAttachment] : [] },
       {
@@ -1324,21 +1324,35 @@ class CoopFTCommunityService {
       return true;
     }
     const applicationId = value;
-    if (!["approve", "decline"].includes(action)) {
+    if (!["accept", "accept-reason", "deny", "deny-reason"].includes(action)) {
       await interaction.reply({ content: "Unknown application action.", flags: MessageFlags.Ephemeral });
       return true;
     }
     if (!this.canManageStaff(interaction.member, interaction.guild)) {
-      await interaction.reply({ content: "Only authorized CoopFT management or HR can review applications.", flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: "Only authorized CoopFT reviewers can process applications.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    if (action.endsWith("-reason")) {
+      const accepting = action === "accept-reason";
+      const modal = new ModalBuilder()
+        .setCustomId("cf-application:decision-reason:" + (accepting ? "accept" : "deny") + ":" + applicationId)
+        .setTitle(accepting ? "Accept application" : "Deny application");
+      modal.addComponents(new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("reason")
+          .setLabel(accepting ? "Reason for acceptance" : "Reason for denial")
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+          .setMaxLength(900)
+          .setPlaceholder("Write a clear, respectful explanation.")
+      ));
+      await interaction.showModal(modal);
       return true;
     }
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const result = await this.resolveApplication(interaction, applicationId, action);
-    await interaction.editReply({
-      content: action === "approve"
-        ? "✅ Application approved and the specialist role assigned to <@" + result.applicantId + ">."
-        : "Application declined. A private notification was attempted."
-    });
+    const decision = action === "accept" ? "accept" : "deny";
+    await this.resolveApplication(interaction, applicationId, decision, null);
+    await interaction.editReply({ content: (decision === "accept" ? "✅ Application accepted" : "Application denied") + ". The applicant has been notified." });
     return true;
   }
 
@@ -1407,15 +1421,21 @@ class CoopFTCommunityService {
         { name: "Additional notes", value: answers.extra ? answers.extra.slice(0, 1024) : "Not provided", inline: false }
       )
       .setFooter({ text: "Application ID • " + application.id });
-    const controls = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("cf-application:approve:" + application.id).setLabel("Approve").setStyle(ButtonStyle.Success).setEmoji("✅"),
-      new ButtonBuilder().setCustomId("cf-application:decline:" + application.id).setLabel("Decline").setStyle(ButtonStyle.Danger).setEmoji("✖️")
-    );
+    const controls = [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("cf-application:accept:" + application.id).setLabel("Accept").setStyle(ButtonStyle.Success).setEmoji("✅"),
+        new ButtonBuilder().setCustomId("cf-application:accept-reason:" + application.id).setLabel("Accept with reason").setStyle(ButtonStyle.Success).setEmoji("📝")
+      ),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("cf-application:deny:" + application.id).setLabel("Deny").setStyle(ButtonStyle.Danger).setEmoji("✖️"),
+        new ButtonBuilder().setCustomId("cf-application:deny-reason:" + application.id).setLabel("Deny with reason").setStyle(ButtonStyle.Danger).setEmoji("📝")
+      )
+    ];
     let reviewMessage;
     try {
       reviewMessage = await reviewChannel.send({
         embeds: [reviewEmbed],
-        components: [controls],
+        components: controls,
         allowedMentions: { parse: [] }
       });
     } catch (error) {
@@ -1435,7 +1455,29 @@ class CoopFTCommunityService {
     return true;
   }
 
-  async resolveApplication(interaction, applicationId, decision) {
+  async handleApplicationDecisionReason(interaction) {
+    this.assertCoopFTGuild(interaction.guild, "submit a CoopFT application decision");
+    const [, , decision, applicationId] = interaction.customId.split(":");
+    if (interaction.guildId !== this.guildId || !["accept", "deny"].includes(decision)) {
+      await interaction.reply({ content: "This application decision is invalid.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    if (!this.canManageStaff(interaction.member, interaction.guild)) {
+      await interaction.reply({ content: "Only authorized CoopFT reviewers can process applications.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    const reason = interaction.fields.getTextInputValue("reason").trim();
+    if (!reason) {
+      await interaction.reply({ content: "Please provide a reason before submitting.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await this.resolveApplication(interaction, applicationId, decision, reason);
+    await interaction.editReply({ content: (decision === "accept" ? "✅ Application accepted" : "Application denied") + ". The applicant has been notified with your reason." });
+    return true;
+  }
+
+  async resolveApplication(interaction, applicationId, decision, reason = null) {
     this.assertCoopFTGuild(interaction.guild, "review a CoopFT application");
     const selected = await this.pool.query(
       "SELECT * FROM coopft_applications WHERE guild_id=$1 AND id=$2 AND status='pending' LIMIT 1",
@@ -1447,13 +1489,13 @@ class CoopFTCommunityService {
     if (!roleSpec) throw new Error("The application position is no longer configured.");
     const member = await interaction.guild.members.fetch(application.applicant_id).catch(() => null);
     if (decision === "approve" && !member) throw new Error("The applicant is no longer in CoopFT. The application was left pending.");
-    const newStatus = decision === "approve" ? "approved" : "declined";
+    const newStatus = decision === "accept" ? "approved" : "declined";
     const updated = await this.pool.query(
       "UPDATE coopft_applications SET status=$3,reviewed_by=$4,reviewed_at=NOW() WHERE guild_id=$1 AND id=$2 AND status='pending' RETURNING id",
       [interaction.guildId, applicationId, newStatus, interaction.user.id]
     );
     if (!updated.rowCount) throw new Error("Another reviewer has already processed this application.");
-    if (decision === "approve") {
+    if (decision === "accept") {
       let role = this.applicationRoles.get(roleSpec.key);
       if (!role) {
         role = (await this.ensureRole(interaction.guild, roleSpec)).role;
@@ -1472,14 +1514,14 @@ class CoopFTCommunityService {
     const reviewEmbed = new EmbedBuilder()
       .setColor(decision === "approve" ? 0x26996B : 0x9C394B)
       .setTitle(this.emoji(interaction.guildId, roleSpec.emoji, roleSpec.icon) + "  APPLICATION " + newStatus.toUpperCase())
-      .setDescription("Applicant: <@" + application.applicant_id + ">\\nReviewed by: <@" + interaction.user.id + ">")
+      .setDescription(["Applicant: <@" + application.applicant_id + ">", "Reviewed by: <@" + interaction.user.id + ">", reason ? "Reason: " + reason : null].filter(Boolean).join("\n"))
       .setFooter({ text: "Application ID • " + applicationId });
     await interaction.message.edit({ embeds: [reviewEmbed], components: [], allowedMentions: { parse: [] } }).catch(() => {});
     const applicant = await interaction.client.users.fetch(application.applicant_id).catch(() => null);
     if (applicant) {
-      const dm = decision === "approve"
-        ? "🎉 Your CoopFT **" + roleSpec.name + "** application has been approved. Your role has been assigned. Welcome to the team!"
-        : "Thank you for applying for **" + roleSpec.name + "** at CoopFT. We did not select your application this time. You may apply again when applications reopen or your experience changes.";
+      const dm = decision === "accept"
+        ? "Your CoopFT **" + roleSpec.name + "** application has been accepted. Your role has been assigned. Welcome to the team!" + (reason ? "\n\nReviewer note: " + reason : "")
+        : "Thank you for applying for **" + roleSpec.name + "** at CoopFT. Your application was not accepted." + (reason ? "\n\nReviewer feedback: " + reason : " You may apply again when applications reopen or your experience changes.");
       await applicant.send({ content: dm, allowedMentions: { parse: [] } }).catch(() => {});
     }
     return { applicantId: application.applicant_id, roleName: roleSpec.name, status: newStatus };
@@ -2099,28 +2141,25 @@ class CoopFTCommunityService {
       group.push("<@" + record.member_id + ">");
     }
 
+    const sectionFor = (key) => {
+      if (["owner", "co_owner", "monarch"].includes(key)) return "OWNER RANK";
+      if (["high_rank_supervisor", "apex", "right_wing", "left_wing", "halo", "overseer"].includes(key)) return "HIGH RANK";
+      if (["staff_supervisor", "supreme_council", "senate", "head_moderator"].includes(key)) return "LOW RANK";
+      return "MOD RANK";
+    };
+    const sections = ["OWNER RANK", "HIGH RANK", "LOW RANK", "MOD RANK"];
     const embed = new EmbedBuilder()
       .setColor(0x8C1D32)
-      .setTitle(this.emoji(guild.id, "cf3d_crown", "♛") + "  COOPFT • STAFF TEAM")
-      .setDescription("The current staff structure of CoopFT. Staff ranks and HR assignments are maintained through audited role changes.")
-      .setFooter({ text: "Maintained by CoopFT HR • " + ordered.length + " active staff" })
-      .setTimestamp();
-    for (const rank of STAFF_RANKS) {
-      const people = grouped.get(rank.key);
-      embed.addFields({
-        name: this.emoji(guild.id, rank.emoji, rank.icon) + "  " + rank.name.toUpperCase(),
-        value: people.length ? people.join(", ").slice(0, 1024) : "Vacant",
-        inline: false
+      .setTitle("COOPFT  |  STAFF TEAM")
+      .setDescription("**STAFF DIRECTORY**\nThe official CoopFT staff structure. Members are listed under their current rank.")
+      .setFooter({ text: "COOPFT  •  STAFF & COMMUNITY OPERATIONS" });
+    for (const section of sections) {
+      const lines = STAFF_RANKS.filter((rank) => sectionFor(rank.key) === section).map((rank) => {
+        const people = grouped.get(rank.key) || [];
+        return this.emoji(guild.id, rank.emoji, rank.icon) + " **" + rank.name + "**  ›  " +
+          (people.length ? people.join(", ") : "_Vacant_");
       });
-    }
-    embed.addFields({ name: "✦ HUMAN RESOURCES", value: "Assigned HR team members", inline: false });
-    for (const role of HR_ROLES) {
-      const people = hrGrouped.get(role.key);
-      embed.addFields({
-        name: this.emoji(guild.id, role.emoji, role.icon) + "  " + role.name.toUpperCase(),
-        value: people.length ? people.join(", ").slice(0, 1024) : "Vacant",
-        inline: false
-      });
+      embed.addFields({ name: "━━━━━━━━  " + section + "  ━━━━━━━━", value: lines.join("\n").slice(0, 1024) || "_No positions configured._", inline: false });
     }
     return embed;
   }
