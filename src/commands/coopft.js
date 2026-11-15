@@ -4,7 +4,7 @@ const {
   ButtonBuilder,
   ButtonStyle
 } = require("discord.js");
-const { STAFF_RANKS, HR_ROLES } = require("../config/coopft-design");
+const { STAFF_RANKS, HR_ROLES, APPLICATION_ROLES } = require("../config/coopft-design");
 
 const staffCommand = {
   data: new SlashCommandBuilder()
@@ -117,6 +117,36 @@ const ticketCommand = {
   }
 };
 
+const applicationsAdminCommand = {
+  data: new SlashCommandBuilder()
+    .setName("applications-admin")
+    .setDescription("Open or close CoopFT specialist applications.")
+    .addSubcommand((sub) => sub.setName("open")
+      .setDescription("Open applications for a position.")
+      .addStringOption((o) => o.setName("position").setDescription("Application position").setRequired(true)
+        .addChoices(...APPLICATION_ROLES.map((role) => ({ name: role.name, value: role.key }))))
+    )
+    .addSubcommand((sub) => sub.setName("close")
+      .setDescription("Close applications for a position.")
+      .addStringOption((o) => o.setName("position").setDescription("Application position").setRequired(true)
+        .addChoices(...APPLICATION_ROLES.map((role) => ({ name: role.name, value: role.key }))))
+    ),
+  async execute(interaction, services) {
+    if (!services.coopft.canManageStaff(interaction.member, interaction.guild)) {
+      return interaction.reply({ content: "Only CoopFT management or authorized HR can manage applications.", ephemeral: true });
+    }
+    await interaction.deferReply({ ephemeral: true });
+    const action = interaction.options.getSubcommand();
+    const roleKey = interaction.options.getString("position", true);
+    const isOpen = action === "open";
+    await services.coopft.setApplicationOpen(interaction.guild, roleKey, isOpen);
+    return interaction.editReply({
+      content: (isOpen ? "✅ Applications are now open for **" : "🔒 Applications are now closed for **") +
+        APPLICATION_ROLES.find((role) => role.key === roleKey).name + "**. The public panel has been updated."
+    });
+  }
+};
+
 const setupCommand = {
   data: new SlashCommandBuilder()
     .setName("coopft-setup")
@@ -140,7 +170,7 @@ const setupCommand = {
   }
 };
 
-const commands = [staffCommand, staffManageCommand, hrManageCommand, ticketCommand, setupCommand];
+const commands = [staffCommand, staffManageCommand, hrManageCommand, ticketCommand, applicationsAdminCommand, setupCommand];
 function loadCoopFTCommands() {
   const map = new Map();
   for (const command of commands) {
