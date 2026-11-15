@@ -1496,7 +1496,7 @@ class CoopFTCommunityService {
     const roleSpec = APPLICATION_ROLES.find((item) => item.key === application.role_key);
     if (!roleSpec) throw new Error("The application position is no longer configured.");
     const member = await interaction.guild.members.fetch(application.applicant_id).catch(() => null);
-    if (decision === "approve" && !member) throw new Error("The applicant is no longer in CoopFT. The application was left pending.");
+    if (decision === "accept" && !member) throw new Error("The applicant is no longer in CoopFT. The application was left pending.");
     const newStatus = decision === "accept" ? "approved" : "declined";
     const updated = await this.pool.query(
       "UPDATE coopft_applications SET status=$3,reviewed_by=$4,reviewed_at=NOW() WHERE guild_id=$1 AND id=$2 AND status='pending' RETURNING id",
@@ -1520,7 +1520,7 @@ class CoopFTCommunityService {
       }
     }
     const reviewEmbed = new EmbedBuilder()
-      .setColor(decision === "approve" ? 0x26996B : 0x9C394B)
+      .setColor(decision === "accept" ? 0x26996B : 0x9C394B)
       .setTitle(this.emoji(interaction.guildId, roleSpec.emoji, roleSpec.icon) + "  APPLICATION " + newStatus.toUpperCase())
       .setDescription(["Applicant: <@" + application.applicant_id + ">", "Reviewed by: <@" + interaction.user.id + ">", reason ? "Reason: " + reason : null].filter(Boolean).join("\n"))
       .setFooter({ text: "Application ID • " + applicationId });
