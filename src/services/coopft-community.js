@@ -319,6 +319,15 @@ class CoopFTCommunityService {
         result.applications += 1;
       }
     }
+    const savedEmojiMap = await this.getSetting(guild.id, "emoji_map");
+    if (savedEmojiMap && typeof savedEmojiMap === "object") {
+      this.emojis.clear();
+      for (const [name, id] of Object.entries(savedEmojiMap)) {
+        const emoji = await guild.emojis.fetch(id).catch(() => null);
+        if (emoji) this.emojis.set(name, emoji.id);
+      }
+    }
+    result.emojis = this.emojis.size;
     return result;
   }
 
