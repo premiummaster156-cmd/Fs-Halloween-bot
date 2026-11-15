@@ -691,6 +691,40 @@ class CoopFTCommunityService {
       if (result.created) counts.createdChannels += 1;
     }
 
+    // Application answers are sensitive. Only the server owner, senior staff
+    // managers and HR Director/Manager may see the review queue.
+    const applicationReviewRoles = [...STAFF_MANAGER_KEYS, ...HR_MANAGER_KEYS]
+      .map((key) => this.roles.get(key))
+      .filter(Boolean);
+    const applicationReviewOverwrites = [
+      { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+      {
+        id: me.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.ManageChannels,
+          PermissionFlagsBits.AttachFiles,
+          PermissionFlagsBits.EmbedLinks
+        ]
+      },
+      ...applicationReviewRoles.map((role) => ({
+        id: role.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.AttachFiles,
+          PermissionFlagsBits.EmbedLinks
+        ]
+      }))
+    ];
+    await privateByKey.application_review.permissionOverwrites.set(
+      applicationReviewOverwrites,
+      "Restrict CoopFT application reviews to senior staff and HR managers"
+    );
+
     const ticketOverwrites = [
       { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
       { id: me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] }
