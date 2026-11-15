@@ -147,6 +147,44 @@ test("editing an applied migration fails closed and leaves the ledger unchanged"
   }
 });
 
+
+test("a failed migration SQL statement rolls back its migration ledger entry", async () => {
+  const sql = "ALTER TABLE players ADD COLUMN failure_test BOOLEAN;";
+  const fixture = createFixture({
+    files: { "0001_failure_test.sql": sql },
+    failOnSql: sql,
+    hasLevelConstraint: true
+  });
+  try {
+    fixture.checksums.set("schema.sql", checksum(fixture.schemaSql));
+    await assert.rejects(
+      migrate({
+        databaseUrl: "postgresql://test.invalid/db",
+        schemaPath: fixture.schemaPath,
+        migrationDirectory: fixture.migrationDirectory,
+        transactionFn: fixture.transactionFn
+      }),
+      /simulated SQL failure/
+    );
+    assert.equal(fixture.checksums.has("0001_failure_test.sql"), false);
+    assert.deepEqual(fixture.statements, []);
+  } finally {
+    fixture.cleanup();
+  }
+});
+
+test("missing DATABASE_URL prevents migration work from starting", async () => {
+  let transactionStarted = false;
+  await assert.rejects(
+    migrate({
+      databaseUrl: "",
+      transactionFn: async () => { transactionStarted = true; }
+    }),
+    /DATABASE_URL is missing/
+  );
+  assert.equal(transactionStarted, false);
+});
+
 test("migration files require a unique four-digit version and non-empty SQL", () => {
   const fixture = createFixture({
     files: {
