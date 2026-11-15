@@ -592,27 +592,35 @@ class CoopFTCommunityService {
     );
   }
 
-  async handleMemberRoleChange(oldMember, newMember) {
-    if (!newMember || newMember.guild.id !== this.guildId || !this.roles.size) return;
-    const newRank = STAFF_RANKS.find((spec) => this.roles.get(spec.key) && newMember.roles.cache.has(this.roles.get(spec.key).id));
-    const oldRank = STAFF_RANKS.find((spec) => this.roles.get(spec.key) && oldMember.roles.cache.has(this.roles.get(spec.key).id));
-    if (newRank && newRank.key !== oldRank?.key) {
+  async syncStaffMember(guild, member) {
+    if (!guild || guild.id !== this.guildId || !member || !this.roles.size) return;
+    const newRank = STAFF_RANKS.find((spec) => {
+      const role = this.roles.get(spec.key);
+      return role && member.roles.cache.has(role.id);
+    });
+    const previous = await this.pool.query(
+      "SELECT rank_key,active FROM coopft_staff_members WHERE guild_id=$1 AND member_id=$2",
+      [guild.id, member.id]
+    );
+    const oldRank = STAFF_RANKS.find((spec) => spec.key === previous.rows[0]?.rank_key);
+    if (newRank && (!previous.rows[0]?.active || newRank.key !== oldRank?.key)) {
       await this.pool.query(
-        "INSERT INTO coopft_staff_members (guild_id,member_id,rank_key,active,updated_by) VALUES ($1,$2,$3,TRUE,'discord-role-sync') " +
-        "ON CONFLICT (guild_id,member_id) DO UPDATE SET rank_key=EXCLUDED.rank_key,active=TRUE,updated_at=NOW(),updated_by='discord-role-sync'",
-        [this.guildId, newMember.id, newRank.key]
+        "INSERT INTO coopft_staff_members (guild_id,member_id,rank_key,active,updated_by) VALUES ($1,$2,$3,TRUE,'discord-audit-sync') " +
+        "ON CONFLICT (guild_id,member_id) DO UPDATE SET rank_key=EXCLUDED.rank_key,active=TRUE,updated_at=NOW(),updated_by='discord-audit-sync'",
+        [guild.id, member.id, newRank.key]
       );
-      await this.recordStaffAudit(this.guildId, "discord-role-sync", newMember.id, oldRank ? "role_change" : "staff_added", { from: oldRank?.key || null, to: newRank.key });
-      await this.updateStaffDirectory(newMember.guild);
-      await this.postStaffUpdate(newMember.guild, this.emoji(this.guildId, "cf_star", "✦") + " <@" + newMember.id + "> staff role changed to **" + newRank.name + "**.");
-    } else if (oldRank && !newRank) {
+      const action = !oldRank ? "staff_added" : "staff_rank_changed";
+      await this.recordStaffAudit(guild.id, "discord-audit-sync", member.id, action, { from: oldRank?.key || null, to: newRank.key });
+      await this.updateStaffDirectory(guild);
+      await this.postStaffUpdate(guild, this.emoji(guild.id, "cf_star", "✦") + " <@" + member.id + "> is now **" + newRank.name + "**.");
+    } else if (!newRank && previous.rows[0]?.active) {
       await this.pool.query(
-        "UPDATE coopft_staff_members SET active=FALSE,updated_at=NOW(),updated_by='discord-role-sync' WHERE guild_id=$1 AND member_id=$2",
-        [this.guildId, newMember.id]
+        "UPDATE coopft_staff_members SET active=FALSE,updated_at=NOW(),updated_by='discord-audit-sync' WHERE guild_id=$1 AND member_id=$2",
+        [guild.id, member.id]
       );
-      await this.recordStaffAudit(this.guildId, "discord-role-sync", newMember.id, "staff_role_removed", { from: oldRank.key });
-      await this.updateStaffDirectory(newMember.guild);
-      await this.postStaffUpdate(newMember.guild, this.emoji(this.guildId, "cf_bell", "🔔") + " <@" + newMember.id + "> no longer has an active staff rank.");
+      await this.recordStaffAudit(guild.id, "discord-audit-sync", member.id, "staff_role_removed", { from: oldRank?.key || null });
+      await this.updateStaffDirectory(guild);
+      await this.postStaffUpdate(guild, this.emoji(guild.id, "cf_bell", "🔔") + " <@" + member.id + "> no longer has an active staff rank.");
     }
   }
 
