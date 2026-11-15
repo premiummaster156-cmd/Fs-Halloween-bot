@@ -91,7 +91,7 @@ test("Code Studio checks the trusted Admin Role in the exact server selected by 
   assert.equal(access.guild.id, "123456789012345678");
   await assert.rejects(
     authoriseMember(client, services, userId, "123456789012345672"),
-    /limited to this server/
+    /only for the Fukishōkai server persona/
   );
   await assert.rejects(
     authoriseMember(client, services, userId, "../other"),
