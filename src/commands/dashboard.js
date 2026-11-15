@@ -650,13 +650,14 @@ async function renderMenu(guildId, owner, page, s) {
     }));
     const equippedIds = new Set(Object.values(profile.loadout).filter(Boolean));
     const equipOptions = [];
+    const accessoryOptions = [];
     for (const item of profile.ownedItems) {
       if (item.category === "accessory") {
         if (profile.loadout.accessory_one_id !== item.id) {
-          equipOptions.push({ label: item.name + " → Accessory I", value: item.id + "|accessory_one_id", description: item.rarity + " · Accessory slot 1" });
+          accessoryOptions.push({ label: item.name + " → Accessory I", value: item.id + "|accessory_one_id", description: item.rarity + " · Accessory slot 1" });
         }
         if (profile.loadout.accessory_two_id !== item.id) {
-          equipOptions.push({ label: item.name + " → Accessory II", value: item.id + "|accessory_two_id", description: item.rarity + " · Accessory slot 2" });
+          accessoryOptions.push({ label: item.name + " → Accessory II", value: item.id + "|accessory_two_id", description: item.rarity + " · Accessory slot 2" });
         }
       } else if (!equippedIds.has(item.id)) {
         equipOptions.push({ label: item.name, value: item.id, description: item.rarity + " · " + item.category.replace(/_/g, " ") });
@@ -668,6 +669,7 @@ async function renderMenu(guildId, owner, page, s) {
     const controls = [];
     if (buyOptions.length) controls.push(menu(owner, "combat-buy", "Purchase combat equipment", buyOptions));
     if (equipOptions.length) controls.push(menu(owner, "combat-equip", "Equip owned combat gear", equipOptions));
+    if (accessoryOptions.length) controls.push(menu(owner, "combat-equip", "Equip or replace an accessory", accessoryOptions));
     controls.push(row(btn(owner, "gear", "Economy Gear", ButtonStyle.Secondary), btn(owner, "arena", "Rift Arena", ButtonStyle.Success)));
     controls.push(nav);
     return panel("ARMORY  /  COMBAT LOADOUT",
