@@ -357,10 +357,11 @@ class CoopFTCommunityService {
     const required = [
       PermissionFlagsBits.ManageRoles, PermissionFlagsBits.ManageChannels,
       PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages,
-      PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ReadMessageHistory
+      PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ReadMessageHistory,
+      PermissionFlagsBits.ViewAuditLog
     ];
     const missing = required.filter((permission) => !me.permissions.has(permission));
-    if (missing.length) throw new Error("CoopFT setup requires Manage Roles, Manage Channels, View Channel, Send Messages, Embed Links and Read Message History. Missing: " + missing.join(", "));
+    if (missing.length) throw new Error("CoopFT setup requires Manage Roles, Manage Channels, View Channel, Send Messages, Embed Links, Read Message History and View Audit Log. Missing: " + missing.join(", "));
 
     // Startup guild fetches can return a Guild before its child managers are warm.
     // Populate only guild-level resource caches; never enumerate the member roster.

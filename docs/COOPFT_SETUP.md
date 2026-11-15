@@ -84,8 +84,9 @@ For full setup, invite/position the bot with:
 - Embed Links
 - Attach Files
 - Manage Expressions (for the custom emoji pack)
+- View Audit Log (for member-role, moderator-action, channel and role audit events)
 
-The bot must be higher than the roles it creates/manages and lower than protected roles. It never needs Administrator for this system.
+The bot must be higher than the roles it creates/manages and lower than protected roles. It never needs Administrator for this system. View Audit Log is required: Discord only sends the live Guild Audit Log Entry Create gateway event to bots with this permission.
 
 ## Deploying slash commands
 
