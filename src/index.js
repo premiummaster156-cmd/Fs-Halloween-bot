@@ -613,8 +613,14 @@ async function start() {
   client.on("guildAuditLogEntryCreate", (entry, guild) => {
     const targetId = entry.targetId || entry.target?.id;
     if (guild.id === coopftGuildId && entry.action === AuditLogEvent.MemberRoleUpdate && targetId) {
-      // Audit entry identifies one exact member; no member-list or roster fetch is used.
-      guild.members.fetch(targetId).then((member) => coopftCommunity.syncStaffMember(guild, member))
+      // Ignore the bot's own role writes; those are recorded by /staff-manage.
+      // Manual changes are checked against the exact executor and target IDs.
+      const executorId = entry.executorId || entry.executor?.id;
+      if (!executorId || executorId === client.user.id) return;
+      Promise.all([
+        guild.members.fetch(targetId),
+        guild.members.fetch(executorId)
+      ]).then(([member, actor]) => coopftCommunity.syncStaffMember(guild, member, actor))
         .catch((error) => console.warn("[coopft] Could not sync staff audit entry:", error.message));
       return;
     }
