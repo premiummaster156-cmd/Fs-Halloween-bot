@@ -2,7 +2,7 @@
 
 **Repository:** https://github.com/premiummaster156-cmd/Fs-Halloween-bot  
 **Default branch:** `main`  
-**Runtime:** Node.js 20+, Discord.js 14, PostgreSQL on Neon  
+**Runtime:** Node.js 22+, Discord.js 14, PostgreSQL on Neon  
 **Last updated:** 2026-11-15 — Discord approved GuildMembers for actual-join raid detection; runtime intent set and handoff/README updated
 **Working rule:** `main` is the only development branch. Do not create feature branches. Inspect and update `main` directly, keep this file current, and verify CI before reporting completion.
 
@@ -174,8 +174,8 @@ The user approved a full reliability, security, database, gameplay, dashboard an
 
 ### Verified issue still to fix
 
-- `package.json` declares `isolated-vm` and `@napi-rs/canvas`, but the root dependencies in `package-lock.json` omit both, and no corresponding `node_modules` lock entries were found. CI currently runs `npm install`, which can update the lock during installation and mask the mismatch. Regenerate and commit the lockfile using a supported Node/npm environment before changing CI to `npm ci`.
-- Node.js 20 reached end-of-life on 2026-03-24. Latest official Node.js release schedule marks Node 26 as Active LTS and Node 24 as Maintenance LTS as of 2026-11-09. Select the target Node version after validating compatibility of `discord.js`, `isolated-vm`, `@napi-rs/canvas`, and the hosting provider; do not perform a blind runtime bump.
+- Node.js 20 is end-of-life. The bot now requires Node.js >=22 and pins `isolated-vm` 6.0.2, which declares Node.js >=22 support. GitHub Actions successfully installs dependencies, validates syntax and slash commands, and passes all 234 tests on Node.js 22 and 24. Node.js 20 is intentionally removed from the supported CI matrix. Confirm the actual hosting provider's runtime is Node.js 22 or 24 before deploying this upgrade; Node.js 26 has not been tested here.
+- `package-lock.json` remains stale: its root dependencies omit `isolated-vm` and `@napi-rs/canvas`. The current CI uses `npm install`, which regenerates the lockfile only inside the runner. Commit a synchronized lockfile before switching CI to `npm ci`.
 - The migration script currently re-runs the full `schema.sql` on every startup and then adds constraints manually. Design ordered, versioned migrations with a migration lock and PostgreSQL integration tests before changing production database behavior.
 - The interaction flow performs some database/access checks before acknowledgement. Refactor in small steps so potentially slow interactions defer/reply before long operations while preserving ephemeral/public response behavior and avoiding duplicate replies.
 - The bearer-key AI workspace API needs explicit draft-by-default/publish authorization and rate limits before being considered production-hardened.
