@@ -83,7 +83,7 @@ Abilities retain their passive equipment stats and have their one-use Arena powe
 
 - Preview with \`npm run reset:player-data\`; execute with \`npm run reset:player-data -- --confirm RESET_ALL_PLAYER_DATA\`.
 - Back up Neon and stop the bot first. The reset requires \`DISCORD_TOKEN\` and \`OWNER_ID\` to verify Discord server owners, bot owner and currently configured Admin Role members. Any failed verification aborts without deletion.
-- Bot owner, each guild/server owner and users holding that guild's configured Admin Role are excluded from every user-scoped delete.
+- Bot owner, both configured Fukishōkai Kings (`settings.kingIds`), each guild/server owner and users holding that guild's configured Admin Role are excluded from every user-scoped delete.
 - Everyone else has FC/bank, level/XP, job/career, lifetime stats, owned/equipped items and upgrades, Candy/event records, activity/quests/achievements, party stats, heists and Arena progress reset.
 - Admin-panel settings, event configuration, custom commands, leaderboard exclusions, audit history and security restrictions remain unchanged.
 - Discord boost status and boost-message idempotency history are preserved to prevent re-granting old boost rewards; booster equipment itself is removed with inventory.
