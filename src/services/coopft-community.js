@@ -68,55 +68,69 @@ class CoopFTCommunityService {
     const stored = await this.getSetting(guild.id, "emoji_map") || {};
     for (const [name, id] of Object.entries(stored)) this.emojis.set(name, id);
     const found = new Map(guild.emojis.cache.map((emoji) => [emoji.name, emoji]));
-    let sprite = null;
+    const glyphs = ["♛", "⬟", "★", "◆", "❀", "❧", "♨", "❄", "⚿", "▰", "▤", "◖", "⚙", "♢", "⚭", "✦"];
+    const colors = [
+      ["#64101d", "#e13d4b"], ["#313744", "#a7b4c5"], ["#9b6b1c", "#f3d17a"], ["#153d9a", "#35b5f5"],
+      ["#542a93", "#b26af2"], ["#176b45", "#62c987"], ["#9b2c16", "#f47a3c"], ["#176d91", "#73ddf5"],
+      ["#9c315c", "#f07db0"], ["#275b9a", "#6ea8e8"], ["#8a356b", "#d68dba"], ["#13566a", "#47cbd2"],
+      ["#48515e", "#a7b4c5"], ["#7b2438", "#ed758b"], ["#8a5b24", "#e0b85f"], ["#6840a4", "#b68bea"]
+    ];
     let canvasApi = null;
     try {
-      const { loadImage, createCanvas } = require("@napi-rs/canvas");
-      if (fs.existsSync(this.spritePath)) {
-        sprite = await loadImage(fs.readFileSync(this.spritePath));
-        canvasApi = { createCanvas };
-      } else {
-        result.failed.push("emoji sprite asset is missing");
-      }
+      canvasApi = require("@napi-rs/canvas");
     } catch (error) {
-      result.failed.push("emoji rendering unavailable: " + error.message);
+      result.failed.push("emoji renderer unavailable: " + error.message);
     }
-
-    const nextMap = { ...stored };
-    const tileWidth = sprite ? sprite.width / 4 : 0;
-    const tileHeight = sprite ? sprite.height / 4 : 0;
     for (let index = 0; index < EMOJI_SPRITE.length; index += 1) {
       const name = EMOJI_SPRITE[index];
       const existing = found.get(name);
       if (existing) {
-        nextMap[name] = existing.id;
         this.emojis.set(name, existing.id);
         result.available += 1;
         continue;
       }
-      if (!sprite || !canvasApi || !guild.members.me?.permissions?.has(PermissionFlagsBits.ManageGuildExpressions)) {
-        result.failed.push(name + ": missing Manage Expressions permission or sprite");
+      if (!canvasApi || !guild.members.me?.permissions?.has(PermissionFlagsBits.ManageGuildExpressions)) {
+        result.failed.push(name + ": missing Manage Expressions permission or canvas support");
         continue;
       }
       try {
         const canvas = canvasApi.createCanvas(128, 128);
         const context = canvas.getContext("2d");
-        const col = index % 4;
-        const row = Math.floor(index / 4);
+        const gradient = context.createLinearGradient(12, 12, 116, 116);
+        gradient.addColorStop(0, colors[index][0]);
+        gradient.addColorStop(1, colors[index][1]);
         context.clearRect(0, 0, 128, 128);
-        context.drawImage(sprite, col * tileWidth, row * tileHeight, tileWidth, tileHeight, 0, 0, 128, 128);
+        context.beginPath();
+        context.arc(64, 64, 59, 0, Math.PI * 2);
+        context.fillStyle = gradient;
+        context.fill();
+        context.lineWidth = 5;
+        context.strokeStyle = "rgba(255,255,255,0.9)";
+        context.stroke();
+        context.beginPath();
+        context.arc(64, 64, 48, 0, Math.PI * 2);
+        context.lineWidth = 2;
+        context.strokeStyle = "rgba(255,255,255,0.45)";
+        context.stroke();
+        context.fillStyle = "#ffffff";
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.font = "bold 68px Arial";
+        context.shadowColor = "rgba(0,0,0,0.35)";
+        context.shadowBlur = 5;
+        context.fillText(glyphs[index], 64, 66);
         const created = await guild.emojis.create({
           attachment: canvas.toBuffer("image/png"),
           name,
           reason: "CoopFT branded interface emoji pack"
         });
-        nextMap[name] = created.id;
         this.emojis.set(name, created.id);
         result.created += 1;
       } catch (error) {
         result.failed.push(name + ": " + error.message);
       }
     }
+    const nextMap = Object.fromEntries([...this.emojis.entries()]);
     await this.setSetting(guild.id, "emoji_map", nextMap);
     return result;
   }
