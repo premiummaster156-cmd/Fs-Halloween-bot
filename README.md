@@ -265,3 +265,7 @@ The combat system uses separate Neon tables (`combat_loadouts`, `combat_inventor
 ## Database migrations
 
 The existing `schema.sql` is retained as the idempotent bootstrap for current installations. New schema changes must be added as immutable, numbered SQL files in `src/database/migrations/` (see that directory's README). The runner serializes migrations with a PostgreSQL advisory lock and stores SHA-256 checksums in `schema_migrations`. Test migrations before production deployment and back up Neon first. CI uses mocked transaction tests; it does not connect to production Neon.
+
+## Custom command runner limits
+
+JavaScript custom commands run in a separate `isolated-vm` child process. The bot limits this work to **one active runner by default**, with a queue of up to eight tasks and a 10-second queue wait limit. This conservative default helps protect Bot-Hosting.net's 256 MB Free tier from concurrent child-process memory spikes. On a larger plan, tune `CUSTOM_COMMAND_MAX_CONCURRENCY` (1–8) and `CUSTOM_COMMAND_MAX_QUEUE` (0–100) only after monitoring actual RSS usage. A saturated queue returns a retryable error instead of spawning unbounded processes.
