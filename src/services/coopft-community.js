@@ -1089,16 +1089,9 @@ class CoopFTCommunityService {
       value: role.description + "\n\n**Discord permissions:** " + role.permissionSummary,
       inline: false
     });
-    embed.addFields({ name: this.emoji(guild.id, "cf3d_key", "🔑") + "  HUMAN RESOURCES", value: "The HR team handles recruitment, candidate communication and staff development.", inline: false });
-    for (const role of HR_ROLES) embed.addFields({
-      name: this.emoji(guild.id, role.emoji, role.icon) + "  " + role.name,
-      value: role.description + "\n\n**Discord permissions:** " + role.permissionSummary,
-      inline: false
-    });
-    embed.addFields({ name: this.emoji(guild.id, "cf3d_applications", "📝") + "  SPECIALIST POSITIONS", value: "These positions support events and community operations. They are separate from the staff-rank and HR hierarchies.", inline: false });
-    for (const role of APPLICATION_ROLES) embed.addFields({
-      name: this.emoji(guild.id, role.emoji, role.icon) + "  " + role.name,
-      value: role.description + "\n\n**Discord permissions:** No global permissions; this role identifies the specialist team only.",
+    embed.addFields({
+      name: "STAFF STRUCTURE",
+      value: "The hierarchy above is the complete CoopFT staff structure. Applications and assignments are reviewed privately by authorized leadership.",
       inline: false
     });
     return embed;
