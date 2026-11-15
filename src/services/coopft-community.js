@@ -440,6 +440,12 @@ class CoopFTCommunityService {
           console.warn("[coopft] Could not repair base styling for " + spec.name + ":", error.message);
         }
       } else {
+        if (baseChanges.permissions) {
+          throw new Error(
+            "Cannot apply the configured Discord permissions to CF • " + spec.name +
+            " because the role is above the bot or otherwise not editable. Move the bot's highest role above all CoopFT-managed roles, then rerun setup."
+          );
+        }
         console.warn("[coopft] Cannot repair " + spec.name + " because the role is above the bot or otherwise not editable.");
       }
     }
@@ -1031,7 +1037,7 @@ class CoopFTCommunityService {
         "👑 **Owner and Co-Owner:** every Discord permission, including Administrator.",
         "🌟 **High Rank Supervisor:** every Discord permission except Administrator, Manage Server and Manage Channels.",
         "🛡️ **All other staff, HR and specialist roles:** no global Discord permissions; access is granted only through the configured channel overrides and bot authorization."
-      ].join("\\n"))
+      ].join("\n"))
       .setFooter({ text: "CoopFT • Clear roles. Clear responsibilities." });
     for (const role of STAFF_RANKS) embed.addFields({
       name: this.emoji(guild.id, role.emoji, role.icon) + "  " + role.name,
