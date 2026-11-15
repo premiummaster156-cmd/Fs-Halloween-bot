@@ -4,7 +4,7 @@ A Fukishokai-branded Discord economy game and Halloween event bot. It shares one
 
 ## Requirements
 
-- Node.js 20+
+- Node.js 22 or newer (Node.js 22 and 24 are CI-tested)
 - A Discord application and bot token
 - PostgreSQL (the Neon Free plan is supported through DATABASE_URL)
 
@@ -21,7 +21,7 @@ Cloud alternatives have trade-offs: Render's free web services sleep after 15 mi
 
 ## Setup on Windows
 
-1. Install Node.js 20 or newer. Keep the existing `.env` file if you already have one; otherwise, in PowerShell from the project folder run `Copy-Item .env.example .env`.
+1. Install Node.js 22 or newer. Keep the existing `.env` file if you already have one; otherwise, in PowerShell from the project folder run `Copy-Item .env.example .env`.
 2. Create a Discord application and bot in the [Discord Developer Portal](https://discord.com/developers/applications). Copy the bot token and application ID into `.env` as `DISCORD_TOKEN` and `CLIENT_ID`. Keep the token private; never paste it into chat or commit `.env`.
 3. Create a database on the [Neon Free plan](https://neon.com/pricing) and copy its connection string into `DATABASE_URL` in `.env`. Neon Free is listed as $0/month with no credit card required. Do not share the connection string.
 4. Optionally set `GUILD_ID` to your Discord server ID to register commands there immediately. Leave it empty to register global commands.
