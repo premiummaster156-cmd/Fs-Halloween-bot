@@ -3,6 +3,7 @@ const { DomainError, uuid, randomInt, claimCooldownTx } = require("../utils/core
 const { ensurePlayerTx, getPlayer } = require("../services/economy");
 const { transaction } = require("../database/pool");
 const { trackActionTx } = require("../services/events");
+const { buildCombatStats, calculateAttackDamage, calculateIncomingDamage } = require("../config/combat-content");
 
 const BOSSES = [
   { id: "training_golem", name: "Training Golem", title: "The First Trial", minLevel: 1, maxHp: 500, attack: 22, rewardFc: 500, rewardXp: 50, description: "An ancient construct that tests new challengers." },
@@ -22,6 +23,10 @@ function normalizeBattle(row) {
   if (typeof usedAbilities === "string") {
     try { usedAbilities = JSON.parse(usedAbilities); } catch (_) { usedAbilities = []; }
   }
+  let combatSnapshot = row.combat_snapshot || {};
+  if (typeof combatSnapshot === "string") {
+    try { combatSnapshot = JSON.parse(combatSnapshot); } catch (_) { combatSnapshot = {}; }
+  }
   return {
     id: row.id,
     bossId: row.boss_id,
@@ -35,6 +40,7 @@ function normalizeBattle(row) {
     weakenedTurns: Number(row.weakened_turns || 0),
     hexTurns: Number(row.hex_turns || 0),
     usedAbilities: Array.isArray(usedAbilities) ? usedAbilities : [],
+    combatSnapshot: combatSnapshot && typeof combatSnapshot === "object" ? combatSnapshot : {},
     lastEvent: row.last_event || "The encounter begins."
   };
 }
@@ -137,11 +143,12 @@ function resolveArenaTurn(battle, boss, options = {}) {
 }
 
 class RiftArena {
-  constructor(pool, economy, inventory, transactionRunner = transaction) {
+  constructor(pool, economy, inventory, transactionRunner = transaction, combat = null) {
     this.pool = pool;
     this.economy = economy;
     this.inventory = inventory;
     this.transactionRunner = transactionRunner;
+    this.combat = combat;
   }
 
   bossesForLevel(level) {
@@ -195,11 +202,40 @@ class RiftArena {
         throw new DomainError("You need level " + boss.minLevel + " to challenge " + boss.name + ".", "ARENA_LEVEL_REQUIRED");
       }
       await claimCooldownTx(client, guildId, userId, "rift_arena", BOSS_COOLDOWN_MS);
-      const playerMaxHp = 900 + Number(player.level) * 5;
+      let combatSnapshot = {};
+      if (this.combat) {
+        await this.combat.ensureProfileTx(client, guildId, userId);
+        const loadoutResult = await client.query(
+          "SELECT weapon_id, style_id, spirit_art_id, armor_id, accessory_one_id, accessory_two_id " +
+          "FROM combat_loadouts WHERE guild_id = $1 AND user_id = $2",
+          [guildId, userId]
+        );
+        const masteryResult = await client.query(
+          "SELECT track_type, track_id, mastery_xp FROM combat_mastery WHERE guild_id = $1 AND user_id = $2",
+          [guildId, userId]
+        );
+        const masteryByTrack = Object.fromEntries(masteryResult.rows.map((entry) => [
+          entry.track_type + ":" + entry.track_id,
+          Number(entry.mastery_xp) || 0
+        ]));
+        const stats = buildCombatStats(loadoutResult.rows[0] || {}, masteryByTrack);
+        combatSnapshot = {
+          weaponId: stats.weaponId,
+          styleId: stats.styleId,
+          spiritArtId: stats.spiritArtId,
+          attackBonus: stats.attackBonus,
+          defense: stats.defense,
+          maxHpBonus: stats.maxHpBonus,
+          damageReduction: stats.damageReduction,
+          critChance: stats.critChance,
+          damageBonus: stats.damageBonus
+        };
+      }
+      const playerMaxHp = 900 + Number(player.level) * 5 + Number(combatSnapshot.maxHpBonus || 0);
       await client.query(
-        "INSERT INTO boss_battles (id, guild_id, user_id, boss_id, status, player_hp, player_max_hp, boss_hp, boss_max_hp) " +
-        "VALUES ($1, $2, $3, $4, 'active', $5, $5, $6, $6)",
-        [uuid(), guildId, userId, boss.id, playerMaxHp, boss.maxHp]
+        "INSERT INTO boss_battles (id, guild_id, user_id, boss_id, status, player_hp, player_max_hp, boss_hp, boss_max_hp, combat_snapshot) " +
+        "VALUES ($1, $2, $3, $4, 'active', $5, $5, $6, $6, $7::jsonb)",
+        [uuid(), guildId, userId, boss.id, playerMaxHp, boss.maxHp, JSON.stringify(combatSnapshot)]
       );
     });
     return this.getStatus(guildId, userId);
@@ -242,14 +278,20 @@ class RiftArena {
       }
 
       const level = Number(playerResult.rows[0].level);
-      const damage = randomInt(75 + Math.floor(level * 2.0), 105 + Math.floor(level * 2.45));
-      const bossDamage = randomInt(Math.max(1, Math.floor(boss.attack * 0.82)), Math.max(2, Math.ceil(boss.attack * 1.18)));
+      const combatSnapshot = battle.combatSnapshot || {};
+      const rawDamage = randomInt(75 + Math.floor(level * 2.0), 105 + Math.floor(level * 2.45));
+      const attack = calculateAttackDamage(level, combatSnapshot, rawDamage);
+      const rawBossDamage = randomInt(Math.max(1, Math.floor(boss.attack * 0.82)), Math.max(2, Math.ceil(boss.attack * 1.18)));
+      const bossDamage = calculateIncomingDamage(rawBossDamage, combatSnapshot);
       const next = resolveArenaTurn(battle, { maxHp: boss.maxHp, attack: boss.attack }, {
         action,
         ability: ability ? ability.ability : null,
-        damage,
+        damage: attack.damage,
         bossDamage
       });
+      if (this.combat) {
+        await this.combat.awardMasteryTx(client, guildId, userId, combatSnapshot, 10);
+      }
       const update = await client.query(
         "UPDATE boss_battles SET status = $2, player_hp = $3, boss_hp = $4, turn = $5, shield = $6, weakened_turns = $7, hex_turns = $8, " +
         "used_abilities = $9::jsonb, last_event = $10, updated_at = NOW(), finished_at = CASE WHEN $2 = 'active' THEN NULL ELSE NOW() END " +
