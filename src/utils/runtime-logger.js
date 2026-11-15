@@ -193,10 +193,47 @@ function installProcessErrorLogging(logger = createRuntimeLogger()) {
   return logger;
 }
 
+function startMemoryMonitor(logger = createRuntimeLogger(), options = {}) {
+  const intervalMs = Math.max(60 * 1000, Number(options.intervalMs) || 5 * 60 * 1000);
+  const configuredThreshold = Number(options.warnAtMb ?? process.env.BOT_MEMORY_WARN_MB ?? 200);
+  const warnAtMb = Number.isFinite(configuredThreshold) ? configuredThreshold : 200;
+  let currentlyAboveThreshold = false;
+
+  const timer = setInterval(() => {
+    try {
+      const usage = process.memoryUsage();
+      const rssMb = usage.rss / (1024 * 1024);
+      const heapUsedMb = usage.heapUsed / (1024 * 1024);
+      const heapTotalMb = usage.heapTotal / (1024 * 1024);
+      const externalMb = usage.external / (1024 * 1024);
+      logger.info(
+        "[memory] RSS " + rssMb.toFixed(1) + " MB; heap " +
+        heapUsedMb.toFixed(1) + "/" + heapTotalMb.toFixed(1) +
+        " MB; external " + externalMb.toFixed(1) + " MB."
+      );
+
+      if (warnAtMb > 0 && rssMb >= warnAtMb && !currentlyAboveThreshold) {
+        currentlyAboveThreshold = true;
+        logger.warn(
+          "[memory] Process RSS has crossed the configured warning threshold of " +
+          warnAtMb + " MB. Check the hosting memory metric and investigate possible growth."
+        );
+      } else if (warnAtMb > 0 && rssMb < warnAtMb * 0.9) {
+        currentlyAboveThreshold = false;
+      }
+    } catch (error) {
+      logger.error("[memory] Could not collect process memory statistics:", error);
+    }
+  }, intervalMs);
+  timer.unref();
+  return timer;
+}
+
 module.exports = {
   createRuntimeLogger,
   installConsoleFileLogging,
   guardEmitter,
   installProcessErrorLogging,
+  startMemoryMonitor,
   describeError
 };
