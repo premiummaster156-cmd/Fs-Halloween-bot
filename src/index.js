@@ -239,8 +239,19 @@ async function start() {
   client.commands = loadCommands();
   client.coopftCommands = coopftCommands;
 
-  client.once(Events.ClientReady, (ready) => {
+  client.once(Events.ClientReady, async (ready) => {
     console.log("[bot] Logged in as " + ready.user.tag + " with " + client.commands.size + " Fukishōkai commands and " + client.coopftCommands.size + " CoopFT commands.");
+
+    if (coopftGuildId) {
+      const coopGuild = ready.guilds.cache.get(coopftGuildId) || await ready.guilds.fetch(coopftGuildId).catch(() => null);
+      if (coopGuild) {
+        coopftCommunity.loadManagedRoles(coopGuild).then((loaded) => {
+          console.info("[coopft] Loaded managed role references:", loaded);
+        }).catch((error) => {
+          console.warn("[coopft] Could not load managed role references:", error.message);
+        });
+      }
+    }
 
     if (fukishokaiGuildId) {
       const fsGuild = ready.guilds.cache.get(fukishokaiGuildId);
@@ -305,6 +316,14 @@ async function start() {
         try {
           if (interaction.isButton() && interaction.customId?.startsWith("cf-ticket:")) {
             await coopftCommunity.handleButton(interaction);
+            return;
+          }
+          if (interaction.isButton() && interaction.customId?.startsWith("cf-application:")) {
+            await coopftCommunity.handleApplicationButton(interaction);
+            return;
+          }
+          if (interaction.isModalSubmit() && interaction.customId?.startsWith("cf-application:submit:")) {
+            await coopftCommunity.handleApplicationModal(interaction);
             return;
           }
           if (interaction.isChatInputCommand()) {
