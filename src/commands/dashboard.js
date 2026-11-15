@@ -626,6 +626,7 @@ async function renderMenu(guildId, owner, page, s) {
       ["Fighting Style", profile.loadout.style_id, profile.mastery.fightingStyle],
       ["Spirit Art", profile.loadout.spirit_art_id, profile.mastery.spiritArt],
       ["Armor", profile.loadout.armor_id, null],
+      ["Relic", profile.loadout.relic_id, null],
       ["Accessory I", profile.loadout.accessory_one_id, null],
       ["Accessory II", profile.loadout.accessory_two_id, null]
     ];
