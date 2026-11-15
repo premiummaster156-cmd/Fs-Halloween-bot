@@ -572,6 +572,16 @@ class CoopFTCommunityService {
       );
     } catch (error) {
       await channel.delete("Ticket record creation failed").catch(() => {});
+      if (error.code === "23505") {
+        const raced = await this.pool.query(
+          "SELECT channel_id FROM coopft_tickets WHERE guild_id=$1 AND opener_id=$2 AND status='open' ORDER BY created_at DESC LIMIT 1",
+          [guild.id, member.id]
+        );
+        if (raced.rowCount) {
+          const existingChannel = await guild.channels.fetch(raced.rows[0].channel_id).catch(() => null);
+          if (existingChannel) return { channel: existingChannel, existing: true };
+        }
+      }
       throw error;
     }
 
@@ -613,11 +623,89 @@ class CoopFTCommunityService {
     });
   }
 
+  getStaffRankKey(member) {
+    return STAFF_RANKS.find((spec) => {
+      const role = this.roles.get(spec.key);
+      return role && member?.roles?.cache?.has(role.id);
+    })?.key || null;
+  }
+
+  assertStaffChangeAuthority(actor, target, guild, currentRankKey, nextRankKey = null) {
+    if (actor?.id === guild.ownerId) return;
+    if (!actor || !target || actor.id === target.id) {
+      throw new Error("Ask another authorized CoopFT manager to make this staff change.");
+    }
+
+    const actorRankKey = this.getStaffRankKey(actor);
+    const actorRankIndex = actorRankKey ? STAFF_RANKS.findIndex((item) => item.key === actorRankKey) : -1;
+    const isStaffManager = [...STAFF_MANAGER_KEYS].some((key) => {
+      const role = this.roles.get(key);
+      return role && actor.roles?.cache?.has(role.id);
+    });
+    const isHrManager = [...HR_MANAGER_KEYS].some((key) => {
+      const role = this.roles.get(key);
+      return role && actor.roles?.cache?.has(role.id);
+    });
+    const currentIndex = currentRankKey ? STAFF_RANKS.findIndex((item) => item.key === currentRankKey) : -1;
+    const nextIndex = nextRankKey ? STAFF_RANKS.findIndex((item) => item.key === nextRankKey) : -1;
+
+    if (isStaffManager && actorRankIndex >= 0) {
+      if (currentIndex >= 0 && currentIndex <= actorRankIndex) {
+        throw new Error("You cannot change someone at your own rank or above it.");
+      }
+      if (nextIndex >= 0 && nextIndex <= actorRankIndex) {
+        throw new Error("You can only appoint staff below your own rank.");
+      }
+      return;
+    }
+
+    if (isHrManager) {
+      const hrManagedFrom = STAFF_RANKS.findIndex((item) => item.key === "head_moderator");
+      if ((currentIndex >= 0 && currentIndex < hrManagedFrom) ||
+          (nextIndex >= 0 && nextIndex < hrManagedFrom)) {
+        throw new Error("HR can manage Head Moderator and lower ranks only. Higher ranks require a senior staff manager or the server owner.");
+      }
+      return;
+    }
+
+    throw new Error("You do not have authority to make this staff change.");
+  }
+
   async assignStaff(interaction, member, rankKey, action = "hire") {
     if (interaction.guildId !== this.guildId) throw new Error("This staff system is only available in CoopFT.");
-    if (!this.canManageStaff(interaction.member, interaction.guild)) throw new Error("You do not have HR or senior staff authority to change staff ranks.");
+    if (!this.canManageStaff(interaction.member, interaction.guild)) {
+      throw new Error("You do not have HR or senior staff authority to change staff ranks.");
+    }
+
     const rank = STAFF_RANKS.find((item) => item.key === rankKey);
     if (!rank) throw new Error("Unknown staff rank.");
+    const previous = await this.pool.query(
+      "SELECT rank_key,active FROM coopft_staff_members WHERE guild_id=$1 AND member_id=$2",
+      [interaction.guildId, member.id]
+    );
+    const currentRankKey = previous.rows[0]?.active
+      ? previous.rows[0].rank_key
+      : this.getStaffRankKey(member);
+    const currentIndex = currentRankKey ? STAFF_RANKS.findIndex((item) => item.key === currentRankKey) : -1;
+    const nextIndex = STAFF_RANKS.findIndex((item) => item.key === rankKey);
+
+    if (action === "hire" && currentIndex >= 0) {
+      throw new Error("This member is already on the staff team. Use promote or demote instead.");
+    }
+    if (action === "promote" && (currentIndex < 0 || nextIndex >= currentIndex)) {
+      throw new Error("A promotion must move an existing staff member to a higher rank.");
+    }
+    if (action === "demote" && (currentIndex < 0 || nextIndex <= currentIndex)) {
+      throw new Error("A demotion must move an existing staff member to a lower rank.");
+    }
+    this.assertStaffChangeAuthority(
+      interaction.member,
+      member,
+      interaction.guild,
+      currentRankKey,
+      rankKey
+    );
+
     const role = this.roles.get(rankKey) || await this.ensureRole(interaction.guild, rank).then((value) => value.role);
     const roleIds = new Set(STAFF_RANKS.map((item) => this.roles.get(item.key)?.id).filter(Boolean));
     for (const oldRole of member.roles.cache.filter((item) => roleIds.has(item.id) && item.id !== role.id).values()) {
@@ -629,15 +717,35 @@ class CoopFTCommunityService {
       "ON CONFLICT (guild_id,member_id) DO UPDATE SET rank_key=EXCLUDED.rank_key,active=TRUE,updated_at=NOW(),updated_by=EXCLUDED.updated_by",
       [interaction.guildId, member.id, rankKey, interaction.user.id]
     );
-    await this.recordStaffAudit(interaction.guildId, interaction.user.id, member.id, action, { rank: rankKey });
+    await this.recordStaffAudit(interaction.guildId, interaction.user.id, member.id, action, {
+      from: currentRankKey,
+      to: rankKey
+    });
     await this.updateStaffDirectory(interaction.guild);
-    await this.postStaffUpdate(interaction.guild, this.emoji(interaction.guildId, "cf_star", "✦") + " <@" + member.id + "> was appointed as **" + rank.name + "** by <@" + interaction.user.id + ">.");
-    return { rankName: rank.name };
+    const actionText = action === "hire" ? "hired" : action === "promote" ? "promoted" : "demoted";
+    await this.postStaffUpdate(
+      interaction.guild,
+      this.emoji(interaction.guildId, "cf_star", "✦") + " <@" + member.id + "> was " +
+      actionText + " to **" + rank.name + "** by <@" + interaction.user.id + ">."
+    );
+    return { rankName: rank.name, previousRank: currentRankKey };
   }
 
   async removeStaff(interaction, member) {
     if (interaction.guildId !== this.guildId) throw new Error("This staff system is only available in CoopFT.");
-    if (!this.canManageStaff(interaction.member, interaction.guild)) throw new Error("You do not have HR or senior staff authority to change staff ranks.");
+    if (!this.canManageStaff(interaction.member, interaction.guild)) {
+      throw new Error("You do not have HR or senior staff authority to change staff ranks.");
+    }
+    const previous = await this.pool.query(
+      "SELECT rank_key,active FROM coopft_staff_members WHERE guild_id=$1 AND member_id=$2",
+      [interaction.guildId, member.id]
+    );
+    const currentRankKey = previous.rows[0]?.active
+      ? previous.rows[0].rank_key
+      : this.getStaffRankKey(member);
+    if (!currentRankKey) throw new Error("This member does not have an active staff rank.");
+    this.assertStaffChangeAuthority(interaction.member, member, interaction.guild, currentRankKey, null);
+
     for (const spec of STAFF_RANKS) {
       const role = this.roles.get(spec.key);
       if (role && member.roles.cache.has(role.id)) await member.roles.remove(role, "CoopFT staff removal");
@@ -646,7 +754,7 @@ class CoopFTCommunityService {
       "UPDATE coopft_staff_members SET active=FALSE,updated_at=NOW(),updated_by=$3 WHERE guild_id=$1 AND member_id=$2",
       [interaction.guildId, member.id, interaction.user.id]
     );
-    await this.recordStaffAudit(interaction.guildId, interaction.user.id, member.id, "remove", {});
+    await this.recordStaffAudit(interaction.guildId, interaction.user.id, member.id, "remove", { from: currentRankKey });
     await this.updateStaffDirectory(interaction.guild);
     await this.postStaffUpdate(interaction.guild, this.emoji(interaction.guildId, "cf_bell", "🔔") + " <@" + member.id + "> was removed from the staff team by <@" + interaction.user.id + ">.");
   }
@@ -658,36 +766,66 @@ class CoopFTCommunityService {
     );
   }
 
-  async syncStaffMember(guild, member) {
+  async syncStaffMember(guild, member, actor) {
     if (!guild || guild.id !== this.guildId || !member || !this.roles.size) return;
-    const newRank = STAFF_RANKS.find((spec) => {
-      const role = this.roles.get(spec.key);
-      return role && member.roles.cache.has(role.id);
-    });
+    const newRankKey = this.getStaffRankKey(member);
     const previous = await this.pool.query(
       "SELECT rank_key,active FROM coopft_staff_members WHERE guild_id=$1 AND member_id=$2",
       [guild.id, member.id]
     );
-    const oldRank = STAFF_RANKS.find((spec) => spec.key === previous.rows[0]?.rank_key);
-    if (newRank && (!previous.rows[0]?.active || newRank.key !== oldRank?.key)) {
-      await this.pool.query(
-        "INSERT INTO coopft_staff_members (guild_id,member_id,rank_key,active,updated_by) VALUES ($1,$2,$3,TRUE,'discord-audit-sync') " +
-        "ON CONFLICT (guild_id,member_id) DO UPDATE SET rank_key=EXCLUDED.rank_key,active=TRUE,updated_at=NOW(),updated_by='discord-audit-sync'",
-        [guild.id, member.id, newRank.key]
-      );
-      const action = !oldRank ? "staff_added" : "staff_rank_changed";
-      await this.recordStaffAudit(guild.id, "discord-audit-sync", member.id, action, { from: oldRank?.key || null, to: newRank.key });
-      await this.updateStaffDirectory(guild);
-      await this.postStaffUpdate(guild, this.emoji(guild.id, "cf_star", "✦") + " <@" + member.id + "> is now **" + newRank.name + "**.");
-    } else if (!newRank && previous.rows[0]?.active) {
+    const oldRankKey = previous.rows[0]?.active ? previous.rows[0].rank_key : null;
+
+    // Removing a staff role only removes bot-managed access, so it is safe to
+    // reconcile even when the executor cannot be identified.
+    if (!newRankKey && previous.rows[0]?.active) {
       await this.pool.query(
         "UPDATE coopft_staff_members SET active=FALSE,updated_at=NOW(),updated_by='discord-audit-sync' WHERE guild_id=$1 AND member_id=$2",
         [guild.id, member.id]
       );
-      await this.recordStaffAudit(guild.id, "discord-audit-sync", member.id, "staff_role_removed", { from: oldRank?.key || null });
+      await this.recordStaffAudit(guild.id, actor?.id || "unknown", member.id, "staff_role_removed", { from: oldRankKey });
       await this.updateStaffDirectory(guild);
       await this.postStaffUpdate(guild, this.emoji(guild.id, "cf_bell", "🔔") + " <@" + member.id + "> no longer has an active staff rank.");
+      return;
     }
+
+    if (!newRankKey || newRankKey === oldRankKey) return;
+    if (!actor || !this.canManageStaff(actor, guild)) {
+      const unauthorizedRole = this.roles.get(newRankKey);
+      if (unauthorizedRole && member.roles.cache.has(unauthorizedRole.id)) {
+        await member.roles.remove(unauthorizedRole, "Revert unauthorized CoopFT staff role assignment").catch(() => {});
+      }
+      await this.postStaffUpdate(
+        guild,
+        this.emoji(guild.id, "cf_shield", "🛡️") + " An unauthorized staff-rank change for <@" +
+        member.id + "> was rejected. Ask the server owner or HR to use /staff-manage."
+      );
+      return;
+    }
+
+    try {
+      this.assertStaffChangeAuthority(actor, member, guild, oldRankKey, newRankKey);
+    } catch (error) {
+      const unauthorizedRole = this.roles.get(newRankKey);
+      if (unauthorizedRole && member.roles.cache.has(unauthorizedRole.id)) {
+        await member.roles.remove(unauthorizedRole, "Revert unauthorized CoopFT staff rank escalation").catch(() => {});
+      }
+      await this.postStaffUpdate(guild, this.emoji(guild.id, "cf_shield", "🛡️") + " A staff-rank change for <@" +
+        member.id + "> was reverted: " + error.message);
+      return;
+    }
+
+    await this.pool.query(
+      "INSERT INTO coopft_staff_members (guild_id,member_id,rank_key,active,updated_by) VALUES ($1,$2,$3,TRUE,$4) " +
+      "ON CONFLICT (guild_id,member_id) DO UPDATE SET rank_key=EXCLUDED.rank_key,active=TRUE,updated_at=NOW(),updated_by=EXCLUDED.updated_by",
+      [guild.id, member.id, newRankKey, actor.id]
+    );
+    await this.recordStaffAudit(guild.id, actor.id, member.id, oldRankKey ? "staff_rank_changed" : "staff_added", {
+      from: oldRankKey,
+      to: newRankKey
+    });
+    await this.updateStaffDirectory(guild);
+    const rank = STAFF_RANKS.find((spec) => spec.key === newRankKey);
+    await this.postStaffUpdate(guild, this.emoji(guild.id, "cf_star", "✦") + " <@" + member.id + "> is now **" + rank.name + "**.");
   }
 
   async handleMemberLeave(member) {
@@ -799,7 +937,14 @@ class CoopFTCommunityService {
         await interaction.reply({ content: "Only CoopFT staff can claim tickets.", flags: MessageFlags.Ephemeral });
         return true;
       }
-      await this.pool.query("UPDATE coopft_tickets SET claimed_by=$3 WHERE guild_id=$1 AND id=$2", [interaction.guildId, value, interaction.user.id]);
+      const claimed = await this.pool.query(
+        "UPDATE coopft_tickets SET claimed_by=$3 WHERE guild_id=$1 AND id=$2 AND status='open' AND (claimed_by IS NULL OR claimed_by=$3) RETURNING id",
+        [interaction.guildId, value, interaction.user.id]
+      );
+      if (!claimed.rowCount) {
+        await interaction.reply({ content: "Another staff member has already claimed this ticket. Please coordinate in the ticket before taking over.", flags: MessageFlags.Ephemeral });
+        return true;
+      }
       await interaction.reply({ content: "You claimed this ticket.", flags: MessageFlags.Ephemeral });
       await interaction.channel.send({ content: this.emoji(interaction.guildId, "cf_shield", "🛡️") + " This ticket is now being handled by <@" + interaction.user.id + ">.", allowedMentions: { users: [interaction.user.id] } });
       return true;
