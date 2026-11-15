@@ -357,6 +357,7 @@ class CoopFTCommunityService {
   }
 
   async loadManagedRoles(guild) {
+    this.assertCoopFTGuild(guild, "load managed CoopFT roles");
     if (!guild || guild.id !== this.guildId) return { staff: 0, hr: 0, applications: 0, emojis: 0 };
     const roleGroups = [
       { specs: STAFF_RANKS, target: this.roles, count: "staff" },
@@ -671,6 +672,7 @@ class CoopFTCommunityService {
   }
 
   async staffPermissionOverwrites(guild) {
+    this.assertCoopFTGuild(guild, "build CoopFT permission overrides");
     const botMember = guild.members.me || await guild.members.fetchMe();
     const allowedRoles = [...this.roles.values()].map((role) => role.id);
     const supportRoles = allowedRoles.map((id) => ({
@@ -969,6 +971,7 @@ class CoopFTCommunityService {
   }
 
   async ensureBrandMessages(guild, publicChannels) {
+    this.assertCoopFTGuild(guild, "publish CoopFT messages");
     let bannerAttachment = null;
     try {
       bannerAttachment = new AttachmentBuilder(this.buildRulesEmblem(), { name: "coopft-rules-crest.png" });
@@ -1060,6 +1063,7 @@ class CoopFTCommunityService {
   }
 
   async buildRoleGuideEmbed(guild) {
+    this.assertCoopFTGuild(guild, "build the CoopFT role guide");
     const embed = new EmbedBuilder()
       .setColor(0x344E83)
       .setTitle(this.emoji(guild.id, "cf3d_rolebook", "📚") + "  COOPFT • ROLE GUIDE")
@@ -1093,6 +1097,7 @@ class CoopFTCommunityService {
   }
 
   async ensureRoleGuide(guild, channel) {
+    this.assertCoopFTGuild(guild, "publish the CoopFT role guide");
     if (!channel?.isTextBased?.()) return;
     const embed = await this.buildRoleGuideEmbed(guild);
     const savedId = await this.getResource(guild.id, "message:role_guide");
@@ -1110,6 +1115,7 @@ class CoopFTCommunityService {
   }
 
   async setApplicationOpen(guild, roleKey, isOpen) {
+    this.assertCoopFTGuild(guild, "change CoopFT application availability");
     if (!APPLICATION_ROLES.some((role) => role.key === roleKey)) throw new Error("Unknown application position.");
     const wasOpen = await this.isApplicationOpen(guild.id, roleKey);
     await this.setSetting(guild.id, "application_open:" + roleKey, Boolean(isOpen));
@@ -1125,6 +1131,7 @@ class CoopFTCommunityService {
   }
 
   async showApplicationNotificationPreferences(interaction) {
+    this.assertCoopFTGuild(interaction.guild, "read CoopFT application preferences");
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const saved = await this.pool.query(
       "SELECT role_key FROM coopft_application_subscriptions WHERE guild_id=$1 AND member_id=$2",
@@ -1157,6 +1164,7 @@ class CoopFTCommunityService {
   }
 
   async handleApplicationSelectMenu(interaction) {
+    this.assertCoopFTGuild(interaction.guild, "save CoopFT application preferences");
     if (interaction.guildId !== this.guildId || interaction.customId !== "cf-application:notify-select") {
       await interaction.reply({ content: "These notification settings are only available in CoopFT.", flags: MessageFlags.Ephemeral });
       return true;
@@ -1185,6 +1193,7 @@ class CoopFTCommunityService {
   }
 
   async notifyApplicationSubscribers(guild, roleKey) {
+    this.assertCoopFTGuild(guild, "notify CoopFT application subscribers");
     const role = APPLICATION_ROLES.find((item) => item.key === roleKey);
     if (!role) return { sent: 0, failed: 0 };
     const subscribers = await this.pool.query(
@@ -1215,6 +1224,7 @@ class CoopFTCommunityService {
   }
 
   async ensureApplicationPanel(guild, channel) {
+    this.assertCoopFTGuild(guild, "publish the CoopFT application panel");
     if (!channel?.isTextBased?.()) return;
     const statuses = await Promise.all(APPLICATION_ROLES.map(async (role) => ({
       role, open: await this.isApplicationOpen(guild.id, role.key)
@@ -1273,6 +1283,7 @@ class CoopFTCommunityService {
   }
 
   async handleApplicationButton(interaction) {
+    this.assertCoopFTGuild(interaction.guild, "process a CoopFT application button");
     if (interaction.guildId !== this.guildId) {
       await interaction.reply({ content: "Applications are only available in CoopFT.", flags: MessageFlags.Ephemeral });
       return true;
@@ -1332,6 +1343,7 @@ class CoopFTCommunityService {
   }
 
   async handleApplicationModal(interaction) {
+    this.assertCoopFTGuild(interaction.guild, "save a CoopFT application");
     if (interaction.guildId !== this.guildId) {
       await interaction.reply({ content: "Applications are only available in CoopFT.", flags: MessageFlags.Ephemeral });
       return true;
@@ -1424,6 +1436,7 @@ class CoopFTCommunityService {
   }
 
   async resolveApplication(interaction, applicationId, decision) {
+    this.assertCoopFTGuild(interaction.guild, "review a CoopFT application");
     const selected = await this.pool.query(
       "SELECT * FROM coopft_applications WHERE guild_id=$1 AND id=$2 AND status='pending' LIMIT 1",
       [interaction.guildId, applicationId]
@@ -1473,6 +1486,7 @@ class CoopFTCommunityService {
   }
 
   async ensureTicketPanel(guild, channel) {
+    this.assertCoopFTGuild(guild, "publish the CoopFT ticket panel");
     const savedId = await this.getResource(guild.id, "message:ticket_panel");
     let message = savedId ? await channel.messages.fetch(savedId).catch(() => null) : null;
     const embed = new EmbedBuilder()
@@ -1500,11 +1514,13 @@ class CoopFTCommunityService {
   }
 
   async getTicketCategory(guild) {
+    this.assertCoopFTGuild(guild, "read the CoopFT ticket category");
     const id = await this.getResource(guild.id, "category:tickets");
     return id ? guild.channels.fetch(id).catch(() => null) : null;
   }
 
   async openTicket(guild, member, ticketType) {
+    this.assertCoopFTGuild(guild, "open a CoopFT ticket");
     if (!TICKET_TYPES[ticketType]) throw new Error("Unknown ticket type.");
     const existing = await this.pool.query(
       "SELECT id,channel_id FROM coopft_tickets WHERE guild_id=$1 AND opener_id=$2 AND status='open' ORDER BY created_at DESC LIMIT 1",
@@ -1617,6 +1633,7 @@ class CoopFTCommunityService {
   }
 
   async getHRAssignment(guildId, memberId) {
+    this.assertCoopFTGuildId(guildId, "read CoopFT HR assignment data");
     const result = await this.pool.query(
       "SELECT action,details FROM coopft_staff_audit WHERE guild_id=$1 AND member_id=$2 " +
       "AND action IN ('hr_role_assigned','hr_role_removed') ORDER BY created_at DESC,id DESC LIMIT 1",
@@ -1666,6 +1683,7 @@ class CoopFTCommunityService {
   }
 
   async assignHRRole(interaction, member, roleKey) {
+    this.assertCoopFTGuild(interaction.guild, "assign a CoopFT HR role");
     if (interaction.guildId !== this.guildId) throw new Error("This HR system is only available in CoopFT.");
     const roleSpec = HR_ROLES.find((item) => item.key === roleKey);
     const role = this.roles.get(roleKey);
@@ -1703,6 +1721,7 @@ class CoopFTCommunityService {
   }
 
   async removeHRRole(interaction, member) {
+    this.assertCoopFTGuild(interaction.guild, "remove a CoopFT HR role");
     if (interaction.guildId !== this.guildId) throw new Error("This HR system is only available in CoopFT.");
     const previous = await this.getHRAssignment(interaction.guildId, member.id);
     const recordedRoleKey = previous?.action === "hr_role_assigned" ? previous.details?.roleKey : null;
@@ -1774,6 +1793,7 @@ class CoopFTCommunityService {
   }
 
   async assignStaff(interaction, member, rankKey, action = "hire") {
+    this.assertCoopFTGuild(interaction.guild, "change a CoopFT staff role");
     if (interaction.guildId !== this.guildId) throw new Error("This staff system is only available in CoopFT.");
     if (!this.canManageStaff(interaction.member, interaction.guild)) {
       throw new Error("You do not have HR or senior staff authority to change staff ranks.");
@@ -1834,6 +1854,7 @@ class CoopFTCommunityService {
   }
 
   async removeStaff(interaction, member) {
+    this.assertCoopFTGuild(interaction.guild, "remove a CoopFT staff role");
     if (interaction.guildId !== this.guildId) throw new Error("This staff system is only available in CoopFT.");
     if (!this.canManageStaff(interaction.member, interaction.guild)) {
       throw new Error("You do not have HR or senior staff authority to change staff ranks.");
@@ -1862,6 +1883,7 @@ class CoopFTCommunityService {
   }
 
   async recordStaffAudit(guildId, actorId, memberId, action, details) {
+    this.assertCoopFTGuildId(guildId, "write CoopFT staff audit data");
     await this.pool.query(
       "INSERT INTO coopft_staff_audit (guild_id,actor_id,member_id,action,details) VALUES ($1,$2,$3,$4,$5::jsonb)",
       [guildId, actorId, memberId || null, action, JSON.stringify(details || {})]
@@ -1869,6 +1891,7 @@ class CoopFTCommunityService {
   }
 
   async syncStaffMember(guild, member, actor) {
+    this.assertCoopFTGuild(guild, "synchronize CoopFT staff membership");
     if (!guild || guild.id !== this.guildId || !member || !this.roles.size) return;
     const newRankKey = this.getStaffRankKey(member);
     const previous = await this.pool.query(
@@ -1931,6 +1954,7 @@ class CoopFTCommunityService {
   }
 
   async syncHRMember(guild, member, actor) {
+    this.assertCoopFTGuild(guild, "synchronize CoopFT HR membership");
     if (!guild || guild.id !== this.guildId || !member || !this.roles.size || !actor) return;
     const previous = await this.getHRAssignment(guild.id, member.id);
     const previousRoleKey = previous?.action === "hr_role_assigned" ? previous.details?.roleKey : null;
@@ -1994,6 +2018,7 @@ class CoopFTCommunityService {
 
   async handleMemberLeave(member) {
     if (!member || member.guild.id !== this.guildId) return;
+    this.assertCoopFTGuild(member.guild, "record a CoopFT member departure");
     const result = await this.pool.query(
       "UPDATE coopft_staff_members SET active=FALSE,updated_at=NOW(),updated_by='member-left' WHERE guild_id=$1 AND member_id=$2 AND active=TRUE RETURNING rank_key",
       [this.guildId, member.id]
@@ -2020,6 +2045,7 @@ class CoopFTCommunityService {
   }
 
   async buildStaffDirectoryEmbed(guild) {
+    this.assertCoopFTGuild(guild, "build the CoopFT staff directory");
     const result = await this.pool.query(
       "SELECT member_id,rank_key FROM coopft_staff_members WHERE guild_id=$1 AND active=TRUE",
       [guild.id]
@@ -2100,6 +2126,7 @@ class CoopFTCommunityService {
   }
 
   async updateStaffDirectory(guild) {
+    this.assertCoopFTGuild(guild, "update the CoopFT staff directory");
     const embed = await this.buildStaffDirectoryEmbed(guild);
     for (const key of ["staff_team", "staff_directory"]) {
       const channelId = await this.getResource(guild.id, "channel:" + key);
@@ -2116,6 +2143,7 @@ class CoopFTCommunityService {
   }
 
   async postStaffUpdate(guild, description) {
+    this.assertCoopFTGuild(guild, "post a CoopFT staff update");
     const channelId = await this.getResource(guild.id, "channel:staff_bot_updates");
     const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
     if (!channel?.isTextBased?.()) return;
@@ -2129,6 +2157,7 @@ class CoopFTCommunityService {
   }
 
   async handleButton(interaction) {
+    this.assertCoopFTGuild(interaction.guild, "process a CoopFT ticket button");
     if (!interaction.customId?.startsWith("cf-ticket:")) return false;
     if (interaction.guildId !== this.guildId) {
       await interaction.reply({ content: "This ticket system is only available in CoopFT.", flags: MessageFlags.Ephemeral });
@@ -2183,6 +2212,7 @@ class CoopFTCommunityService {
   }
 
   async closeTicket(guild, channel, ticket, closedBy) {
+    this.assertCoopFTGuild(guild, "close a CoopFT ticket");
     const transcriptChannelId = await this.getResource(guild.id, "channel:ticket_transcripts");
     const transcriptChannel = transcriptChannelId ? await guild.channels.fetch(transcriptChannelId).catch(() => null) : null;
     const messages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
