@@ -67,7 +67,7 @@ The bot generates 27 distinct, transparent custom emoji illustrations with `@nap
 
 ## Rules, role explanations and applications
 
-The `#rules` channel receives a single branded embed with a generated 1600 × 720 CoopFT banner attached to the same message. The rules use the custom emoji illustrations and cover respect, constructive discussion, server safety, privacy, advertising, voice/events, suggestions, moderation, appropriate content and community participation.
+The `#rules` channel receives one branded embed with a generated square CoopFT crest attached as the embed's top thumbnail. The rules use the custom emoji illustrations and cover respect, constructive discussion, server safety, privacy, advertising, voice/events, suggestions, moderation, appropriate content and community participation.
 
 The `#role-explanations` channel receives one maintained guide covering all 10 staff ranks, all 5 HR roles and all 5 specialist positions. Each role has its own description and custom emblem.
 
