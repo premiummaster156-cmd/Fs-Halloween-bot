@@ -640,8 +640,10 @@ async function start() {
         Promise.all([
           guild.members.fetch(targetId),
           guild.members.fetch(executorId)
-        ]).then(([member, actor]) => coopftCommunity.syncStaffMember(guild, member, actor))
-          .catch((error) => console.warn("[coopft] Could not sync staff audit entry:", error.message));
+        ]).then(async ([member, actor]) => {
+          await coopftCommunity.syncStaffMember(guild, member, actor);
+          await coopftCommunity.syncHRMember(guild, member, actor);
+        }).catch((error) => console.warn("[coopft] Could not sync staff/HR audit entry:", error.message));
       }
       return;
     }

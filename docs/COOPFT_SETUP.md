@@ -5,7 +5,7 @@ The Fukishōkai economy bot and CoopFT community system use the same Discord app
 - CoopFT server: `1498271944456540210` by default (`COOPFT_GUILD_ID` can override it).
 - Fukishōkai server: `FUKISHOKAI_GUILD_ID`; legacy `GUILD_ID` is used as a fallback when it is not the CoopFT ID.
 - Fukishōkai economy, boosters, activity rewards, games, custom slash commands, admin dashboard and raid/security workflows are accepted only in the Fukishōkai server.
-- CoopFT receives only `/staff`, `/staff-manage`, `/ticket`, and `/coopft-setup`. It has no Fukishōkai economy, player wallets, candy rewards, inventory, jobs, heists, or game dashboard.
+- CoopFT receives only `/staff`, `/staff-manage`, `/hr-manage`, `/ticket`, and `/coopft-setup`. It has no Fukishōkai economy, player wallets, candy rewards, inventory, jobs, heists, or game dashboard.
 
 ## Automatic setup
 
@@ -58,7 +58,7 @@ Staff can claim a ticket. The opener or staff can close it. On close, the bot sa
 
 `/staff-manage hire`, `promote`, `demote`, and `remove` require the server owner, Owner/Co-Owner/High Rank Supervisor, or HR Director/HR Manager. A change updates the member's staff role, writes a Neon audit record, updates both staff directory embeds, and posts to private `#staff-bot-updates`.
 
-HR roles are created automatically but are intentionally not granted to anyone automatically. The CoopFT server owner should assign HR Director/HR Manager to trusted people through Discord's role manager before delegating staff management.
+HR roles are created automatically but are not granted to anyone automatically. The server owner assigns the first HR Director using `/hr-manage assign`. After that, senior staff managers can manage all HR ranks; an HR Director can manage HR Manager and lower; an HR Manager can manage HR Recruiter, HR Coordinator and HR Trainee only. HR Managers cannot appoint or remove HR Directors/Managers, and users cannot change their own HR role. Every HR assignment is audited and shown in the HR section of the staff directory. Manual HR role changes are checked against the same hierarchy and unauthorized changes are reverted.
 
 ## Role cleanup safety
 

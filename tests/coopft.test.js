@@ -9,7 +9,7 @@ const {
 const {
   coopftGuildId, fukishokaiGuildId, personaForGuild, configuredGuildIds
 } = require("../src/config/server-personas");
-const { safeChannelName, TICKET_TYPES, CLEANUP_CONFIRMATION } = require("../src/services/coopft-community");
+const { safeChannelName, TICKET_TYPES, CLEANUP_CONFIRMATION, CoopFTCommunityService } = require("../src/services/coopft-community");
 
 test("server personas are isolated and CoopFT uses the configured server ID", () => {
   assert.equal(coopftGuildId, process.env.COOPFT_GUILD_ID || "1498271944456540210");
@@ -24,7 +24,7 @@ test("server personas are isolated and CoopFT uses the configured server ID", ()
 
 test("CoopFT registers only its community commands", () => {
   const commands = loadCoopFTCommands();
-  assert.deepEqual([...commands.keys()].sort(), ["coopft-setup", "staff", "staff-manage", "ticket"]);
+  assert.deepEqual([...commands.keys()].sort(), ["coopft-setup", "hr-manage", "staff", "staff-manage", "ticket"]);
   for (const command of commands.values()) assert.doesNotThrow(() => command.data.toJSON());
   assert.equal(commands.has("menu"), false);
   assert.equal(commands.has("profile"), false);
@@ -57,6 +57,8 @@ test("CoopFT has sixteen distinct inline embed emojis and all required channel g
   assert.ok(PRIVATE_CHANNELS.some((channel) => channel.key === "staff_team"));
   assert.ok(PRIVATE_CHANNELS.some((channel) => channel.key === "staff_bot_updates"));
   assert.ok(PRIVATE_CHANNELS.some((channel) => channel.key === "ticket_transcripts"));
+  assert.ok(PRIVATE_CHANNELS.some((channel) => channel.key === "member_logs"));
+  assert.ok(PRIVATE_CHANNELS.some((channel) => channel.key === "server_logs"));
 });
 
 test("ticket types are distinct and channel names are safely normalized", () => {
@@ -68,4 +70,36 @@ test("ticket types are distinct and channel names are safely normalized", () => 
 
 test("editable-role cleanup requires the exact one-time confirmation phrase", () => {
   assert.equal(CLEANUP_CONFIRMATION, "DELETE_EDITABLE_ROLES");
+});
+
+
+test("HR managers have limited delegation authority and cannot grant senior HR roles", () => {
+  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) }, { guildId: "guild-1" });
+  for (const spec of HR_ROLES) service.roles.set(spec.key, { id: spec.key });
+  for (const spec of STAFF_RANKS) service.roles.set(spec.key, { id: spec.key });
+
+  const guild = { ownerId: "server-owner" };
+  const target = { id: "target" };
+  const actorWith = (id, roles) => ({ id, roles: { cache: new Set(roles) } });
+
+  const senior = actorWith("senior", ["high_rank_supervisor"]);
+  assert.doesNotThrow(() => service.assertHRRoleChangeAuthority(senior, target, guild, null, "hr_director"));
+
+  const director = actorWith("director", ["hr_director"]);
+  assert.doesNotThrow(() => service.assertHRRoleChangeAuthority(director, target, guild, "hr_recruiter", "hr_manager"));
+  assert.throws(
+    () => service.assertHRRoleChangeAuthority(director, target, guild, null, "hr_director"),
+    /cannot appoint/
+  );
+
+  const manager = actorWith("manager", ["hr_manager"]);
+  assert.doesNotThrow(() => service.assertHRRoleChangeAuthority(manager, target, guild, "hr_trainee", "hr_recruiter"));
+  assert.throws(
+    () => service.assertHRRoleChangeAuthority(manager, target, guild, null, "hr_manager"),
+    /HR Managers can manage/
+  );
+  assert.throws(
+    () => service.assertHRRoleChangeAuthority(manager, target, guild, "hr_recruiter", "hr_director"),
+    /HR Managers can manage/
+  );
 });

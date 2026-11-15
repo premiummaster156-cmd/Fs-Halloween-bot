@@ -4,7 +4,7 @@ const {
   ButtonBuilder,
   ButtonStyle
 } = require("discord.js");
-const { STAFF_RANKS } = require("../config/coopft-design");
+const { STAFF_RANKS, HR_ROLES } = require("../config/coopft-design");
 
 const staffCommand = {
   data: new SlashCommandBuilder()
@@ -56,6 +56,46 @@ const staffManageCommand = {
   }
 };
 
+
+const hrManageCommand = {
+  data: new SlashCommandBuilder()
+    .setName("hr-manage")
+    .setDescription("Assign or remove a CoopFT Human Resources role.")
+    .addSubcommand((sub) => sub.setName("assign")
+      .setDescription("Assign an HR role to a member.")
+      .addUserOption((o) => o.setName("member").setDescription("Member to assign").setRequired(true))
+      .addStringOption((o) => o.setName("role").setDescription("HR role").setRequired(true)
+        .addChoices(...HR_ROLES.map((role) => ({ name: role.name, value: role.key }))))
+    )
+    .addSubcommand((sub) => sub.setName("remove")
+      .setDescription("Remove a member's HR role.")
+      .addUserOption((o) => o.setName("member").setDescription("Member to update").setRequired(true))
+    ),
+  async execute(interaction, services) {
+    const subcommand = interaction.options.getSubcommand();
+    const user = interaction.options.getUser("member", true);
+    const member = await interaction.guild.members.fetch(user.id).catch(() => null);
+    if (!member) {
+      return interaction.reply({ content: "That member is no longer in this server.", ephemeral: true });
+    }
+    if (subcommand === "remove") {
+      const result = await services.coopft.removeHRRole(interaction, member);
+      return interaction.reply({
+        content: "✅ Removed **" + result.roleName + "** from **" + member.user.tag + "**. The HR directory has been updated.",
+        ephemeral: true
+      });
+    }
+    const roleKey = interaction.options.getString("role", true);
+    const result = await services.coopft.assignHRRole(interaction, member, roleKey);
+    return interaction.reply({
+      content: result.alreadyAssigned
+        ? "**" + member.user.tag + "** already has **" + result.roleName + "**."
+        : "✅ Assigned **" + result.roleName + "** to **" + member.user.tag + "**. The HR directory has been updated.",
+      ephemeral: true
+    });
+  }
+};
+
 const ticketCommand = {
   data: new SlashCommandBuilder()
     .setName("ticket")
@@ -101,7 +141,7 @@ const setupCommand = {
   }
 };
 
-const commands = [staffCommand, staffManageCommand, ticketCommand, setupCommand];
+const commands = [staffCommand, staffManageCommand, hrManageCommand, ticketCommand, setupCommand];
 function loadCoopFTCommands() {
   const map = new Map();
   for (const command of commands) {

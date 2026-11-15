@@ -631,6 +631,131 @@ class CoopFTCommunityService {
     })?.key || null;
   }
 
+  getHRRoleKeys(member) {
+    return HR_ROLES
+      .filter((spec) => {
+        const role = this.roles.get(spec.key);
+        return role && member?.roles?.cache?.has(role.id);
+      })
+      .map((spec) => spec.key);
+  }
+
+  async getHRAssignment(guildId, memberId) {
+    const result = await this.pool.query(
+      "SELECT action,details FROM coopft_staff_audit WHERE guild_id=$1 AND member_id=$2 " +
+      "AND action IN ('hr_role_assigned','hr_role_removed') ORDER BY created_at DESC,id DESC LIMIT 1",
+      [guildId, memberId]
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    let details = row.details || {};
+    if (typeof details === "string") {
+      try { details = JSON.parse(details); } catch (_) { details = {}; }
+    }
+    return { action: row.action, details };
+  }
+
+  assertHRRoleChangeAuthority(actor, target, guild, currentRoleKey, nextRoleKey = null) {
+    if (actor?.id === guild.ownerId) return;
+    if (!actor || !target || actor.id === target.id) {
+      throw new Error("Ask another authorized CoopFT manager to make this HR change.");
+    }
+    if (target.id === guild.ownerId) {
+      throw new Error("Only the server owner can change the server owner's HR assignments.");
+    }
+
+    const hasRole = (key) => {
+      const role = this.roles.get(key);
+      return Boolean(role && actor.roles?.cache?.has(role.id));
+    };
+    if ([...STAFF_MANAGER_KEYS].some(hasRole)) return;
+
+    if (hasRole("hr_director")) {
+      if (currentRoleKey === "hr_director" || nextRoleKey === "hr_director") {
+        throw new Error("HR Directors cannot appoint, remove or replace another HR Director. A senior staff manager or the server owner must do that.");
+      }
+      return;
+    }
+
+    const juniorHrRoles = new Set(["hr_recruiter", "hr_coordinator", "hr_trainee"]);
+    if (hasRole("hr_manager")) {
+      if ((currentRoleKey && !juniorHrRoles.has(currentRoleKey)) ||
+          (nextRoleKey && !juniorHrRoles.has(nextRoleKey))) {
+        throw new Error("HR Managers can manage HR Recruiter, HR Coordinator and HR Trainee only.");
+      }
+      return;
+    }
+
+    throw new Error("You do not have authority to manage HR roles.");
+  }
+
+  async assignHRRole(interaction, member, roleKey) {
+    if (interaction.guildId !== this.guildId) throw new Error("This HR system is only available in CoopFT.");
+    const roleSpec = HR_ROLES.find((item) => item.key === roleKey);
+    const role = this.roles.get(roleKey);
+    if (!roleSpec || !role) throw new Error("Unknown HR role. Run /coopft-setup and try again.");
+
+    const previous = await this.getHRAssignment(interaction.guildId, member.id);
+    const recordedRoleKey = previous?.action === "hr_role_assigned" ? previous.details?.roleKey : null;
+    const currentRoleKeys = this.getHRRoleKeys(member);
+    const currentRoleKey = currentRoleKeys.find((key) => key !== roleKey) || currentRoleKeys[0] || recordedRoleKey;
+    this.assertHRRoleChangeAuthority(interaction.member, member, interaction.guild, currentRoleKey, roleKey);
+    if (currentRoleKeys.length === 1 && currentRoleKeys[0] === roleKey) {
+      return { roleName: roleSpec.name, previousRole: roleKey, alreadyAssigned: true };
+    }
+
+    for (const existingKey of currentRoleKeys) {
+      if (existingKey === roleKey) continue;
+      const existingRole = this.roles.get(existingKey);
+      if (existingRole) await member.roles.remove(existingRole, "CoopFT HR role reassignment");
+    }
+    if (!member.roles.cache.has(role.id)) await member.roles.add(role, "CoopFT HR role assignment");
+
+    await this.recordStaffAudit(interaction.guildId, interaction.user.id, member.id, "hr_role_assigned", {
+      roleKey,
+      roleName: roleSpec.name,
+      from: currentRoleKey,
+      status: "active"
+    });
+    await this.updateStaffDirectory(interaction.guild);
+    await this.postStaffUpdate(
+      interaction.guild,
+      this.emoji(interaction.guildId, roleSpec.emoji, roleSpec.icon) + " <@" + member.id + "> was assigned **" +
+      roleSpec.name + "** by <@" + interaction.user.id + ">."
+    );
+    return { roleName: roleSpec.name, previousRole: currentRoleKey, alreadyAssigned: false };
+  }
+
+  async removeHRRole(interaction, member) {
+    if (interaction.guildId !== this.guildId) throw new Error("This HR system is only available in CoopFT.");
+    const previous = await this.getHRAssignment(interaction.guildId, member.id);
+    const recordedRoleKey = previous?.action === "hr_role_assigned" ? previous.details?.roleKey : null;
+    const currentRoleKeys = this.getHRRoleKeys(member);
+    const currentRoleKey = currentRoleKeys[0] || recordedRoleKey;
+    if (!currentRoleKey) throw new Error("This member does not have an active HR role.");
+    this.assertHRRoleChangeAuthority(interaction.member, member, interaction.guild, currentRoleKey, null);
+
+    for (const roleKey of currentRoleKeys) {
+      const role = this.roles.get(roleKey);
+      if (role && member.roles.cache.has(role.id)) {
+        await member.roles.remove(role, "CoopFT HR role removal");
+      }
+    }
+    const roleSpec = HR_ROLES.find((item) => item.key === currentRoleKey);
+    await this.recordStaffAudit(interaction.guildId, interaction.user.id, member.id, "hr_role_removed", {
+      roleKey: currentRoleKey,
+      roleName: roleSpec?.name || currentRoleKey,
+      status: "inactive"
+    });
+    await this.updateStaffDirectory(interaction.guild);
+    await this.postStaffUpdate(
+      interaction.guild,
+      this.emoji(interaction.guildId, "cf_bell", "🔔") + " <@" + member.id + "> had **" +
+      (roleSpec?.name || currentRoleKey) + "** removed by <@" + interaction.user.id + ">."
+    );
+    return { roleName: roleSpec?.name || currentRoleKey };
+  }
+
   assertStaffChangeAuthority(actor, target, guild, currentRankKey, nextRankKey = null) {
     if (actor?.id === guild.ownerId) return;
     if (!actor || !target || actor.id === target.id) {
@@ -829,16 +954,93 @@ class CoopFTCommunityService {
     await this.postStaffUpdate(guild, this.emoji(guild.id, "cf_star", "✦") + " <@" + member.id + "> is now **" + rank.name + "**.");
   }
 
+  async syncHRMember(guild, member, actor) {
+    if (!guild || guild.id !== this.guildId || !member || !this.roles.size || !actor) return;
+    const previous = await this.getHRAssignment(guild.id, member.id);
+    const previousRoleKey = previous?.action === "hr_role_assigned" ? previous.details?.roleKey : null;
+    const currentRoleKeys = this.getHRRoleKeys(member);
+    const nextRoleKey = currentRoleKeys.find((key) => key !== previousRoleKey) ||
+      currentRoleKeys[0] || null;
+    if (nextRoleKey === previousRoleKey && currentRoleKeys.length <= 1) return;
+    if (!nextRoleKey && !previousRoleKey) return;
+
+    try {
+      this.assertHRRoleChangeAuthority(actor, member, guild, previousRoleKey, nextRoleKey);
+    } catch (error) {
+      for (const roleKey of currentRoleKeys) {
+        if (roleKey === previousRoleKey) continue;
+        const role = this.roles.get(roleKey);
+        if (role) await member.roles.remove(role, "Revert unauthorized CoopFT HR role change").catch(() => {});
+      }
+      if (previousRoleKey) {
+        const previousRole = this.roles.get(previousRoleKey);
+        if (previousRole && !member.roles.cache.has(previousRole.id)) {
+          await member.roles.add(previousRole, "Restore previous authorized CoopFT HR role").catch(() => {});
+        }
+      }
+      await this.postStaffUpdate(
+        guild,
+        this.emoji(guild.id, "cf_shield", "🛡️") + " An unauthorized HR role change for <@" +
+        member.id + "> was reverted: " + error.message
+      );
+      return;
+    }
+
+    if (nextRoleKey) {
+      for (const roleKey of currentRoleKeys) {
+        if (roleKey === nextRoleKey) continue;
+        const role = this.roles.get(roleKey);
+        if (role) await member.roles.remove(role, "Keep one active CoopFT HR assignment");
+      }
+      const roleSpec = HR_ROLES.find((item) => item.key === nextRoleKey);
+      await this.recordStaffAudit(guild.id, actor.id, member.id, "hr_role_assigned", {
+        roleKey: nextRoleKey,
+        roleName: roleSpec?.name || nextRoleKey,
+        from: previousRoleKey,
+        status: "active"
+      });
+      await this.postStaffUpdate(
+        guild,
+        this.emoji(guild.id, roleSpec?.emoji || "cf_key", roleSpec?.icon || "🔑") +
+        " <@" + member.id + "> is now **" + (roleSpec?.name || nextRoleKey) + "**."
+      );
+    } else if (previousRoleKey) {
+      const oldSpec = HR_ROLES.find((item) => item.key === previousRoleKey);
+      await this.recordStaffAudit(guild.id, actor.id, member.id, "hr_role_removed", {
+        roleKey: previousRoleKey,
+        roleName: oldSpec?.name || previousRoleKey,
+        status: "inactive"
+      });
+      await this.postStaffUpdate(guild, this.emoji(guild.id, "cf_bell", "🔔") + " <@" + member.id + "> no longer has an HR role.");
+    }
+    await this.updateStaffDirectory(guild);
+  }
+
   async handleMemberLeave(member) {
     if (!member || member.guild.id !== this.guildId) return;
     const result = await this.pool.query(
       "UPDATE coopft_staff_members SET active=FALSE,updated_at=NOW(),updated_by='member-left' WHERE guild_id=$1 AND member_id=$2 AND active=TRUE RETURNING rank_key",
       [this.guildId, member.id]
     );
-    if (!result.rowCount) return;
-    await this.recordStaffAudit(this.guildId, "member-left", member.id, "staff_left_server", { rank: result.rows[0].rank_key });
+    if (result.rowCount) {
+      await this.recordStaffAudit(this.guildId, "member-left", member.id, "staff_left_server", { rank: result.rows[0].rank_key });
+    }
+
+    const hrAssignment = await this.getHRAssignment(this.guildId, member.id);
+    const hrRoleKey = hrAssignment?.action === "hr_role_assigned" ? hrAssignment.details?.roleKey : null;
+    if (hrRoleKey) {
+      const hrRole = HR_ROLES.find((item) => item.key === hrRoleKey);
+      await this.recordStaffAudit(this.guildId, "member-left", member.id, "hr_role_removed", {
+        roleKey: hrRoleKey,
+        roleName: hrRole?.name || hrRoleKey,
+        status: "inactive",
+        reason: "member_left_server"
+      });
+    }
+
+    if (!result.rowCount && !hrRoleKey) return;
     await this.updateStaffDirectory(member.guild);
-    await this.postStaffUpdate(member.guild, this.emoji(this.guildId, "cf_bell", "🔔") + " A staff member left the server; their active directory entry was removed.");
+    await this.postStaffUpdate(member.guild, this.emoji(this.guildId, "cf_bell", "🔔") + " A staff or HR member left the server; their active directory entry was removed.");
   }
 
   async buildStaffDirectoryEmbed(guild) {
@@ -864,16 +1066,56 @@ class CoopFTCommunityService {
       }
       group.push("<@" + record.member_id + ">");
     }
+    const hrResult = await this.pool.query(
+      "SELECT DISTINCT ON (member_id) member_id,action,details FROM coopft_staff_audit " +
+      "WHERE guild_id=$1 AND member_id IS NOT NULL AND action IN ('hr_role_assigned','hr_role_removed') " +
+      "ORDER BY member_id,created_at DESC,id DESC",
+      [guild.id]
+    );
+    const hrGrouped = new Map(HR_ROLES.map((role) => [role.key, []]));
+    for (const record of hrResult.rows) {
+      if (record.action !== "hr_role_assigned") continue;
+      let details = record.details || {};
+      if (typeof details === "string") {
+        try { details = JSON.parse(details); } catch (_) { details = {}; }
+      }
+      const group = hrGrouped.get(details.roleKey);
+      if (!group) continue;
+      let member = guild.members.cache.get(record.member_id);
+      if (!member) member = await guild.members.fetch(record.member_id).catch(() => null);
+      if (!member) {
+        await this.recordStaffAudit(guild.id, "directory-reconcile", record.member_id, "hr_role_removed", {
+          roleKey: details.roleKey,
+          roleName: details.roleName || details.roleKey,
+          status: "inactive",
+          reason: "member_not_found"
+        });
+        continue;
+      }
+      const role = this.roles.get(details.roleKey);
+      if (!role || !member.roles.cache.has(role.id)) continue;
+      group.push("<@" + record.member_id + ">");
+    }
+
     const embed = new EmbedBuilder()
       .setColor(0x8C1D32)
       .setTitle(this.emoji(guild.id, "cf_crown", "♛") + "  COOPFT • STAFF TEAM")
-      .setDescription("The current staff structure of CoopFT. Ranks are maintained by the HR team and synchronized with staff role changes.")
+      .setDescription("The current staff structure of CoopFT. Staff ranks and HR assignments are maintained through audited role changes.")
       .setFooter({ text: "Maintained by CoopFT HR • " + ordered.length + " active staff" })
       .setTimestamp();
     for (const rank of STAFF_RANKS) {
       const people = grouped.get(rank.key);
       embed.addFields({
         name: this.emoji(guild.id, rank.emoji, rank.icon) + "  " + rank.name.toUpperCase(),
+        value: people.length ? people.join(", ").slice(0, 1024) : "Vacant",
+        inline: false
+      });
+    }
+    embed.addFields({ name: "✦ HUMAN RESOURCES", value: "Assigned HR team members", inline: false });
+    for (const role of HR_ROLES) {
+      const people = hrGrouped.get(role.key);
+      embed.addFields({
+        name: this.emoji(guild.id, role.emoji, role.icon) + "  " + role.name.toUpperCase(),
         value: people.length ? people.join(", ").slice(0, 1024) : "Vacant",
         inline: false
       });
