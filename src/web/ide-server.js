@@ -12,9 +12,13 @@ const { audit, sendLog } = require("../utils/logging");
 
 const sessions = new Map();
 const oauthStates = new Map();
+const oauthAttempts = new Map();
 const workspaceApiAttempts = new Map();
 const WINDOW_MS = 60_000;
 const SESSION_MS = 8 * 60 * 60 * 1000;
+const OAUTH_RATE_LIMIT = 20;
+const MAX_OAUTH_STATES = 2000;
+const MAX_SESSIONS = 5000;
 const MAX_BODY = 96 * 1024;
 
 function cookie(req, name) {
@@ -163,6 +167,36 @@ function rateLimitWorkspaceApi(req) {
   }
   return true;
 }
+
+function pruneExpiredEntries(map, getExpiresAt, now = Date.now()) {
+  for (const [key, value] of map) {
+    const expiresAt = Number(getExpiresAt(value));
+    if (!Number.isFinite(expiresAt) || expiresAt <= now) map.delete(key);
+  }
+  return map.size;
+}
+
+function pruneAuthState(now = Date.now()) {
+  pruneExpiredEntries(oauthStates, (state) => Number(state?.createdAt) + 10 * 60 * 1000, now);
+  pruneExpiredEntries(sessions, (session) => session?.expiresAt, now);
+  pruneExpiredEntries(oauthAttempts, (stamps) => Number(stamps?.[stamps.length - 1]) + WINDOW_MS, now);
+  pruneExpiredEntries(workspaceApiAttempts, (stamps) => Number(stamps?.[stamps.length - 1]) + WINDOW_MS, now);
+}
+
+function rateLimitOAuth(req, now = Date.now()) {
+  const key = req.socket?.remoteAddress || "unknown";
+  const recent = (oauthAttempts.get(key) || []).filter((stamp) => now - stamp < WINDOW_MS);
+  if (recent.length >= OAUTH_RATE_LIMIT) {
+    oauthAttempts.set(key, recent);
+    return false;
+  }
+  recent.push(now);
+  oauthAttempts.set(key, recent);
+  if (oauthAttempts.size > 5000) {
+    pruneExpiredEntries(oauthAttempts, (stamps) => Number(stamps?.[stamps.length - 1]) + WINDOW_MS, now);
+  }
+  return true;
+}
 function safeCommandRecord(record, guildId = settings.ideGuildId) {
   return {
     id: record.id,
@@ -215,6 +249,13 @@ function createIdeServer(client, services) {
       }
 
       if (req.method === "GET" && url.pathname === "/auth/discord") {
+        pruneAuthState();
+        if (!rateLimitOAuth(req)) {
+          return json(res, 429, { error: "Too many sign-in attempts. Please wait a minute and try again." });
+        }
+        if (oauthStates.size >= MAX_OAUTH_STATES) {
+          return json(res, 503, { error: "Code Studio sign-in is temporarily at capacity. Please try again shortly." });
+        }
         const targetGuildId = String(url.searchParams.get("guildId") || settings.ideGuildId || "");
         if (!/^\d{1,25}$/.test(targetGuildId)) {
           return json(res, 400, { error: "Open Code Studio from a server's admin panel to select the server first." });
@@ -232,6 +273,7 @@ function createIdeServer(client, services) {
       }
 
       if (req.method === "GET" && url.pathname === "/auth/callback") {
+        pruneAuthState();
         const state = url.searchParams.get("state") || "";
         const storedState = cookie(req, "fuk_ide_state");
         const stateData = oauthStates.get(state);
@@ -247,6 +289,10 @@ function createIdeServer(client, services) {
         const token = await exchangeOAuthCode(code);
         const user = await getDiscordUser(token.access_token);
         const access = await authoriseMember(client, services, user.id, stateData.guildId);
+        pruneAuthState();
+        if (sessions.size >= MAX_SESSIONS) {
+          return json(res, 503, { error: "Code Studio has reached its active-session limit. Please try again later." });
+        }
         const sessionId = crypto.randomBytes(32).toString("hex");
         sessions.set(sessionId, {
           user: { id: user.id, username: user.username, globalName: user.global_name || user.username, avatar: user.avatar || null },
@@ -484,4 +530,7 @@ async function startIdeServer(client, services) {
   return server;
 }
 
-module.exports = { startIdeServer, createIdeServer, isBrowserIdeEnabled, isIdeServerEnabled, authoriseMember };
+module.exports = {
+  startIdeServer, createIdeServer, isBrowserIdeEnabled, isIdeServerEnabled,
+  authoriseMember, pruneExpiredEntries
+};
