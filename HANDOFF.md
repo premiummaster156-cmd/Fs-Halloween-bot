@@ -283,3 +283,6 @@ This is an explicit user requirement and overrides any older handoff/README word
 - Startup failure logs the full error and attempts to close the Discord client and PostgreSQL pool cleanly. SIGINT/SIGTERM shutdown closes the IDE server, Discord client and PostgreSQL pool.
 - Tests: `tests/runtime-logger.test.js` checks durable formatted logging, rotation, synchronous listener isolation, async rejection isolation and listener removal.
 - This reduces accidental process exits and preserves diagnostics, but cannot guarantee that no bug, memory exhaustion, host restart, network outage, invalid token or fatal Node/runtime fault can ever stop the bot. Inspect the first failure in `logs/bot-runtime.log`; file-based logs on ephemeral storage can be lost when the host replaces a container.
+
+
+- Added a five-minute process memory sample (RSS, V8 heap and external/native memory). Default warning threshold is 200 MB, configurable with `BOT_MEMORY_WARN_MB` (0 disables the warning). This is intended to reveal whether the host's memory ceiling is the stop cause; it cannot catch an OS/container OOM kill.
