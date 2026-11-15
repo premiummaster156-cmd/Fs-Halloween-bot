@@ -69,6 +69,18 @@ function drawCoopFTEmoji(ctx, name, index) {
     ctx.lineWidth = width;
     ctx.stroke();
   };
+  const roundedRect = (x, y, width, height, radius) => {
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + width - radius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+    ctx.lineTo(x + width, y + height - radius);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    ctx.lineTo(x + radius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+  };
   const diamond = (x, y, w, h, fill = gem) => stroke(() => {
     ctx.moveTo(x, y - h); ctx.lineTo(x + w, y); ctx.lineTo(x, y + h); ctx.lineTo(x - w, y); ctx.closePath();
   }, fill);
@@ -144,8 +156,8 @@ function drawCoopFTEmoji(ctx, name, index) {
       break;
     case "cf_headset":
       line(() => { ctx.arc(64, 65, 43, Math.PI, 0); }, "#c9faff", 9);
-      stroke(() => { ctx.roundRect(15, 58, 23, 44, 9); }, metal);
-      stroke(() => { ctx.roundRect(90, 58, 23, 44, 9); }, metal);
+      stroke(() => { roundedRect(15, 58, 23, 44, 9); }, metal);
+      stroke(() => { roundedRect(90, 58, 23, 44, 9); }, metal);
       line(() => { ctx.moveTo(100, 92); ctx.quadraticCurveTo(112, 111, 91, 113); }, "#71f3e8", 6);
       break;
     case "cf_gear":
@@ -193,7 +205,7 @@ function drawCoopFTEmoji(ctx, name, index) {
       break;
     case "cf_announce":
       stroke(() => { ctx.moveTo(18, 53); ctx.lineTo(90, 25); ctx.lineTo(90, 100); ctx.lineTo(18, 76); ctx.closePath(); }, metal);
-      stroke(() => { ctx.roundRect(9, 52, 19, 25, 4); }, gem);
+      stroke(() => { roundedRect(9, 52, 19, 25, 4); }, gem);
       line(() => { ctx.moveTo(39, 79); ctx.lineTo(51, 111); ctx.lineTo(73, 111); ctx.lineTo(66, 88); }, "#f0d9ad", 8);
       break;
     case "cf_voice":
