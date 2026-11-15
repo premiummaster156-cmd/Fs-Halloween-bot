@@ -291,44 +291,51 @@ class CoopFTCommunityService {
   }
 
   async loadManagedRoles(guild) {
-    if (!guild || guild.id !== this.guildId) return { staff: 0, hr: 0, applications: 0 };
-    const result = { staff: 0, hr: 0, applications: 0 };
+    if (!guild || guild.id !== this.guildId) return { staff: 0, hr: 0, applications: 0, emojis: 0 };
+    const roleGroups = [
+      { specs: STAFF_RANKS, target: this.roles, count: "staff" },
+      { specs: HR_ROLES, target: this.roles, count: "hr" },
+      { specs: APPLICATION_ROLES, target: this.applicationRoles, count: "applications" }
+    ];
+    const resourceKeys = roleGroups.flatMap(({ specs }) => specs.map((spec) => "resource:role:" + spec.key));
+    const result = await this.pool.query(
+      "SELECT setting_key,setting_value FROM coopft_community_settings " +
+        "WHERE guild_id=$1 AND setting_key=ANY($2::text[])",
+      [guild.id, [...resourceKeys, "emoji_map"]]
+    );
+    const settings = new Map(result.rows.map((row) => [row.setting_key, row.setting_value]));
     this.roles.clear();
     this.applicationRoles.clear();
-    for (const spec of STAFF_RANKS) {
-      const id = await this.getResource(guild.id, "role:" + spec.key);
-      const role = id ? await guild.roles.fetch(id).catch(() => null) : null;
-      if (role) {
-        this.roles.set(spec.key, role);
-        result.staff += 1;
-      }
+    const roleLookups = roleGroups.flatMap(({ specs, target, count }) => specs.map((spec) => ({
+      id: settings.get("resource:role:" + spec.key),
+      key: spec.key,
+      target,
+      count
+    })));
+    const loadedRoles = await Promise.all(roleLookups.map(async (item) => ({
+      ...item,
+      role: item.id ? await guild.roles.fetch(item.id).catch(() => null) : null
+    })));
+    const counts = { staff: 0, hr: 0, applications: 0, emojis: 0 };
+    for (const item of loadedRoles) {
+      if (!item.role) continue;
+      item.target.set(item.key, item.role);
+      counts[item.count] += 1;
     }
-    for (const spec of HR_ROLES) {
-      const id = await this.getResource(guild.id, "role:" + spec.key);
-      const role = id ? await guild.roles.fetch(id).catch(() => null) : null;
-      if (role) {
-        this.roles.set(spec.key, role);
-        result.hr += 1;
-      }
-    }
-    for (const spec of APPLICATION_ROLES) {
-      const id = await this.getResource(guild.id, "role:" + spec.key);
-      const role = id ? await guild.roles.fetch(id).catch(() => null) : null;
-      if (role) {
-        this.applicationRoles.set(spec.key, role);
-        result.applications += 1;
-      }
-    }
-    const savedEmojiMap = await this.getSetting(guild.id, "emoji_map");
+    const savedEmojiMap = settings.get("emoji_map");
+    this.emojis.clear();
     if (savedEmojiMap && typeof savedEmojiMap === "object") {
-      this.emojis.clear();
-      for (const [name, id] of Object.entries(savedEmojiMap)) {
-        const emoji = await guild.emojis.fetch(id).catch(() => null);
-        if (emoji) this.emojis.set(name, emoji.id);
+      const emojiLookups = await Promise.all(Object.entries(savedEmojiMap).map(async ([name, id]) => ({
+        name,
+        emoji: await guild.emojis.fetch(id).catch(() => null)
+      })));
+      for (const item of emojiLookups) {
+        if (!item.emoji) continue;
+        this.emojis.set(item.name, item.emoji.id);
+        counts.emojis += 1;
       }
     }
-    result.emojis = this.emojis.size;
-    return result;
+    return counts;
   }
 
   async ensureRole(guild, spec) {
@@ -1139,7 +1146,7 @@ class CoopFTCommunityService {
         "DELETE FROM coopft_application_subscriptions WHERE guild_id=$1 AND member_id=$2",
         [interaction.guildId, interaction.user.id]
       );
-      await interaction.reply({ content: "Application opening alerts have been cleared.", flags: MessageFlags.Ephemeral });
+      await interaction.update({ content: "Application opening alerts have been cleared.", components: [] });
       return true;
     }
     if (action === "apply") {
@@ -1212,10 +1219,18 @@ class CoopFTCommunityService {
       [interaction.guildId, interaction.user.id, roleKey]
     );
     if (duplicate.rowCount) return interaction.editReply({ content: "You already have a pending application for **" + role.name + "**." });
-    const inserted = await this.pool.query(
-      "INSERT INTO coopft_applications (guild_id,applicant_id,role_key,answers) VALUES ($1,$2,$3,$4::jsonb) RETURNING id,created_at",
-      [interaction.guildId, interaction.user.id, roleKey, JSON.stringify(answers)]
-    );
+    let inserted;
+    try {
+      inserted = await this.pool.query(
+        "INSERT INTO coopft_applications (guild_id,applicant_id,role_key,answers) VALUES ($1,$2,$3,$4::jsonb) RETURNING id,created_at",
+        [interaction.guildId, interaction.user.id, roleKey, JSON.stringify(answers)]
+      );
+    } catch (error) {
+      if (error.code === "23505") {
+        return interaction.editReply({ content: "You already have a pending application for **" + role.name + "**." });
+      }
+      throw error;
+    }
     const reviewChannelId = await this.getResource(interaction.guildId, "channel:application_review");
     const reviewChannel = reviewChannelId ? await interaction.guild.channels.fetch(reviewChannelId).catch(() => null) : null;
     if (!reviewChannel?.isTextBased?.()) {
