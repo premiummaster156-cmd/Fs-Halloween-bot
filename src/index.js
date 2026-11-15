@@ -42,6 +42,7 @@ const { AdminMessagingService } = require("./services/admin-messaging");
 const { AdminAbuseService } = require("./services/admin-abuse");
 const { AIMessageMonitor } = require("./services/ai-message-monitor");
 const { respond, respondPrivately } = require("./ui");
+const { isModalLaunchInteraction, acknowledgeDashboardInteraction } = require("./utils/dashboard-interactions");
 
 async function handleTradeInvitationButton(interaction, client) {
   const [, decision, guildId, tradeId] = interaction.customId.split(":");
@@ -278,10 +279,17 @@ async function start() {
       (interaction.customId.startsWith("dash:") || interaction.customId.startsWith("admin:"));
 
     if (isDashboardInteraction) {
+      let dashboardInteraction = interaction;
       try {
+        // Modal-launch controls must call showModal() as their initial response.
+        // All other components are acknowledged before the database-backed checks.
+        if (!isModalLaunchInteraction(interaction)) {
+          dashboardInteraction = await acknowledgeDashboardInteraction(interaction);
+        }
+
         const access = await security.checkAccess(interaction);
         if (!access.allowed) {
-          return interaction.reply({
+          return dashboardInteraction.reply({
             content: access.expiresAt
               ? "Bot access is temporarily paused until <t:" + Math.floor(new Date(access.expiresAt).getTime() / 1000) + ":R>. Contact a server owner if you think this is a mistake."
               : "Bot access has been restricted by a server owner. Contact the server owner if you think this is a mistake.",
@@ -290,11 +298,11 @@ async function start() {
         }
         const rate = await security.checkComponentRate(interaction);
         if (!rate.allowed) {
-          return interaction.reply({ content: "You're clicking through the dashboard very quickly. Please pause for a moment and try again.", flags: MessageFlags.Ephemeral });
+          return dashboardInteraction.reply({ content: "You're clicking through the dashboard very quickly. Please pause for a moment and try again.", flags: MessageFlags.Ephemeral });
         }
         await serverBoosters.syncMember(interaction.member, interaction.guild)
           .catch((error) => console.warn("[boosters] Could not refresh member boost status:", error.message));
-        await handleDashboardInteraction(interaction, client.services);
+        await handleDashboardInteraction(dashboardInteraction, client.services);
       } catch (error) {
         console.error("[dashboard] Interaction failed:", error.code || error.name, error.message);
         if (error.code === "COOLDOWN") {
@@ -308,7 +316,7 @@ async function start() {
           });
         }
         try {
-          await respond(interaction, {
+          await respond(dashboardInteraction, {
             kind: error.code === "COOLDOWN" ? "warning" : "error",
             icon: error.code === "COOLDOWN" ? "cooldown" : "failed",
             title: error.code === "COOLDOWN" ? "Please wait" : "Action could not be completed",
