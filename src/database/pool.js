@@ -1,9 +1,17 @@
 const { Pool } = require("pg");
 const settings = require("../config/settings");
 
-const tls = /neon\.tech|sslmode=require/i.test(settings.databaseUrl);
+function withLibpqSslCompatibility(connectionString) {
+  if (!connectionString || typeof connectionString !== "string") return connectionString;
+  if (!/(?:\?|&)sslmode=require(?:&|$)/i.test(connectionString)) return connectionString;
+  if (/(?:\?|&)uselibpqcompat=/i.test(connectionString)) return connectionString;
+  return connectionString + (connectionString.includes("?") ? "&" : "?") + "uselibpqcompat=true";
+}
+
+const connectionString = withLibpqSslCompatibility(settings.databaseUrl);
+const tls = /neon\.tech|sslmode=require/i.test(settings.databaseUrl || "");
 const pool = new Pool({
-  ...(settings.databaseUrl ? { connectionString: settings.databaseUrl } : {}),
+  ...(connectionString ? { connectionString } : {}),
   max: Math.max(2, Math.min(20, Number(process.env.DB_POOL_MAX || 10))),
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
@@ -28,4 +36,4 @@ async function transaction(callback) {
   }
 }
 
-module.exports = { pool, transaction };
+module.exports = { pool, transaction, withLibpqSslCompatibility };
