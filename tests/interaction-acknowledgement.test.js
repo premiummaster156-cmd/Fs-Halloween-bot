@@ -72,11 +72,14 @@ test("private denial replies ephemerally when the interaction has not been ackno
 test("main acknowledges built-in slash commands before database-backed preflight checks", () => {
   const fs = require("node:fs");
   const source = fs.readFileSync(require.resolve("../src/index"), "utf8");
-  const ack = source.indexOf("await interaction.deferReply(privateReply");
-  const adminCheck = source.indexOf("await security.hasAdminAccess(interaction.guild");
-  const accessCheck = source.indexOf("await security.checkAccess(interaction)");
-  const rateCheck = source.indexOf("await security.checkCommandRate(interaction)");
-  const channelCheck = source.indexOf('await guildSettings.get(interaction.guildId, "memberCommandsChannelId")');
+  const commandStart = source.indexOf("if (!interaction.isChatInputCommand()) return;");
+  assert.ok(commandStart >= 0, "chat-input command handler should exist");
+  const commandSource = source.slice(commandStart);
+  const ack = commandSource.indexOf("await interaction.deferReply(privateReply");
+  const adminCheck = commandSource.indexOf("await security.hasAdminAccess(interaction.guild");
+  const accessCheck = commandSource.indexOf("await security.checkAccess(interaction)");
+  const rateCheck = commandSource.indexOf("await security.checkCommandRate(interaction)");
+  const channelCheck = commandSource.indexOf('await guildSettings.get(interaction.guildId, "memberCommandsChannelId")');
 
   assert.ok(ack >= 0);
   assert.ok(adminCheck > ack);
