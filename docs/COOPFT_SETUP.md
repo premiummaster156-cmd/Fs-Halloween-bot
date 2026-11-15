@@ -5,7 +5,7 @@ The Fukishōkai economy bot and CoopFT community system use the same Discord app
 - CoopFT server: `1498271944456540210` by default (`COOPFT_GUILD_ID` can override it).
 - Fukishōkai server: `FUKISHOKAI_GUILD_ID`; legacy `GUILD_ID` is used as a fallback when it is not the CoopFT ID.
 - Fukishōkai economy, boosters, activity rewards, games, custom slash commands, admin dashboard and raid/security workflows are accepted only in the Fukishōkai server.
-- CoopFT receives only `/staff`, `/staff-manage`, `/hr-manage`, `/ticket`, and `/coopft-setup`. It has no Fukishōkai economy, player wallets, candy rewards, inventory, jobs, heists, or game dashboard.
+- CoopFT receives only `/staff`, `/staff-manage`, `/hr-manage`, `/ticket`, `/applications-admin`, and `/coopft-setup`. It has no Fukishōkai economy, player wallets, candy rewards, inventory, jobs, heists, or game dashboard.
 
 ## Manual setup from the hosting console
 
@@ -25,11 +25,14 @@ The in-server `/coopft-setup` command remains available as an optional manual re
 
 The setup creates these channel groups:
 
-- **START HERE:** welcome, rules, announcements, introductions.
-- **COMMUNITY:** general, media, showcase, help-study, your-creation.
-- **COOPFT SERVICES:** open-a-ticket, bot-updates, suggestions, bug-reports, custom-bot-requests, staff-directory.
-- **STAFF HQ (private):** staff-team, staff-chat, staff-announcements, staff-bot-updates, ticket-transcripts, member-logs, server-logs.
+- **START HERE:** welcome, rules, announcements (Announcement channel when supported; text fallback otherwise), introductions and role-explanations.
+- **COMMUNITY:** general, media, showcase, your-creation, community-voice and events-voice.
+- **LIVE ANNOUNCEMENTS:** announcements-live is created as a Stage channel, with an ordinary voice-channel fallback if Stage is unavailable.
+- **COOPFT SERVICES:** open-a-ticket, applications, bot-updates, suggestions, bug-reports, custom-bot-requests and staff-directory.
+- **STAFF HQ (private):** staff-team, staff-chat, staff-announcements, staff-bot-updates, application-review, ticket-transcripts, member-logs and server-logs.
 - **PRIVATE TICKETS:** one private text channel per open ticket.
+
+The old bot-managed `help-study` channel is retired and removed during setup only when its saved ID and CoopFT management marker both match. A manually created channel with that name is left alone.
 
 The private `#member-logs` channel records joins, departures, kicks, bans, unbans, member updates/timeouts, member prunes, and moderator message deletions with account age, join time, time in server, and the member’s last saved role list. The private `#server-logs` channel records moderator-performed role, channel, server-setting, invite, and webhook create/update/delete actions. Role snapshots are stored at join and refreshed after audited role changes, so a departure log can still show roles after Discord removes the member from the server. The public `#welcome` channel receives a welcome embed. Fukishōkai uses its configured `LOG_CHANNEL_ID` for lifecycle and audit logs and the optional `WELCOME_CHANNEL_ID` (or the system channel) for public welcomes. Message-deletion audit events store metadata only; message contents are never collected or published, and Message Content Intent remains disabled.
 
@@ -52,13 +55,27 @@ The setup creates ten staff roles:
 
 It also creates five Human Resources roles: HR Director, HR Manager, HR Recruiter, HR Coordinator, and HR Trainee.
 
+Five specialist application roles are created separately: War Manager, Referee, Observer, Helper and Ticket Staff. They have no moderation or administrative permission bits. Only Ticket Staff receives access to ticket handling after approval; approval assigns the selected specialist role to the applicant.
+
 Each role receives a distinct colour palette, a Unicode role-icon attempt, and a position in the managed staff structure. Actual gradient colours require the server's Discord `ENHANCED_ROLE_COLORS` feature; role icons require `ROLE_ICONS`. If either feature is unavailable, the role keeps a solid colour and its icon still appears inline in bot embeds. The system does not grant `Administrator` or other server permission bits to staff roles. Staff access is managed through private-channel overwrites and bot-side HR checks.
 
 The bot will not move its own role. Place the bot's highest role **below roles you want protected and above the new CoopFT-managed roles**. Roles above the bot's highest role are outside its control.
 
 ## Custom emojis
 
-The bot generates sixteen small, branded custom emojis with `@napi-rs/canvas` and uploads them once by name. They are used inline in embed titles, field names, descriptions, status messages, and ticket panels—not as oversized thumbnails. The bot needs **Manage Expressions** to upload them. If Discord denies emoji creation or the server reaches its emoji limit, the embeds fall back to ordinary Unicode emoji.
+The bot generates 27 distinct, transparent custom emoji illustrations with `@napi-rs/canvas`: metallic and gem-styled emblems such as shields, crowns, stars, flames, keys, tickets, scrolls, gears, crystals, a megaphone, a referee scale, an observer eye and voice symbols. The same icon set appears in rules, role explanations, welcome and announcement embeds, suggestions, application panels, staff updates and ticket panels. The bot needs **Manage Expressions** to upload them. If Discord denies emoji creation or the server reaches its emoji limit, embeds and buttons fall back to Unicode emoji. The icon IDs are saved in Neon and reloaded after bot restarts; restarting does not upload or recreate the emoji pack.
+
+## Rules, role explanations and applications
+
+The `#rules` channel receives a single branded embed with a generated 1600 × 720 CoopFT banner attached to the same message. The rules use the custom emoji illustrations and cover respect, constructive discussion, server safety, privacy, advertising, voice/events, suggestions, moderation, appropriate content and community participation.
+
+The `#role-explanations` channel receives one maintained guide covering all 10 staff ranks, all 5 HR roles and all 5 specialist positions. Each role has its own description and custom emblem.
+
+The `#applications` panel offers five separate tracks: War Manager, Referee, Observer, Helper and Ticket Staff. Each button opens a private application modal with four required questions (experience, motivation, scenario response and availability) plus one optional note. Submitted applications are saved in Neon and posted to the private `#application-review` channel with applicant details and Approve/Decline controls. Only the server owner, senior CoopFT managers and authorized HR managers can review them. Approval assigns the specialist role and attempts to notify the applicant by DM; decline records the decision and also attempts a private DM. A member can have only one pending application for the same position.
+
+Use `/applications-admin open position:` or `/applications-admin close position:` to control each application track. The public panel updates its OPEN/CLOSED status and enables or disables that position's button. All five positions default to open on first setup.
+
+The `#suggestions` channel receives a dedicated guide embed that explains how to write useful suggestions and what review may look like.
 
 ## Tickets
 
