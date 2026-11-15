@@ -4,7 +4,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { loadCoopFTCommands } = require("../src/commands/coopft");
 const {
-  STAFF_RANKS, HR_ROLES, EMOJI_SPRITE, PUBLIC_CHANNELS, PRIVATE_CHANNELS
+  STAFF_RANKS, HR_ROLES, APPLICATION_ROLES, EMOJI_SPRITE, PUBLIC_CHANNELS, PRIVATE_CHANNELS
 } = require("../src/config/coopft-design");
 const {
   coopftGuildId, fukishokaiGuildId, personaForGuild, configuredGuildIds
@@ -24,21 +24,23 @@ test("server personas are isolated and CoopFT uses the configured server ID", ()
 
 test("CoopFT registers only its community commands", () => {
   const commands = loadCoopFTCommands();
-  assert.deepEqual([...commands.keys()].sort(), ["coopft-setup", "hr-manage", "staff", "staff-manage", "ticket"]);
+  assert.deepEqual([...commands.keys()].sort(), ["applications-admin", "coopft-setup", "hr-manage", "staff", "staff-manage", "ticket"]);
   for (const command of commands.values()) assert.doesNotThrow(() => command.data.toJSON());
   assert.equal(commands.has("menu"), false);
   assert.equal(commands.has("profile"), false);
   assert.equal(commands.has("leaderboard"), false);
 });
 
-test("the staff hierarchy has ten ranks and five separate HR roles", () => {
+test("the CoopFT staff, HR and specialist application roles are distinct", () => {
   assert.equal(STAFF_RANKS.length, 10);
   assert.equal(HR_ROLES.length, 5);
-  const allKeys = [...STAFF_RANKS, ...HR_ROLES].map((role) => role.key);
-  const allNames = [...STAFF_RANKS, ...HR_ROLES].map((role) => role.name);
-  assert.equal(new Set(allKeys).size, 15);
-  assert.equal(new Set(allNames).size, 15);
-  for (const role of [...STAFF_RANKS, ...HR_ROLES]) {
+  assert.equal(APPLICATION_ROLES.length, 5);
+  const allRoles = [...STAFF_RANKS, ...HR_ROLES, ...APPLICATION_ROLES];
+  const allKeys = allRoles.map((role) => role.key);
+  const allNames = allRoles.map((role) => role.name);
+  assert.equal(new Set(allKeys).size, 20);
+  assert.equal(new Set(allNames).size, 20);
+  for (const role of allRoles) {
     assert.match(role.key, /^[a-z_]+$/);
     assert.ok(Number.isInteger(role.primary));
     assert.ok(Number.isInteger(role.secondary));
@@ -48,17 +50,57 @@ test("the staff hierarchy has ten ranks and five separate HR roles", () => {
   }
 });
 
-test("CoopFT has sixteen distinct inline embed emojis and all required channel groups", () => {
-  assert.equal(EMOJI_SPRITE.length, 16);
-  assert.equal(new Set(EMOJI_SPRITE).size, 16);
+test("CoopFT has a distinct custom emoji pack, role guide, applications and voice channels", () => {
+  assert.equal(EMOJI_SPRITE.length, 27);
+  assert.equal(new Set(EMOJI_SPRITE).size, 27);
   assert.ok(PUBLIC_CHANNELS.some((channel) => channel.key === "open_ticket"));
-  assert.ok(PUBLIC_CHANNELS.some((channel) => channel.key === "help_study"));
-  assert.ok(PUBLIC_CHANNELS.some((channel) => channel.key === "your_creation"));
+  assert.ok(PUBLIC_CHANNELS.some((channel) => channel.key === "role_guide"));
+  assert.ok(PUBLIC_CHANNELS.some((channel) => channel.key === "applications"));
+  assert.ok(PUBLIC_CHANNELS.some((channel) => channel.key === "suggestions"));
+  assert.ok(PUBLIC_CHANNELS.some((channel) => channel.key === "announcement_stage" && channel.channelType === "stage"));
+  assert.ok(PUBLIC_CHANNELS.some((channel) => channel.key === "community_voice" && channel.channelType === "voice"));
+  assert.ok(PUBLIC_CHANNELS.some((channel) => channel.key === "event_voice" && channel.channelType === "voice"));
+  assert.ok(PUBLIC_CHANNELS.some((channel) => channel.key === "announcements" && channel.channelType === "announcement"));
+  assert.equal(PUBLIC_CHANNELS.some((channel) => channel.key === "help_study"), false);
+  assert.ok(PRIVATE_CHANNELS.some((channel) => channel.key === "application_review"));
   assert.ok(PRIVATE_CHANNELS.some((channel) => channel.key === "staff_team"));
   assert.ok(PRIVATE_CHANNELS.some((channel) => channel.key === "staff_bot_updates"));
   assert.ok(PRIVATE_CHANNELS.some((channel) => channel.key === "ticket_transcripts"));
   assert.ok(PRIVATE_CHANNELS.some((channel) => channel.key === "member_logs"));
   assert.ok(PRIVATE_CHANNELS.some((channel) => channel.key === "server_logs"));
+});
+
+test("each specialist application modal contains four required questions and one optional question", () => {
+  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) }, { guildId: "guild-1" });
+  for (const role of APPLICATION_ROLES) {
+    const modal = service.createApplicationModal(role).toJSON();
+    assert.equal(modal.custom_id, "cf-application:submit:" + role.key);
+    assert.equal(modal.components.length, 5);
+    assert.equal(modal.components.slice(0, 4).every((row) => row.components[0].required), true);
+    assert.equal(modal.components[4].components[0].required, false);
+  }
+});
+
+test("application availability defaults to open and can be switched per position", async () => {
+  const values = new Map();
+  const pool = {
+    async query(sql, params) {
+      if (sql.includes("SELECT setting_value")) {
+        return { rows: values.has(params[1]) ? [{ setting_value: values.get(params[1]) }] : [] };
+      }
+      if (sql.includes("INSERT INTO coopft_community_settings")) {
+        values.set(params[1], JSON.parse(params[2]));
+        return { rows: [] };
+      }
+      throw new Error("Unexpected SQL in application availability test.");
+    }
+  };
+  const service = new CoopFTCommunityService(pool, { guildId: "guild-1" });
+  assert.equal(await service.isApplicationOpen("guild-1", "referee"), true);
+  await service.setApplicationOpen({ id: "guild-1", channels: { fetch: async () => null } }, "referee", false);
+  assert.equal(await service.isApplicationOpen("guild-1", "referee"), false);
+  await service.setApplicationOpen({ id: "guild-1", channels: { fetch: async () => null } }, "referee", true);
+  assert.equal(await service.isApplicationOpen("guild-1", "referee"), true);
 });
 
 test("ticket types are distinct and channel names are safely normalized", () => {
