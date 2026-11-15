@@ -132,12 +132,19 @@ test("ensureRole repairs managed role properties and applies optional native gra
     }
   };
   const service = new CoopFTCommunityService({
-    query: async (sql) => ({ rows: [] })
+    query: async (sql, params) => ({
+      rows: sql.includes("SELECT setting_value") && params[1] === "resource:role:owner"
+        ? [{ setting_value: role.id }]
+        : []
+    })
   }, { guildId: "guild-1" });
   const guild = {
     id: "guild-1",
     features: ["ENHANCED_ROLE_COLORS", "ROLE_ICONS"],
-    roles: { cache: new Map([[role.id, role]]) },
+    roles: {
+      cache: new Map([[role.id, role]]),
+      fetch: async () => role
+    },
     client: {
       rest: {
         patch: async (route, options) => calls.push({ kind: "patch", route, options })
