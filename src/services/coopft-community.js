@@ -23,6 +23,15 @@ const TICKET_TYPES = Object.freeze({
   suggestion: { label: "Suggestion", icon: "cf3d_spark", fallback: "✨" }
 });
 
+function rolePermissionArray(spec) {
+  const bits = BigInt(spec.permissions ?? 0n);
+  return Object.values(PermissionFlagsBits).filter((permission) =>
+    typeof permission === "bigint" &&
+    permission !== 0n &&
+    (bits & permission) === permission
+  );
+}
+
 function safeChannelName(value) {
   return String(value || "member").toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 75) || "member";
 }
@@ -380,7 +389,7 @@ class CoopFTCommunityService {
         role = await guild.roles.create({
           name: "CF • " + spec.name,
           color: spec.primary,
-          permissions: [],
+          permissions: rolePermissionArray(spec),
           hoist: true,
           mentionable: false,
           reason: "CoopFT automatic server setup"
@@ -390,7 +399,7 @@ class CoopFTCommunityService {
         role = await guild.roles.create({
           name: "CF • " + spec.name,
           color: spec.primary,
-          permissions: [],
+          permissions: rolePermissionArray(spec),
           hoist: true,
           mentionable: false,
           reason: "CoopFT automatic server setup"
@@ -409,7 +418,10 @@ class CoopFTCommunityService {
     if (role.hoist !== true) baseChanges.hoist = true;
     if (role.mentionable !== false) baseChanges.mentionable = false;
     const permissionBits = role.permissions?.bitfield;
-    if (permissionBits !== undefined && BigInt(permissionBits) !== 0n) baseChanges.permissions = [];
+    const expectedPermissionBits = BigInt(spec.permissions ?? 0n);
+    if (permissionBits !== undefined && BigInt(permissionBits) !== expectedPermissionBits) {
+      baseChanges.permissions = rolePermissionArray(spec);
+    }
     if (Object.keys(baseChanges).length) {
       if (role.editable !== false && typeof role.edit === "function") {
         try {
