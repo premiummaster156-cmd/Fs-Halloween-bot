@@ -133,8 +133,6 @@ async function handleTradeInvitationButton(interaction, client) {
 }
 
 let runtimeClient = null;
-let coopftSetupPromise = Promise.resolve();
-let coopftSetupError = null;
 
 async function start() {
   if (!settings.discordToken) throw new Error("DISCORD_TOKEN is missing.");
@@ -257,20 +255,7 @@ async function start() {
       }
     }
 
-    coopftSetupPromise = (async () => {
-      const coopftGuild = ready.guilds.cache.get(coopftGuildId) ||
-        await client.guilds.fetch(coopftGuildId).catch(() => null);
-      if (!coopftGuild) {
-        console.warn("[coopft] Bot is not in configured CoopFT server " + coopftGuildId + "; automatic setup will run when it joins.");
-        return;
-      }
-      const result = await coopftCommunity.bootstrap(coopftGuild);
-      console.info("[coopft] Setup verified. Created " + result.createdRoles + " roles, " +
-        result.createdChannels + " channels and " + result.createdEmojis + " emojis.");
-    })().catch((error) => {
-      coopftSetupError = error;
-      console.error("[coopft] Automatic setup failed:", error.message);
-    });
+    console.info("[coopft] Server setup is manual. Run `npm run coopft:setup` from the hosting console when you want to create or repair CoopFT resources.");
   });
 
   client.on(Events.GuildCreate, (guild) => {
@@ -278,15 +263,6 @@ async function start() {
       raidMonitor.initializeGuild(guild).catch((error) =>
         console.warn("[raid-monitor] Fukishōkai invite baseline failed:", error.message)
       );
-    }
-    if (guild.id === coopftGuildId) {
-      coopftSetupPromise = coopftCommunity.bootstrap(guild).then((result) => {
-        coopftSetupError = null;
-        console.info("[coopft] First-join setup completed:", result);
-      }).catch((error) => {
-        coopftSetupError = error;
-        console.error("[coopft] First-join setup failed:", error.message);
-      });
     }
   });
 
@@ -327,14 +303,6 @@ async function start() {
       const persona = personaForGuild(interaction.guildId);
       if (persona === "coopft") {
         try {
-          await coopftSetupPromise;
-          const isSetupCommand = interaction.isChatInputCommand() && interaction.commandName === "coopft-setup";
-          if (coopftSetupError && !isSetupCommand) {
-            if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
-              await interaction.reply({ content: "CoopFT setup is incomplete. A server owner can run /coopft-setup to repair it. No economy commands are enabled here.", flags: MessageFlags.Ephemeral });
-            }
-            return;
-          }
           if (interaction.isButton() && interaction.customId?.startsWith("cf-ticket:")) {
             await coopftCommunity.handleButton(interaction);
             return;
@@ -348,17 +316,7 @@ async function start() {
               });
               return;
             }
-            if (isSetupCommand) {
-              try {
-                await command.execute(interaction, { ...client.services, coopft: coopftCommunity });
-                coopftSetupError = null;
-              } catch (error) {
-                coopftSetupError = error;
-                throw error;
-              }
-            } else {
-              await command.execute(interaction, { ...client.services, coopft: coopftCommunity });
-            }
+            await command.execute(interaction, { ...client.services, coopft: coopftCommunity });
             return;
           }
           if (interaction.isRepliable() && !interaction.isAutocomplete()) {
