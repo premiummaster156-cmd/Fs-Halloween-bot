@@ -27,8 +27,8 @@ test("server personas are isolated and CoopFT uses the configured server ID", ()
 
 test("CoopFT registers only its community commands", () => {
   const commands = loadCoopFTCommands();
-  assert.deepEqual([...commands.keys()].sort(), ["staff", "ticket"]);
-  for (const removed of ["applications-admin", "hr-manage", "staff-manage", "coopft-setup"]) {
+  assert.deepEqual([...commands.keys()].sort(), ["staff"]);
+  for (const removed of ["applications-admin", "hr-manage", "staff-manage", "coopft-setup", "ticket"]) {
     assert.equal(commands.has(removed), false, removed + " is intentionally not exposed as a slash command");
   }
   for (const command of commands.values()) assert.doesNotThrow(() => command.data.toJSON());
