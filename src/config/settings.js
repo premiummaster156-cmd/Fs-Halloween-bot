@@ -32,6 +32,7 @@ module.exports = {
   // Role assigned to members who currently boost this Discord server.
   boosterRoleId: process.env.BOOSTER_ROLE_ID || "1376299577581240410",
   logChannelId: process.env.LOG_CHANNEL_ID || "",
+  welcomeChannelId: process.env.WELCOME_CHANNEL_ID || "",
   memberCommandsChannelId: process.env.MEMBER_COMMANDS_CHANNEL_ID || "1566508610459271478",
   defaultEventRoleId: process.env.HALLOWEEN_ROLE_ID || "",
   halloweenEndsAt: process.env.HALLOWEEN_ENDS_AT || "2026-11-30T19:00:00.000Z",

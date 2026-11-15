@@ -16,8 +16,10 @@ The setup creates these channel groups:
 - **START HERE:** welcome, rules, announcements, introductions.
 - **COMMUNITY:** general, media, showcase, help-study, your-creation.
 - **COOPFT SERVICES:** open-a-ticket, bot-updates, suggestions, bug-reports, custom-bot-requests, staff-directory.
-- **STAFF HQ (private):** staff-team, staff-chat, staff-announcements, staff-bot-updates, ticket-transcripts.
+- **STAFF HQ (private):** staff-team, staff-chat, staff-announcements, staff-bot-updates, ticket-transcripts, member-logs.
 - **PRIVATE TICKETS:** one private text channel per open ticket.
+
+The private `#member-logs` channel records joins and departures with account age, join time, time in server, and the member’s last saved role list. Role snapshots are stored at join and refreshed after audited role changes, so a departure log can still show roles after Discord removes the member from the server. The public `#welcome` channel receives a welcome embed. Fukishōkai uses its configured `LOG_CHANNEL_ID` for lifecycle logs and the optional `WELCOME_CHANNEL_ID` (or the system channel) for public welcomes.
 
 The public staff directory and private staff-team embed use the same ten-rank list. They are refreshed after bot-managed hires/promotions/demotions/removals and after an audited manual staff-role change. The bot fetches only the exact member identified by that audit entry; it does not enumerate the server's member roster. If a staff member leaves, a later directory refresh marks the missing member inactive.
 

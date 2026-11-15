@@ -19,6 +19,7 @@ const { migrate } = require("./database/migrate");
 const { loadCommands } = require("./commands");
 const { loadCoopFTCommands } = require("./commands/coopft");
 const { CoopFTCommunityService } = require("./services/coopft-community");
+const { MemberLifecycleService } = require("./services/member-lifecycle");
 const { personaForGuild, coopftGuildId, fukishokaiGuildId } = require("./config/server-personas");
 const { handleDashboardInteraction } = require("./commands/dashboard");
 const { EconomyService } = require("./services/economy");
@@ -213,12 +214,14 @@ async function start() {
   const serverBoosters = new ServerBoosterService(pool);
   const customCommands = new CustomCommandService(pool);
   const coopftCommunity = new CoopFTCommunityService(pool);
+  const memberLifecycle = new MemberLifecycleService(pool, { guildSettings, coopftCommunity });
   const coopftCommands = loadCoopFTCommands();
   const restoredCommandFiles = await customCommands.restoreWorkspaceFiles();
   console.log("[workspace] Restored " + restoredCommandFiles + " JavaScript command file(s).");
   client.services = {
     pool, balancing, economy, inventory, combat, guildSettings, security, raidMonitor, serverBoosters, customCommands,
     coopft: coopftCommunity,
+    memberLifecycle,
     partyGames: new PartyGameService(pool, economy),
     trades: new TradeService(pool),
     economyEvents,
@@ -288,17 +291,27 @@ async function start() {
   });
 
   client.on(Events.GuildMemberAdd, (member) => {
-    if (member.guild.id !== fukishokaiGuildId) return;
-    raidMonitor.handleMemberJoin(member, client).catch((error) =>
-      console.error("[raid-monitor] Could not process member join:", error.message)
+    if (![fukishokaiGuildId, coopftGuildId].filter(Boolean).includes(member.guild.id)) return;
+    memberLifecycle.handleJoin(member).catch((error) =>
+      console.error("[member-lifecycle] Could not process member join:", error.message)
     );
+    if (member.guild.id === fukishokaiGuildId) {
+      raidMonitor.handleMemberJoin(member, client).catch((error) =>
+        console.error("[raid-monitor] Could not process member join:", error.message)
+      );
+    }
   });
 
   client.on(Events.GuildMemberRemove, (member) => {
-    if (member.guild.id !== coopftGuildId) return;
-    coopftCommunity.handleMemberLeave(member).catch((error) =>
-      console.warn("[coopft] Could not update staff directory after member departure:", error.message)
+    if (![fukishokaiGuildId, coopftGuildId].filter(Boolean).includes(member.guild.id)) return;
+    memberLifecycle.handleLeave(member).catch((error) =>
+      console.error("[member-lifecycle] Could not process member departure:", error.message)
     );
+    if (member.guild.id === coopftGuildId) {
+      coopftCommunity.handleMemberLeave(member).catch((error) =>
+        console.warn("[coopft] Could not update staff directory after member departure:", error.message)
+      );
+    }
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
@@ -612,16 +625,24 @@ async function start() {
   // without requesting the privileged Guild Members intent.
   client.on("guildAuditLogEntryCreate", (entry, guild) => {
     const targetId = entry.targetId || entry.target?.id;
-    if (guild.id === coopftGuildId && entry.action === AuditLogEvent.MemberRoleUpdate && targetId) {
-      // Ignore the bot's own role writes; those are recorded by /staff-manage.
-      // Manual changes are checked against the exact executor and target IDs.
-      const executorId = entry.executorId || entry.executor?.id;
-      if (!executorId || executorId === client.user.id) return;
-      Promise.all([
-        guild.members.fetch(targetId),
-        guild.members.fetch(executorId)
-      ]).then(([member, actor]) => coopftCommunity.syncStaffMember(guild, member, actor))
-        .catch((error) => console.warn("[coopft] Could not sync staff audit entry:", error.message));
+    const executorId = entry.executorId || entry.executor?.id;
+    if (
+      entry.action === AuditLogEvent.MemberRoleUpdate &&
+      targetId &&
+      [fukishokaiGuildId, coopftGuildId].filter(Boolean).includes(guild.id)
+    ) {
+      // Store role history with exact member fetches; no member-roster enumeration.
+      memberLifecycle.handleRoleUpdate(guild, targetId, executorId).catch((error) =>
+        console.warn("[member-lifecycle] Could not store updated role snapshot:", error.message)
+      );
+
+      if (guild.id === coopftGuildId && executorId && executorId !== client.user.id) {
+        Promise.all([
+          guild.members.fetch(targetId),
+          guild.members.fetch(executorId)
+        ]).then(([member, actor]) => coopftCommunity.syncStaffMember(guild, member, actor))
+          .catch((error) => console.warn("[coopft] Could not sync staff audit entry:", error.message));
+      }
       return;
     }
     if (guild.id !== fukishokaiGuildId || entry.action !== AuditLogEvent.MemberKick) return;

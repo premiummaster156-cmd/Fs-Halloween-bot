@@ -53,7 +53,8 @@ const PRIVATE_CHANNELS = Object.freeze([
   { key: "staff_chat", name: "staff-chat" },
   { key: "staff_announcements", name: "staff-announcements" },
   { key: "staff_bot_updates", name: "staff-bot-updates" },
-  { key: "ticket_transcripts", name: "ticket-transcripts" }
+  { key: "ticket_transcripts", name: "ticket-transcripts" },
+  { key: "member_logs", name: "member-logs" }
 ]);
 
 module.exports = { STAFF_RANKS, HR_ROLES, EMOJI_SPRITE, PUBLIC_CHANNELS, PRIVATE_CHANNELS };
