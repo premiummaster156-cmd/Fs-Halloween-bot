@@ -49,11 +49,11 @@ const HR_ROLES = Object.freeze([
 
 // These are opt-in team positions, not moderation ranks or Discord permission roles.
 const APPLICATION_ROLES = Object.freeze([
-  { key: "war_manager", name: "War Manager", icon: "⚔️", emoji: "cf3d_war", primary: 0x8D2634, secondary: 0xF06473, description: "Plans competitive matches, coordinates teams and schedules, and keeps war activities organized." },
-  { key: "referee", name: "Referee", icon: "⚖️", emoji: "cf3d_referee", primary: 0xA67821, secondary: 0xF3D17A, description: "Oversees matches fairly, checks reported incidents, and records clear match outcomes." },
-  { key: "observer", name: "Observer", icon: "👁️", emoji: "cf3d_observer", primary: 0x176D91, secondary: 0x73DDF5, description: "Watches events, documents important moments, and supports transparent event oversight." },
-  { key: "helper", name: "Helper", icon: "🧭", emoji: "cf3d_helper", primary: 0x176B45, secondary: 0x62C987, description: "Welcomes members, answers everyday questions, and guides people to the right resources." },
-  { key: "ticket_staff", name: "Ticket Staff", icon: "🎫", emoji: "cf3d_ticket_staff", primary: 0x542A93, secondary: 0xB26AF2, description: "Handles support tickets, communicates clearly with members, and routes complex issues to the right team." }
+  { key: "war_manager", name: "War Manager", icon: "⚔️", emoji: "cf3d_war", primary: 0x8D2634, secondary: 0xF06473, permissions: 0n, permissionSummary: "No global permissions; this role identifies the specialist team and approved war-planning workflow only.", description: "Plans competitive matches, coordinates teams and schedules, and keeps war activities organized." },
+  { key: "referee", name: "Referee", icon: "⚖️", emoji: "cf3d_referee", primary: 0xA67821, secondary: 0xF3D17A, permissions: 0n, permissionSummary: "No global permissions; this role identifies the specialist team and match-referee workflow only.", description: "Oversees matches fairly, checks reported incidents, and records clear match outcomes." },
+  { key: "observer", name: "Observer", icon: "👁️", emoji: "cf3d_observer", primary: 0x176D91, secondary: 0x73DDF5, permissions: 0n, permissionSummary: "No global permissions; this role identifies the event-observer assignment only.", description: "Watches events, documents important moments, and supports transparent event oversight." },
+  { key: "helper", name: "Helper", icon: "🧭", emoji: "cf3d_helper", primary: 0x176B45, secondary: 0x62C987, permissions: 0n, permissionSummary: "No global permissions; this role identifies the community-helper assignment only.", description: "Welcomes members, answers everyday questions, and guides people to the right resources." },
+  { key: "ticket_staff", name: "Ticket Staff", icon: "🎫", emoji: "cf3d_ticket_staff", primary: 0x542A93, secondary: 0xB26AF2, permissions: 0n, permissionSummary: "No global permissions; ticket access is granted through private channel overwrites and the bot's ticket workflow.", description: "Handles support tickets, communicates clearly with members, and routes complex issues to the right team." }
 ]);
 
 const EMOJI_SPRITE = Object.freeze([
