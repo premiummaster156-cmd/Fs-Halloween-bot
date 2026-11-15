@@ -5,7 +5,7 @@ const assert = require("node:assert/strict");
 const { PermissionFlagsBits, PermissionsBitField } = require("discord.js");
 const { loadCoopFTCommands } = require("../src/commands/coopft");
 const {
-  STAFF_RANKS, HR_ROLES, APPLICATION_ROLES, EMOJI_SPRITE, PUBLIC_CHANNELS, PRIVATE_CHANNELS,
+  STAFF_RANKS, HR_ROLES, APPLICATION_ROLES, EMOJI_SPRITE, CATEGORY_NAMES, PUBLIC_CHANNELS, PRIVATE_CHANNELS,
   OWNER_PERMISSIONS, HIGH_RANK_SUPERVISOR_PERMISSIONS, ALL_PERMISSION_BITS
 } = require("../src/config/coopft-design");
 const {
@@ -87,6 +87,22 @@ test("CoopFT leadership permissions match the explicitly requested hierarchy", (
   }
   for (const role of APPLICATION_ROLES) {
     assert.equal(role.permissions, 0n, role.name + " remains a permission-neutral specialist assignment");
+  }
+});
+
+test("CoopFT category and channel names use distinctive emoji-free typography", () => {
+  assert.deepEqual(Object.keys(CATEGORY_NAMES).sort(), [
+    "community", "services", "staff_hq", "start_here", "tickets"
+  ]);
+  for (const name of Object.values(CATEGORY_NAMES)) {
+    assert.match(name, /^╭────〔 [A-Z ]+ 〕────╮$/u);
+    assert.ok(name.length <= 100);
+    assert.equal(/\\p{Extended_Pictographic}/u.test(name), false, name + " must not contain emoji");
+  }
+  for (const channel of [...PUBLIC_CHANNELS, ...PRIVATE_CHANNELS]) {
+    assert.match(channel.name, /^[^\\p{L}\\p{N}\\s]+・[a-z0-9-]+$/u, channel.key);
+    assert.ok(channel.name.length <= 100, channel.key + " must fit Discord's channel-name limit");
+    assert.equal(/\\p{Extended_Pictographic}/u.test(channel.name), false, channel.key + " must not contain emoji");
   }
 });
 
