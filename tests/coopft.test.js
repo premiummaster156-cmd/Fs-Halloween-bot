@@ -15,7 +15,7 @@ const { safeChannelName, TICKET_TYPES, CLEANUP_CONFIRMATION, CoopFTCommunityServ
 const { createCanvas } = require("@napi-rs/canvas");
 
 test("server personas are isolated and CoopFT uses the configured server ID", () => {
-  assert.equal(coopftGuildId, process.env.COOPFT_GUILD_ID || "1498271944456540210");
+  assert.equal(coopftGuildId, "1498271944456540210");
   assert.equal(personaForGuild(coopftGuildId), "coopft");
   assert.equal(personaForGuild("999999999999999999"), null);
   assert.ok(configuredGuildIds().includes(coopftGuildId));
@@ -49,10 +49,13 @@ test("the CoopFT staff, HR and specialist application roles are distinct", () =>
     assert.ok(Number.isInteger(role.secondary));
     assert.ok(role.icon);
     assert.ok(role.emoji);
-    const expectedPermissions = role.key === "owner" || role.key === "co_owner"
-      ? ALL_PERMISSION_BITS
-      : role.key === "high_rank_supervisor" ? HIGH_RANK_SUPERVISOR_PERMISSIONS : 0n;
-    assert.equal(role.permissions ?? 0n, expectedPermissions, role.name + " has its configured permission set");
+    assert.equal(typeof role.permissions, "bigint", role.name + " has an explicit permission bitfield");
+    assert.ok(role.permissionSummary, role.name + " has a human-readable permission summary");
+    if (STAFF_RANKS.includes(role) || HR_ROLES.includes(role)) {
+      assert.notEqual(role.permissions, 0n, role.name + " must have useful non-zero permissions");
+    } else {
+      assert.equal(role.permissions, 0n, role.name + " remains a permission-neutral specialist assignment");
+    }
   }
 });
 
@@ -74,10 +77,16 @@ test("CoopFT leadership permissions match the explicitly requested hierarchy", (
   for (const role of STAFF_RANKS.filter((item) =>
     !["owner", "co_owner", "high_rank_supervisor"].includes(item.key)
   )) {
-    assert.equal(role.permissions ?? 0n, 0n, role.name + " remains without global Discord permissions");
+    assert.notEqual(role.permissions, 0n, role.name + " receives a limited operational permission set");
+    assert.equal(role.permissions & reserved, 0n, role.name + " cannot gain administrator/server/channel management");
   }
-  for (const role of [...HR_ROLES, ...APPLICATION_ROLES]) {
-    assert.equal(role.permissions ?? 0n, 0n, role.name + " remains without global Discord permissions");
+  for (const role of HR_ROLES) {
+    assert.notEqual(role.permissions, 0n, role.name + " receives recruitment permissions");
+    assert.equal(role.permissions & reserved, 0n, role.name + " cannot gain administrator/server/channel management");
+    assert.equal(role.permissions & PermissionFlagsBits.ManageRoles, 0n, role.name + " cannot manage server roles");
+  }
+  for (const role of APPLICATION_ROLES) {
+    assert.equal(role.permissions, 0n, role.name + " remains a permission-neutral specialist assignment");
   }
 });
 
@@ -174,9 +183,9 @@ test("manual setup uploads all 28 3D CoopFT emblems as separate Discord-sized PN
   const { loadImage } = require("@napi-rs/canvas");
   const uploads = [];
   const pool = { query: async () => ({ rows: [] }) };
-  const service = new CoopFTCommunityService(pool, { guildId: "guild-1" });
+  const service = new CoopFTCommunityService(pool, { guildId: coopftGuildId });
   const guild = {
-    id: "guild-1",
+    id: coopftGuildId,
     emojis: {
       cache: { map: () => [] },
       create: async (options) => {
@@ -219,10 +228,10 @@ test("manual setup uploads all 28 3D CoopFT emblems as separate Discord-sized PN
 test("CoopFT setup refuses to configure elevated roles unless the bot has Administrator", async () => {
   const service = new CoopFTCommunityService(
     { query: async () => ({ rows: [] }) },
-    { guildId: "guild-1" }
+    { guildId: coopftGuildId }
   );
   const guild = {
-    id: "guild-1",
+    id: coopftGuildId,
     members: {
       me: {
         id: "bot-1",
@@ -236,6 +245,32 @@ test("CoopFT setup refuses to configure elevated roles unless the bot has Admini
     service.bootstrap(guild),
     /Administrator is required because Owner and Co-Owner must receive the Administrator permission/
   );
+});
+
+test("CoopFT resource mutations refuse to touch the Fukishokai server", async () => {
+  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) });
+  let fetches = 0;
+  const fukishokaiGuild = {
+    id: "111111111111111111",
+    members: {
+      me: {
+        id: "bot-1",
+        permissions: { has: () => true }
+      },
+      fetchMe: async () => {
+        fetches += 1;
+        return { id: "bot-1", permissions: { has: () => true } };
+      }
+    },
+    roles: { fetch: async () => { fetches += 1; return []; } },
+    channels: { fetch: async () => { fetches += 1; return []; } },
+    emojis: { fetch: async () => { fetches += 1; return []; } }
+  };
+  await assert.rejects(service.bootstrap(fukishokaiGuild), /verified CoopFT server/);
+  await assert.rejects(service.ensureRole(fukishokaiGuild, STAFF_RANKS[0]), /verified CoopFT server/);
+  await assert.rejects(service.ensureCategory(fukishokaiGuild, "unsafe", "unsafe"), /verified CoopFT server/);
+  await assert.rejects(service.ensureChannel(fukishokaiGuild, { key: "unsafe", name: "unsafe" }, {}), /verified CoopFT server/);
+  assert.equal(fetches, 0, "no Discord resource request may be made in Fukishokai");
 });
 
 test("ensureRole reapplies the restricted High Rank Supervisor permission set", async () => {
@@ -259,9 +294,9 @@ test("ensureRole reapplies the restricted High Rank Supervisor permission set", 
         ? [{ setting_value: role.id }]
         : []
     })
-  }, { guildId: "guild-1" });
+  }, { guildId: coopftGuildId });
   const guild = {
-    id: "guild-1",
+    id: coopftGuildId,
     features: [],
     roles: {
       cache: new Map([[role.id, role]]),
@@ -357,9 +392,9 @@ test("ensureRole repairs managed role properties and applies optional native gra
         ? [{ setting_value: role.id }]
         : []
     })
-  }, { guildId: "guild-1" });
+  }, { guildId: coopftGuildId });
   const guild = {
-    id: "guild-1",
+    id: coopftGuildId,
     features: ["ENHANCED_ROLE_COLORS", "ROLE_ICONS"],
     roles: {
       cache: new Map([[role.id, role]]),
