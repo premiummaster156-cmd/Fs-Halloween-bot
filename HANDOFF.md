@@ -342,3 +342,8 @@ This is an explicit user requirement and overrides any older handoff/README word
 - The child runner now handles stdin/stdout/stderr stream errors as rejected runner tasks. Existing 48 MB isolate limit, 4-second outer process timeout, 2-second in-isolate execution deadline and output caps remain in place.
 - Added tests for concurrency, queue capacity, queue expiry, capacity release after failure and the one-runner default.
 - Latest CI run for the custom-runner change: [43711302318](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/43711302318), Node 22 and 24 both passed; Node 22 reports 244 tests passed / 0 failed. No production deployment or live Discord command execution was performed.
+
+## CI action runtime refresh — November 15, 2026
+
+- Replaced the old Node 20-based CI actions with pinned Node 24-native releases: `actions/checkout@v7.0.1` and `actions/setup-node@v7.0.0` (both pinned to full commit SHAs).
+- Latest current-head validation: [GitHub Actions run 43711484877](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/43711484877). Node 22 and Node 24 jobs both passed 244 tests / 0 failures, syntax checks and all 4 slash-command definitions. The prior Node 20 action-runtime deprecation warning is gone.
