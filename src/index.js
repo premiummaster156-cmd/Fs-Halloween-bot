@@ -322,6 +322,10 @@ async function start() {
             await coopftCommunity.handleApplicationButton(interaction);
             return;
           }
+          if (interaction.isStringSelectMenu() && interaction.customId === "cf-application:notify-select") {
+            await coopftCommunity.handleApplicationSelectMenu(interaction);
+            return;
+          }
           if (interaction.isModalSubmit() && interaction.customId?.startsWith("cf-application:submit:")) {
             await coopftCommunity.handleApplicationModal(interaction);
             return;
