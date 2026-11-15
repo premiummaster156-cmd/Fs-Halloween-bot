@@ -213,6 +213,49 @@ test("manual setup uploads all 28 3D CoopFT emblems as separate Discord-sized PN
   }
 });
 
+test("ensureRole reapplies the restricted High Rank Supervisor permission set", async () => {
+  const highRankSpec = STAFF_RANKS.find((role) => role.key === "high_rank_supervisor");
+  const role = {
+    id: "high-rank-role",
+    name: "CF • High Rank Supervisor",
+    color: highRankSpec.primary,
+    hoist: true,
+    mentionable: false,
+    editable: true,
+    permissions: { bitfield: PermissionsBitField.All },
+    edit: async (changes) => {
+      role.permissions = { bitfield: new PermissionsBitField(changes.permissions).bitfield };
+      return role;
+    }
+  };
+  const service = new CoopFTCommunityService({
+    query: async (_sql, params) => ({
+      rows: params[1] === "resource:role:high_rank_supervisor"
+        ? [{ setting_value: role.id }]
+        : []
+    })
+  }, { guildId: "guild-1" });
+  const guild = {
+    id: "guild-1",
+    features: [],
+    roles: {
+      cache: new Map([[role.id, role]]),
+      fetch: async () => role
+    }
+  };
+
+  await service.ensureRole(guild, highRankSpec);
+  assert.equal(role.permissions.bitfield, HIGH_RANK_SUPERVISOR_PERMISSIONS);
+  assert.equal(
+    role.permissions.bitfield & (
+      PermissionFlagsBits.Administrator |
+      PermissionFlagsBits.ManageGuild |
+      PermissionFlagsBits.ManageChannels
+    ),
+    0n
+  );
+});
+
 test("ticket types are distinct and channel names are safely normalized", () => {
   assert.deepEqual(Object.keys(TICKET_TYPES).sort(), ["bug", "custom_bot", "suggestion", "support"]);
   assert.equal(safeChannelName("Tommy Gun / Staff"), "tommy-gun-staff");
