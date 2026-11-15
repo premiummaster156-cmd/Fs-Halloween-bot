@@ -87,7 +87,7 @@ Abilities retain their passive equipment stats and have their one-use Arena powe
 - Everyone else has FC/bank, level/XP, job/career, lifetime stats, owned/equipped items and upgrades, Candy/event records, activity/quests/achievements, party stats, heists and Arena progress reset.
 - Admin-panel settings, event configuration, custom commands, leaderboard exclusions, audit history and security restrictions remain unchanged.
 - Discord boost status and boost-message idempotency history are preserved to prevent re-granting old boost rewards; booster equipment itself is removed with inventory.
-- Tables without a recognized guild/member identity are skipped. The reset is transactional and rolls back on any error.
+- Tables without a recognized guild/member identity are skipped. The reset is transactional and rolls back on any error. It does not take ACCESS EXCLUSIVE table locks; stop/pause the bot first to prevent concurrent gameplay writes.
 ## Validation and deployment status
 
 The final code and balance are committed directly to `main` in commit `f8de471f1a91ab46d53ff281ea6de4c2e80ff86d`. GitHub Actions run **42331427414** passed on that exact `main` commit: dependency installation, syntax validation, slash-command validation and **149 tests passed, 0 failed**. The earlier source snapshot run 42289846723 also passed 149/149. The previous PR #28 was closed after its 20-file contents were committed directly to `main`; it is no longer an active change path. Neon migration and full Discord test-server interaction checks remain manual deployment checks. Do not report the bot as live from this repository update alone.
