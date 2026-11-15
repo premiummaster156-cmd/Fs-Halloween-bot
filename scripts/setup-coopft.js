@@ -43,7 +43,7 @@ async function runCoopFTSetup(options = {}) {
   const closePool = options.closePool !== false;
 
   if (!token) throw new Error("DISCORD_TOKEN is missing.");
-  if (!/^\\d{17,20}$/.test(guildId)) {
+  if (!/^[0-9]{17,20}$/.test(guildId)) {
     throw new Error("COOPFT_GUILD_ID must be a valid Discord server ID.");
   }
   const testOnlyAllowGuildIdOverride = options.testOnlyAllowGuildIdOverride === true;
