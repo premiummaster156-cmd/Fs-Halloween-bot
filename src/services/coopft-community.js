@@ -633,7 +633,7 @@ class CoopFTCommunityService {
       PermissionFlagsBits.ManageRoles, PermissionFlagsBits.ManageChannels,
       PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages,
       PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ReadMessageHistory,
-      PermissionFlagsBits.ViewAuditLog
+      PermissionFlagsBits.AttachFiles, PermissionFlagsBits.ViewAuditLog
     ];
     const missing = required.filter((permission) => !me.permissions.has(permission));
     if (missing.length) throw new Error("CoopFT setup requires Manage Roles, Manage Channels, View Channel, Send Messages, Embed Links, Read Message History and View Audit Log. Missing: " + missing.join(", "));
@@ -1305,7 +1305,23 @@ class CoopFTCommunityService {
       new ButtonBuilder().setCustomId("cf-application:approve:" + application.id).setLabel("Approve").setStyle(ButtonStyle.Success).setEmoji("✅"),
       new ButtonBuilder().setCustomId("cf-application:decline:" + application.id).setLabel("Decline").setStyle(ButtonStyle.Danger).setEmoji("✖️")
     );
-    const reviewMessage = await reviewChannel.send({ embeds: [reviewEmbed], components: [controls], allowedMentions: { parse: [] } });
+    let reviewMessage;
+    try {
+      reviewMessage = await reviewChannel.send({
+        embeds: [reviewEmbed],
+        components: [controls],
+        allowedMentions: { parse: [] }
+      });
+    } catch (error) {
+      await this.pool.query(
+        "UPDATE coopft_applications SET status='withdrawn',review_note=$2 WHERE id=$1 AND status='pending'",
+        [application.id, ("Review delivery failed: " + error.message).slice(0, 500)]
+      );
+      console.error("[coopft] Could not publish an application to the private review channel:", error.message);
+      return interaction.editReply({
+        content: "Your application was saved, but the private review team could not receive it. Please open a support ticket so staff can help."
+      });
+    }
     await this.pool.query("UPDATE coopft_applications SET review_message_id=$2 WHERE id=$1", [application.id, reviewMessage.id]);
     await interaction.editReply({
       content: "✅ Your **" + role.name + "** application has been submitted privately. Reference: `" + application.id.slice(0, 8) + "`. Authorized staff will review it."
