@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 const {
   STAFF_RANKS, HR_ROLES, APPLICATION_ROLES, EMOJI_SPRITE, PUBLIC_CHANNELS, PRIVATE_CHANNELS
 } = require("../src/config/coopft-design");
+const { PermissionFlagsBits } = require("discord.js");
 const {
   COOPFT_DEFAULT_GUILD_ID, coopftGuildId, personaForGuild
 } = require("../src/config/server-personas");
@@ -20,6 +21,29 @@ test("CoopFT has ten distinct staff ranks and five HR roles", () => {
     assert.ok(Number.isInteger(role.primary));
     assert.ok(Number.isInteger(role.secondary));
     assert.notEqual(role.primary, role.secondary);
+  }
+});
+
+test("all staff and HR roles have useful non-zero least-privilege permission sets", () => {
+  const reserved = PermissionFlagsBits.Administrator |
+    PermissionFlagsBits.ManageGuild |
+    PermissionFlagsBits.ManageChannels;
+  assert.notEqual(STAFF_RANKS[0].permissions, 0n);
+  assert.notEqual(STAFF_RANKS[1].permissions, 0n);
+  assert.equal(STAFF_RANKS[2].permissions & reserved, 0n);
+
+  for (const role of [...STAFF_RANKS.slice(3), ...HR_ROLES]) {
+    assert.notEqual(role.permissions, 0n, role.name + " must have permissions");
+    assert.ok(role.permissionSummary, role.name + " must explain its permissions");
+    assert.equal(role.permissions & reserved, 0n, role.name + " cannot administer/manage server or channels");
+  }
+  for (const role of HR_ROLES) {
+    assert.equal(role.permissions & PermissionFlagsBits.ManageRoles, 0n, role.name + " cannot manage server roles");
+    assert.equal(role.permissions & PermissionFlagsBits.KickMembers, 0n, role.name + " cannot kick members");
+    assert.equal(role.permissions & PermissionFlagsBits.BanMembers, 0n, role.name + " cannot ban members");
+  }
+  for (const role of APPLICATION_ROLES) {
+    assert.equal(role.permissions, 0n, role.name + " remains a zero-permission specialist role");
   }
 });
 
