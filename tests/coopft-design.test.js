@@ -26,6 +26,7 @@ test("CoopFT has ten distinct staff ranks and five HR roles", () => {
 test("CoopFT illustrated emoji registry contains 28 unique role and community emblems", () => {
   assert.equal(EMOJI_SPRITE.length, 28);
   assert.equal(new Set(EMOJI_SPRITE).size, 28);
+  assert.ok(EMOJI_SPRITE.every((name) => name.startsWith("cf3d_")));
   assert.ok(EMOJI_SPRITE.includes("cf3d_gem"));
   assert.ok(EMOJI_SPRITE.includes("cf3d_rules"));
   assert.ok(EMOJI_SPRITE.includes("cf3d_applications"));
