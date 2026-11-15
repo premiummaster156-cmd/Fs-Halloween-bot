@@ -19,7 +19,7 @@ test("combat catalog has unique IDs and valid category, rarity, level and price 
   assert.equal(new Set(ids).size, ids.length);
   for (const item of COMBAT_ITEMS) {
     assert.ok(item.name);
-    assert.ok(["weapon", "fighting_style", "spirit_art", "armor", "accessory"].includes(item.category));
+    assert.ok(["weapon", "fighting_style", "spirit_art", "armor", "accessory", "relic"].includes(item.category));
     assert.ok(["COMMON", "RARE", "EPIC", "LEGENDARY", "MYTHIC"].includes(item.rarity));
     assert.ok(Number.isInteger(item.minLevel) && item.minLevel >= 1);
     assert.ok(Number.isInteger(item.price) && item.price >= 0);
