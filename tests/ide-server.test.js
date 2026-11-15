@@ -70,7 +70,7 @@ test("Code Studio checks the trusted Admin Role in the exact server selected by 
       ownerId: "owner-" + guildId,
       members: {
         fetch: async () => ({
-          roles: { cache: { has: (roleId) => guildId.endsWith("671") && roleId === roleByGuild[guildId] } }
+          roles: { cache: { has: (roleId) => guildId.endsWith("678") && roleId === roleByGuild[guildId] } }
         })
       }
     });
