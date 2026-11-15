@@ -116,7 +116,8 @@ test("confirmation phrase is mandatory for destructive mode", () => {
 test("bot owner, both Kings, each guild owner and configured Admin Role members are protected", async () => {
   const fake = makeFakePool();
   const identities = [
-    { guild_id: "g1", user_id: "bot-owner" }, { guild_id: "g1", user_id: "server-owner" },
+    { guild_id: "g1", user_id: "bot-owner" }, { guild_id: "g1", user_id: "king-founder" },
+    { guild_id: "g1", user_id: "server-owner" },
     { guild_id: "g1", user_id: "role-admin" }, { guild_id: "g1", user_id: "regular" },
     { guild_id: "g2", user_id: "king-server-owner" }, { guild_id: "g2", user_id: "role-admin-2" },
     { guild_id: "g2", user_id: "regular-2" }
@@ -149,7 +150,7 @@ test("default run previews eligible rows and never deletes", async () => {
   const output = [];
   const result = await runReset({
     dbPool: fake.pool, rest: makeRest(), botOwnerId: "bot-owner",
-    fallbackAdminRoleId: null,
+    kingIds: ["king-founder", "king-server-owner"], fallbackAdminRoleId: null,
     logger: { log: (...parts) => output.push(parts.join(" ")), error() {} }
   });
   assert.equal(result.performed, false);
