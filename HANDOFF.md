@@ -174,16 +174,16 @@ The user approved a full reliability, security, database, gameplay, dashboard an
 
 ### Verified issue still to fix
 
-- Node.js 20 is end-of-life. The bot now requires Node.js >=22 and pins `isolated-vm` 6.0.2, which declares Node.js >=22 support. GitHub Actions successfully installs dependencies, validates syntax and slash commands, and passes all 234 tests on Node.js 22 and 24. Node.js 20 is intentionally removed from the supported CI matrix. Confirm the actual hosting provider's runtime is Node.js 22 or 24 before deploying this upgrade; Node.js 26 has not been tested here.
+- Node.js 20 is end-of-life. The bot now requires Node.js >=22 and pins `isolated-vm` 6.0.2, which declares Node.js >=22 support. GitHub Actions successfully installs dependencies, validates syntax and slash commands, and passes all 238 tests on Node.js 22 and 24. Node.js 20 is intentionally removed from the supported CI matrix. Confirm the actual hosting provider's runtime is Node.js 22 or 24 before deploying this upgrade; Node.js 26 has not been tested here.
 - Regenerated and committed `package-lock.json` with all declared dependencies (`@napi-rs/canvas` 1.1.1 and `isolated-vm` 6.0.2). CI now uses `npm ci` on Node.js 22 and 24; both matrix jobs install from the committed lockfile before syntax, slash-command and test validation.
-- The migration script currently re-runs the full `schema.sql` on every startup and then adds constraints manually. Design ordered, versioned migrations with a migration lock and PostgreSQL integration tests before changing production database behavior.
+- `schema.sql` remains the idempotent legacy bootstrap for existing installations. A numbered, immutable SQL migration runner now applies new migrations in lexical order under the existing transaction-scoped advisory lock, records SHA-256 checksums, and fails closed if an applied migration is edited. Unit tests use a transaction mock; disposable Neon/PostgreSQL integration tests and the gradual conversion of legacy bootstrap DDL remain outstanding.
 - The interaction flow performs some database/access checks before acknowledgement. Refactor in small steps so potentially slow interactions defer/reply before long operations while preserving ephemeral/public response behavior and avoiding duplicate replies.
 - The bearer-key AI workspace API needs explicit draft-by-default/publish authorization and rate limits before being considered production-hardened.
 
 ### Upgrade workflow and guardrails
 
 1. Repair dependency/CI reproducibility and interaction acknowledgement.
-2. Add safe, versioned Neon migrations and real PostgreSQL integration tests.
+2. Add disposable Neon/PostgreSQL integration tests and gradually move legacy bootstrap changes into numbered migrations.
 3. Harden admin workspace and custom-command publishing/execution.
 4. Improve anti-abuse/security and transaction correctness.
 5. Audit and balance every existing gameplay system while preserving documented season rules.
@@ -199,10 +199,10 @@ Keep Neon PostgreSQL; request the now-approved `GuildMembers` intent only for ac
 - CI runs triggered by these changes are tracked at [run 42615623367](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/42615623367); confirm the latest run result before claiming all changes passed. The previous commit-specific CI runs for the trade expiry fix and initial API hardening completed successfully.
 - The Bot Protect V3 repository has no declared license in its GitHub repository metadata. Do not copy or transplant its source code; use only independently implemented feature ideas. Its `Intents.all()`, global JSON persistence and destructive anti-join/mass-role behavior remain reasons not to merge it.
 
-- `src/database/migrate.js`: added a PostgreSQL transaction-scoped advisory lock before applying the idempotent schema/backfills. This serializes concurrent startup migration attempts across multiple bot instances. It does not yet replace the schema file with fully versioned migration files; that remains a planned database-hardening task.
+- `src/database/migrate.js`: serializes startup migrations with a PostgreSQL transaction-scoped advisory lock. It retains the existing idempotent `schema.sql` bootstrap and now supports ordered `NNNN_description.sql` migrations.
 - CI run for the latest migration-lock commit: [42615755679](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/42615755679). Check its final status before reporting the latest commit as validated.
 
-- `src/database/migrate.js` records a SHA-256 checksum for `schema.sql` in `schema_migrations` and reapplies the idempotent schema only when content changes. It verifies the level cap; this is an intermediate safe migration improvement, not a substitute for a fully ordered per-release migration directory with PostgreSQL integration coverage.
+- `src/database/migrate.js` records checksums for the legacy `schema.sql` bootstrap and each numbered migration. Applied numbered migrations are immutable; a checksum mismatch aborts the transaction with instructions to create a new migration. `src/database/migrations/README.md` documents the naming and rollout rules. No new migration SQL has been applied to Neon as part of this PR.
 - CI run for this schema-checksum change: [42615869661](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/42615869661). Verify its final result.
 
 ## Trade invitation acceptance flow — November 9, 2026
@@ -326,3 +326,11 @@ This is an explicit user requirement and overrides any older handoff/README word
 - Confirm the **Server Members Intent** toggle is enabled in the Discord Developer Portal before restarting the bot. The bot still needs **Manage Server** to fetch invite/vanity usage counters and **View Audit Log** for audit attribution.
 - Regression coverage was added in `tests/gateway-intents.test.js` to assert the exact intent set and that `GuildPresences` / `MessageContent` stay absent.
 - **Verified on current pre-validation-note HEAD:** commit `8211066d6dee36e4cd0292372b4a3d68c129bfc7`; GitHub Actions run [43706181438](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/43706181438) passed dependency installation, source syntax validation, slash-command validation and **234 tests passed / 0 failed**, including the new exact Gateway-intent boundary test. This does not verify the live Discord Gateway connection, Developer Portal toggle, Manage Server invite access, Neon migration or live DM delivery.
+
+## Upgrade branch — runtime and database hardening (November 15, 2026)
+
+- Hosting provider confirmed by user: Bot-Hosting.net. Its deployment API documents selecting Node.js runtime version 24; the live deployment setting has not been inspected or changed.
+- Node.js >=22 is now required; `isolated-vm` is pinned to 6.0.2. The committed lockfile includes all declared dependencies, and CI uses read-only `npm ci`.
+- CI validates Node.js 22 and 24 with pinned GitHub Actions SHAs. Latest verified run: 43710942377; both matrix jobs passed syntax checks, 4 slash-command definitions and 238 tests / 0 failures.
+- The versioned migration runner is covered by four mock-transaction tests: ordered application, idempotent re-run, immutable checksum enforcement and filename/empty-file validation. This is not a live PostgreSQL integration test.
+- The reset utility now protects both configured Kings as well as existing protected identities. The destructive reset was not executed; no Neon data was changed.
