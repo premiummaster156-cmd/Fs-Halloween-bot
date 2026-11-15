@@ -254,3 +254,11 @@ When the bot stops, inspect the **first** error in `logs/bot-runtime.log`, not j
 
 
 The runtime also records process memory (RSS, V8 heap and external/native allocations) every five minutes. By default it warns when RSS crosses **200 MB**, which is a useful early warning for the Bot-Hosting.net Free plan's published **256 MB RAM** limit. Set `BOT_MEMORY_WARN_MB=0` to disable the warning or choose another threshold for a different plan. The monitor is diagnostic only; it cannot prevent the host from killing a process that exceeds its memory limit.
+
+## RPG Combat Foundation
+
+The RPG expansion introduces a combat equipment system separate from the legacy economy gear and booster-exclusive Mythics. The private `/menu` dashboard now includes an **Armory** with six equipment categories: weapons, fighting styles, Spirit Arts, armor, accessories and Relics.
+
+Players receive a free starter combat set. Additional equipment is purchased with FC, and the resulting build affects Rift Arena attack power, critical chance, defense, damage reduction and maximum HP. A combat build is saved for each player and locked for the duration of an active boss encounter. Weapon, fighting-style and Spirit Art mastery earn XP for each resolved Rift turn, with a level-50 cap.
+
+The combat system uses separate Neon tables (`combat_loadouts`, `combat_inventory` and `combat_mastery`) and does not reset or repurpose existing economy inventory, equipment, wallet, levels or server-booster rewards. The current implementation is the first playable foundation; weapon techniques, Spirit Art moves and awakenings, regions, dungeons, raids, forging and crafting are planned follow-on systems.
