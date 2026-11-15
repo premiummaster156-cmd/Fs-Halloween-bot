@@ -17,10 +17,10 @@ const CLEANUP_CONFIRMATION = "DELETE_EDITABLE_ROLES";
 const STAFF_MANAGER_KEYS = new Set(["owner", "co_owner", "high_rank_supervisor"]);
 const HR_MANAGER_KEYS = new Set(["hr_director", "hr_manager"]);
 const TICKET_TYPES = Object.freeze({
-  support: { label: "General Support", icon: "cf_headset", fallback: "🎧" },
-  bug: { label: "Bug Report", icon: "cf_gear", fallback: "⚙️" },
-  custom_bot: { label: "Custom Bot Request", icon: "cf_key", fallback: "🔑" },
-  suggestion: { label: "Suggestion", icon: "cf_spark", fallback: "✨" }
+  support: { label: "General Support", icon: "cf3d_headset", fallback: "🎧" },
+  bug: { label: "Bug Report", icon: "cf3d_gear", fallback: "⚙️" },
+  custom_bot: { label: "Custom Bot Request", icon: "cf3d_key", fallback: "🔑" },
+  suggestion: { label: "Suggestion", icon: "cf3d_spark", fallback: "✨" }
 });
 
 function safeChannelName(value) {
@@ -102,67 +102,67 @@ function drawCoopFTEmoji(ctx, name, index) {
     ctx.lineTo(20, 27); ctx.closePath();
   }, metal);
   switch (name) {
-    case "cf_crown":
+    case "cf3d_crown":
       stroke(() => { ctx.moveTo(15, 42); ctx.lineTo(29, 87); ctx.lineTo(99, 87); ctx.lineTo(113, 42); ctx.lineTo(88, 59); ctx.lineTo(64, 25); ctx.lineTo(40, 59); ctx.closePath(); }, metal);
       line(() => { ctx.moveTo(29, 97); ctx.lineTo(99, 97); }, "#fff0bd", 8);
       diamond(64, 59, 12, 14);
       break;
-    case "cf_shield":
+    case "cf3d_shield":
       shield();
       star(64, 62, 27, 12, 4, gem);
       break;
-    case "cf_star":
+    case "cf3d_star":
       star(64, 63, 49, 21, 8, metal);
       diamond(64, 63, 12, 16);
       break;
-    case "cf_gem":
+    case "cf3d_gem":
       diamond(64, 65, 48, 43, gem);
       line(() => { ctx.moveTo(16, 51); ctx.lineTo(112, 51); ctx.moveTo(64, 22); ctx.lineTo(64, 108); }, "#effaff", 3);
       break;
-    case "cf_butterfly":
+    case "cf3d_butterfly":
       stroke(() => { ctx.moveTo(64, 58); ctx.bezierCurveTo(13, 0, 1, 62, 47, 76); ctx.bezierCurveTo(12, 122, 59, 111, 64, 78); ctx.bezierCurveTo(69, 111, 116, 122, 81, 76); ctx.bezierCurveTo(127, 62, 115, 0, 64, 58); ctx.closePath(); }, gem);
       line(() => { ctx.moveTo(64, 49); ctx.lineTo(64, 100); }, "#ffffff", 4);
       break;
-    case "cf_leaf":
+    case "cf3d_leaf":
       stroke(() => { ctx.moveTo(19, 102); ctx.bezierCurveTo(18, 26, 76, 5, 111, 17); ctx.bezierCurveTo(117, 82, 71, 119, 19, 102); ctx.closePath(); }, gem);
       line(() => { ctx.moveTo(24, 105); ctx.quadraticCurveTo(62, 67, 105, 25); }, "#e9ffe7", 5);
       break;
-    case "cf_flame":
+    case "cf3d_flame":
       stroke(() => { ctx.moveTo(64, 117); ctx.bezierCurveTo(5, 105, 24, 56, 53, 20); ctx.bezierCurveTo(48, 53, 80, 47, 80, 8); ctx.bezierCurveTo(137, 69, 111, 112, 64, 117); ctx.closePath(); }, gem);
       stroke(() => { ctx.moveTo(64, 103); ctx.bezierCurveTo(34, 90, 54, 67, 68, 54); ctx.bezierCurveTo(67, 76, 92, 74, 87, 98); ctx.closePath(); }, "#fff0c7", "#ffffff");
       break;
-    case "cf_ice":
+    case "cf3d_ice":
       diamond(64, 45, 25, 42, gem); diamond(35, 81, 15, 27); diamond(95, 83, 17, 29);
       line(() => { ctx.moveTo(64, 10); ctx.lineTo(64, 119); ctx.moveTo(13, 83); ctx.lineTo(115, 83); }, "#e8fbff", 3);
       break;
-    case "cf_key":
+    case "cf3d_key":
       ctx.beginPath(); ctx.arc(42, 44, 24, 0, Math.PI * 2); ctx.fillStyle = metal; ctx.fill(); ctx.strokeStyle = "#fff0c2"; ctx.lineWidth = 5; ctx.stroke();
       line(() => { ctx.moveTo(58, 62); ctx.lineTo(108, 112); ctx.moveTo(86, 92); ctx.lineTo(75, 103); ctx.moveTo(99, 105); ctx.lineTo(89, 116); }, "#f7d99a", 11);
       diamond(42, 44, 11, 14, gem);
       break;
-    case "cf_ticket":
-    case "cf_ticket_staff":
+    case "cf3d_ticket":
+    case "cf3d_ticket_staff":
       stroke(() => { ctx.moveTo(14, 35); ctx.lineTo(114, 35); ctx.lineTo(114, 53); ctx.bezierCurveTo(98, 62, 98, 72, 114, 81); ctx.lineTo(114, 99); ctx.lineTo(14, 99); ctx.lineTo(14, 81); ctx.bezierCurveTo(30, 72, 30, 62, 14, 53); ctx.closePath(); }, metal);
       line(() => { ctx.moveTo(64, 42); ctx.lineTo(64, 92); }, "#fff0c4", 3);
       star(40, 68, 13, 6, 4, gem);
-      if (name === "cf_ticket_staff") line(() => { ctx.arc(91, 34, 22, Math.PI, Math.PI * 2); ctx.moveTo(69, 34); ctx.lineTo(69, 62); ctx.moveTo(113, 34); ctx.lineTo(113, 62); }, "#d8eaff", 6);
+      if (name === "cf3d_ticket_staff") line(() => { ctx.arc(91, 34, 22, Math.PI, Math.PI * 2); ctx.moveTo(69, 34); ctx.lineTo(69, 62); ctx.moveTo(113, 34); ctx.lineTo(113, 62); }, "#d8eaff", 6);
       break;
-    case "cf_scroll":
-    case "cf_rolebook":
-    case "cf_rules":
-    case "cf_applications":
+    case "cf3d_scroll":
+    case "cf3d_rolebook":
+    case "cf3d_rules":
+    case "cf3d_applications":
       stroke(() => { ctx.moveTo(30, 19); ctx.bezierCurveTo(16, 19, 16, 40, 30, 40); ctx.lineTo(93, 40); ctx.bezierCurveTo(111, 40, 111, 19, 93, 19); ctx.lineTo(30, 19); ctx.lineTo(30, 100); ctx.bezierCurveTo(17, 100, 17, 119, 34, 119); ctx.lineTo(98, 119); ctx.lineTo(98, 35); }, metal);
       line(() => { ctx.moveTo(43, 52); ctx.lineTo(85, 52); ctx.moveTo(43, 67); ctx.lineTo(85, 67); ctx.moveTo(43, 82); ctx.lineTo(76, 82); }, "#fff1c8", 4);
-      if (name === "cf_applications") line(() => { ctx.moveTo(84, 91); ctx.lineTo(112, 61); ctx.lineTo(119, 70); ctx.lineTo(91, 101); ctx.closePath(); }, "#e4c8ff", 6);
-      if (name === "cf_rules") star(88, 91, 12, 5, 4, gem);
+      if (name === "cf3d_applications") line(() => { ctx.moveTo(84, 91); ctx.lineTo(112, 61); ctx.lineTo(119, 70); ctx.lineTo(91, 101); ctx.closePath(); }, "#e4c8ff", 6);
+      if (name === "cf3d_rules") star(88, 91, 12, 5, 4, gem);
       break;
-    case "cf_headset":
+    case "cf3d_headset":
       line(() => { ctx.arc(64, 65, 43, Math.PI, 0); }, "#c9faff", 9);
       stroke(() => { roundedRect(15, 58, 23, 44, 9); }, metal);
       stroke(() => { roundedRect(90, 58, 23, 44, 9); }, metal);
       line(() => { ctx.moveTo(100, 92); ctx.quadraticCurveTo(112, 111, 91, 113); }, "#71f3e8", 6);
       break;
-    case "cf_gear":
+    case "cf3d_gear":
       ctx.beginPath();
       for (let i = 0; i < 24; i += 1) {
         const radius = i % 3 === 0 ? 51 : 42;
@@ -174,46 +174,46 @@ function drawCoopFTEmoji(ctx, name, index) {
       ctx.closePath(); ctx.fillStyle = metal; ctx.fill(); ctx.strokeStyle = "#d9efff"; ctx.lineWidth = 5; ctx.stroke();
       ctx.beginPath(); ctx.arc(64, 64, 22, 0, Math.PI * 2); ctx.fillStyle = gem; ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 4; ctx.stroke();
       break;
-    case "cf_bell":
+    case "cf3d_bell":
       stroke(() => { ctx.moveTo(29, 87); ctx.quadraticCurveTo(40, 76, 40, 52); ctx.arc(64, 52, 24, Math.PI, 0); ctx.quadraticCurveTo(88, 76, 99, 87); ctx.closePath(); }, metal);
       line(() => { ctx.moveTo(22, 91); ctx.lineTo(106, 91); ctx.moveTo(55, 105); ctx.quadraticCurveTo(64, 119, 73, 105); }, "#ffe3a6", 7);
       diamond(64, 52, 9, 12);
       break;
-    case "cf_handshake":
+    case "cf3d_handshake":
       stroke(() => { ctx.moveTo(12, 54); ctx.lineTo(38, 34); ctx.lineTo(60, 49); ctx.lineTo(82, 34); ctx.lineTo(116, 55); ctx.lineTo(92, 91); ctx.lineTo(77, 82); ctx.lineTo(63, 96); ctx.lineTo(49, 83); ctx.lineTo(36, 94); ctx.closePath(); }, metal);
       line(() => { ctx.moveTo(40, 60); ctx.lineTo(66, 81); ctx.lineTo(83, 66); ctx.lineTo(99, 77); }, "#fff1c4", 8);
       break;
-    case "cf_spark":
+    case "cf3d_spark":
       star(64, 64, 52, 9, 4, gem); star(23, 25, 12, 4, 4); star(105, 100, 14, 4, 4);
       break;
-    case "cf_war":
+    case "cf3d_war":
       line(() => { ctx.moveTo(22, 18); ctx.lineTo(105, 111); ctx.moveTo(106, 18); ctx.lineTo(22, 111); }, "#f4e2c1", 10);
       line(() => { ctx.moveTo(12, 20); ctx.lineTo(31, 14); ctx.lineTo(24, 34); ctx.moveTo(116, 20); ctx.lineTo(97, 14); ctx.lineTo(104, 34); }, "#dbeaff", 7);
       diamond(64, 64, 12, 13, gem);
       break;
-    case "cf_referee":
+    case "cf3d_referee":
       line(() => { ctx.moveTo(64, 22); ctx.lineTo(64, 98); ctx.moveTo(24, 108); ctx.lineTo(104, 108); ctx.moveTo(30, 39); ctx.lineTo(98, 39); }, "#f3d89a", 7);
       line(() => { ctx.moveTo(32, 39); ctx.lineTo(18, 77); ctx.quadraticCurveTo(32, 94, 46, 77); ctx.closePath(); ctx.moveTo(96, 39); ctx.lineTo(82, 77); ctx.quadraticCurveTo(96, 94, 110, 77); ctx.closePath(); }, "#f5e7c3", 5);
       diamond(64, 22, 11, 14, gem);
       break;
-    case "cf_observer":
+    case "cf3d_observer":
       stroke(() => { ctx.moveTo(8, 64); ctx.quadraticCurveTo(64, 5, 120, 64); ctx.quadraticCurveTo(64, 123, 8, 64); ctx.closePath(); }, metal);
       ctx.beginPath(); ctx.arc(64, 64, 25, 0, Math.PI * 2); ctx.fillStyle = gem; ctx.fill(); ctx.strokeStyle = "#f2f7ff"; ctx.lineWidth = 4; ctx.stroke();
       ctx.beginPath(); ctx.arc(64, 64, 9, 0, Math.PI * 2); ctx.fillStyle = "#15182e"; ctx.fill();
       break;
-    case "cf_helper":
+    case "cf3d_helper":
       stroke(() => { ctx.moveTo(19, 70); ctx.lineTo(43, 47); ctx.lineTo(60, 62); ctx.lineTo(89, 37); ctx.bezierCurveTo(103, 25, 117, 43, 104, 55); ctx.lineTo(65, 102); ctx.quadraticCurveTo(51, 116, 36, 101); ctx.closePath(); }, metal);
       star(64, 72, 16, 7, 4, gem);
       break;
-    case "cf_announce":
+    case "cf3d_announce":
       stroke(() => { ctx.moveTo(18, 53); ctx.lineTo(90, 25); ctx.lineTo(90, 100); ctx.lineTo(18, 76); ctx.closePath(); }, metal);
       stroke(() => { roundedRect(9, 52, 19, 25, 4); }, gem);
       line(() => { ctx.moveTo(39, 79); ctx.lineTo(51, 111); ctx.lineTo(73, 111); ctx.lineTo(66, 88); }, "#f0d9ad", 8);
       break;
-    case "cf_voice":
+    case "cf3d_voice":
       line(() => { ctx.moveTo(15, 65); ctx.lineTo(29, 65); ctx.lineTo(40, 38); ctx.lineTo(51, 94); ctx.lineTo(64, 22); ctx.lineTo(77, 103); ctx.lineTo(90, 45); ctx.lineTo(101, 79); ctx.lineTo(114, 65); }, "#87efff", 8);
       break;
-    case "cf_idea":
+    case "cf3d_idea":
       ctx.beginPath(); ctx.arc(64, 54, 35, Math.PI, Math.PI * 2); ctx.lineTo(99, 66); ctx.lineTo(80, 88); ctx.lineTo(48, 88); ctx.lineTo(29, 66); ctx.closePath(); ctx.fillStyle = gem; ctx.fill(); ctx.strokeStyle = "#fff0ce"; ctx.lineWidth = 5; ctx.stroke();
       line(() => { ctx.moveTo(47, 97); ctx.lineTo(81, 97); ctx.moveTo(51, 108); ctx.lineTo(77, 108); ctx.moveTo(64, 6); ctx.lineTo(64, 15); }, "#fff0c8", 6);
       break;
@@ -762,7 +762,7 @@ class CoopFTCommunityService {
         const remainder = Math.max(0, cleanup.candidates.length - names.length);
         await this.postStaffUpdate(
           guild,
-          this.emoji(guild.id, "cf_shield", "🛡️") + " **One-time role cleanup preview**\\n" +
+          this.emoji(guild.id, "cf3d_shield", "🛡️") + " **One-time role cleanup preview**\\n" +
           cleanup.candidates.length + " ordinary roles are editable by the bot. No roles were deleted.\\n" +
           (names.length ? names.map((name) => "• " + name).join("\\n") : "No eligible roles found.") +
           (remainder ? "\\n… and " + remainder + " more." : "") +
@@ -774,7 +774,7 @@ class CoopFTCommunityService {
     if (cleanup.completed) {
       await this.postStaffUpdate(
         guild,
-        this.emoji(guild.id, "cf_shield", "🛡️") + " One-time cleanup completed. Deleted " + cleanup.deleted +
+        this.emoji(guild.id, "cf3d_shield", "🛡️") + " One-time cleanup completed. Deleted " + cleanup.deleted +
         " editable roles. Unmanageable/managed roles were left in place."
       );
     }
@@ -909,29 +909,29 @@ class CoopFTCommunityService {
       console.warn("[coopft] Could not render rules artwork; using the text-only rules embed:", error.message);
     }
     const rules = new EmbedBuilder().setColor(0x35245F)
-      .setTitle(this.emoji(guild.id, "cf_rules", "📜") + "  COOPFT • COMMUNITY CODE")
+      .setTitle(this.emoji(guild.id, "cf3d_rules", "📜") + "  COOPFT • COMMUNITY CODE")
       .setDescription([
         "Welcome to **CoopFT** — a place to build, share, compete and meet good people. These standards apply to everyone.",
         "",
-        this.emoji(guild.id, "cf_handshake", "🤝") + " **01 · RESPECT COMES FIRST**\\nTreat every member with dignity. Harassment, hate speech, discrimination, threats and targeted abuse are not allowed.",
+        this.emoji(guild.id, "cf3d_handshake", "🤝") + " **01 · RESPECT COMES FIRST**\\nTreat every member with dignity. Harassment, hate speech, discrimination, threats and targeted abuse are not allowed.",
         "",
-        this.emoji(guild.id, "cf_spark", "✨") + " **02 · KEEP IT CONSTRUCTIVE**\\nStay on topic, use the right channels, and keep disagreements civil. No flooding, spam pings or disruptive behavior.",
+        this.emoji(guild.id, "cf3d_spark", "✨") + " **02 · KEEP IT CONSTRUCTIVE**\\nStay on topic, use the right channels, and keep disagreements civil. No flooding, spam pings or disruptive behavior.",
         "",
-        this.emoji(guild.id, "cf_shield", "🛡️") + " **03 · KEEP COOPFT SAFE**\\nNo scams, phishing, malware, malicious links, raids, impersonation or attempts to evade moderation.",
+        this.emoji(guild.id, "cf3d_shield", "🛡️") + " **03 · KEEP COOPFT SAFE**\\nNo scams, phishing, malware, malicious links, raids, impersonation or attempts to evade moderation.",
         "",
-        this.emoji(guild.id, "cf_key", "🔐") + " **04 · PROTECT PRIVACY**\\nNever share passwords, tokens, private documents, personal addresses or another person's private information.",
+        this.emoji(guild.id, "cf3d_key", "🔐") + " **04 · PROTECT PRIVACY**\\nNever share passwords, tokens, private documents, personal addresses or another person's private information.",
         "",
-        this.emoji(guild.id, "cf_ticket", "🎟️") + " **05 · NO UNAPPROVED ADVERTISING**\\nPromotions, server invites and commercial posts require staff approval. Use the appropriate showcase channels.",
+        this.emoji(guild.id, "cf3d_ticket", "🎟️") + " **05 · NO UNAPPROVED ADVERTISING**\\nPromotions, server invites and commercial posts require staff approval. Use the appropriate showcase channels.",
         "",
-        this.emoji(guild.id, "cf_voice", "🎙️") + " **06 · RESPECT VOICE AND EVENTS**\\nNo disruptive audio, recording people without consent, or interrupting hosted sessions.",
+        this.emoji(guild.id, "cf3d_voice", "🎙️") + " **06 · RESPECT VOICE AND EVENTS**\\nNo disruptive audio, recording people without consent, or interrupting hosted sessions.",
         "",
-        this.emoji(guild.id, "cf_idea", "💡") + " **07 · SHARE IDEAS THE RIGHT WAY**\\nUse #suggestions for proposals and #open-a-ticket for private support, reports or appeals.",
+        this.emoji(guild.id, "cf3d_idea", "💡") + " **07 · SHARE IDEAS THE RIGHT WAY**\\nUse #suggestions for proposals and #open-a-ticket for private support, reports or appeals.",
         "",
-        this.emoji(guild.id, "cf_bell", "🔔") + " **08 · RESPECT MODERATION**\\nFollow staff instructions. If you disagree with a decision, appeal calmly through a ticket.",
+        this.emoji(guild.id, "cf3d_bell", "🔔") + " **08 · RESPECT MODERATION**\\nFollow staff instructions. If you disagree with a decision, appeal calmly through a ticket.",
         "",
-        this.emoji(guild.id, "cf_gem", "💎") + " **09 · KEEP CONTENT APPROPRIATE**\\nNo explicit, exploitative or illegal content. Follow Discord's Terms of Service and Community Guidelines.",
+        this.emoji(guild.id, "cf3d_gem", "💎") + " **09 · KEEP CONTENT APPROPRIATE**\\nNo explicit, exploitative or illegal content. Follow Discord's Terms of Service and Community Guidelines.",
         "",
-        this.emoji(guild.id, "cf_star", "🌟") + " **10 · HELP THE COMMUNITY GROW**\\nCredit creators, welcome newcomers and contribute in good faith."
+        this.emoji(guild.id, "cf3d_star", "🌟") + " **10 · HELP THE COMMUNITY GROW**\\nCredit creators, welcome newcomers and contribute in good faith."
       ].join("\\n"))
       .setThumbnail(bannerAttachment ? "attachment://coopft-rules-crest.png" : null)
       .setFooter({ text: "CoopFT • Respect the space. Elevate the community." });
@@ -940,33 +940,33 @@ class CoopFTCommunityService {
       {
         key: "welcome", channel: publicChannels.welcome,
         embed: new EmbedBuilder().setColor(0x235A9A)
-          .setTitle(this.emoji(guild.id, "cf_spark", "✨") + "  WELCOME TO COOPFT")
+          .setTitle(this.emoji(guild.id, "cf3d_spark", "✨") + "  WELCOME TO COOPFT")
           .setDescription("A community for people who build, share, learn and compete together. Start with **#rules**, say hello in **#introductions**, explore **#role-explanations**, and visit **#applications** when you're ready to join a team.")
           .addFields(
-            { name: this.emoji(guild.id, "cf_rules", "📘") + " Start here", value: "Read the community code and explore the server.", inline: true },
-            { name: this.emoji(guild.id, "cf_community", "👥") + " Meet the community", value: "Introduce yourself, share your work and join conversations.", inline: true },
-            { name: this.emoji(guild.id, "cf_applications", "📝") + " Join a team", value: "See open positions and apply from the applications panel.", inline: true }
+            { name: this.emoji(guild.id, "cf3d_rules", "📘") + " Start here", value: "Read the community code and explore the server.", inline: true },
+            { name: this.emoji(guild.id, "cf3d_community", "👥") + " Meet the community", value: "Introduce yourself, share your work and join conversations.", inline: true },
+            { name: this.emoji(guild.id, "cf3d_applications", "📝") + " Join a team", value: "See open positions and apply from the applications panel.", inline: true }
           )
           .setFooter({ text: "CoopFT • Build something great together" })
       },
       {
         key: "introductions", channel: publicChannels.introductions,
         embed: new EmbedBuilder().setColor(0x6B4BB8)
-          .setTitle(this.emoji(guild.id, "cf_butterfly", "👋") + "  YOUR INTRODUCTION")
+          .setTitle(this.emoji(guild.id, "cf3d_butterfly", "👋") + "  YOUR INTRODUCTION")
           .setDescription("New here? Tell us what you enjoy creating, your interests, the projects or games you're into, and what brought you to CoopFT. Only share information you're comfortable making public.")
           .setFooter({ text: "No pressure • Be yourself • Welcome aboard" })
       },
       {
         key: "announcements", channel: publicChannels.announcements,
         embed: new EmbedBuilder().setColor(0x263F66)
-          .setTitle(this.emoji(guild.id, "cf_announce", "📢") + "  OFFICIAL ANNOUNCEMENTS")
+          .setTitle(this.emoji(guild.id, "cf3d_announce", "📢") + "  OFFICIAL ANNOUNCEMENTS")
           .setDescription("Official community news, important updates, event schedules and service notices appear here. Join **announcements-live** for hosted briefings and community sessions.")
           .setFooter({ text: "CoopFT • Official information" })
       },
       {
         key: "suggestions", channel: publicChannels.suggestions,
         embed: new EmbedBuilder().setColor(0x8B6AD8)
-          .setTitle(this.emoji(guild.id, "cf_idea", "💡") + "  THE IDEA FORGE")
+          .setTitle(this.emoji(guild.id, "cf3d_idea", "💡") + "  THE IDEA FORGE")
           .setDescription("Have an idea that could make CoopFT better? Post one suggestion per message and explain the problem, your proposed solution and the benefit to members. Keep feedback constructive and check existing ideas before posting.")
           .addFields({ name: "What happens next?", value: "The community can discuss your idea. Staff may review it, ask follow-up questions or explain the next steps." })
           .setFooter({ text: "Good ideas grow through good discussion." })
@@ -974,7 +974,7 @@ class CoopFTCommunityService {
       {
         key: "bot_updates", channel: publicChannels.bot_updates,
         embed: new EmbedBuilder().setColor(0x263F66)
-          .setTitle(this.emoji(guild.id, "cf_bell", "🔔") + "  COOPFT SYSTEM UPDATES")
+          .setTitle(this.emoji(guild.id, "cf3d_bell", "🔔") + "  COOPFT SYSTEM UPDATES")
           .setDescription("Important CoopFT bot releases, maintenance notices and feature changes appear here.")
           .setFooter({ text: "CoopFT • System notices" })
       }
@@ -995,7 +995,7 @@ class CoopFTCommunityService {
   async buildRoleGuideEmbed(guild) {
     const embed = new EmbedBuilder()
       .setColor(0x344E83)
-      .setTitle(this.emoji(guild.id, "cf_rolebook", "📚") + "  COOPFT • ROLE GUIDE")
+      .setTitle(this.emoji(guild.id, "cf3d_rolebook", "📚") + "  COOPFT • ROLE GUIDE")
       .setDescription("Every role has a purpose. This guide explains each team's responsibilities. Role titles do not automatically grant Discord administrator permissions.")
       .setFooter({ text: "CoopFT • Clear roles. Clear responsibilities." });
     for (const role of STAFF_RANKS) embed.addFields({
@@ -1003,13 +1003,13 @@ class CoopFTCommunityService {
       value: role.description,
       inline: false
     });
-    embed.addFields({ name: this.emoji(guild.id, "cf_key", "🔑") + "  HUMAN RESOURCES", value: "The HR team handles recruitment, candidate communication and staff development.", inline: false });
+    embed.addFields({ name: this.emoji(guild.id, "cf3d_key", "🔑") + "  HUMAN RESOURCES", value: "The HR team handles recruitment, candidate communication and staff development.", inline: false });
     for (const role of HR_ROLES) embed.addFields({
       name: this.emoji(guild.id, role.emoji, role.icon) + "  " + role.name,
       value: role.description,
       inline: false
     });
-    embed.addFields({ name: this.emoji(guild.id, "cf_applications", "📝") + "  SPECIALIST POSITIONS", value: "These positions support events and community operations. They are separate from the staff-rank and HR hierarchies.", inline: false });
+    embed.addFields({ name: this.emoji(guild.id, "cf3d_applications", "📝") + "  SPECIALIST POSITIONS", value: "These positions support events and community operations. They are separate from the staff-rank and HR hierarchies.", inline: false });
     for (const role of APPLICATION_ROLES) embed.addFields({
       name: this.emoji(guild.id, role.emoji, role.icon) + "  " + role.name,
       value: role.description,
@@ -1147,7 +1147,7 @@ class CoopFTCommunityService {
     })));
     const embed = new EmbedBuilder()
       .setColor(0x344E83)
-      .setTitle(this.emoji(guild.id, "cf_applications", "📝") + "  COOPFT • TEAM APPLICATIONS")
+      .setTitle(this.emoji(guild.id, "cf3d_applications", "📝") + "  COOPFT • TEAM APPLICATIONS")
       .setDescription("Ready to contribute? Choose the position that fits your skills. Your answers are sent privately and reviewed by authorized CoopFT staff. Quality and honesty matter more than length.")
       .setFooter({ text: "One pending application per position • Keep your answers honest" });
     for (const { role, open } of statuses) embed.addFields({
@@ -1167,7 +1167,7 @@ class CoopFTCommunityService {
       new ButtonBuilder()
         .setCustomId("cf-application:notifications")
         .setLabel("Manage opening alerts")
-        .setEmoji(this.emojis.has("cf_bell") ? { id: this.emojis.get("cf_bell"), name: "cf_bell" } : "🔔")
+        .setEmoji(this.emojis.has("cf3d_bell") ? { id: this.emojis.get("cf3d_bell"), name: "cf3d_bell" } : "🔔")
         .setStyle(ButtonStyle.Secondary)
     );
     const savedId = await this.getResource(guild.id, "message:application_panel");
@@ -1403,13 +1403,13 @@ class CoopFTCommunityService {
     let message = savedId ? await channel.messages.fetch(savedId).catch(() => null) : null;
     const embed = new EmbedBuilder()
       .setColor(0x354F86)
-      .setTitle(this.emoji(guild.id, "cf_ticket", "🎟️") + "  CoopFT Support Centre")
+      .setTitle(this.emoji(guild.id, "cf3d_ticket", "🎟️") + "  CoopFT Support Centre")
       .setDescription("Choose the kind of help you need. Every ticket creates a private channel visible only to you, CoopFT staff and the bot. Please do not open duplicate tickets.")
       .addFields(
-        { name: this.emoji(guild.id, "cf_headset", "🎧") + "  General support", value: "Questions or help using CoopFT services.", inline: true },
-        { name: this.emoji(guild.id, "cf_gear", "⚙️") + "  Bug report", value: "Something is broken or behaving incorrectly.", inline: true },
-        { name: this.emoji(guild.id, "cf_key", "🔑") + "  Custom bot request", value: "Request a bot or automation idea.", inline: true },
-        { name: this.emoji(guild.id, "cf_spark", "✨") + "  Suggestion", value: "Suggest a feature or improvement.", inline: true }
+        { name: this.emoji(guild.id, "cf3d_headset", "🎧") + "  General support", value: "Questions or help using CoopFT services.", inline: true },
+        { name: this.emoji(guild.id, "cf3d_gear", "⚙️") + "  Bug report", value: "Something is broken or behaving incorrectly.", inline: true },
+        { name: this.emoji(guild.id, "cf3d_key", "🔑") + "  Custom bot request", value: "Request a bot or automation idea.", inline: true },
+        { name: this.emoji(guild.id, "cf3d_spark", "✨") + "  Suggestion", value: "Suggest a feature or improvement.", inline: true }
       )
       .setFooter({ text: "CoopFT • Private ticket system" });
     const row = new ActionRowBuilder().addComponents(
@@ -1492,7 +1492,7 @@ class CoopFTCommunityService {
       .setDescription("Welcome, <@" + member.id + ">. Describe your request with useful detail. A staff member will join shortly.")
       .addFields(
         { name: "Ticket owner", value: "<@" + member.id + ">", inline: true },
-        { name: "Status", value: this.emoji(guild.id, "cf_spark", "🟢") + " Open", inline: true }
+        { name: "Status", value: this.emoji(guild.id, "cf3d_spark", "🟢") + " Open", inline: true }
       )
       .setFooter({ text: "CoopFT • Ticket " + ticketId.slice(0, 8) });
     const controls = new ActionRowBuilder().addComponents(
@@ -1652,7 +1652,7 @@ class CoopFTCommunityService {
     await this.updateStaffDirectory(interaction.guild);
     await this.postStaffUpdate(
       interaction.guild,
-      this.emoji(interaction.guildId, "cf_bell", "🔔") + " <@" + member.id + "> had **" +
+      this.emoji(interaction.guildId, "cf3d_bell", "🔔") + " <@" + member.id + "> had **" +
       (roleSpec?.name || currentRoleKey) + "** removed by <@" + interaction.user.id + ">."
     );
     return { roleName: roleSpec?.name || currentRoleKey };
@@ -1753,7 +1753,7 @@ class CoopFTCommunityService {
     const actionText = action === "hire" ? "hired" : action === "promote" ? "promoted" : "demoted";
     await this.postStaffUpdate(
       interaction.guild,
-      this.emoji(interaction.guildId, "cf_star", "✦") + " <@" + member.id + "> was " +
+      this.emoji(interaction.guildId, "cf3d_star", "✦") + " <@" + member.id + "> was " +
       actionText + " to **" + rank.name + "** by <@" + interaction.user.id + ">."
     );
     return { rankName: rank.name, previousRank: currentRankKey };
@@ -1784,7 +1784,7 @@ class CoopFTCommunityService {
     );
     await this.recordStaffAudit(interaction.guildId, interaction.user.id, member.id, "remove", { from: currentRankKey });
     await this.updateStaffDirectory(interaction.guild);
-    await this.postStaffUpdate(interaction.guild, this.emoji(interaction.guildId, "cf_bell", "🔔") + " <@" + member.id + "> was removed from the staff team by <@" + interaction.user.id + ">.");
+    await this.postStaffUpdate(interaction.guild, this.emoji(interaction.guildId, "cf3d_bell", "🔔") + " <@" + member.id + "> was removed from the staff team by <@" + interaction.user.id + ">.");
   }
 
   async recordStaffAudit(guildId, actorId, memberId, action, details) {
@@ -1812,7 +1812,7 @@ class CoopFTCommunityService {
       );
       await this.recordStaffAudit(guild.id, actor?.id || "unknown", member.id, "staff_role_removed", { from: oldRankKey });
       await this.updateStaffDirectory(guild);
-      await this.postStaffUpdate(guild, this.emoji(guild.id, "cf_bell", "🔔") + " <@" + member.id + "> no longer has an active staff rank.");
+      await this.postStaffUpdate(guild, this.emoji(guild.id, "cf3d_bell", "🔔") + " <@" + member.id + "> no longer has an active staff rank.");
       return;
     }
 
@@ -1824,7 +1824,7 @@ class CoopFTCommunityService {
       }
       await this.postStaffUpdate(
         guild,
-        this.emoji(guild.id, "cf_shield", "🛡️") + " An unauthorized staff-rank change for <@" +
+        this.emoji(guild.id, "cf3d_shield", "🛡️") + " An unauthorized staff-rank change for <@" +
         member.id + "> was rejected. Ask the server owner or HR to use /staff-manage."
       );
       return;
@@ -1837,7 +1837,7 @@ class CoopFTCommunityService {
       if (unauthorizedRole && member.roles.cache.has(unauthorizedRole.id)) {
         await member.roles.remove(unauthorizedRole, "Revert unauthorized CoopFT staff rank escalation").catch(() => {});
       }
-      await this.postStaffUpdate(guild, this.emoji(guild.id, "cf_shield", "🛡️") + " A staff-rank change for <@" +
+      await this.postStaffUpdate(guild, this.emoji(guild.id, "cf3d_shield", "🛡️") + " A staff-rank change for <@" +
         member.id + "> was reverted: " + error.message);
       return;
     }
@@ -1853,7 +1853,7 @@ class CoopFTCommunityService {
     });
     await this.updateStaffDirectory(guild);
     const rank = STAFF_RANKS.find((spec) => spec.key === newRankKey);
-    await this.postStaffUpdate(guild, this.emoji(guild.id, "cf_star", "✦") + " <@" + member.id + "> is now **" + rank.name + "**.");
+    await this.postStaffUpdate(guild, this.emoji(guild.id, "cf3d_star", "✦") + " <@" + member.id + "> is now **" + rank.name + "**.");
   }
 
   async syncHRMember(guild, member, actor) {
@@ -1882,7 +1882,7 @@ class CoopFTCommunityService {
       }
       await this.postStaffUpdate(
         guild,
-        this.emoji(guild.id, "cf_shield", "🛡️") + " An unauthorized HR role change for <@" +
+        this.emoji(guild.id, "cf3d_shield", "🛡️") + " An unauthorized HR role change for <@" +
         member.id + "> was reverted: " + error.message
       );
       return;
@@ -1903,7 +1903,7 @@ class CoopFTCommunityService {
       });
       await this.postStaffUpdate(
         guild,
-        this.emoji(guild.id, roleSpec?.emoji || "cf_key", roleSpec?.icon || "🔑") +
+        this.emoji(guild.id, roleSpec?.emoji || "cf3d_key", roleSpec?.icon || "🔑") +
         " <@" + member.id + "> is now **" + (roleSpec?.name || nextRoleKey) + "**."
       );
     } else if (previousRoleKey) {
@@ -1913,7 +1913,7 @@ class CoopFTCommunityService {
         roleName: oldSpec?.name || previousRoleKey,
         status: "inactive"
       });
-      await this.postStaffUpdate(guild, this.emoji(guild.id, "cf_bell", "🔔") + " <@" + member.id + "> no longer has an HR role.");
+      await this.postStaffUpdate(guild, this.emoji(guild.id, "cf3d_bell", "🔔") + " <@" + member.id + "> no longer has an HR role.");
     }
     await this.updateStaffDirectory(guild);
   }
@@ -1942,7 +1942,7 @@ class CoopFTCommunityService {
 
     if (!result.rowCount && !hrRoleKey) return;
     await this.updateStaffDirectory(member.guild);
-    await this.postStaffUpdate(member.guild, this.emoji(this.guildId, "cf_bell", "🔔") + " A staff or HR member left the server; their active directory entry was removed.");
+    await this.postStaffUpdate(member.guild, this.emoji(this.guildId, "cf3d_bell", "🔔") + " A staff or HR member left the server; their active directory entry was removed.");
   }
 
   async buildStaffDirectoryEmbed(guild) {
@@ -2001,7 +2001,7 @@ class CoopFTCommunityService {
 
     const embed = new EmbedBuilder()
       .setColor(0x8C1D32)
-      .setTitle(this.emoji(guild.id, "cf_crown", "♛") + "  COOPFT • STAFF TEAM")
+      .setTitle(this.emoji(guild.id, "cf3d_crown", "♛") + "  COOPFT • STAFF TEAM")
       .setDescription("The current staff structure of CoopFT. Staff ranks and HR assignments are maintained through audited role changes.")
       .setFooter({ text: "Maintained by CoopFT HR • " + ordered.length + " active staff" })
       .setTimestamp();
@@ -2047,7 +2047,7 @@ class CoopFTCommunityService {
     if (!channel?.isTextBased?.()) return;
     const embed = new EmbedBuilder()
       .setColor(0x7B2438)
-      .setTitle(this.emoji(guild.id, "cf_bell", "🔔") + "  Staff system update")
+      .setTitle(this.emoji(guild.id, "cf3d_bell", "🔔") + "  Staff system update")
       .setDescription(String(description || "A staff system change occurred.").slice(0, 4000))
       .setTimestamp()
       .setFooter({ text: "CoopFT • Staff activity" });
@@ -2091,7 +2091,7 @@ class CoopFTCommunityService {
         return true;
       }
       await interaction.reply({ content: "You claimed this ticket.", flags: MessageFlags.Ephemeral });
-      await interaction.channel.send({ content: this.emoji(interaction.guildId, "cf_shield", "🛡️") + " This ticket is now being handled by <@" + interaction.user.id + ">.", allowedMentions: { users: [interaction.user.id] } });
+      await interaction.channel.send({ content: this.emoji(interaction.guildId, "cf3d_shield", "🛡️") + " This ticket is now being handled by <@" + interaction.user.id + ">.", allowedMentions: { users: [interaction.user.id] } });
       return true;
     }
     if (action === "close") {
@@ -2132,14 +2132,14 @@ class CoopFTCommunityService {
         "utf8"
       );
       await transcriptChannel.send({
-        content: this.emoji(guild.id, "cf_scroll", "📜") + " Transcript for **" + channel.name + "** • opened by <@" + ticket.opener_id + "> • closed by <@" + closedBy + ">",
+        content: this.emoji(guild.id, "cf3d_scroll", "📜") + " Transcript for **" + channel.name + "** • opened by <@" + ticket.opener_id + "> • closed by <@" + closedBy + ">",
         files: [new AttachmentBuilder(buffer.subarray(0, 1500000), { name: "coopft-ticket-" + ticket.id.slice(0, 8) + ".txt" })],
         allowedMentions: { parse: [] }
       });
     }
     await channel.permissionOverwrites.edit(ticket.opener_id, { SendMessages: false, AddReactions: false }).catch(() => {});
     await channel.send({
-      embeds: [new EmbedBuilder().setColor(0x687386).setTitle(this.emoji(guild.id, "cf_shield", "🔒") + "  Ticket closed")
+      embeds: [new EmbedBuilder().setColor(0x687386).setTitle(this.emoji(guild.id, "cf3d_shield", "🔒") + "  Ticket closed")
         .setDescription("Closed by <@" + closedBy + ">. A transcript has been archived.")
         .setTimestamp()],
       allowedMentions: { parse: [] }
