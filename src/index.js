@@ -1,4 +1,12 @@
 require("dotenv").config();
+const {
+  installConsoleFileLogging,
+  installProcessErrorLogging,
+  guardEmitter
+} = require("./utils/runtime-logger");
+const runtimeLogger = installConsoleFileLogging();
+installProcessErrorLogging(runtimeLogger);
+
 const { Client, GatewayIntentBits, Events, MessageFlags, AuditLogEvent, MessageType, PermissionFlagsBits } = require("discord.js");
 const { DomainError } = require("./utils/core");
 const settings = require("./config/settings");
@@ -114,6 +122,8 @@ async function handleTradeInvitationButton(interaction, client) {
   }
 }
 
+let runtimeClient = null;
+
 async function start() {
   if (!settings.discordToken) throw new Error("DISCORD_TOKEN is missing.");
   if (!settings.clientId) throw new Error("CLIENT_ID is missing.");
@@ -128,6 +138,33 @@ async function start() {
     Boolean(settings.ollamaApiKey && settings.ownerId && settings.aiMessageMonitorGuildIds.length);
   if (aiMessageMonitorConfigured) gatewayIntents.push(GatewayIntentBits.MessageContent);
   const client = new Client({ intents: gatewayIntents });
+  runtimeClient = client;
+  guardEmitter(client, {
+    logger: runtimeLogger,
+    onError: async (event, error, args) => {
+      const interaction = args.find((value) =>
+        value && typeof value.isRepliable === "function" && value.isRepliable()
+      );
+      if (!interaction || interaction.isAutocomplete?.()) return;
+
+      const payload = {
+        content: "⚠️ An unexpected error occurred while processing this interaction. It has been recorded in the bot's runtime log. Please try again.",
+        allowedMentions: { parse: [] }
+      };
+      try {
+        if (interaction.deferred) {
+          await interaction.editReply({ ...payload, embeds: [], components: [] });
+        } else if (interaction.replied) {
+          await interaction.followUp({ ...payload, ephemeral: true });
+        } else {
+          await interaction.reply({ ...payload, ephemeral: true });
+        }
+      } catch (replyError) {
+        runtimeLogger.warn("[event-guard] Could not send interaction fallback:", replyError);
+      }
+    }
+  });
+  guardEmitter(client.rest, { logger: runtimeLogger });
   if (settings.aiMessageMonitorEnabled && !aiMessageMonitorConfigured) {
     console.warn("[ai-monitor] Disabled: set OLLAMA_API_KEY, OWNER_ID and AI_MESSAGE_MONITOR_GUILD_IDS (or GUILD_ID) before enabling AI_MESSAGE_MONITOR_ENABLED.");
   }
@@ -485,26 +522,89 @@ async function start() {
     ).catch((error) => console.error("[security] Channel permission escalation monitor failed:", error.message));
   });
 
-  client.on(Events.Error, (error) => console.error("[discord] Client error:", error.message));
+  client.on(Events.Error, (error) => console.error("[discord] Client error:", error));
+  client.on("shardError", (error, shardId) =>
+    console.error("[discord] Gateway shard", shardId, "error:", error)
+  );
+  client.on("shardDisconnect", (event, shardId) =>
+    console.warn("[discord] Gateway shard", shardId, "disconnected:", {
+      code: event?.code,
+      reason: event?.reason
+    })
+  );
+  client.on("shardReconnecting", (shardId) =>
+    console.warn("[discord] Gateway shard", shardId, "is reconnecting.")
+  );
+  client.on("shardResume", (shardId, replayedEvents) =>
+    console.info("[discord] Gateway shard", shardId, "resumed; replayed", replayedEvents, "events.")
+  );
+  client.rest.on("rateLimited", (info) =>
+    console.warn("[discord] REST rate limit:", {
+      route: info.route,
+      method: info.method,
+      retryAfterMs: info.retryAfter,
+      scope: info.scope,
+      global: info.global
+    })
+  );
+  client.rest.on("invalidRequestWarning", (info) =>
+    console.warn("[discord] Invalid REST request warning:", info)
+  );
   await client.login(settings.discordToken);
   const { startIdeServer } = require("./web/ide-server");
   const ideServer = await startIdeServer(client, client.services).catch((error) => {
     console.error("[code-studio] Could not start:", error.message);
     return null;
   });
+  let shuttingDown = false;
   const shutdown = async (signal) => {
-    console.log("[bot] Shutting down after " + signal + ".");
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.info("[bot] Graceful shutdown requested by", signal);
     if (security.maintenanceTimer) clearInterval(security.maintenanceTimer);
-    if (ideServer) await new Promise((resolve) => ideServer.close(resolve));
-    client.destroy();
-    await pool.end();
-    process.exit(0);
+
+    if (ideServer) {
+      await new Promise((resolve) => {
+        try {
+          ideServer.close((error) => {
+            if (error) console.warn("[shutdown] IDE server close reported:", error);
+            resolve();
+          });
+        } catch (error) {
+          console.warn("[shutdown] Could not close IDE server cleanly:", error);
+          resolve();
+        }
+      });
+    }
+
+    try { client.destroy(); } catch (error) {
+      console.warn("[shutdown] Discord client close reported:", error);
+    }
+    try { await pool.end(); } catch (error) {
+      console.error("[shutdown] Database pool close failed:", error);
+      process.exitCode = 1;
+    }
+    runtimeClient = null;
+    console.info("[bot] Shutdown cleanup complete.");
+    process.exit(process.exitCode || 0);
   };
-  process.once("SIGINT", () => shutdown("SIGINT"));
-  process.once("SIGTERM", () => shutdown("SIGTERM"));
+  const requestShutdown = (signal) => {
+    shutdown(signal).catch((error) => {
+      runtimeLogger.fatal("[shutdown] Graceful shutdown failed:", error);
+      process.exit(1);
+    });
+  };
+  process.once("SIGINT", () => requestShutdown("SIGINT"));
+  process.once("SIGTERM", () => requestShutdown("SIGTERM"));
 }
 
-start().catch((error) => {
-  console.error("[startup] Failed:", error.message);
+start().catch(async (error) => {
+  runtimeLogger.fatal("[startup] Failed to start Fukishokai:", error);
+  try { runtimeClient?.destroy(); } catch (cleanupError) {
+    runtimeLogger.error("[startup] Discord cleanup failed:", cleanupError);
+  }
+  try { await pool.end(); } catch (cleanupError) {
+    runtimeLogger.error("[startup] Database cleanup failed:", cleanupError);
+  }
   process.exitCode = 1;
 });
