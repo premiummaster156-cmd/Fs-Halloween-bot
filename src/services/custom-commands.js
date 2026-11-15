@@ -322,6 +322,15 @@ function runInIsolatedProcess(source, mode, input = {}) {
       stderr = (stderr + chunk.toString("utf8")).slice(-4000);
     });
     child.on("error", (error) => finish(new Error("Could not start the isolated JavaScript runner: " + error.message)));
+    child.stdin.on("error", (error) =>
+      finish(new Error("Could not send input to the isolated JavaScript runner: " + error.message))
+    );
+    child.stdout.on("error", (error) =>
+      finish(new Error("Could not read isolated JavaScript runner output: " + error.message))
+    );
+    child.stderr.on("error", (error) =>
+      finish(new Error("Could not read isolated JavaScript runner diagnostics: " + error.message))
+    );
     child.on("close", (code) => {
       if (settled) return;
       let result;
