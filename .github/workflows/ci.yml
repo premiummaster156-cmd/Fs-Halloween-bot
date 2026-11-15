@@ -1,11 +1,12 @@
 name: CI
 on:
+  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
     branches: [main]
 permissions:
-  contents: read
+  contents: write
 jobs:
   test:
     name: Node ${{ matrix.node-version }} validation
@@ -16,12 +17,30 @@ jobs:
         node-version: [22, 24]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+      - name: Commit synchronized lockfile from Node 24
+        if: matrix.node-version == 24 && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if git diff --quiet -- package-lock.json; then
+            echo "package-lock.json is already synchronized"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "Synchronize npm lockfile"
+          git push origin "HEAD:${BRANCH_NAME}"
+      - name: Verify clean lockfile installation
+        run: npm ci --no-audit --no-fund
       - name: Syntax check source
         run: find src scripts tests -name '*.js' -print0 | xargs -0 -n1 node --check
       - name: Validate slash command definitions
