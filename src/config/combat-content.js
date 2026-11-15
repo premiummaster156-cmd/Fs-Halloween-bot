@@ -30,7 +30,12 @@ const COMBAT_ITEMS = Object.freeze([
   { id: "worn_charm", name: "Worn Charm", category: "accessory", slot: "accessory", rarity: "COMMON", minLevel: 1, price: 0, attack: 2, maxHp: 30, description: "A small charm with a modest protective effect." },
   { id: "focus_talisman", name: "Focus Talisman", category: "accessory", slot: "accessory", rarity: "RARE", minLevel: 20, price: 34000, attack: 3, critChance: 0.04, description: "A talisman that steadies aim and sharpens timing." },
   { id: "guardian_seal", name: "Guardian Seal", category: "accessory", slot: "accessory", rarity: "EPIC", minLevel: 35, price: 52000, defense: 5, maxHp: 95, defenseReduction: 0.02, description: "A seal that strengthens its wearer against boss strikes." },
-  { id: "rift_heart", name: "Rift Heart", category: "accessory", slot: "accessory", rarity: "LEGENDARY", minLevel: 75, price: 140000, attack: 7, maxHp: 120, damageBonus: 0.03, description: "A contained Rift fragment that increases combat output." }
+  { id: "rift_heart", name: "Rift Heart", category: "accessory", slot: "accessory", rarity: "LEGENDARY", minLevel: 75, price: 140000, attack: 7, maxHp: 120, damageBonus: 0.03, description: "A contained Rift fragment that increases combat output." },
+
+  // Relics
+  { id: "mistwood_token", name: "Mistwood Token", category: "relic", slot: "relic_id", rarity: "RARE", minLevel: 25, price: 42000, maxHp: 80, defense: 3, description: "An old token that steadies its bearer in the Mistwood." },
+  { id: "emberglass_core", name: "Emberglass Core", category: "relic", slot: "relic_id", rarity: "EPIC", minLevel: 55, price: 92000, attack: 10, damageBonus: 0.04, description: "A warm core that stores and releases focused energy." },
+  { id: "hollow_crown", name: "Hollow Crown", category: "relic", slot: "relic_id", rarity: "LEGENDARY", minLevel: 90, price: 180000, attack: 12, maxHp: 170, defenseReduction: 0.04, description: "A relic recovered from the deepest Hollow Sea shrine." }
 ]);
 
 const STARTER_ITEM_IDS = Object.freeze([
@@ -46,7 +51,8 @@ const CATEGORY_LABELS = Object.freeze({
   fighting_style: "Fighting Style",
   spirit_art: "Spirit Art",
   armor: "Armor",
-  accessory: "Accessory"
+  accessory: "Accessory",
+  relic: "Relic"
 });
 
 const ITEM_BY_ID = new Map(COMBAT_ITEMS.map((item) => [item.id, item]));
@@ -87,7 +93,8 @@ function buildCombatStats(loadout, masteryByTrack = {}) {
     loadout.spirit_art_id,
     loadout.armor_id,
     loadout.accessory_one_id,
-    loadout.accessory_two_id
+    loadout.accessory_two_id,
+    loadout.relic_id
   ].filter(Boolean).map(getCombatItem).filter(Boolean);
 
   const weapon = getCombatItem(loadout.weapon_id);
@@ -118,6 +125,7 @@ function buildCombatStats(loadout, masteryByTrack = {}) {
     styleId: style?.id || "iron_fist",
     spiritArtId: spiritArt?.id || "ember_art",
     armorId: getCombatItem(loadout.armor_id)?.id || "training_vest",
+    relicId: getCombatItem(loadout.relic_id)?.id || null,
     accessoryIds: [loadout.accessory_one_id, loadout.accessory_two_id].filter(Boolean),
     attackBonus,
     defense,
