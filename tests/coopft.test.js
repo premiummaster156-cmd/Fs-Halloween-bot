@@ -27,7 +27,10 @@ test("server personas are isolated and CoopFT uses the configured server ID", ()
 
 test("CoopFT registers only its community commands", () => {
   const commands = loadCoopFTCommands();
-  assert.deepEqual([...commands.keys()].sort(), ["applications-admin", "coopft-setup", "hr-manage", "staff", "staff-manage", "ticket"]);
+  assert.deepEqual([...commands.keys()].sort(), ["staff", "ticket"]);
+  for (const removed of ["applications-admin", "hr-manage", "staff-manage", "coopft-setup"]) {
+    assert.equal(commands.has(removed), false, removed + " is intentionally not exposed as a slash command");
+  }
   for (const command of commands.values()) assert.doesNotThrow(() => command.data.toJSON());
   assert.equal(commands.has("menu"), false);
   assert.equal(commands.has("profile"), false);
@@ -35,14 +38,14 @@ test("CoopFT registers only its community commands", () => {
 });
 
 test("the CoopFT staff, HR and specialist application roles are distinct", () => {
-  assert.equal(STAFF_RANKS.length, 10);
+  assert.equal(STAFF_RANKS.length, 17);
   assert.equal(HR_ROLES.length, 5);
   assert.equal(APPLICATION_ROLES.length, 5);
   const allRoles = [...STAFF_RANKS, ...HR_ROLES, ...APPLICATION_ROLES];
   const allKeys = allRoles.map((role) => role.key);
   const allNames = allRoles.map((role) => role.name);
-  assert.equal(new Set(allKeys).size, 20);
-  assert.equal(new Set(allNames).size, 20);
+  assert.equal(new Set(allKeys).size, 27);
+  assert.equal(new Set(allNames).size, 27);
   for (const role of allRoles) {
     assert.match(role.key, /^[a-z_]+$/);
     assert.ok(Number.isInteger(role.primary));
@@ -88,6 +91,16 @@ test("CoopFT leadership permissions match the explicitly requested hierarchy", (
   for (const role of APPLICATION_ROLES) {
     assert.equal(role.permissions, 0n, role.name + " remains a permission-neutral specialist assignment");
   }
+});
+
+
+test("CoopFT staff hierarchy follows the supplied four-section reference", () => {
+  assert.deepEqual(STAFF_RANKS.map((role) => role.name), [
+    "Owner", "Co-Owner", "Monarch",
+    "High Rank Supervisor", "Apex", "Right Wing", "Left Wing", "Halo", "Overseer",
+    "Staff Supervisor", "Supreme Council", "Senate", "Head Moderator",
+    "Council", "Senior Moderator", "Moderator", "Junior Moderator"
+  ]);
 });
 
 test("CoopFT category and channel names use distinctive emoji-free typography", () => {
