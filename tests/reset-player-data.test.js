@@ -161,7 +161,7 @@ test("default run previews eligible rows and never deletes", async () => {
   assert.match(output.join("\n"), /Protected accounts: 6/);
 });
 
-test("confirmed run locks and deletes only unprotected rows", async () => {
+test("confirmed run transactionally deletes only unprotected rows", async () => {
   const fake = makeFakePool();
   const result = await runReset({
     dbPool: fake.pool, rest: makeRest(), botOwnerId: "bot-owner",
