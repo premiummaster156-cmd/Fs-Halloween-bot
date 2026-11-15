@@ -130,15 +130,18 @@ async function start() {
   if (!settings.discordToken) throw new Error("DISCORD_TOKEN is missing.");
   if (!settings.clientId) throw new Error("CLIENT_ID is missing.");
   await migrate();
+  // Keep startup compatible with Discord's currently approved intents.
+  // Server Members Intent review is pending, so GuildMembers must not be requested yet.
+  // Message Content is also intentionally excluded until it is separately approved.
   const gatewayIntents = [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.GuildModeration,
-    GatewayIntentBits.GuildMembers
+    GatewayIntentBits.GuildModeration
   ];
-  const aiMessageMonitorConfigured = settings.aiMessageMonitorEnabled &&
-    Boolean(settings.ollamaApiKey && settings.ownerId && settings.aiMessageMonitorGuildIds.length);
-  if (aiMessageMonitorConfigured) gatewayIntents.push(GatewayIntentBits.MessageContent);
+  if (settings.aiMessageMonitorEnabled) {
+    console.warn("[discord] AI Watch is configured but paused: Message Content Intent is not being requested while privileged-intent approval is pending.");
+  }
+  console.warn("[discord] Server member join monitoring is paused until Discord approves Server Members Intent.");
   const client = new Client({ intents: gatewayIntents });
   runtimeClient = client;
   guardEmitter(client, {
