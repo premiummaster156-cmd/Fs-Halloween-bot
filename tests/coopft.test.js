@@ -2,9 +2,11 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { PermissionFlagsBits, PermissionsBitField } = require("discord.js");
 const { loadCoopFTCommands } = require("../src/commands/coopft");
 const {
-  STAFF_RANKS, HR_ROLES, APPLICATION_ROLES, EMOJI_SPRITE, PUBLIC_CHANNELS, PRIVATE_CHANNELS
+  STAFF_RANKS, HR_ROLES, APPLICATION_ROLES, EMOJI_SPRITE, PUBLIC_CHANNELS, PRIVATE_CHANNELS,
+  OWNER_PERMISSIONS, HIGH_RANK_SUPERVISOR_PERMISSIONS
 } = require("../src/config/coopft-design");
 const {
   coopftGuildId, fukishokaiGuildId, personaForGuild, configuredGuildIds
@@ -48,6 +50,31 @@ test("the CoopFT staff, HR and specialist application roles are distinct", () =>
     assert.ok(role.icon);
     assert.ok(role.emoji);
     assert.equal(Object.hasOwn(role, "permissions"), false);
+  }
+});
+
+test("CoopFT leadership permissions match the explicitly requested hierarchy", () => {
+  const owner = STAFF_RANKS.find((role) => role.key === "owner");
+  const coOwner = STAFF_RANKS.find((role) => role.key === "co_owner");
+  const supervisor = STAFF_RANKS.find((role) => role.key === "high_rank_supervisor");
+  const reserved = PermissionFlagsBits.Administrator |
+    PermissionFlagsBits.ManageGuild |
+    PermissionFlagsBits.ManageChannels;
+
+  assert.equal(OWNER_PERMISSIONS, PermissionsBitField.All);
+  assert.equal(owner.permissions, PermissionsBitField.All);
+  assert.equal(coOwner.permissions, PermissionsBitField.All);
+  assert.equal(HIGH_RANK_SUPERVISOR_PERMISSIONS, PermissionsBitField.All & ~reserved);
+  assert.equal(supervisor.permissions, PermissionsBitField.All & ~reserved);
+  assert.equal(supervisor.permissions & reserved, 0n);
+
+  for (const role of STAFF_RANKS.filter((item) =>
+    !["owner", "co_owner", "high_rank_supervisor"].includes(item.key)
+  )) {
+    assert.equal(role.permissions ?? 0n, 0n, role.name + " remains without global Discord permissions");
+  }
+  for (const role of [...HR_ROLES, ...APPLICATION_ROLES]) {
+    assert.equal(role.permissions ?? 0n, 0n, role.name + " remains without global Discord permissions");
   }
 });
 
@@ -282,7 +309,11 @@ test("ensureRole repairs managed role properties and applies optional native gra
   assert.equal(calls[0].kind, "edit");
   assert.equal(calls[0].changes.name, "CF • Owner");
   assert.equal(calls[0].changes.color, STAFF_RANKS[0].primary);
-  assert.deepEqual(calls[0].changes.permissions, []);
+  assert.equal(
+    new PermissionsBitField(calls[0].changes.permissions).bitfield,
+    PermissionsBitField.All,
+    "Owner must be repaired to the full Administrator permission set"
+  );
   assert.equal(calls[0].changes.hoist, true);
   assert.equal(calls[0].changes.mentionable, false);
   assert.deepEqual(calls.filter((call) => call.kind === "patch").map((call) => call.options.body), [
