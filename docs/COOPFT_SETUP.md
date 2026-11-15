@@ -122,6 +122,7 @@ The one-time cleanup deletes only unmanaged roles editable by the bot, excluding
 
 For full setup, invite/position the bot with:
 
+- Administrator (required so the bot can grant Administrator to the Owner and Co-Owner roles)
 - Manage Roles
 - Manage Channels
 - View Channels
@@ -132,7 +133,9 @@ For full setup, invite/position the bot with:
 - Create Expressions (optional; required for the custom emoji pack)
 - View Audit Log (for member-role, moderator-action, channel and role audit events)
 
-The bot must be higher than the roles it creates/manages and lower than protected roles. It never needs Administrator for this system. View Audit Log is required: Discord only sends the live Guild Audit Log Entry Create gateway event to bots with this permission.
+**Important security trade-off:** Discord only lets a bot grant permissions that the bot itself has. Because CoopFT Owner and Co-Owner must receive Administrator, the bot must also have Administrator in CoopFT for automatic setup and future role-permission repairs to work. This gives the bot full control of the CoopFT server; only enable it if you trust this bot and its code. This grant applies to the bot's CoopFT membership, not to its separate membership in other servers.
+
+The bot must be higher than the roles it creates/manages and lower than protected roles. View Audit Log is required: Discord only sends the live Guild Audit Log Entry Create gateway event to bots with this permission.
 
 ## Deploying slash commands
 
