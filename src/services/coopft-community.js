@@ -1,14 +1,11 @@
 "use strict";
 
-const fs = require("node:fs");
-const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const {
   ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChannelType,
   EmbedBuilder, MessageFlags, PermissionFlagsBits, Routes
 } = require("discord.js");
 const { STAFF_RANKS, HR_ROLES, EMOJI_SPRITE, PUBLIC_CHANNELS, PRIVATE_CHANNELS } = require("../config/coopft-design");
-const settings = require("../config/settings");
 const { coopftGuildId } = require("../config/server-personas");
 
 const CLEANUP_CONFIRMATION = "DELETE_EDITABLE_ROLES";
@@ -29,7 +26,6 @@ class CoopFTCommunityService {
   constructor(pool, options = {}) {
     this.pool = pool;
     this.guildId = options.guildId || coopftGuildId;
-    this.spritePath = options.spritePath || path.join(__dirname, "../../assets/coopft/emoji-sprite.png");
     this.roles = new Map();
     this.emojis = new Map();
   }
@@ -373,6 +369,29 @@ class CoopFTCommunityService {
     await this.updateStaffDirectory(guild);
     await this.ensureTicketPanel(guild, publicByKey.open_ticket);
     await this.ensureBrandMessages(guild, publicByKey);
+    if (cleanup.awaitingConfirmation) {
+      const previewAnnounced = await this.getSetting(guild.id, "role_cleanup_preview_announced");
+      if (!previewAnnounced) {
+        const names = cleanup.candidates.map((role) => role.name).slice(0, 35);
+        const remainder = Math.max(0, cleanup.candidates.length - names.length);
+        await this.postStaffUpdate(
+          guild,
+          this.emoji(guild.id, "cf_shield", "🛡️") + " **One-time role cleanup preview**\\n" +
+          cleanup.candidates.length + " ordinary roles are editable by the bot. No roles were deleted.\\n" +
+          (names.length ? names.map((name) => "• " + name).join("\\n") : "No eligible roles found.") +
+          (remainder ? "\\n… and " + remainder + " more." : "") +
+          "\\n\\nReview role assignments and backups before setting COOPFT_ROLE_CLEANUP_CONFIRM=DELETE_EDITABLE_ROLES. Managed roles and roles above the bot remain untouched."
+        );
+        await this.setSetting(guild.id, "role_cleanup_preview_announced", true);
+      }
+    }
+    if (cleanup.completed) {
+      await this.postStaffUpdate(
+        guild,
+        this.emoji(guild.id, "cf_shield", "🛡️") + " One-time cleanup completed. Deleted " + cleanup.deleted +
+        " editable roles. Unmanageable/managed roles were left in place."
+      );
+    }
     if (options.manual) await this.postStaffUpdate(guild, "Setup repaired by <@" + options.actorId + ">.");
 
     await me.setNickname("CoopFT • Assistant", "Per-server CoopFT identity").catch((error) =>
@@ -539,7 +558,7 @@ class CoopFTCommunityService {
 
   canManageStaff(member, guild) {
     if (!member || !guild) return false;
-    if (member.id === guild.ownerId || (settings.ownerId && member.id === settings.ownerId)) return true;
+    if (member.id === guild.ownerId) return true;
     if (!member.roles?.cache) return false;
     return [...STAFF_MANAGER_KEYS, ...HR_MANAGER_KEYS].some((key) => {
       const role = this.roles.get(key);
@@ -650,7 +669,14 @@ class CoopFTCommunityService {
       if (!group) continue;
       let member = guild.members.cache.get(record.member_id);
       if (!member) member = await guild.members.fetch(record.member_id).catch(() => null);
-      group.push(member ? "<@" + record.member_id + ">" : "Unknown member");
+      if (!member) {
+        await this.pool.query(
+          "UPDATE coopft_staff_members SET active=FALSE,updated_at=NOW(),updated_by='directory-reconcile' WHERE guild_id=$1 AND member_id=$2",
+          [guild.id, record.member_id]
+        );
+        continue;
+      }
+      group.push("<@" + record.member_id + ">");
     }
     const embed = new EmbedBuilder()
       .setColor(0x8C1D32)
