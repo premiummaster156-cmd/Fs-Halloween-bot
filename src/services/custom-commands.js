@@ -254,7 +254,7 @@ function createConcurrencyGate(options = {}) {
           const index = queue.indexOf(entry);
           if (index !== -1) {
             queue.splice(index, 1);
-            reject(busyError("The custom-command runner queue is full. Please try again shortly."));
+            reject(busyError("The custom-command runner queue wait limit expired. Please try again shortly."));
           }
         }, queueTimeoutMs);
         queue.push(entry);

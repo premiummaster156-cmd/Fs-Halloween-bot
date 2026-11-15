@@ -188,7 +188,7 @@ test("custom command runner expires queued work instead of allowing an unbounded
 
   await assert.rejects(
     queued,
-    (error) => error.code === "CUSTOM_COMMAND_BUSY" && /queue is full/.test(error.message)
+    (error) => error.code === "CUSTOM_COMMAND_BUSY" && /queue wait limit expired/.test(error.message)
   );
   assert.deepEqual(gate.stats(), { active: 1, queued: 0, maxConcurrent: 1, maxQueued: 1 });
   releaseFirst("first");

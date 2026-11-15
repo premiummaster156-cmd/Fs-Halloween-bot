@@ -13,9 +13,41 @@ const { audit, sendLog } = require("../utils/logging");
 const sessions = new Map();
 const oauthStates = new Map();
 const workspaceApiAttempts = new Map();
+const oauthStartAttempts = new Map();
 const WINDOW_MS = 60_000;
 const SESSION_MS = 8 * 60 * 60 * 1000;
+const OAUTH_RATE_WINDOW_MS = 60_000;
+const OAUTH_RATE_LIMIT = 10;
+const MAX_OAUTH_STATES = 5000;
 const MAX_BODY = 96 * 1024;
+
+function rateLimitOAuthStart(req, now = Date.now()) {
+  const key = String(req.socket?.remoteAddress || "unknown").slice(0, 128);
+  const recent = (oauthStartAttempts.get(key) || []).filter((stamp) => now - stamp < OAUTH_RATE_WINDOW_MS);
+  if (recent.length >= OAUTH_RATE_LIMIT) return false;
+  recent.push(now);
+  oauthStartAttempts.set(key, recent);
+
+  if (oauthStartAttempts.size > 5000) {
+    for (const [address, stamps] of oauthStartAttempts) {
+      if (!stamps.length || now - stamps[stamps.length - 1] >= OAUTH_RATE_WINDOW_MS) oauthStartAttempts.delete(address);
+    }
+    while (oauthStartAttempts.size > 5000) {
+      oauthStartAttempts.delete(oauthStartAttempts.keys().next().value);
+    }
+  }
+  return true;
+}
+
+function storeOAuthState(state, guildId, now = Date.now()) {
+  for (const [storedState, value] of oauthStates) {
+    if (now - value.createdAt > 600_000) oauthStates.delete(storedState);
+  }
+  while (oauthStates.size >= MAX_OAUTH_STATES) {
+    oauthStates.delete(oauthStates.keys().next().value);
+  }
+  oauthStates.set(state, { createdAt: now, guildId });
+}
 
 function cookie(req, name) {
   const header = req.headers.cookie || "";
@@ -219,8 +251,11 @@ function createIdeServer(client, services) {
         if (!/^\d{1,25}$/.test(targetGuildId)) {
           return json(res, 400, { error: "Open Code Studio from a server's admin panel to select the server first." });
         }
+        if (!rateLimitOAuthStart(req)) {
+          return json(res, 429, { error: "Too many sign-in attempts. Wait a minute and try again." });
+        }
         const state = crypto.randomBytes(24).toString("hex");
-        oauthStates.set(state, { createdAt: Date.now(), guildId: targetGuildId });
+        storeOAuthState(state, targetGuildId);
         const params = new URLSearchParams({
           client_id: settings.clientId,
           response_type: "code",
@@ -484,4 +519,4 @@ async function startIdeServer(client, services) {
   return server;
 }
 
-module.exports = { startIdeServer, createIdeServer, isBrowserIdeEnabled, isIdeServerEnabled, authoriseMember };
+module.exports = { startIdeServer, createIdeServer, isBrowserIdeEnabled, isIdeServerEnabled, authoriseMember, rateLimitOAuthStart };

@@ -347,3 +347,14 @@ This is an explicit user requirement and overrides any older handoff/README word
 
 - Replaced the old Node 20-based CI actions with pinned Node 24-native releases: `actions/checkout@v7.0.1` and `actions/setup-node@v7.0.0` (both pinned to full commit SHAs).
 - Latest current-head validation: [GitHub Actions run 43711484877](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/43711484877). Node 22 and Node 24 jobs both passed 244 tests / 0 failures, syntax checks and all 4 slash-command definitions. The prior Node 20 action-runtime deprecation warning is gone.
+
+
+## Interaction, activity fairness and migration integration hardening — November 15, 2026
+
+- Slash commands now defer before database-backed admin/access/rate/channel checks. Their successful response visibility remains unchanged. A preflight denial on a normally public command deletes its empty public deferred placeholder and returns an ephemeral follow-up; private commands keep an ephemeral deferred response.
+- Added response regression tests for public deferred, private deferred and unacknowledged interactions.
+- Weekly message counting now uses a PostgreSQL conditional upsert with a five-second per-member/per-guild counter window. Rapid message bursts do not increase weekly activity or earn chat FC/XP. Message content is not read or stored; existing daily FC and XP caps and eligible-message reward calculations remain unchanged.
+- CI now starts a disposable PostgreSQL 16 service. A new integration test runs the actual legacy `schema.sql` bootstrap against PostgreSQL, verifies the real tables and level cap constraint, exercises a numbered migration, checks idempotence and checksum immutability, and confirms a failed DDL migration rolls back its ledger entry. It uses only the ephemeral CI database, never Neon.
+- Browser OAuth starts are limited to 10 per source IP per minute; pending OAuth states are expired and the in-memory state map is capped at 5,000 entries.
+- Corrected custom-command queue expiry diagnostics to distinguish a wait-limit timeout from an immediately full queue.
+- No player data was reset, no production database was migrated, and no deployment or live Discord moderation action was performed.

@@ -42,9 +42,9 @@ class ActivityService {
       const counted = await client.query(
         "INSERT INTO weekly_activity (guild_id, user_id, week_start, messages, last_counted_at) VALUES ($1, $2, $3, 1, NOW()) " +
         "ON CONFLICT (guild_id, user_id, week_start) DO UPDATE SET messages = weekly_activity.messages + 1, last_counted_at = NOW(), updated_at = NOW() " +
-        "WHERE weekly_activity.last_counted_at <= NOW() - INTERVAL '5 seconds' " +
+        "WHERE weekly_activity.last_counted_at <= NOW() - ($4 * INTERVAL '1 second') " +
         "RETURNING messages",
-        [guildId, userId, weekStart]
+        [guildId, userId, weekStart, MESSAGE_COUNT_COOLDOWN_SECONDS]
       );
 
       // The conditional upsert is atomic across bot instances. Rapid repeated
