@@ -3,7 +3,7 @@
 **Repository:** https://github.com/premiummaster156-cmd/Fs-Halloween-bot  
 **Default branch:** `main`  
 **Runtime:** Node.js 20+, Discord.js 14, PostgreSQL on Neon  
-**Last updated:** 2026-11-14 — actual-join raid monitoring with invite/vanity attribution, alert-only Kings/bot-owner notifications, severe-only economy alerts, and opt-in owner-only Ollama AI Watch
+**Last updated:** 2026-11-15 — Discord approved GuildMembers for actual-join raid detection; runtime intent set and handoff/README updated
 **Working rule:** `main` is the only development branch. Do not create feature branches. Inspect and update `main` directly, keep this file current, and verify CI before reporting completion.
 
 ## Final season — ends November 30, 2026
@@ -165,7 +165,7 @@ The user approved a full reliability, security, database, gameplay, dashboard an
 
 - Reviewed [Alexis-katabump/bot-protect-v3](https://github.com/Alexis-katabump/bot-protect-v3). It is a Python/discord.py bot with CAPTCHA, anti-spam, tickets, and activity statistics. Do not merge its code or run it as a second moderator. It uses `discord.Intents.all()`, global JSON files, and includes risky behavior such as an anti-join mode that kicks every new member and mass role assignment. Reimplement only suitable ideas in this project's Discord.js + Neon architecture, with explicit opt-in configuration, safe defaults, audit logs, and tests.
 - Reviewed [Alexis-katabump/bot-status](https://github.com/Alexis-katabump/bot-status). Do not integrate its custom-status role automation because it requires both `GuildMembers` and `GuildPresences`, fetches the full member roster with presences, and conflicts with the user's hard rule against privileged Gateway intents.
-- Never enable `GuildMembers` or `GuildPresences`. `MessageContent` is permitted only for the explicitly requested, opt-in, read-only AI Watch, and only after the user enables it in the Discord Developer Portal and configures its environment variables.
+- Historical November 9 decision while approval was pending: do not enable `GuildMembers` or `GuildPresences`. This was superseded on November 15 when Discord approved `GuildMembers` under support request 69920914 specifically for actual-join raid detection. `GuildPresences` remains disabled.
 
 ### First verified fix in this upgrade
 
@@ -190,7 +190,7 @@ The user approved a full reliability, security, database, gameplay, dashboard an
 6. Modularize dashboard/UI gradually; do not rewrite the 156 KB dashboard in one step.
 7. Complete regression, security and release checks. Never claim live Discord/Neon validation from CI alone.
 
-Keep Neon PostgreSQL, keep `GuildMembers` and `GuildPresences` disabled, keep `MessageContent` off unless the opt-in AI Watch is configured, no destructive player reset, preserve server/bot owner and configured Admin Role protections, keep FC Party Events separate from Admin Abuse, and preserve the November 30, 2026 final-season date unless the user changes it.
+Keep Neon PostgreSQL; request the now-approved `GuildMembers` intent only for actual member-join raid detection; keep `GuildPresences` disabled and `MessageContent` off unless it receives separate approval and is deliberately enabled;
 
 ### Additional fixes in progress — November 9, 2026
 
@@ -226,7 +226,7 @@ Keep Neon PostgreSQL, keep `GuildMembers` and `GuildPresences` disabled, keep `M
 - **Snapshot integrity:** `player_economy_snapshots` is backfilled for saved players by schema migration. FC, bank, lifetime earned/spent, level and XP are compared with the last verified state before economy/XP changes; mismatches block the attempted action and raise a high-risk incident. Legitimate bank transfers, admin changes and trade settlements update snapshots in the same transaction.
 - **Trade audit:** settled FC deltas are written to `economy_ledger` as `player_trade_in` / `player_trade_out`, without treating trade value as lifetime earnings or spending. Trade references are tied to the trade ID and member.
 - **No automatic ban:** detections are explainable security incidents; no account is automatically banned or timed out based solely on a statistical flag. Existing restrictions remain owner/admin controlled.
-- **Intent boundary:** `GuildMembers` and `GuildPresences` remain disabled. `MessageContent` is requested only by the optional AI Watch configuration; all non-AI bot behavior remains without privileged intents.
+- **Intent boundary:** `GuildMembers` is enabled only for actual `guildMemberAdd` join-raid events following Discord approval 69920914; it is not used for roster enumeration. `GuildPresences` remains disabled. `MessageContent` is requested only after separate approval for the optional AI Watch; all non-AI behavior must continue without message-body access.
 - **Validation boundary:** CI tests and syntax/command validation are separate from a live Neon migration or real Discord guild test. Record the exact CI run and test count after completion; do not claim live Neon/Discord verification unless performed.
 
 ## Anti-nuke and actual-join anti-raid alert-only policy — November 14, 2026
@@ -256,7 +256,7 @@ This is an explicit user requirement and overrides any older handoff/README word
 
 - **Model:** Ollama Cloud `gpt-oss:20b` is the selected cost-efficient classification model. `OLLAMA_MODEL` can override it. The model is a read-only classifier; it has no Discord tools and cannot take actions.
 - **Cost:** Ollama Cloud is pay-per-token, not unlimited free. `gpt-oss:20b` is currently listed at $0.07 per million input tokens and $0.30 per million output tokens. Beam's temporary free promotion ended November 9, 2026. Never describe cloud monitoring as permanently free. `AI_MESSAGE_MONITOR_DAILY_LIMIT` defaults to 100 calls per guild per UTC day, stored in `ai_message_monitor_usage`.
-- **Enablement:** default off. Set `AI_MESSAGE_MONITOR_ENABLED=true`, `OLLAMA_API_KEY`, `OWNER_ID`, and `AI_MESSAGE_MONITOR_GUILD_IDS` (or `GUILD_ID`) to explicitly scope monitored server IDs. Optionally set `OLLAMA_MODEL=gpt-oss:20b` and `AI_MESSAGE_MONITOR_DAILY_LIMIT=100`. The app requests `GatewayIntentBits.MessageContent` only when all required values exist. The user must enable Message Content Intent in Discord Developer Portal before restarting. Do not enable GuildMembers or GuildPresences. If the privileged intent is not enabled in the portal, Discord can reject the Gateway connection.
+- **Enablement:** AI Watch remains default-off and hard-disabled in startup. It requires separate Discord approval for `MessageContent`, the Developer Portal toggle, `AI_MESSAGE_MONITOR_ENABLED=true`, `OLLAMA_API_KEY`, `OWNER_ID`, and `AI_MESSAGE_MONITOR_GUILD_IDS` (or `GUILD_ID`). `GuildMembers` is already approved and enabled solely for actual join-raid monitoring; do not enable `GuildPresences`. If a future privileged intent is not approved/enabled in the portal, Discord can reject the Gateway connection.
 - **Coverage:** receives new human-authored guild messages from channels the bot can view. A local candidate gate checks all incoming messages and forwards likely rule-related cases to Ollama, rather than sending every ordinary chat message to the cloud. Candidates include direct free-FC requests/begging, economy evasion, possible scams/impersonation, targeted harassment and spam. Normal earning questions, commands, legitimate trades and harmless jokes should not be reported.
 - **Context:** short in-memory channel history, reply target and permalink, current message permalink, attachment URLs, author ID, username/display names, account creation date, join date when available, assigned role names/IDs/positions/permissions, effective channel permissions, channel name/category/ID and permission overwrites. Targeted member REST fetches are used for known message authors when needed; the bot does not enumerate the member list.
 - **Reporting:** only `OWNER_ID` receives plain-text DMs. Reports require confidence >= 0.88 and include category, confidence, evidence, suggested manual review, role/channel metadata and message/reply/attachment links. Repeat notices for the same member/category are suppressed for 15 minutes. The bot does not create screenshots; use Discord permalinks to open the original messages.
@@ -287,13 +287,13 @@ This is an explicit user requirement and overrides any older handoff/README word
 
 - Added a five-minute process memory sample (RSS, V8 heap and external/native memory). Default warning threshold is 200 MB, configurable with `BOT_MEMORY_WARN_MB` (0 disables the warning). This is intended to reveal whether the host's memory ceiling is the stop cause; it cannot catch an OS/container OOM kill.
 
-## Discord privileged-intent pending mode — November 15, 2026
+## Discord privileged-intent pending mode — November 15, 2026 (pre-approval snapshot; superseded)
 
-- Current Gateway client initialization in `src/index.js` requests only `GatewayIntentBits.Guilds`.
-- `GuildMembers`, `GuildMessages`, `GuildModeration`, and `MessageContent` are intentionally not requested while Discord's privileged-intent review remains pending.
+- Before Discord Support approved request 69920914, `src/index.js` temporarily requested only `GatewayIntentBits.Guilds`.
+- At that time, `GuildMembers`, `GuildMessages` and `GuildModeration` were temporarily omitted along with `MessageContent`; this was a conservative review-pending mode, not the intended steady-state configuration.
 - AI Watch is forcibly paused in startup until Message Content approval; setting `AI_MESSAGE_MONITOR_ENABLED=true` does not override this safety gate.
-- Member-join, message-create and moderation gateway event monitoring are therefore paused. Slash commands and the private dashboard continue to work.
-- Do not re-enable privileged intents until the corresponding Discord approval is actually granted. The goal is to restore only the specific features that each approved intent requires.
+- That temporary mode paused join detection, activity/boost message events and audit-log moderation events; slash commands and the private dashboard continued to work.
+- This snapshot is superseded by the approval and implementation recorded in the newest section below. Restore only the approved `GuildMembers` privileged intent and required non-privileged event intents; do not enable `GuildPresences` or `MessageContent`.
 
 ## PostgreSQL TLS deprecation cleanup — November 15, 2026
 
@@ -314,3 +314,15 @@ This is an explicit user requirement and overrides any older handoff/README word
 - Weapon, fighting-style and Spirit Art mastery gain 10 XP per resolved Rift turn and cap at level 50. Mastery contributes small stats at encounter start. The active weapon-move unlock tree, Spirit Art move/awakening abilities, regions, dungeons, raids, forging and crafting are not yet implemented; continue those in later phases.
 - The new `armory` page is linked from the existing private `/menu`, Rift Arena and Game Room. It supports buying and equipping combat gear without adding a collection of extra slash commands.
 - Schema additions are idempotent and run through the existing checksum-based startup migration. No database reset, player wipe or backfill of legacy economy inventory is required.
+
+
+## Discord GuildMembers approval and Gateway restoration — November 15, 2026
+
+- Discord Support updated privileged-intent request **69920914** and approved access to the privileged intent(s) requested for the use case in the application. The user confirmed the request was for **Guild Members / Server Members Intent only**.
+- This approval applies to `GuildMembers`, specifically to receive actual member-join events for the existing alert-only join-raid monitor. Discord's email says unused privileged intents were not approved, the app must reapply annually, and a notice will arrive ahead of the next annual review.
+- `src/index.js` now requests `Guilds`, `GuildMessages`, `GuildModeration`, and `GuildMembers`. GuildMessages and GuildModeration are non-privileged intents needed by existing activity/personal-boost system-message handling and audit-log moderation event handling. They do not provide ordinary message-body access.
+- `GuildMembers` is used only for `guildMemberAdd` in `src/index.js` and `src/services/raid-monitor.js`. Do not add full roster fetches, presence tracking or bulk member enumeration. Existing leaderboard and admin-DM limits remain in force.
+- `GuildPresences` and `MessageContent` are not requested. AI Watch remains hard-disabled in startup; enabling environment variables alone must not activate it. A separate approval and deliberate code change are required before using Message Content or sending message data to Ollama Cloud.
+- Confirm the **Server Members Intent** toggle is enabled in the Discord Developer Portal before restarting the bot. The bot still needs **Manage Server** to fetch invite/vanity usage counters and **View Audit Log** for audit attribution.
+- Regression coverage was added in `tests/gateway-intents.test.js` to assert the exact intent set and that `GuildPresences` / `MessageContent` stay absent.
+- CI must be checked on the post-approval commit before claiming validation. CI does not verify live Discord Gateway connection, portal toggles, invite permissions, Neon migration or live DM delivery.
