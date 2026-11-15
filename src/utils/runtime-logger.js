@@ -79,25 +79,16 @@ function createRuntimeLogger(options = {}) {
 }
 
 function installConsoleFileLogging(options = {}) {
-  const logger = createRuntimeLogger(options);
   const levels = ["log", "info", "warn", "error", "debug"];
-  const original = new Map(levels.map((level) => [
-    level,
-    typeof console[level] === "function" ? console[level].bind(console) : console.log.bind(console)
-  ]));
+  const originalConsole = {};
+  for (const level of levels) {
+    const writer = typeof console[level] === "function" ? console[level] : console.log;
+    originalConsole[level] = writer.bind(console);
+  }
+  const logger = createRuntimeLogger({ ...options, consoleObject: originalConsole });
 
   for (const level of levels) {
-    console[level] = (...args) => {
-      const line = new Date().toISOString() + " [" + level.toUpperCase() + "] " + util.format(...args) + "\n";
-      try {
-        const bytes = Buffer.byteLength(line, "utf8");
-        // Keep rotation and append logic in one place. The logger's own console writer
-        // uses the originals captured above, so this does not recurse.
-        logger.write(level, ...args);
-      } catch (error) {
-        try { original.get("error")("[runtime-logger] Console capture failed:", error); } catch (_) {}
-      }
-    };
+    console[level] = (...args) => logger.write(level, ...args);
   }
 
   return logger;
