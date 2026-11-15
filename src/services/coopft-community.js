@@ -2064,4 +2064,4 @@ class CoopFTCommunityService {
   }
 }
 
-module.exports = { CoopFTCommunityService, CLEANUP_CONFIRMATION, TICKET_TYPES, safeChannelName };
+module.exports = { CoopFTCommunityService, CLEANUP_CONFIRMATION, TICKET_TYPES, safeChannelName, drawCoopFTEmoji };
