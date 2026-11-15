@@ -3,7 +3,7 @@
 const { randomUUID } = require("node:crypto");
 const {
   ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChannelType,
-  EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle,
+  EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, StringSelectMenuBuilder,
   MessageFlags, PermissionFlagsBits, Routes
 } = require("discord.js");
 const {
@@ -922,11 +922,106 @@ class CoopFTCommunityService {
 
   async setApplicationOpen(guild, roleKey, isOpen) {
     if (!APPLICATION_ROLES.some((role) => role.key === roleKey)) throw new Error("Unknown application position.");
+    const wasOpen = await this.isApplicationOpen(guild.id, roleKey);
     await this.setSetting(guild.id, "application_open:" + roleKey, Boolean(isOpen));
     const channelId = await this.getResource(guild.id, "channel:applications");
     const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
     if (channel) await this.ensureApplicationPanel(guild, channel);
+    if (isOpen && !wasOpen) {
+      await this.notifyApplicationSubscribers(guild, roleKey).catch((error) => {
+        console.warn("[coopft] Could not send application opening notifications:", error.message);
+      });
+    }
     return Boolean(isOpen);
+  }
+
+  async showApplicationNotificationPreferences(interaction) {
+    const saved = await this.pool.query(
+      "SELECT role_key FROM coopft_application_subscriptions WHERE guild_id=$1 AND member_id=$2",
+      [interaction.guildId, interaction.user.id]
+    );
+    const selected = new Set(saved.rows.map((row) => row.role_key));
+    const menu = new StringSelectMenuBuilder()
+      .setCustomId("cf-application:notify-select")
+      .setPlaceholder("Choose positions to receive opening alerts")
+      .setMinValues(0)
+      .setMaxValues(APPLICATION_ROLES.length)
+      .addOptions(APPLICATION_ROLES.map((role) => ({
+        label: role.name,
+        value: role.key,
+        description: "Notify me when " + role.name + " applications open",
+        default: selected.has(role.key),
+        emoji: role.icon
+      })));
+    const selectionRow = new ActionRowBuilder().addComponents(menu);
+    const clearRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("cf-application:clear-notifications")
+        .setLabel("Clear all alerts")
+        .setStyle(ButtonStyle.Secondary)
+    );
+    await interaction.reply({
+      content: "🔔 **Application opening alerts**\\nChoose which positions you want a private DM about when applications reopen. No messages are sent unless you opt in.",
+      components: [selectionRow, clearRow],
+      flags: MessageFlags.Ephemeral
+    });
+  }
+
+  async handleApplicationSelectMenu(interaction) {
+    if (interaction.guildId !== this.guildId || interaction.customId !== "cf-application:notify-select") {
+      await interaction.reply({ content: "These notification settings are only available in CoopFT.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    const selected = interaction.values.filter((value) => APPLICATION_ROLES.some((role) => role.key === value));
+    await this.pool.query(
+      "DELETE FROM coopft_application_subscriptions WHERE guild_id=$1 AND member_id=$2",
+      [interaction.guildId, interaction.user.id]
+    );
+    if (selected.length) {
+      const placeholders = selected.map((_, index) => "($1,$2,$" + (index + 3) + ")").join(",");
+      await this.pool.query(
+        "INSERT INTO coopft_application_subscriptions (guild_id,member_id,role_key) VALUES " +
+          placeholders + " ON CONFLICT DO NOTHING",
+        [interaction.guildId, interaction.user.id, ...selected]
+      );
+    }
+    await interaction.update({
+      content: selected.length
+        ? "✅ Alerts saved. I'll DM you when " + selected.map((key) => APPLICATION_ROLES.find((role) => role.key === key).name).join(", ") + " applications reopen."
+        : "Application opening alerts are now turned off.",
+      components: []
+    });
+    return true;
+  }
+
+  async notifyApplicationSubscribers(guild, roleKey) {
+    const role = APPLICATION_ROLES.find((item) => item.key === roleKey);
+    if (!role) return { sent: 0, failed: 0 };
+    const subscribers = await this.pool.query(
+      "SELECT member_id FROM coopft_application_subscriptions WHERE guild_id=$1 AND role_key=$2",
+      [guild.id, roleKey]
+    );
+    const channelId = await this.getResource(guild.id, "channel:applications");
+    const link = channelId
+      ? " https://discord.com/channels/" + guild.id + "/" + channelId
+      : "";
+    let sent = 0;
+    let failed = 0;
+    for (const row of subscribers.rows) {
+      const user = await guild.client.users.fetch(row.member_id).catch(() => null);
+      if (!user) { failed += 1; continue; }
+      try {
+        await user.send({
+          content: "🔔 **CoopFT application alert**\\nApplications for **" + role.name +
+            "** are now open again. You can apply here:" + link,
+          allowedMentions: { parse: [] }
+        });
+        sent += 1;
+      } catch (_) {
+        failed += 1;
+      }
+    }
+    return { sent, failed };
   }
 
   async ensureApplicationPanel(guild, channel) {
@@ -952,11 +1047,19 @@ class CoopFTCommunityService {
         .setStyle(ButtonStyle.Primary)
         .setDisabled(!open))
     );
+    const notificationButton = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("cf-application:notifications")
+        .setLabel("Manage opening alerts")
+        .setEmoji(this.emojis.has("cf_bell") ? { id: this.emojis.get("cf_bell"), name: "cf_bell" } : "🔔")
+        .setStyle(ButtonStyle.Secondary)
+    );
     const savedId = await this.getResource(guild.id, "message:application_panel");
     let message = savedId ? await channel.messages.fetch(savedId).catch(() => null) : null;
-    if (message) await message.edit({ embeds: [embed], components: [buttons], allowedMentions: { parse: [] } });
+    const components = [buttons, notificationButton];
+    if (message) await message.edit({ embeds: [embed], components, allowedMentions: { parse: [] } });
     else {
-      message = await channel.send({ embeds: [embed], components: [buttons], allowedMentions: { parse: [] } });
+      message = await channel.send({ embeds: [embed], components, allowedMentions: { parse: [] } });
       await this.saveResource(guild.id, "message:application_panel", message.id);
     }
   }
@@ -985,6 +1088,18 @@ class CoopFTCommunityService {
       return true;
     }
     const [, action, value] = interaction.customId.split(":");
+    if (action === "notifications") {
+      await this.showApplicationNotificationPreferences(interaction);
+      return true;
+    }
+    if (action === "clear-notifications") {
+      await this.pool.query(
+        "DELETE FROM coopft_application_subscriptions WHERE guild_id=$1 AND member_id=$2",
+        [interaction.guildId, interaction.user.id]
+      );
+      await interaction.reply({ content: "Application opening alerts have been cleared.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
     if (action === "apply") {
       const role = APPLICATION_ROLES.find((item) => item.key === value);
       if (!role) {
