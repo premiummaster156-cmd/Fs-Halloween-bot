@@ -78,12 +78,22 @@ const SERVER_AUDIT_ACTIONS = new Map([
   [AuditLogEvent.ChannelCreate, { key: "channel_created", label: "CHANNEL CREATED", destination: "server", color: 0x32956B }],
   [AuditLogEvent.ChannelUpdate, { key: "channel_updated", label: "CHANNEL UPDATED", destination: "server", color: 0xC18A37 }],
   [AuditLogEvent.ChannelDelete, { key: "channel_deleted", label: "CHANNEL DELETED", destination: "server", color: 0xB84A55 }],
+  [AuditLogEvent.GuildUpdate, { key: "server_settings_updated", label: "SERVER SETTINGS UPDATED", destination: "server", color: 0xC18A37 }],
   [AuditLogEvent.RoleCreate, { key: "role_created", label: "ROLE CREATED", destination: "server", color: 0x32956B }],
   [AuditLogEvent.RoleUpdate, { key: "role_updated", label: "ROLE UPDATED", destination: "server", color: 0xC18A37 }],
   [AuditLogEvent.RoleDelete, { key: "role_deleted", label: "ROLE DELETED", destination: "server", color: 0xB84A55 }],
   [AuditLogEvent.MemberKick, { key: "member_kicked", label: "MEMBER KICKED", destination: "member", color: 0xB84A55 }],
+  [AuditLogEvent.MemberPrune, { key: "member_pruned", label: "MEMBERS PRUNED", destination: "member", color: 0xB84A55 }],
+  [AuditLogEvent.MemberUpdate, { key: "member_updated", label: "MEMBER UPDATED", destination: "member", color: 0xC18A37 }],
   [AuditLogEvent.MemberBanAdd, { key: "member_banned", label: "MEMBER BANNED", destination: "member", color: 0xB84A55 }],
-  [AuditLogEvent.MemberBanRemove, { key: "member_unbanned", label: "MEMBER UNBANNED", destination: "member", color: 0x32956B }]
+  [AuditLogEvent.MemberBanRemove, { key: "member_unbanned", label: "MEMBER UNBANNED", destination: "member", color: 0x32956B }],
+  [AuditLogEvent.InviteCreate, { key: "invite_created", label: "INVITE CREATED", destination: "server", color: 0x32956B }],
+  [AuditLogEvent.InviteDelete, { key: "invite_deleted", label: "INVITE DELETED", destination: "server", color: 0xB84A55 }],
+  [AuditLogEvent.WebhookCreate, { key: "webhook_created", label: "WEBHOOK CREATED", destination: "server", color: 0xC18A37 }],
+  [AuditLogEvent.WebhookUpdate, { key: "webhook_updated", label: "WEBHOOK UPDATED", destination: "server", color: 0xC18A37 }],
+  [AuditLogEvent.WebhookDelete, { key: "webhook_deleted", label: "WEBHOOK DELETED", destination: "server", color: 0xB84A55 }],
+  [AuditLogEvent.MessageDelete, { key: "message_deleted_by_moderator", label: "MESSAGE DELETED BY MODERATOR", destination: "member", color: 0xB84A55 }],
+  [AuditLogEvent.MessageBulkDelete, { key: "messages_bulk_deleted", label: "MESSAGES BULK DELETED", destination: "member", color: 0xB84A55 }]
 ]);
 
 class MemberLifecycleService {
@@ -315,12 +325,14 @@ class MemberLifecycleService {
     const targetName = entry.target?.name || entry.target?.username || targetId || "Unknown";
     const reason = String(entry.reason || "No reason supplied").slice(0, 900);
     const changes = auditChangesText(entry);
+    const extra = entry.extra ? auditValue(entry.extra) : null;
     const auditDetails = {
       action: action.key,
       targetName: String(targetName).slice(0, 180),
       actorId,
       reason,
-      changes
+      changes,
+      extra
     };
     await this.writeAudit(guild.id, actorId || "unknown", "server_audit_" + action.key, targetId, auditDetails);
     const embed = new EmbedBuilder()
@@ -330,7 +342,8 @@ class MemberLifecycleService {
       .addFields(
         { name: "Executor", value: actorId ? "<@" + actorId + "> (" + actorId + ")" : "Unknown", inline: false },
         { name: "Reason", value: reason || "No reason supplied", inline: false },
-        { name: "Changes", value: changes, inline: false }
+        { name: "Changes", value: changes, inline: false },
+        ...(extra ? [{ name: "Additional details", value: extra.slice(0, 1024), inline: false }] : [])
       )
       .setFooter({ text: "Server audit • Informational only; no automatic moderation action" })
       .setTimestamp(asDate(entry.createdAt) || new Date());
@@ -365,5 +378,6 @@ module.exports = {
   serializeRoles,
   rolesText,
   timestampText,
-  auditChangesText
+  auditChangesText,
+  SERVER_AUDIT_ACTIONS
 };

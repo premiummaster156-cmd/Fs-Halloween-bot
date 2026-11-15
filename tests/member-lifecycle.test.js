@@ -2,7 +2,8 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { MemberLifecycleService, formatDuration, serializeRoles, auditChangesText } = require("../src/services/member-lifecycle");
+const { AuditLogEvent } = require("discord.js");
+const { MemberLifecycleService, formatDuration, serializeRoles, auditChangesText, SERVER_AUDIT_ACTIONS } = require("../src/services/member-lifecycle");
 
 test("member tenure formatting is readable at day, hour and minute scales", () => {
   assert.equal(formatDuration(2 * 86400000 + 3 * 3600000 + 4 * 60000), "2d 3h 4m");
@@ -114,4 +115,25 @@ test("server audit changes are rendered as readable before-and-after details", (
   assert.match(rendered, /old-channel/);
   assert.match(rendered, /new-channel/);
   assert.match(rendered, /Community updates/);
+});
+
+
+test("important moderator and server administration audit event types are covered", () => {
+  for (const action of [
+    AuditLogEvent.MemberUpdate,
+    AuditLogEvent.MemberPrune,
+    AuditLogEvent.MessageDelete,
+    AuditLogEvent.MessageBulkDelete,
+    AuditLogEvent.InviteCreate,
+    AuditLogEvent.InviteDelete,
+    AuditLogEvent.WebhookCreate,
+    AuditLogEvent.WebhookUpdate,
+    AuditLogEvent.WebhookDelete,
+    AuditLogEvent.GuildUpdate
+  ]) {
+    assert.notEqual(action, undefined);
+    assert.ok(SERVER_AUDIT_ACTIONS.has(action));
+  }
+  assert.equal(SERVER_AUDIT_ACTIONS.get(AuditLogEvent.MemberUpdate).destination, "member");
+  assert.equal(SERVER_AUDIT_ACTIONS.get(AuditLogEvent.WebhookCreate).destination, "server");
 });
