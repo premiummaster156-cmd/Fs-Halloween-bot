@@ -1,6 +1,6 @@
 "use strict";
 
-const { PermissionFlagsBits, PermissionsBitField } = require("discord.js");
+const { PermissionFlagsBits } = require("discord.js");
 
 // Owner and Co-Owner intentionally receive the complete Discord permission set,
 // including Administrator. High Rank Supervisor receives everything except the
