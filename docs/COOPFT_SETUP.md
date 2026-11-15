@@ -2,7 +2,7 @@
 
 The Fukishōkai economy bot and CoopFT community system use the same Discord application connection, but they are separate **server personas**. Discord does not give one application bot account two independent application identities; the bot uses a per-server nickname, separate slash-command registration, separate message branding, and separate command routing.
 
-- CoopFT server: `1498271944456540210` by default (`COOPFT_GUILD_ID` can override it).
+- CoopFT server: `1498271944456540210` (fixed; a different `COOPFT_GUILD_ID` override is rejected).
 - Fukishōkai server: `FUKISHOKAI_GUILD_ID`; legacy `GUILD_ID` is used as a fallback when it is not the CoopFT ID.
 - Fukishōkai economy, boosters, activity rewards, games, custom slash commands, admin dashboard and raid/security workflows are accepted only in the Fukishōkai server.
 - CoopFT receives only `/staff`, `/staff-manage`, `/hr-manage`, `/ticket`, `/applications-admin`, and `/coopft-setup`. It has no Fukishōkai economy, player wallets, candy rewards, inventory, jobs, heists, or game dashboard.
