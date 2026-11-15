@@ -33,13 +33,13 @@ const APPLICATION_ROLES = Object.freeze([
 ]);
 
 const EMOJI_SPRITE = Object.freeze([
-  "cf_bell", "cf_butterfly", "cf_crown", "cf_flame",
-  "cf_gear", "cf_gem", "cf_handshake", "cf_headset",
-  "cf_ice", "cf_key", "cf_leaf", "cf_scroll",
-  "cf_shield", "cf_spark", "cf_star", "cf_ticket",
+  "cf_crown", "cf_shield", "cf_star", "cf_gem",
+  "cf_butterfly", "cf_leaf", "cf_flame", "cf_ice",
+  "cf_key", "cf_ticket", "cf_scroll", "cf_headset",
+  "cf_gear", "cf_bell", "cf_handshake", "cf_spark",
   "cf_war", "cf_referee", "cf_observer", "cf_helper",
-  "cf_ticket_staff", "cf_applications", "cf_rolebook", "cf_rules",
-  "cf_announce", "cf_voice", "cf_idea", "cf_community"
+  "cf_applications", "cf_rolebook", "cf_rules", "cf_announce",
+  "cf_voice", "cf_idea", "cf_ticket_staff", "cf_community"
 ]);
 
 const PUBLIC_CHANNELS = Object.freeze([
