@@ -83,7 +83,7 @@ Equipment bonuses apply only while equipped. Every item can be upgraded five tim
 
 ## Reset all player/game data from the hosting console
 
-The reset utility clears gameplay data for ordinary members across every guild using this database. It checks the Discord bot owner, each Discord server owner, and every member who currently has the **Admin Role** configured for that guild in its admin panel. Those users' records are protected in every player-data table.
+The reset utility clears gameplay data for ordinary members across every guild using this database. It protects the bot owner, both configured Fukishōkai Kings (`settings.kingIds`), each Discord server owner, and every member who currently has the **Admin Role** configured for that guild in its admin panel. Those users' records are protected in every player-data table.
 
 It resets everyone else’s FC and bank balances, levels, XP, careers and job progress, lifetime earnings/spending, inventory, equipped gear and upgrades, cooldowns, economy history, Candy/event balances and claims, daily/weekly activity, achievements, Party Game stats, heists and Arena battles. The player's row is reset, so both their selected job and all owned items are removed.
 
@@ -103,7 +103,7 @@ Execute after checking the protected-account count and eligible rows:
 npm run reset:player-data -- --confirm RESET_ALL_PLAYER_DATA
 \`\`\`
 
-The operation is transactional, locks the affected tables and excludes protected users by guild ID + Discord user ID. Any error rolls the entire reset back. Tables without a recognized guild/member identity are skipped rather than being blindly emptied.
+The operation is transactional and excludes protected users by guild ID + Discord user ID. It does not take ACCESS EXCLUSIVE table locks; stop/pause the bot first so gameplay writes cannot race with the reset. Any error rolls the entire reset back. Tables without a recognized guild/member identity are skipped rather than being blindly emptied.
 ## Quick start for members
 
 1. Run **/menu**.
