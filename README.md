@@ -240,3 +240,14 @@ Each event has a configurable 2–60 minute duration, a public announcement in t
 ## Gateway intent policy
 
 The bot does not request privileged Gateway intents. Leaderboards and bulk DM campaigns operate on saved player profiles, tracked activity and cached members. Full roster enumeration is intentionally unavailable; searching a specific Discord ID uses an individual member lookup instead.
+
+
+## Runtime reliability and diagnostics
+
+The bot writes every `console.log`, `console.info`, `console.warn`, `console.error` and `console.debug` message to a rotating file at `logs/bot-runtime.log` while still sending output to the hosting console. The active file is capped at 5 MB and up to five numbered backups are retained (`bot-runtime.log.1` through `.5`). The default log directory is inside the project folder; set `BOT_LOG_DIR` to a host-provided persistent directory when one is available.
+
+Discord client event listeners are guarded so synchronous exceptions and rejected async handlers are logged rather than becoming unhandled listener rejections. Where a failed listener belongs to an interaction, the bot attempts a private fallback response. Process warnings and unhandled promise rejections are recorded. Truly uncaught synchronous exceptions are recorded by Node's exception monitor and then allowed to terminate the process safely; the host should restart a clean process rather than continuing in an unknown state.
+
+The Bot-Hosting.net platform documents automatic restarts after crashes. File logs are a second diagnostic copy, but a local project-directory log can still be lost if the host rebuilds or replaces the container. Use a persistent host directory for `BOT_LOG_DIR` if the deployment provides one, and periodically download backups. A log file does not replace fixing the underlying error.
+
+When the bot stops, inspect the **first** error in `logs/bot-runtime.log`, not just the last line. The first failure is often the cause; later messages may only be shutdown symptoms.
