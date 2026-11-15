@@ -287,9 +287,27 @@ class CoopFTCommunityService {
         type: ChannelType.GuildText,
         parent: parent.id,
         topic: "coopft-managed:v1:" + spec.key,
+        permissionOverwrites: [...parent.permissionOverwrites.cache.values()].map((overwrite) => ({
+          id: overwrite.id,
+          type: overwrite.type,
+          allow: overwrite.allow.bitfield,
+          deny: overwrite.deny.bitfield
+        })),
         reason: "CoopFT automatic server layout"
       });
       created = true;
+    } else {
+      // Keep managed child channels aligned with their category. This is
+      // especially important for private staff channels after role repair.
+      await channel.permissionOverwrites.set(
+        [...parent.permissionOverwrites.cache.values()].map((overwrite) => ({
+          id: overwrite.id,
+          type: overwrite.type,
+          allow: overwrite.allow.bitfield,
+          deny: overwrite.deny.bitfield
+        })),
+        "CoopFT managed channel permission synchronization"
+      );
     }
     await this.saveResource(guild.id, resourceKey, channel.id);
     return { channel, created };
@@ -322,6 +340,13 @@ class CoopFTCommunityService {
     const missing = required.filter((permission) => !me.permissions.has(permission));
     if (missing.length) throw new Error("CoopFT setup requires Manage Roles, Manage Channels, View Channel, Send Messages, Embed Links and Read Message History. Missing: " + missing.join(", "));
 
+    // Startup guild fetches can return a Guild before its child managers are warm.
+    // Populate only guild-level resource caches; never enumerate the member roster.
+    await Promise.all([
+      guild.roles.fetch(),
+      guild.channels.fetch(),
+      guild.emojis.fetch()
+    ]);
     const emojiResult = await this.ensureEmojis(guild);
     const counts = { createdRoles: 0, createdChannels: 0, createdEmojis: emojiResult.created };
     const createChannel = async (spec, parent) => {
