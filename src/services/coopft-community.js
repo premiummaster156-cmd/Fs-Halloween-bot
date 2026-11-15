@@ -61,8 +61,8 @@ class CoopFTCommunityService {
 
   async ensureEmojis(guild) {
     const result = { created: 0, available: 0, failed: [] };
-    const stored = await this.getSetting(guild.id, "emoji_map") || {};
-    for (const [name, id] of Object.entries(stored)) this.emojis.set(name, id);
+    // Rebuild from the current guild cache so deleted custom emojis never leave stale markup.
+    this.emojis.clear();
     const found = new Map(guild.emojis.cache.map((emoji) => [emoji.name, emoji]));
     const glyphs = ["♛", "⬟", "★", "◆", "❀", "❧", "♨", "❄", "⚿", "▰", "▤", "◖", "⚙", "♢", "⚭", "✦"];
     const colors = [
@@ -145,7 +145,6 @@ class CoopFTCommunityService {
           permissions: [],
           hoist: true,
           mentionable: false,
-          unicodeEmoji: spec.icon,
           reason: "CoopFT automatic server setup"
         });
       } catch (error) {
@@ -213,7 +212,7 @@ class CoopFTCommunityService {
       hoist: role.hoist,
       mentionable: role.mentionable,
       position: role.position,
-      memberCount: role.members?.size ?? null
+      cachedMemberCount: role.members?.size ?? null
     }));
     await this.setSetting(guild.id, "role_cleanup_preview", snapshot);
 
@@ -262,8 +261,11 @@ class CoopFTCommunityService {
         reason: "CoopFT automatic server layout"
       });
       created = true;
-    } else if (permissionOverwrites) {
-      await category.permissionOverwrites.set(permissionOverwrites, "CoopFT managed category permissions");
+    } else {
+      if (category.name !== name) await category.setName(name, "Repair CoopFT managed category name");
+      if (permissionOverwrites) {
+        await category.permissionOverwrites.set(permissionOverwrites, "CoopFT managed category permissions");
+      }
     }
     await this.saveResource(guild.id, resourceKey, category.id);
     return { channel: category, created };
@@ -297,8 +299,10 @@ class CoopFTCommunityService {
       });
       created = true;
     } else {
-      // Keep managed child channels aligned with their category. This is
-      // especially important for private staff channels after role repair.
+      // Keep managed child channels aligned with their category after restart
+      // and repair manual renames/moves only for channels this bot owns.
+      if (channel.name !== spec.name) await channel.setName(spec.name, "Repair CoopFT managed channel name");
+      if (channel.parentId !== parent.id) await channel.setParent(parent.id, { lockPermissions: false, reason: "Repair CoopFT managed channel category" });
       await channel.permissionOverwrites.set(
         [...parent.permissionOverwrites.cache.values()].map((overwrite) => ({
           id: overwrite.id,
@@ -308,12 +312,16 @@ class CoopFTCommunityService {
         })),
         "CoopFT managed channel permission synchronization"
       );
+      if (channel.topic !== "coopft-managed:v1:" + spec.key) {
+        await channel.setTopic("coopft-managed:v1:" + spec.key, "Repair CoopFT managed channel marker");
+      }
     }
     await this.saveResource(guild.id, resourceKey, channel.id);
     return { channel, created };
   }
 
   async staffPermissionOverwrites(guild) {
+    const botMember = guild.members.me || await guild.members.fetchMe();
     const allowedRoles = [...this.roles.values()].map((role) => role.id);
     const supportRoles = allowedRoles.map((id) => ({
       id,
@@ -325,7 +333,21 @@ class CoopFTCommunityService {
         PermissionFlagsBits.EmbedLinks
       ]
     }));
-    return [{ id: guild.id, deny: [PermissionFlagsBits.ViewChannel] }, ...supportRoles];
+    return [
+      { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+      {
+        id: botMember.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.ManageChannels,
+          PermissionFlagsBits.AttachFiles,
+          PermissionFlagsBits.EmbedLinks
+        ]
+      },
+      ...supportRoles
+    ];
   }
 
   async bootstrap(guild, options = {}) {
