@@ -6,6 +6,7 @@ const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
 const execFileAsync = promisify(execFile);
 const settings = require("../config/settings");
+const { fukishokaiGuildId } = require("../config/server-personas");
 const workspace = require("../services/admin-workspace");
 const { inspectCommandSource } = require("../services/custom-commands");
 const { audit, sendLog } = require("../utils/logging");
@@ -135,6 +136,7 @@ async function getDiscordUser(accessToken) {
 async function authoriseMember(client, services, userId, requestedGuildId) {
   const guildId = String(requestedGuildId || settings.ideGuildId || "");
   if (!/^\d{1,25}$/.test(guildId)) throw new Error("A valid server ID is required. Open Code Studio from the server's admin panel.");
+  if (!fukishokaiGuildId || guildId !== fukishokaiGuildId) throw new Error("Code Studio is available only for the Fukishōkai server persona.");
   const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId);
   const isServerOwner = userId === guild.ownerId;
   const isBotOwner = Boolean(settings.ownerId && userId === settings.ownerId);
@@ -219,7 +221,8 @@ function isBrowserIdeEnabled(config = settings) {
 }
 
 function isIdeServerEnabled(config = settings) {
-  return Boolean((config.adminWorkspaceApiKey && config.ideGuildId) || isBrowserIdeEnabled(config));
+  const workspaceGuildMatches = Boolean(fukishokaiGuildId && String(config.ideGuildId || '') === fukishokaiGuildId);
+  return Boolean(workspaceGuildMatches && ((config.adminWorkspaceApiKey && config.ideGuildId) || isBrowserIdeEnabled(config)));
 }
 
 function createIdeServer(client, services) {
@@ -250,6 +253,9 @@ function createIdeServer(client, services) {
         const targetGuildId = String(url.searchParams.get("guildId") || settings.ideGuildId || "");
         if (!/^\d{1,25}$/.test(targetGuildId)) {
           return json(res, 400, { error: "Open Code Studio from a server's admin panel to select the server first." });
+        }
+        if (!fukishokaiGuildId || targetGuildId !== fukishokaiGuildId) {
+          return json(res, 403, { error: "Code Studio is available only for the Fukishōkai server persona." });
         }
         if (!rateLimitOAuthStart(req)) {
           return json(res, 429, { error: "Too many sign-in attempts. Wait a minute and try again." });
@@ -332,8 +338,8 @@ function createIdeServer(client, services) {
 
         // The bearer-key integration is server-scoped; it does not use a browser OAuth session.
         const guildId = String(settings.ideGuildId || "");
-        if (!/^[0-9]{1,25}$/.test(guildId)) {
-          return json(res, 503, { error: "Configure IDE_GUILD_ID (or GUILD_ID) to scope the AI workspace API to one server." });
+        if (!/^[0-9]{1,25}$/.test(guildId) || !fukishokaiGuildId || guildId !== fukishokaiGuildId) {
+          return json(res, 503, { error: "Configure IDE_GUILD_ID to match FUKISHOKAI_GUILD_ID. The AI workspace API is not available in CoopFT." });
         }
         const filesPath = "/api/ai/workspace/files";
         const fileRoute = url.pathname.match(/^\/api\/ai\/workspace\/files\/([a-z0-9_-]{1,32}\.js)$/i);
