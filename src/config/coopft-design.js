@@ -2,6 +2,16 @@
 
 const { PermissionFlagsBits } = require("discord.js");
 
+function permissionSet(...names) {
+  return names.reduce((bits, name) => {
+    const permission = PermissionFlagsBits[name];
+    if (typeof permission !== "bigint") {
+      throw new Error("Unknown Discord permission flag: " + name);
+    }
+    return bits | permission;
+  }, 0n);
+}
+
 // Owner and Co-Owner intentionally receive the complete Discord permission set,
 // including Administrator. High Rank Supervisor receives everything except the
 // three explicitly reserved permissions.
@@ -17,24 +27,24 @@ const HIGH_RANK_SUPERVISOR_PERMISSIONS = ALL_PERMISSION_BITS & ~(
 // Ten operational staff ranks, five HR roles, and five separate application tracks.
 // Staff privileges are defined explicitly; all other generated roles default to none.
 const STAFF_RANKS = Object.freeze([
-  { key: "owner", name: "Owner", icon: "👑", emoji: "cf3d_crown", primary: 0x7A101C, secondary: 0xE13D4B, permissions: OWNER_PERMISSIONS, description: "Leads CoopFT, sets the community direction, makes final decisions, and protects the long-term vision." },
-  { key: "co_owner", name: "Co-Owner", icon: "🛡️", emoji: "cf3d_shield", primary: 0x7E2732, secondary: 0xC84B60, permissions: OWNER_PERMISSIONS, description: "Supports the Owner, coordinates major operations, and steps in to keep the community running smoothly." },
-  { key: "high_rank_supervisor", name: "High Rank Supervisor", icon: "🌟", emoji: "cf3d_star", primary: 0xA67821, secondary: 0xF3D17A, permissions: HIGH_RANK_SUPERVISOR_PERMISSIONS, description: "Oversees senior leadership, handles escalations, and keeps teams aligned with community standards." },
-  { key: "apex", name: "Apex", icon: "💎", emoji: "cf3d_gem", primary: 0x153D9A, secondary: 0x35B5F5, description: "A senior operational role trusted with high-impact projects, quality checks, and cross-team coordination." },
-  { key: "overseer", name: "Overseer", icon: "🦋", emoji: "cf3d_butterfly", primary: 0x542A93, secondary: 0xB26AF2, description: "Monitors team performance, supports supervisors, and helps resolve complicated operational issues." },
-  { key: "staff_supervisor", name: "Staff Supervisor", icon: "🍃", emoji: "cf3d_leaf", primary: 0x176B45, secondary: 0x62C987, description: "Guides day-to-day staff work, checks consistency, and helps teammates improve." },
-  { key: "head_moderator", name: "Head Moderator", icon: "🔥", emoji: "cf3d_flame", primary: 0x9B2C16, secondary: 0xF47A3C, description: "Leads moderation operations, reviews difficult cases, and supports the moderation team." },
-  { key: "senior_moderator", name: "Senior Moderator", icon: "❄️", emoji: "cf3d_ice", primary: 0x176D91, secondary: 0x73DDF5, description: "Handles escalated reports, mentors moderators, and applies server rules consistently." },
-  { key: "moderator", name: "Moderator", icon: "⚙️", emoji: "cf3d_gear", primary: 0x48515E, secondary: 0xA7B4C5, description: "Keeps conversations safe and welcoming, responds to reports, and documents moderation actions." },
-  { key: "junior_moderator", name: "Junior Moderator", icon: "✨", emoji: "cf3d_spark", primary: 0x6840A4, secondary: 0xB68BEA, description: "Learns the moderation process, assists members, and handles approved entry-level duties." }
+  { key: "owner", name: "Owner", icon: "👑", emoji: "cf3d_crown", primary: 0x7A101C, secondary: 0xE13D4B, permissions: OWNER_PERMISSIONS, permissionSummary: "Every Discord permission, including Administrator.", description: "Leads CoopFT, sets the community direction, makes final decisions, and protects the long-term vision." },
+  { key: "co_owner", name: "Co-Owner", icon: "🛡️", emoji: "cf3d_shield", primary: 0x7E2732, secondary: 0xC84B60, permissions: OWNER_PERMISSIONS, permissionSummary: "Every Discord permission, including Administrator.", description: "Supports the Owner, coordinates major operations, and steps in to keep the community running smoothly." },
+  { key: "high_rank_supervisor", name: "High Rank Supervisor", icon: "🌟", emoji: "cf3d_star", primary: 0xA67821, secondary: 0xF3D17A, permissions: HIGH_RANK_SUPERVISOR_PERMISSIONS, permissionSummary: "All Discord permissions except Administrator, Manage Server and Manage Channels.", description: "Oversees senior leadership, handles escalations, and keeps teams aligned with community standards." },
+  { key: "apex", name: "Apex", icon: "💎", emoji: "cf3d_gem", primary: 0x153D9A, secondary: 0x35B5F5, permissions: permissionSet("KickMembers", "ModerateMembers", "ManageMessages", "ViewAuditLog", "ManageThreads", "ManageEvents", "ManageNicknames"), permissionSummary: "Can kick members, timeout members, moderate messages, review audit logs, manage threads and events, and manage nicknames.", description: "A senior operational role trusted with high-impact projects, quality checks, and cross-team coordination." },
+  { key: "overseer", name: "Overseer", icon: "🦋", emoji: "cf3d_butterfly", primary: 0x542A93, secondary: 0xB26AF2, permissions: permissionSet("KickMembers", "ModerateMembers", "ManageMessages", "ViewAuditLog", "ManageThreads"), permissionSummary: "Can kick and timeout members, moderate messages, review audit logs and manage threads.", description: "Monitors team performance, supports supervisors, and helps resolve complicated operational issues." },
+  { key: "staff_supervisor", name: "Staff Supervisor", icon: "🍃", emoji: "cf3d_leaf", primary: 0x176B45, secondary: 0x62C987, permissions: permissionSet("KickMembers", "ModerateMembers", "ManageMessages", "ManageThreads"), permissionSummary: "Can kick and timeout members, moderate messages and manage threads.", description: "Guides day-to-day staff work, checks consistency, and helps teammates improve." },
+  { key: "head_moderator", name: "Head Moderator", icon: "🔥", emoji: "cf3d_flame", primary: 0x9B2C16, secondary: 0xF47A3C, permissions: permissionSet("KickMembers", "ModerateMembers", "ManageMessages", "ViewAuditLog"), permissionSummary: "Can kick and timeout members, moderate messages and review audit logs.", description: "Leads moderation operations, reviews difficult cases, and supports the moderation team." },
+  { key: "senior_moderator", name: "Senior Moderator", icon: "❄️", emoji: "cf3d_ice", primary: 0x176D91, secondary: 0x73DDF5, permissions: permissionSet("ModerateMembers", "ManageMessages", "ManageThreads"), permissionSummary: "Can timeout members, moderate messages and manage threads.", description: "Handles escalated reports, mentors moderators, and applies server rules consistently." },
+  { key: "moderator", name: "Moderator", icon: "⚙️", emoji: "cf3d_gear", primary: 0x48515E, secondary: 0xA7B4C5, permissions: permissionSet("ModerateMembers", "ManageMessages"), permissionSummary: "Can timeout members and moderate messages.", description: "Keeps conversations safe and welcoming, responds to reports, and documents moderation actions." },
+  { key: "junior_moderator", name: "Junior Moderator", icon: "✨", emoji: "cf3d_spark", primary: 0x6840A4, secondary: 0xB68BEA, permissions: permissionSet("ManageMessages", "CreatePublicThreads"), permissionSummary: "Can moderate messages and create public threads; cannot kick or timeout members.", description: "Learns the moderation process, assists members, and handles approved entry-level duties." }
 ]);
 
 const HR_ROLES = Object.freeze([
-  { key: "hr_director", name: "HR Director", icon: "🔑", emoji: "cf3d_key", primary: 0x9C315C, secondary: 0xF07DB0, description: "Leads recruitment and staff development, maintains HR standards, and oversees the HR team." },
-  { key: "hr_manager", name: "HR Manager", icon: "📜", emoji: "cf3d_scroll", primary: 0x8A356B, secondary: 0xD68DBA, description: "Coordinates recruitment activity, supports staff welfare, and manages approved junior HR assignments." },
-  { key: "hr_recruiter", name: "HR Recruiter", icon: "🤝", emoji: "cf3d_handshake", primary: 0x8A5B24, secondary: 0xE0B85F, description: "Supports candidate communication, screening coordination and recruitment outreach under HR leadership." },
-  { key: "hr_coordinator", name: "HR Coordinator", icon: "🎟️", emoji: "cf3d_ticket", primary: 0x275B9A, secondary: 0x6EA8E8, description: "Coordinates interview scheduling, maintains recruitment records and supports HR-led candidate follow-up." },
-  { key: "hr_trainee", name: "HR Trainee", icon: "🔔", emoji: "cf3d_bell", primary: 0x59616F, secondary: 0xA9B4C7, description: "Learns the HR workflow and assists with supervised administrative and candidate-support tasks." }
+  { key: "hr_director", name: "HR Director", icon: "🔑", emoji: "cf3d_key", primary: 0x9C315C, secondary: 0xF07DB0, permissions: permissionSet("ViewAuditLog", "ManageNicknames", "ManageThreads", "CreatePrivateThreads", "SendMessagesInThreads"), permissionSummary: "Can review audit logs, manage member nicknames and threads, and coordinate private thread-based recruitment.", description: "Leads recruitment and staff development, maintains HR standards, and oversees the HR team." },
+  { key: "hr_manager", name: "HR Manager", icon: "📜", emoji: "cf3d_scroll", primary: 0x8A356B, secondary: 0xD68DBA, permissions: permissionSet("ManageNicknames", "ManageThreads", "CreatePrivateThreads", "SendMessagesInThreads"), permissionSummary: "Can manage member nicknames and threads and coordinate private thread-based recruitment.", description: "Coordinates recruitment activity, supports staff welfare, and manages approved junior HR assignments." },
+  { key: "hr_recruiter", name: "HR Recruiter", icon: "🤝", emoji: "cf3d_handshake", primary: 0x8A5B24, secondary: 0xE0B85F, permissions: permissionSet("CreatePrivateThreads", "CreatePublicThreads", "SendMessagesInThreads"), permissionSummary: "Can create public/private threads and reply in threads for candidate coordination.", description: "Supports candidate communication, screening coordination and recruitment outreach under HR leadership." },
+  { key: "hr_coordinator", name: "HR Coordinator", icon: "🎟️", emoji: "cf3d_ticket", primary: 0x275B9A, secondary: 0x6EA8E8, permissions: permissionSet("CreatePrivateThreads", "CreatePublicThreads", "SendMessagesInThreads"), permissionSummary: "Can create public/private threads and reply in threads for interview scheduling and follow-up.", description: "Coordinates interview scheduling, maintains recruitment records and supports HR-led candidate follow-up." },
+  { key: "hr_trainee", name: "HR Trainee", icon: "🔔", emoji: "cf3d_bell", primary: 0x59616F, secondary: 0xA9B4C7, permissions: permissionSet("CreatePublicThreads", "SendMessagesInThreads"), permissionSummary: "Can create public threads and reply in threads while working under HR supervision.", description: "Learns the HR workflow and assists with supervised administrative and candidate-support tasks." }
 ]);
 
 // These are opt-in team positions, not moderation ranks or Discord permission roles.
