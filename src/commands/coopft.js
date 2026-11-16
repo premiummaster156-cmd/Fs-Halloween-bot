@@ -93,14 +93,14 @@ if(n==="onboarding-setup"){
  if(extraChannels.length<2)throw Error("Create at least two additional public text channels beyond the seven default channels so the bot can build useful onboarding choices.");
  const promptTitle="What would you like to explore?";
  const prompt={
-  id:SnowflakeUtil.generate(),
+  id:SnowflakeUtil.generate().toString(),
   type:0,
   title:promptTitle,
   singleSelect:false,
   required:false,
   inOnboarding:true,
   options:extraChannels.map(channel=>({
-   id:SnowflakeUtil.generate(),
+   id:SnowflakeUtil.generate().toString(),
    title:("#"+channel.name).slice(0,100),
    description:("Add "+channel.name+" to your channel list.").slice(0,100),
    channels:[channel.id],
