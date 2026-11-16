@@ -1,7 +1,7 @@
 "use strict";
 const {SlashCommandBuilder,EmbedBuilder,PermissionFlagsBits:P,MessageFlags,ChannelType}=require("discord.js");
-const names="coopft-setup coopft-roles-sync coopft-channels-sync coopft-channel-decorate coopft-panel coopft-ticket-config announce poll event-create event-list event-cancel slowmode lock unlock purge timeout untimeout kick ban unban warn warnings clear-warnings case note notes member-note-remove role-add role-remove nickname reset-nickname channel-topic channel-rename ticket-claim ticket-close ticket-add ticket-remove ticket-rename ticket-priority ticket-info ticket-list suggestion suggestion-review".split(" ");
-const desc="Create missing CoopFT resources without overwriting custom settings|Explicitly apply configured CoopFT role names, colors, permissions and order|Explicitly apply configured CoopFT channel names, categories and permissions|Apply decorative names to default CoopFT channels only|Publish or move a CoopFT panel|Configure ticket category and transcript archive|Publish announcement|Create poll|Schedule event|List events|Cancel event|Set slowmode|Lock channel|Unlock channel|Purge messages|Timeout member|Remove timeout|Kick member|Ban member|Unban user|Issue warning|View warnings|Clear warnings|Moderation case|Add staff note|View staff notes|Remove staff note|Assign role|Remove role|Set nickname|Reset nickname|Edit channel topic|Rename channel|Claim ticket|Close ticket|Add ticket member|Remove ticket member|Rename ticket|Set ticket priority|Ticket details|List tickets|Submit suggestion|Review suggestion".split("|");
+const names="coopft-setup coopft-roles-sync coopft-channels-sync coopft-channel-decorate coopft-panel coopft-ticket-config announce poll event-create event-list event-cancel slowmode lock unlock purge timeout untimeout kick ban unban warn warnings clear-warnings case note notes member-note-remove role-add role-remove nickname reset-nickname channel-topic channel-rename ticket-cooldown ticket-claim ticket-close ticket-add ticket-remove ticket-rename ticket-priority ticket-info ticket-list suggestion suggestion-review".split(" ");
+const desc="Create missing CoopFT resources without overwriting custom settings|Explicitly apply configured CoopFT role names, colors, permissions and order|Explicitly apply configured CoopFT channel names, categories and permissions|Apply decorative names to default CoopFT channels only|Publish or move a CoopFT panel|Configure ticket category and transcript archive|Publish announcement|Create poll|Schedule event|List events|Cancel event|Set slowmode|Lock channel|Unlock channel|Purge messages|Timeout member|Remove timeout|Kick member|Ban member|Unban user|Issue warning|View warnings|Clear warnings|Moderation case|Add staff note|View staff notes|Remove staff note|Assign role|Remove role|Set nickname|Reset nickname|Edit channel topic|Rename channel|Claim ticket|Close ticket|Add ticket member|Remove ticket member|Rename ticket|Set ticket priority|Ticket details|List tickets|Submit suggestion|Review suggestion|Apply a manual seven-day cooldown to one request type".split("|");
 const staff=(i,s)=>{if(!s.coopft.isStaff(i.member))throw Error("CoopFT staff only.");};
 const ownerConfig=(i,s)=>{if(!s.coopft.canManageApplications(i.member,i.guild))throw Error("Only the server owner or Owner Rank can configure CoopFT.");};
 const lead=(i,s)=>{if(!s.coopft.canManageStaff(i.member,i.guild))throw Error("CoopFT leadership only.");};
@@ -39,6 +39,20 @@ if(n==="coopft-ticket-config"){
   transcriptChannel:i.options.getChannel("transcript")
  });
  return say(i,"Ticket routing saved. Category: "+(result.categoryId?"<#"+result.categoryId+">":"not configured")+". Transcript archive: "+(result.transcriptChannelId?"<#"+result.transcriptChannelId+">":"not configured")+".");
+}
+if(n==="ticket-cooldown"){
+ staff(i,s);
+ const target=await getMember();
+ const ticketType=i.options.getString("ticket_type");
+ const allowedTypes=new Set(["custom_bot_request","partnership","member_report","staff_report","bot_exploit"]);
+ if(!allowedTypes.has(ticketType))throw Error("That request type cannot receive a manual cooldown. Ordinary support requests are never cooldown-restricted.");
+ const why=i.options.getString("reason");
+ if(!why)throw Error("Provide a reason so the cooldown is documented.");
+ const saved=await s.pool.query(
+  "INSERT INTO coopft_ticket_cooldowns(guild_id,member_id,ticket_type,expires_at,set_by,reason) VALUES($1,$2,$3,NOW()+INTERVAL '7 days',$4,$5) ON CONFLICT(guild_id,member_id,ticket_type) DO UPDATE SET expires_at=EXCLUDED.expires_at,set_by=EXCLUDED.set_by,reason=EXCLUDED.reason,updated_at=NOW() RETURNING expires_at",
+  [id,target.id,ticketType,u.id,why.slice(0,500)]
+ );
+ return say(i,"Applied a **7-day** cooldown to <@"+target.id+"> for **"+ticketType.replaceAll("_"," ")+"**. It expires <t:"+Math.floor(new Date(saved.rows[0].expires_at).getTime()/1000)+":F>. Ordinary support requests are unaffected.");
 }
 if(n==="announce"){staff(i,s);if(!i.memberPermissions.has(P.ManageGuild))throw Error("Manage Server required.");const dest=i.options.getChannel("channel"),title=i.options.getString("title"),msg=i.options.getString("message");if(!dest||!title||!msg)throw Error("Set channel, title and message.");const m=await dest.send({embeds:[new EmbedBuilder().setColor(0x8C1D32).setTitle(title).setDescription(msg).setTimestamp()],allowedMentions:{parse:[]}});return say(i,"Announcement: "+m.url);}
 if(n==="poll"){staff(i,s);if(!i.memberPermissions.has(P.ManageMessages))throw Error("Manage Messages required.");const q=i.options.getString("question"),raw=i.options.getString("options");if(!q||!raw)throw Error("Set question and choices separated by |.");const a=raw.split("|").map(x=>x.trim()).filter(Boolean),em=["1️⃣","2️⃣","3️⃣","4️⃣","5️⃣"];if(a.length<2||a.length>5)throw Error("Provide 2-5 choices.");const m=await c.send({embeds:[new EmbedBuilder().setTitle("COMMUNITY POLL").setDescription("**"+q+"**\n"+a.map((x,k)=>em[k]+" "+x).join("\n"))]});for(let k=0;k<a.length;k++)await m.react(em[k]);return say(i,"Poll: "+m.url);}
@@ -117,13 +131,14 @@ function loadCoopFTCommands(){
   "role-add":["member","role","reason"],"role-remove":["member","role","reason"],nickname:["member","name","reason"],"reset-nickname":["member","reason"],
   "channel-topic":["topic"],"channel-rename":["name"],
   "ticket-add":["member"],"ticket-remove":["member"],"ticket-rename":["name"],"ticket-priority":["value"],
+  "ticket-cooldown":["member","ticket_type","reason"],
   suggestion:["title","message"],"suggestion-review":["amount","value","reason"]
  };
  const optionDefinitions={
   member:["user","Member to target"],role:["role","Role to target"],channel:["channel","Destination channel"],
   title:["string","Title"],message:["string","Message or details"],question:["string","Poll question"],options:["string","Poll choices separated by |"],
   start:["string","Start time in ISO 8601"],end:["string","End time in ISO 8601"],event_id:["string","Scheduled event ID"],user_id:["string","Discord user ID"],
-  reason:["string","Reason"],note:["string","Private staff note"],topic:["string","New channel topic"],name:["string","New name or nickname"],value:["string","Priority or review status"],
+  reason:["string","Reason"],note:["string","Private staff note"],topic:["string","New channel topic"],name:["string","New name or nickname"],value:["string","Priority or review status"],ticket_type:["string","Request type to cool down"],
   amount:["integer","Number, ID, seconds or minutes"]
  };
  for(let k=0;k<names.length;k++){
@@ -149,6 +164,13 @@ function loadCoopFTCommands(){
    else if(kind==="role")b.addRoleOption(o=>o.setName(key).setDescription(label).setRequired(true));
    else if(kind==="channel")b.addChannelOption(o=>o.setName(key).setDescription(label).setRequired(true));
    else if(kind==="integer")b.addIntegerOption(o=>o.setName(key).setDescription(label).setMinValue(0).setMaxValue(40320).setRequired(true));
+   else if(key==="ticket_type")b.addStringOption(o=>o.setName(key).setDescription(label).setRequired(true).addChoices(
+    {name:"Custom Bot Commission",value:"custom_bot_request"},
+    {name:"Partnership Enquiry",value:"partnership"},
+    {name:"Member Report",value:"member_report"},
+    {name:"Staff Concern or Appeal",value:"staff_report"},
+    {name:"Bot Exploit Report",value:"bot_exploit"}
+   ));
    else b.addStringOption(o=>o.setName(key).setDescription(label).setMaxLength(key==="message"||key==="note"?2500:1000).setRequired(true));
   }
   map.set(n,{data:b,execute:(i,s)=>run(n,i,s)});
