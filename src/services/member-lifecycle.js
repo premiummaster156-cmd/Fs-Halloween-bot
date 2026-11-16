@@ -394,6 +394,11 @@ class MemberLifecycleService {
 
   async handleJoin(member) {
     if (!member?.guild || !this.supportsGuild(member.guild.id)) return false;
+    if (member.guild.id === this.coopftGuildId && this.coopftCommunity) {
+      await this.coopftCommunity.assignCommunityMemberRole(member).catch((error) => {
+        console.warn("[member-lifecycle] Default CoopFT member role assignment failed:", error.message);
+      });
+    }
     const autoRoles = await this.assignAutoroles(member).catch((error) => {
       console.warn("[member-lifecycle] Autorole assignment failed:", error.message);
       return [];
