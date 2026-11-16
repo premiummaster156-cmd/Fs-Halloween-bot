@@ -106,7 +106,8 @@ test("CoopFT setup migrations apply only CoopFT tables and skip the global playe
       "0001_coopft_community.sql": "CREATE TABLE coopft_community_settings (guild_id TEXT);",
       "0002_coopft_applications.sql": "CREATE TABLE coopft_applications (id UUID);",
       "0003_coopft_application_notifications.sql": "CREATE TABLE coopft_application_subscriptions (guild_id TEXT);",
-      "0004_add_player_economy_column.sql": "ALTER TABLE players ADD COLUMN should_not_run BOOLEAN;"
+      "0004_coopft_staff_applications.sql": "ALTER TABLE coopft_applications DROP CONSTRAINT IF EXISTS coopft_applications_role_key_check; DROP TABLE IF EXISTS coopft_application_subscriptions;",
+      "0005_add_player_economy_column.sql": "ALTER TABLE players ADD COLUMN should_not_run BOOLEAN;"
     }
   });
   try {
@@ -120,10 +121,11 @@ test("CoopFT setup migrations apply only CoopFT tables and skip the global playe
     assert.deepEqual(fixture.statements, [
       "CREATE TABLE coopft_community_settings (guild_id TEXT);",
       "CREATE TABLE coopft_applications (id UUID);",
-      "CREATE TABLE coopft_application_subscriptions (guild_id TEXT);"
+      "CREATE TABLE coopft_application_subscriptions (guild_id TEXT);",
+      "ALTER TABLE coopft_applications DROP CONSTRAINT IF EXISTS coopft_applications_role_key_check; DROP TABLE IF EXISTS coopft_application_subscriptions;"
     ]);
     assert.equal(fixture.checksums.has("schema.sql"), false);
-    assert.equal(fixture.checksums.has("0004_add_player_economy_column.sql"), false);
+    assert.equal(fixture.checksums.has("0005_add_player_economy_column.sql"), false);
     assert.equal(
       fixture.queries.some((query) => /players|player_economy/.test(query.sql)),
       false,
