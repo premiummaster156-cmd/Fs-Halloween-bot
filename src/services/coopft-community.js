@@ -2201,7 +2201,7 @@ class CoopFTCommunityService {
     const embed = new EmbedBuilder()
       .setColor(0x8C2635)
       .setTitle("COOPFT  |  STAFF DIRECTORY")
-      .setDescription("The official CoopFT hierarchy. Each member appears under their current rank; an open position has no active staff assignment.")
+      .setDescription("The official CoopFT hierarchy. Each member appears under their current rank; an open position has no active staff assignment.\n**Last updated:** <t:" + Math.floor(Date.now() / 1000) + ":D>")
       .setFooter({ text: "COOPFT  •  Maintained by server leadership" })
       .setTimestamp();
     for (const section of groups) {
