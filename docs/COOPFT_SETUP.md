@@ -102,7 +102,7 @@ The CoopFT-only migration sequence is:
 - `0003_coopft_application_notifications.sql` — legacy application-notification table, created only for upgrade compatibility.
 - `0004_coopft_staff_applications.sql` — legacy operational application compatibility and notification cleanup.
 - `0005_coopft_operations.sql` — CoopFT support, ticket data and operational records.
-- `0006_coopft_developer_applications.sql` — adds the Developer recruitment key while preserving historical application records.
+- `0006_coopft_application_scope.sql` — adds the Developer recruitment key and restricts active recruitment to the three supported tracks.
 - `0007_coopft_close_legacy_recruitment.sql` — withdraws pending applications for retired tracks while preserving them for audit.
 - `0008_coopft_custom_bot_commission_ticket.sql` — permits the `custom_bot_request` ticket type while preserving older ticket values.
 
