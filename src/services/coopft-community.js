@@ -2051,61 +2051,64 @@ class CoopFTCommunityService {
 
   buildStaffBanner() {
     const { createCanvas } = require("@napi-rs/canvas");
-    const canvas = createCanvas(1200, 340);
+    const canvas = createCanvas(1200, 360);
     const ctx = canvas.getContext("2d");
-    const bg = ctx.createLinearGradient(0, 0, 1200, 340);
+    const bg = ctx.createLinearGradient(0, 0, 1200, 360);
     bg.addColorStop(0, "#08090D");
-    bg.addColorStop(0.48, "#17191F");
-    bg.addColorStop(1, "#090A0E");
+    bg.addColorStop(0.52, "#171116");
+    bg.addColorStop(1, "#090A0F");
     ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, 1200, 340);
-    const glow = ctx.createRadialGradient(600, 165, 25, 600, 165, 560);
-    glow.addColorStop(0, "rgba(150,22,39,0.34)");
-    glow.addColorStop(0.65, "rgba(94,14,26,0.12)");
+    ctx.fillRect(0, 0, 1200, 360);
+    const glow = ctx.createRadialGradient(600, 150, 20, 600, 150, 680);
+    glow.addColorStop(0, "rgba(164,31,51,0.30)");
+    glow.addColorStop(0.58, "rgba(70,20,35,0.12)");
     glow.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, 1200, 340);
-    ctx.strokeStyle = "rgba(216,47,65,0.8)";
+    ctx.fillRect(0, 0, 1200, 360);
+    ctx.strokeStyle = "rgba(221,65,83,0.88)";
     ctx.lineWidth = 3;
-    ctx.strokeRect(24, 22, 1152, 296);
+    ctx.strokeRect(22, 20, 1156, 320);
     ctx.strokeStyle = "rgba(255,255,255,0.12)";
     ctx.lineWidth = 1;
-    ctx.strokeRect(38, 36, 1124, 268);
-    for (const side of [-1, 1]) {
-      ctx.save();
-      ctx.translate(side < 0 ? 0 : 1200, 0);
-      ctx.scale(side, 1);
-      ctx.lineWidth = 5;
-      ctx.lineCap = "round";
-      ctx.strokeStyle = "rgba(196,36,54,0.62)";
-      for (let i = 0; i < 5; i += 1) {
-        ctx.beginPath();
-        ctx.moveTo(110 + i * 22, 70 + i * 20);
-        ctx.lineTo(230 + i * 12, 110 + i * 18);
-        ctx.lineTo(330 + i * 6, 155 + i * 12);
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
+    ctx.strokeRect(36, 34, 1128, 292);
     ctx.textAlign = "center";
-    ctx.shadowColor = "rgba(0,0,0,0.9)";
-    ctx.shadowBlur = 18;
-    ctx.fillStyle = "#F4F0EF";
-    ctx.font = "bold 78px Arial";
-    ctx.fillText("COOPFT", 600, 150);
+    ctx.fillStyle = "#F5F0ED";
+    ctx.shadowColor = "rgba(0,0,0,0.8)";
+    ctx.shadowBlur = 16;
+    ctx.font = "bold 56px Arial";
+    ctx.fillText("COOPFT", 600, 86);
     ctx.shadowBlur = 0;
-    ctx.fillStyle = "#D23A4A";
-    ctx.font = "bold 38px Arial";
-    ctx.fillText("STAFF TEAM", 600, 205);
-    ctx.strokeStyle = "rgba(211,58,74,0.8)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(390, 230);
-    ctx.lineTo(810, 230);
-    ctx.stroke();
-    ctx.fillStyle = "rgba(236,232,232,0.72)";
-    ctx.font = "20px Arial";
-    ctx.fillText("LEADERSHIP  •  OPERATIONS  •  COMMUNITY", 600, 270);
+    ctx.fillStyle = "#E45767";
+    ctx.font = "bold 26px Arial";
+    ctx.fillText("STAFF DIRECTORY", 600, 122);
+
+    const groups = [
+      { label: "OWNER RANK", color: "#D85A67", accent: "#8C2635" },
+      { label: "HIGH RANK", color: "#74B8E8", accent: "#2769A6" },
+      { label: "LOW RANK", color: "#6CC7D2", accent: "#287E8C" },
+      { label: "MOD ROLES", color: "#B99AE5", accent: "#693E9C" }
+    ];
+    const width = 250, gap = 22, left = 78, top = 158, height = 104;
+    groups.forEach((group, index) => {
+      const x = left + index * (width + gap);
+      const card = ctx.createLinearGradient(x, top, x + width, top + height);
+      card.addColorStop(0, "rgba(28,25,31,0.95)");
+      card.addColorStop(1, "rgba(12,13,18,0.95)");
+      ctx.fillStyle = card;
+      ctx.fillRect(x, top, width, height);
+      ctx.strokeStyle = group.accent;
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x, top, width, height);
+      ctx.fillStyle = group.color;
+      ctx.beginPath();
+      ctx.arc(x + width / 2, top + 28, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.font = "bold 20px Arial";
+      ctx.fillText(group.label, x + width / 2, top + 70);
+    });
+    ctx.fillStyle = "rgba(244,235,232,0.78)";
+    ctx.font = "18px Arial";
+    ctx.fillText("LEADERSHIP  •  OPERATIONS  •  COMMUNITY", 600, 300);
     return canvas.toBuffer("image/png");
   }
 
@@ -2135,25 +2138,30 @@ class CoopFTCommunityService {
     }
     const sectionFor = (key) => {
       if (["owner", "co_owner", "monarch"].includes(key)) return "OWNER RANK";
-      if (["high_rank_supervisor", "apex", "right_wing", "left_wing", "halo", "overseer"].includes(key)) return "SENIOR OPERATIONS";
-      if (["staff_supervisor", "supreme_council", "senate", "head_moderator"].includes(key)) return "DEPARTMENT LEADERSHIP";
-      return "MOD RANK";
+      if (["high_rank_supervisor", "apex", "right_wing", "left_wing", "halo", "overseer"].includes(key)) return "HIGH RANK";
+      if (["staff_supervisor", "supreme_council", "senate", "head_moderator"].includes(key)) return "LOW RANK";
+      return "MOD ROLES";
     };
-    const sections = ["OWNER RANK", "SENIOR OPERATIONS", "DEPARTMENT LEADERSHIP", "MOD RANK"];
+    const groups = [
+      { name: "OWNER RANK", emoji: "cf3d_owner_crest", fallback: "👑" },
+      { name: "HIGH RANK", emoji: "cf3d_high_rank", fallback: "🐉" },
+      { name: "LOW RANK", emoji: "cf3d_low_rank", fallback: "⚖️" },
+      { name: "MOD ROLES", emoji: "cf3d_mod_rank", fallback: "⚔️" }
+    ];
     const embed = new EmbedBuilder()
-      .setColor(0x8C1D32)
+      .setColor(0x8C2635)
       .setTitle("COOPFT  |  STAFF DIRECTORY")
-      .setDescription("The official CoopFT staff structure. Members appear below their current rank.")
-      .setFooter({ text: "COOPFT  •  STAFF & COMMUNITY OPERATIONS" })
+      .setDescription("The official CoopFT hierarchy. Each member appears under their current rank; an open position has no active staff assignment.")
+      .setFooter({ text: "COOPFT  •  Maintained by server leadership" })
       .setTimestamp();
-    for (const section of sections) {
-      const lines = STAFF_RANKS.filter((rank) => sectionFor(rank.key) === section).map((rank) => {
+    for (const section of groups) {
+      const lines = STAFF_RANKS.filter((rank) => sectionFor(rank.key) === section.name).map((rank) => {
         const people = grouped.get(rank.key) || [];
         return this.emoji(guild.id, rank.emoji, rank.icon) + " **" + rank.name + "**  ›  " +
-          (people.length ? people.join(", ") : "_No assigned member_");
+          (people.length ? people.join(", ") : "_Open position_");
       });
       embed.addFields({
-        name: "━━━━━━━━  " + section + "  ━━━━━━━━",
+        name: "━━━━  " + this.emoji(guild.id, section.emoji, section.fallback) + "  " + section.name + "  ━━━━",
         value: lines.join("\n").slice(0, 1024) || "_No positions configured._",
         inline: false
       });
