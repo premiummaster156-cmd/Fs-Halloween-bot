@@ -245,6 +245,10 @@ async function start() {
     if (coopftGuildId) {
       const coopGuild = ready.guilds.cache.get(coopftGuildId) || await ready.guilds.fetch(coopftGuildId).catch(() => null);
       if (coopGuild) {
+        const coopMember = coopGuild.members.me || await coopGuild.members.fetchMe().catch(() => null);
+        coopMember?.setNickname("CoopFT • Assistant", "Per-server CoopFT identity").catch((error) =>
+          console.warn("[coopft] Could not set server nickname:", error.message)
+        );
         coopftCommunity.loadManagedRoles(coopGuild).then((loaded) => {
           console.info("[coopft] Loaded managed role references:", loaded);
         }).catch((error) => {
@@ -271,8 +275,17 @@ async function start() {
 
   client.on(Events.GuildCreate, (guild) => {
     if (guild.id === fukishokaiGuildId) {
+      const me = guild.members.me;
+      me?.setNickname("Fukishōkai", "Per-server Fukishōkai identity").catch((error) =>
+        console.warn("[fukishokai] Could not set server nickname:", error.message)
+      );
       raidMonitor.initializeGuild(guild).catch((error) =>
         console.warn("[raid-monitor] Fukishōkai invite baseline failed:", error.message)
+      );
+    } else if (guild.id === coopftGuildId) {
+      const me = guild.members.me;
+      me?.setNickname("CoopFT • Assistant", "Per-server CoopFT identity").catch((error) =>
+        console.warn("[coopft] Could not set server nickname:", error.message)
       );
     }
   });
@@ -316,6 +329,14 @@ async function start() {
         try {
           if (interaction.isButton() && interaction.customId?.startsWith("cf-ticket:")) {
             await coopftCommunity.handleButton(interaction);
+            return;
+          }
+          if (interaction.isStringSelectMenu() && interaction.customId === "cf-ticket:section") {
+            await coopftCommunity.handleTicketSectionSelect(interaction);
+            return;
+          }
+          if (interaction.isModalSubmit() && interaction.customId?.startsWith("cf-ticket:submit:")) {
+            await coopftCommunity.handleTicketIntakeModal(interaction);
             return;
           }
           if (interaction.isButton() && interaction.customId?.startsWith("cf-application:")) {
