@@ -1039,6 +1039,43 @@ class CoopFTCommunityService {
     return { ...counts, cleanup, emojiResult, retiredRoles };
   }
 
+  buildPanelBanner(title, subtitle, accent = "#A92E43") {
+    const { createCanvas } = require("@napi-rs/canvas");
+    const canvas = createCanvas(1200, 300);
+    const ctx = canvas.getContext("2d");
+    const bg = ctx.createLinearGradient(0, 0, 1200, 300);
+    bg.addColorStop(0, "#07090D");
+    bg.addColorStop(0.52, "#191117");
+    bg.addColorStop(1, "#080B11");
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, 1200, 300);
+    const glow = ctx.createRadialGradient(600, 120, 10, 600, 120, 620);
+    glow.addColorStop(0, accent + "55");
+    glow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, 1200, 300);
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(22, 20, 1156, 260);
+    ctx.strokeStyle = "rgba(255,255,255,0.14)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(38, 36, 1124, 228);
+    ctx.textAlign = "center";
+    ctx.shadowColor = "rgba(0,0,0,0.85)";
+    ctx.shadowBlur = 18;
+    ctx.fillStyle = "#F8F1ED";
+    ctx.font = "bold 66px Arial";
+    ctx.fillText(String(title).toUpperCase().slice(0, 28), 600, 137);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = accent;
+    ctx.font = "bold 26px Arial";
+    ctx.fillText(String(subtitle).toUpperCase().slice(0, 54), 600, 190);
+    ctx.fillStyle = "rgba(245,235,229,0.7)";
+    ctx.font = "17px Arial";
+    ctx.fillText("COOPFT  •  COMMUNITY  •  SUPPORT", 600, 236);
+    return canvas.toBuffer("image/png");
+  }
+
   buildRulesEmblem() {
     const { createCanvas } = require("@napi-rs/canvas");
     const canvas = createCanvas(1200, 360);
@@ -1178,6 +1215,7 @@ class CoopFTCommunityService {
   async ensureApplicationPanel(guild, channel) {
     this.assertCoopFTGuild(guild, "publish the CoopFT application panel");
     if (!channel?.isTextBased?.()) return;
+    const banner = new AttachmentBuilder(this.buildPanelBanner("Staff Applications", "Join the CoopFT Staff Team", "#8C2635"), { name: "coopft-applications-banner.png" });
     const embed = new EmbedBuilder()
       .setColor(0x8C1D32)
       .setTitle("COOPFT  |  STAFF APPLICATIONS")
@@ -1192,6 +1230,7 @@ class CoopFTCommunityService {
         "**Leadership appointments**",
         "Owner, Co-Owner, Monarch, High Rank Supervisor, and senior high-rank appointments are reserved for leadership selection."
       ].join("\n"))
+      .setImage("attachment://coopft-applications-banner.png")
       .setFooter({ text: "COOPFT  •  STAFF RECRUITMENT" });
     const menu = new StringSelectMenuBuilder()
       .setCustomId("cf-application:position-select")
@@ -1207,7 +1246,7 @@ class CoopFTCommunityService {
     const components = [new ActionRowBuilder().addComponents(menu)];
     const savedId = await this.getResource(guild.id, "message:application_panel");
     let message = savedId ? await channel.messages.fetch(savedId).catch(() => null) : null;
-    const payload = { embeds: [embed], components, allowedMentions: { parse: [] } };
+    const payload = { embeds: [embed], components, files: [banner], attachments: [], allowedMentions: { parse: [] } };
     if (message) await message.edit(payload);
     else {
       message = await channel.send(payload);
@@ -1514,6 +1553,7 @@ class CoopFTCommunityService {
     this.assertCoopFTGuild(guild, "publish the CoopFT ticket panel");
     const savedId = await this.getResource(guild.id, "message:ticket_panel");
     let message = savedId ? await channel.messages.fetch(savedId).catch(() => null) : null;
+    const banner = new AttachmentBuilder(this.buildPanelBanner("Community Support", "Tickets • Reports • Questions", "#4E70B5"), { name: "coopft-support-banner.png" });
     const embed = new EmbedBuilder().setColor(0x354F86)
       .setTitle(this.emoji(guild.id, "cf3d_ticket", "🎟️") + "  COMMUNITY SUPPORT CENTRE")
       .setDescription([
@@ -1527,6 +1567,7 @@ class CoopFTCommunityService {
         "",
         "Your form answers are copied into the private ticket. One open ticket per member is allowed."
       ].join("\n"))
+      .setImage("attachment://coopft-support-banner.png")
       .setFooter({ text: "Select a service below • no ticket is created until the form is submitted" });
     const row = new ActionRowBuilder().addComponents(
       new StringSelectMenuBuilder().setCustomId("cf-ticket:section")
@@ -1536,9 +1577,9 @@ class CoopFTCommunityService {
           { label: "CoopFT Server", value: "server", description: "Server support, reports, suggestions and partnerships", emoji: "🏛️" }
         )
     );
-    if (message) await message.edit({ embeds: [embed], components: [row] });
+    if (message) await message.edit({ embeds: [embed], components: [row], files: [banner], attachments: [] });
     else {
-      message = await channel.send({ embeds: [embed], components: [row] });
+      message = await channel.send({ embeds: [embed], components: [row], files: [banner] });
       await this.saveResource(guild.id, "message:ticket_panel", message.id);
     }
   }
@@ -1564,6 +1605,7 @@ class CoopFTCommunityService {
           };
         }))
     );
+    const banner = new AttachmentBuilder(this.buildPanelBanner("Choose Your Roles", "Interests • Notifications • Community", "#477D98"), { name: "coopft-role-selector.png" });
     const embed = new EmbedBuilder()
       .setColor(0x344F73)
       .setTitle(this.emoji(guild.id, "cf3d_role_select", "☷") + "  CHOOSE YOUR ROLES")
@@ -1580,6 +1622,7 @@ class CoopFTCommunityService {
         "",
         "Staff ranks, verification, VIP and contributor badges are assigned by CoopFT leadership and cannot be self-selected."
       ].join("\n"))
+      .setImage("attachment://coopft-role-selector.png")
       .setFooter({ text: "Your selections affect only your own roles • No unnecessary pings" });
     const components = [
       menu("add", "interests", "Add interests", INTEREST_ROLES),
@@ -1589,7 +1632,7 @@ class CoopFTCommunityService {
     ];
     const savedId = await this.getResource(guild.id, "message:role_selection");
     let message = savedId ? await channel.messages.fetch(savedId).catch(() => null) : null;
-    const payload = { embeds: [embed], components, allowedMentions: { parse: [] } };
+    const payload = { embeds: [embed], components, files: [banner], attachments: [], allowedMentions: { parse: [] } };
     if (message) await message.edit(payload);
     else {
       message = await channel.send(payload);
