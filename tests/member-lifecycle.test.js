@@ -168,6 +168,62 @@ test("Fukishokai is rejected by CoopFT welcome, autorole and lifecycle service",
 });
 
 
+test("welcome routing only returns the dedicated CoopFT welcome channel and never the system channel", async () => {
+  const coopftGuildId = "coopft-guild";
+  const fsGuildId = "fukishokai-guild";
+  const systemChannel = { id: "server-boosts", guildId: coopftGuildId, isTextBased: () => true };
+  const welcomeChannel = { id: "coopft-welcome", guildId: coopftGuildId, isTextBased: () => true };
+  let fetchedChannelId = null;
+  const pool = {
+    query: async (sql, params) => {
+      assert.match(sql, /FROM guild_welcome_settings/);
+      assert.deepEqual(params, [coopftGuildId]);
+      return { rows: [{ channel_id: "coopft-welcome", enabled: true }] };
+    }
+  };
+  const coopftCommunity = {
+    getResource: async (guildId, key) => {
+      assert.equal(guildId, coopftGuildId);
+      assert.equal(key, "channel:welcome");
+      return null;
+    }
+  };
+  const service = new MemberLifecycleService(pool, { coopftGuildId, coopftCommunity });
+  const coopftGuild = {
+    id: coopftGuildId,
+    systemChannel,
+    channels: {
+      fetch: async id => {
+        fetchedChannelId = id;
+        return id === welcomeChannel.id ? welcomeChannel : null;
+      }
+    }
+  };
+  assert.equal(await service.resolveWelcomeChannel(coopftGuild), welcomeChannel);
+  assert.equal(fetchedChannelId, "coopft-welcome");
+
+  const fsGuild = {
+    id: fsGuildId,
+    systemChannel: { id: "fs-server-boosts", guildId: fsGuildId, isTextBased: () => true },
+    channels: { fetch: async () => { throw new Error("Fukishokai channel fetch must never occur"); } }
+  };
+  assert.equal(await service.resolveWelcomeChannel(fsGuild), null);
+});
+
+test("welcome routing never falls back to a server system channel when CoopFT welcome is missing", async () => {
+  const coopftGuildId = "coopft-guild";
+  const systemChannel = { id: "server-boosts", guildId: coopftGuildId, isTextBased: () => true };
+  const pool = { query: async () => ({ rows: [] }) };
+  const coopftCommunity = { getResource: async () => null };
+  const service = new MemberLifecycleService(pool, { coopftGuildId, coopftCommunity });
+  const guild = {
+    id: coopftGuildId,
+    systemChannel,
+    channels: { fetch: async () => null }
+  };
+  assert.equal(await service.resolveWelcomeChannel(guild), null);
+});
+
 test("server audit changes are rendered as readable before-and-after details", () => {
   const rendered = auditChangesText({
     changes: [
