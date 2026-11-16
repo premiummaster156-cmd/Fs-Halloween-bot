@@ -348,6 +348,10 @@ async function start() {
             await coopftCommunity.handleTicketIntakeModal(interaction);
             return;
           }
+          if (interaction.isButton() && interaction.customId?.startsWith("cf-application-control:")) {
+            await coopftCommunity.handleApplicationControlButton(interaction);
+            return;
+          }
           if (interaction.isButton() && interaction.customId?.startsWith("cf-application:")) {
             await coopftCommunity.handleApplicationButton(interaction);
             return;
