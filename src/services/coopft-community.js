@@ -1529,7 +1529,7 @@ class CoopFTCommunityService {
     }
 
     const category = await this.getTicketCategory(guild);
-    if (!category) throw new Error("The ticket category is not set up. Ask an administrator to run /coopft-setup.");
+    if (!category) throw new Error("The ticket category is not set up. Ask an administrator to run `npm run coopft:setup` from the hosting console.");
     const me = guild.members.me || await guild.members.fetchMe();
     const staffRoles = STAFF_RANKS.map((spec) => this.roles.get(spec.key)).filter(Boolean);
     const overwrites = [
