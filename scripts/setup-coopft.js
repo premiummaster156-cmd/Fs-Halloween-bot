@@ -34,8 +34,9 @@ async function runCoopFTSetup(options = {}) {
   const databasePool = options.databasePool || pool;
   const migrateDatabase = options.migrateDatabase || migrateCoopFT;
   const createClient = options.clientFactory || (() => new Client({
-    // Setup only needs guild/resource access. It does not enumerate members.
-    intents: [GatewayIntentBits.Guilds]
+    // The approved GuildMembers intent is required to build the live staff directory
+    // from actual member role assignments during setup.
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
   }));
   const createService = options.serviceFactory ||
     ((pg, configuredGuildId) => new CoopFTCommunityService(pg, { guildId: configuredGuildId }));
