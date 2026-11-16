@@ -69,8 +69,8 @@ if(n==="onboarding-setup"){
  const isInterestsPrompt=prompt=>{
   const title=String(prompt.title||"").trim().toLowerCase();
   const normalized=title.replace(/[^a-z0-9]+/g," ").trim();
-  return /\\binterest(?:s|ed)?\\b/.test(normalized) ||
-   /\\btopics?\\b/.test(normalized) && /\\bwhat|which|explore|like\\b/.test(normalized);
+  return /\binterest(?:s|ed)?\b/.test(normalized) ||
+   /\btopics?\b/.test(normalized) && /\bwhat|which|explore|like\b/.test(normalized);
  };
  const prompts=existingPrompts
   .filter(prompt=>!isInterestsPrompt(prompt))
