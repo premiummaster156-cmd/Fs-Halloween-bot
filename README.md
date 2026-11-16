@@ -4,7 +4,7 @@ A Fukishokai-branded Discord economy game and Halloween event bot. It shares one
 
 ## Separate CoopFT community server
 
-The same Discord application also supports a separate **CoopFT** community persona for server `1498271944456540210`. CoopFT receives its own 10 staff ranks, 5 HR roles, 5 specialist application positions, custom illustrated emoji pack, community/voice channels, rules banner, role explanations, private application review and ticket systems, directory and private audit logs; Fukishokai economy/game commands are intentionally disabled there. The bot uses a per-server nickname, command routing and branding rather than pretending to be two separate Discord bot accounts.
+The same Discord application also supports a separate **CoopFT** community persona for server `1498271944456540210`. CoopFT receives its own 17-rank staff hierarchy, custom illustrated emoji pack, community/voice channels, rules banner, private application review, guided two-section ticket intake, staff directory, 50 server-operations slash commands and private audit logs; Fukishokai economy/game commands are intentionally disabled there. The shared Discord application uses isolated per-server nicknames, command routing, data and branding, so the two server personas behave independently without claiming to be separate Discord bot accounts.
 
 See the dedicated [CoopFT setup and operations guide](docs/COOPFT_SETUP.md) for its complete channel layout, role descriptions, custom emoji pack, rules embed, five-role application workflow, tickets, permissions, lifecycle logging, audit logging and deployment steps.
 
