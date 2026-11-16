@@ -72,8 +72,21 @@ if(n==="onboarding-setup"){
  const visible=[...channels.values()]
   .filter(channel=>channel&&[ChannelType.GuildText,ChannelType.GuildAnnouncement].includes(channel.type)&&!channel.nsfw&&channel.permissionsFor(everyone)?.has(P.ViewChannel))
   .sort((a,b)=>(a.rawPosition||a.position||0)-(b.rawPosition||b.position||0));
+ // Discord requires five sendable default channels. Keep read-only announcements,
+ // rules, welcome, application panels and ticket panels locked; enable chat only in
+ // the five intended community conversation channels.
+ const chatChannelNames=["introductions","general","media","showcase","your-creation"];
+ const chatChannels=[];
+ for(const name of chatChannelNames){
+  const channel=visible.find(item=>String(item.name||"").toLowerCase().replace(/[^a-z0-9-]/g,"")===name.replace(/[^a-z0-9-]/g,""));
+  if(!channel)continue;
+  if(!channel.permissionsFor(everyone)?.has(P.SendMessages)){
+   await channel.permissionOverwrites.edit(g.id,{SendMessages:true},"Enable Discord onboarding default conversation channel");
+  }
+  chatChannels.push(channel);
+ }
  const sendable=visible.filter(channel=>channel.permissionsFor(everyone)?.has(P.SendMessages));
- if(sendable.length<5||visible.length<7)throw Error("Discord needs 7 default text channels, and at least 5 must allow @everyone to send messages. I found "+visible.length+" public text channels, including "+sendable.length+" sendable channels. Create or expose the required channels, then rerun this command. No onboarding settings were changed.");
+ if(sendable.length<5||visible.length<7)throw Error("Discord needs 7 default text channels, with at least 5 allowing @everyone to send messages. I found "+visible.length+" public text channels and "+sendable.length+" sendable channels after checking the five intended conversation channels (introductions, general, media, showcase and your-creation). Make sure these channels exist and the bot can manage their permissions, then rerun. Read-only announcement, rules, application and ticket panels were not opened.");
  const defaultChannels=[...sendable.slice(0,7)];
  if(defaultChannels.length<7)defaultChannels.push(...visible.filter(channel=>!defaultChannels.some(item=>item.id===channel.id)).slice(0,7-defaultChannels.length));
  const extraChannels=visible.filter(channel=>!defaultChannels.some(item=>item.id===channel.id)).slice(0,25);
