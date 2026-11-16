@@ -208,13 +208,22 @@ if(n==="onboarding-setup"){
     };
    })
   }));
- const prompts=[
-  ...oldPrompts,
-  makePrompt("What topics are you interested in?",interestOptions),
-  makePrompt("Which updates would you like to receive?",pingOptions),
-  makePrompt("Which spaces should we add to your channel list?",channelOptions)
+ const availableSlots=5-oldPrompts.length;
+ if(availableSlots<1)throw Error("Discord already has 5 custom onboarding questions. Remove at least 1 question in Server Settings so CoopFT can add its member preference choices, then rerun /onboarding-setup.");
+ // Discord permits only five prompts in total. Combine the two role-based
+ // preference groups so three existing custom questions can remain untouched.
+ const preferenceOptions=[
+  ...interestOptions.map(option=>({...option,description:"Interest · "+option.description})),
+  ...pingOptions.map(option=>({...option,description:"Notification · "+option.description}))
  ];
- if(prompts.length>5)throw Error("Discord allows up to 5 onboarding questions. There are "+oldPrompts.length+" existing custom questions; remove "+(prompts.length-5)+" or more in Server Settings, then rerun /onboarding-setup.");
+ const generatedPrompts=[
+  makePrompt("What are you interested in and what updates do you want?",preferenceOptions)
+ ];
+ if(availableSlots>=2){
+  generatedPrompts.push(makePrompt("Which spaces should we add to your channel list?",channelOptions));
+ }
+ const prompts=[...oldPrompts,...generatedPrompts];
+ if(prompts.length>5)throw Error("Discord allows up to 5 onboarding questions. Remove an existing custom question and rerun /onboarding-setup.");
  const jsonSafe=JSON.stringify(prompts);
  if(typeof jsonSafe!=="string")throw Error("Onboarding data could not be prepared safely. No onboarding settings were changed.");
  await g.editOnboarding({
@@ -224,7 +233,10 @@ if(n==="onboarding-setup"){
   prompts,
   reason:"Server owner requested automatic community onboarding setup"
  });
- return say(i,"Discord onboarding is enabled with **3 interactive questions**: community interests, notification preferences and channel shortcuts. It includes "+interestOptions.length+" interest roles, "+pingOptions.length+" notification roles and "+channelOptions.length+" channel choices. Members can update their selections later in Channels & Roles.");
+ const channelMessage=generatedPrompts.length===2
+  ? " plus "+channelOptions.length+" channel shortcuts"
+  : "; channel shortcuts were skipped to preserve your existing questions";
+ return say(i,"Discord onboarding is enabled with **"+generatedPrompts.length+" new question(s)**. The preference question contains "+interestOptions.length+" interest roles and "+pingOptions.length+" notification roles"+channelMessage+". Existing custom questions were preserved. Members can update their selections later in Channels & Roles.");
 }
 
 if(n==="coopft-public-access"){
