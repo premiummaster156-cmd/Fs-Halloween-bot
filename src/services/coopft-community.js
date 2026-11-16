@@ -843,16 +843,24 @@ class CoopFTCommunityService {
     return { channel, created };
   }
 
-  async removeManagedChannel(guild, key) {
+  async removeManagedChannel(guild, key, expectedName = null) {
     this.assertCoopFTGuild(guild, "remove a CoopFT-managed channel");
     const resourceKey = "channel:" + key;
     const savedId = await this.getResource(guild.id, resourceKey);
     if (!savedId) return false;
     const channel = await guild.channels.fetch(savedId).catch(() => null);
-    if (!channel) return false;
-    if (channel.topic !== "cf1:" + key) return false;
+    if (!channel) {
+      await this.setSetting(guild.id, "resource:" + resourceKey, null);
+      return false;
+    }
+    // For retired keys, require either the original marker or both the exact
+    // saved resource ID and expected legacy name before deleting anything.
+    if (channel.topic !== "cf1:" + key && (!expectedName || channel.name !== expectedName)) return false;
     await channel.delete("Remove retired CoopFT-managed channel: " + key);
     await this.setSetting(guild.id, "resource:" + resourceKey, null);
+    if (key === "staff_team") {
+      await this.setSetting(guild.id, "resource:message:directory:staff_team", null);
+    }
     return true;
   }
 
@@ -929,7 +937,7 @@ class CoopFTCommunityService {
     };
 
     await this.removeManagedChannel(guild, "help_study");
-    await this.removeManagedChannel(guild, "staff_directory");
+    await this.removeManagedChannel(guild, "staff_team", "⌖・staff-team");
     await this.removeRetiredRoleGuide(guild);
     const startCategory = (await this.ensureCategory(guild, "start_here", CATEGORY_NAMES.start_here)).channel;
     const communityCategory = (await this.ensureCategory(guild, "community", CATEGORY_NAMES.community)).channel;
@@ -2890,69 +2898,6 @@ class CoopFTCommunityService {
     await this.postStaffUpdate(member.guild, "<@" + member.id + "> left the server. Their staff directory entry has been set inactive.");
   }
 
-  buildStaffBanner() {
-    const { createCanvas } = require("@napi-rs/canvas");
-    const canvas = createCanvas(1200, 360);
-    const ctx = canvas.getContext("2d");
-    const bg = ctx.createLinearGradient(0, 0, 1200, 360);
-    bg.addColorStop(0, "#08090D");
-    bg.addColorStop(0.52, "#171116");
-    bg.addColorStop(1, "#090A0F");
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, 1200, 360);
-    const glow = ctx.createRadialGradient(600, 150, 20, 600, 150, 680);
-    glow.addColorStop(0, "rgba(164,31,51,0.30)");
-    glow.addColorStop(0.58, "rgba(70,20,35,0.12)");
-    glow.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, 1200, 360);
-    ctx.strokeStyle = "rgba(221,65,83,0.88)";
-    ctx.lineWidth = 3;
-    ctx.strokeRect(22, 20, 1156, 320);
-    ctx.strokeStyle = "rgba(255,255,255,0.12)";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(36, 34, 1128, 292);
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#F5F0ED";
-    ctx.shadowColor = "rgba(0,0,0,0.8)";
-    ctx.shadowBlur = 16;
-    ctx.font = "bold 56px Arial";
-    ctx.fillText("COOPFT", 600, 86);
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = "#E45767";
-    ctx.font = "bold 26px Arial";
-    ctx.fillText("STAFF DIRECTORY", 600, 122);
-
-    const groups = [
-      { label: "OWNER RANK", color: "#D85A67", accent: "#8C2635" },
-      { label: "HIGH RANK", color: "#74B8E8", accent: "#2769A6" },
-      { label: "LOW RANK", color: "#6CC7D2", accent: "#287E8C" },
-      { label: "MOD ROLES", color: "#B99AE5", accent: "#693E9C" }
-    ];
-    const width = 250, gap = 22, left = 78, top = 158, height = 104;
-    groups.forEach((group, index) => {
-      const x = left + index * (width + gap);
-      const card = ctx.createLinearGradient(x, top, x + width, top + height);
-      card.addColorStop(0, "rgba(28,25,31,0.95)");
-      card.addColorStop(1, "rgba(12,13,18,0.95)");
-      ctx.fillStyle = card;
-      ctx.fillRect(x, top, width, height);
-      ctx.strokeStyle = group.accent;
-      ctx.lineWidth = 3;
-      ctx.strokeRect(x, top, width, height);
-      ctx.fillStyle = group.color;
-      ctx.beginPath();
-      ctx.arc(x + width / 2, top + 28, 8, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.font = "bold 20px Arial";
-      ctx.fillText(group.label, x + width / 2, top + 70);
-    });
-    ctx.fillStyle = "rgba(244,235,232,0.78)";
-    ctx.font = "18px Arial";
-    ctx.fillText("LEADERSHIP  •  OPERATIONS  •  COMMUNITY", 600, 300);
-    return canvas.toBuffer("image/png");
-  }
-
   async buildStaffDirectoryEmbed(guild) {
     this.assertCoopFTGuild(guild, "build the CoopFT staff directory");
     if (!this.memberRosterLoaded) {
@@ -2982,10 +2927,10 @@ class CoopFTCommunityService {
       return "MOD ROLES";
     };
     const sections = [
-      { name: "OWNER RANK", title: "The royal family", emoji: "cf3d_owner_crest", fallback: "👑" },
-      { name: "HIGH RANK", title: "Wings", emoji: "cf3d_war", fallback: "🪽" },
-      { name: "LOW RANK", title: "High order", emoji: "cf3d_low_rank", fallback: "⚖️" },
-      { name: "MOD ROLES", title: "Moderation", emoji: "cf3d_mod_rank", fallback: "🛡️" }
+      { name: "OWNER RANK", title: "OWNER RANK", emoji: "cf3d_owner_crest", fallback: "👑" },
+      { name: "HIGH RANK", title: "HIGH RANK", emoji: "cf3d_high_rank", fallback: "🐉" },
+      { name: "LOW RANK", title: "LOW RANK", emoji: "cf3d_low_rank", fallback: "⚖️" },
+      { name: "MOD ROLES", title: "MOD ROLES", emoji: "cf3d_mod_rank", fallback: "⚔️" }
     ];
 
     const refreshedAt = Math.floor(Date.now() / 1000);
@@ -3100,34 +3045,28 @@ class CoopFTCommunityService {
   }
 
   async buildStaffDirectoryPayload(guild) {
-    const bannerEmbed = new EmbedBuilder()
-      .setColor(0x8C2635)
-      .setImage("attachment://coopft-staff-banner.png");
-    const directoryEmbed = await this.buildStaffDirectoryEmbed(guild);
+    const embed = await this.buildStaffDirectoryEmbed(guild);
     return {
-      // A separate image embed places the wide banner above the directory,
-      // matching the editorial staff-list layout requested by the server owner.
-      embeds: [bannerEmbed, directoryEmbed],
-      files: [new AttachmentBuilder(this.buildStaffBanner(), { name: "coopft-staff-banner.png" })],
+      embeds: [embed],
       allowedMentions: { parse: [] }
     };
   }
 
   async updateStaffDirectory(guild) {
     this.assertCoopFTGuild(guild, "update the CoopFT staff directory");
-    const basePayload = await this.buildStaffDirectoryPayload(guild);
-    for (const key of ["staff_team"]) {
-      const channelId = await this.getResource(guild.id, "channel:" + key);
-      const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
-      if (!channel?.isTextBased?.()) continue;
-      const messageId = await this.getResource(guild.id, "message:directory:" + key);
-      let message = messageId ? await channel.messages.fetch(messageId).catch(() => null) : null;
-      const payload = { ...basePayload, attachments: [] };
-      if (message) await message.edit(payload);
-      else {
-        message = await channel.send(basePayload);
-        await this.saveResource(guild.id, "message:directory:" + key, message.id);
-      }
+    const payload = await this.buildStaffDirectoryPayload(guild);
+    const key = "staff_directory";
+    const channelId = await this.getResource(guild.id, "channel:" + key);
+    const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
+    if (!channel?.isTextBased?.()) return;
+    const messageId = await this.getResource(guild.id, "message:directory:" + key);
+    let message = messageId ? await channel.messages.fetch(messageId).catch(() => null) : null;
+    if (message) {
+      // Replacing the embed array and clearing attachments also removes the old banner.
+      await message.edit({ ...payload, attachments: [] });
+    } else {
+      message = await channel.send(payload);
+      await this.saveResource(guild.id, "message:directory:" + key, message.id);
     }
   }
 
