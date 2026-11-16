@@ -148,7 +148,7 @@ async function start() {
   if (settings.aiMessageMonitorEnabled) {
     console.warn("[discord] AI Watch is paused: Message Content Intent has not been approved.");
   }
-  console.info("[discord] Gateway intents: Guilds, GuildMessages, GuildModeration, GuildMembers (approved for join-raid events only).");
+  console.info("[discord] Gateway intents: Guilds, GuildMessages, GuildModeration, GuildMembers (approved; used for join events and CoopFT role-based directory sync).");
   const client = new Client({ intents: gatewayIntents });
   runtimeClient = client;
   guardEmitter(client, {
@@ -249,10 +249,12 @@ async function start() {
         coopMember?.setNickname("CoopFT • Assistant", "Per-server CoopFT identity").catch((error) =>
           console.warn("[coopft] Could not set server nickname:", error.message)
         );
-        coopftCommunity.loadManagedRoles(coopGuild).then((loaded) => {
+        coopftCommunity.loadManagedRoles(coopGuild).then(async (loaded) => {
           console.info("[coopft] Loaded managed role references:", loaded);
+          const directory = await coopftCommunity.startStaffDirectoryRefresh(coopGuild, 15000);
+          console.info("[coopft] Initial live staff directory sync completed:", directory);
         }).catch((error) => {
-          console.warn("[coopft] Could not load managed role references:", error.message);
+          console.warn("[coopft] Could not initialize CoopFT roles or live staff directory:", error.message);
         });
       }
     }
@@ -296,8 +298,10 @@ async function start() {
       console.error("[member-lifecycle] Could not process member join:", error.message)
     );
     if (member.guild.id === coopftGuildId) {
-      coopftCommunity.assignCommunityMemberRole(member).catch((error) =>
-        console.warn("[coopft] Could not assign the Community Member role:", error.message)
+      coopftCommunity.assignCommunityMemberRole(member).then(() =>
+        coopftCommunity.refreshStaffDirectory(member.guild)
+      ).catch((error) =>
+        console.warn("[coopft] Could not assign the Community Member role or refresh the staff directory:", error.message)
       );
     }
     if (member.guild.id === fukishokaiGuildId) {
@@ -305,6 +309,16 @@ async function start() {
         console.error("[raid-monitor] Could not process member join:", error.message)
       );
     }
+  });
+
+  client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
+    if (newMember.guild.id !== coopftGuildId) return;
+    const before = [...oldMember.roles.cache.keys()].sort().join(",");
+    const after = [...newMember.roles.cache.keys()].sort().join(",");
+    if (before === after) return;
+    coopftCommunity.refreshStaffDirectory(newMember.guild).catch((error) =>
+      console.warn("[coopft] Could not refresh the staff directory after a role update:", error.message)
+    );
   });
 
   client.on(Events.GuildMemberRemove, (member) => {
