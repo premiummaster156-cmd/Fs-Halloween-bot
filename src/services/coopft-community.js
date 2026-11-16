@@ -1617,7 +1617,7 @@ class CoopFTCommunityService {
     })?.key || null;
   }
 
-  assertStaffChangeAuthority(actor, target, guild, currentRankKey, nextRankKey = null) {  assertStaffChangeAuthority(actor, target, guild, currentRankKey, nextRankKey = null) {
+  assertStaffChangeAuthority(actor, target, guild, currentRankKey, nextRankKey = null) {
     if (actor?.id === guild.ownerId) return;
     if (!actor || !target || actor.id === target.id) {
       throw new Error("Ask another authorized CoopFT manager to make this staff change.");
