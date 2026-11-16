@@ -79,7 +79,6 @@ const PUBLIC_CHANNELS = Object.freeze([
   { key: "rules", name: "§・rules" },
   { key: "announcements", name: "▰・announcements", channelType: "announcement", fallbackChannelType: "text" },
   { key: "introductions", name: "◌・introductions" },
-  { key: "role_guide", name: "▤・role-explanations" },
   { key: "general", name: "◈・general" },
   { key: "media", name: "▧・media" },
   { key: "showcase", name: "◇・showcase" },
