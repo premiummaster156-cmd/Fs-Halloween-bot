@@ -70,7 +70,7 @@ if(n==="onboarding-setup"){
  const channels=await g.channels.fetch();
  const everyone=g.roles.everyone;
  const visible=[...channels.values()]
-  .filter(channel=>[ChannelType.GuildText,ChannelType.GuildAnnouncement].includes(channel.type)&&!channel.nsfw&&channel.permissionsFor(everyone)?.has(P.ViewChannel))
+  .filter(channel=>channel&&[ChannelType.GuildText,ChannelType.GuildAnnouncement].includes(channel.type)&&!channel.nsfw&&channel.permissionsFor(everyone)?.has(P.ViewChannel))
   .sort((a,b)=>(a.rawPosition||a.position||0)-(b.rawPosition||b.position||0));
  const sendable=visible.filter(channel=>channel.permissionsFor(everyone)?.has(P.SendMessages));
  if(sendable.length<5||visible.length<7)throw Error("Discord needs 7 default text channels, and at least 5 must allow @everyone to send messages. I found "+visible.length+" public text channels, including "+sendable.length+" sendable channels. Create or expose the required channels, then rerun this command. No onboarding settings were changed.");
