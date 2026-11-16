@@ -84,34 +84,34 @@ const ROLE_BRACKETS = Object.freeze([
 ]);
 const BOT_ROLES = Object.freeze([{ key: "bot_coopft_assistant", name: "CoopFT Assistant", emoji: "cf3d_bots", icon: "🤖", primary: 0x63738A, secondary: 0x9DAFC7, permissions: 0n, hoist: false, mentionable: false }]);
 const MEMBER_ROLES = Object.freeze([
-  { key: "community_member", name: "Community Member", emoji: "cf3d_member", icon: "👤", primary: 0x527D9D, secondary: 0x8CB6D2, permissions: 0n },
-  { key: "verified_member", name: "Verified", emoji: "cf3d_verified", icon: "✅", primary: 0x3184B8, secondary: 0x78C9F1, permissions: 0n },
-  { key: "vip_member", name: "VIP", emoji: "cf3d_vip", icon: "💎", primary: 0xB88B37, secondary: 0xF1D07A, permissions: 0n },
-  { key: "contributor_member", name: "Contributor", emoji: "cf3d_contributor", icon: "🤝", primary: 0x7A58A5, secondary: 0xB79BDF, permissions: 0n },
-  { key: "event_winner", name: "Event Winner", emoji: "cf3d_star", icon: "🏆", primary: 0xB57C2E, secondary: 0xE8BE64, permissions: 0n },
-  { key: "content_creator", name: "Content Creator", emoji: "cf3d_creator", icon: "🎨", primary: 0xA35D77, secondary: 0xE4A3BC, permissions: 0n },
-  { key: "developer_member", name: "Developer", emoji: "cf3d_developer", icon: "💻", primary: 0x397C94, secondary: 0x73C2D7, permissions: 0n },
-  { key: "artist_member", name: "Artist", emoji: "cf3d_artist", icon: "🖌️", primary: 0x8E5BA5, secondary: 0xC69DE0, permissions: 0n }
+  { key: "community_member", name: "Community Member", emoji: "cf3d_member", icon: "👤", primary: 0x527D9D, secondary: 0x8CB6D2, permissions: 0n, hoist: false },
+  { key: "verified_member", name: "Verified", emoji: "cf3d_verified", icon: "✅", primary: 0x3184B8, secondary: 0x78C9F1, permissions: 0n, hoist: false },
+  { key: "vip_member", name: "VIP", emoji: "cf3d_vip", icon: "💎", primary: 0xB88B37, secondary: 0xF1D07A, permissions: 0n, hoist: false },
+  { key: "contributor_member", name: "Contributor", emoji: "cf3d_contributor", icon: "🤝", primary: 0x7A58A5, secondary: 0xB79BDF, permissions: 0n, hoist: false },
+  { key: "event_winner", name: "Event Winner", emoji: "cf3d_star", icon: "🏆", primary: 0xB57C2E, secondary: 0xE8BE64, permissions: 0n, hoist: false },
+  { key: "content_creator", name: "Content Creator", emoji: "cf3d_creator", icon: "🎨", primary: 0xA35D77, secondary: 0xE4A3BC, permissions: 0n, hoist: false },
+  { key: "developer_member", name: "Developer", emoji: "cf3d_developer", icon: "💻", primary: 0x397C94, secondary: 0x73C2D7, permissions: 0n, hoist: false },
+  { key: "artist_member", name: "Artist", emoji: "cf3d_artist", icon: "🖌️", primary: 0x8E5BA5, secondary: 0xC69DE0, permissions: 0n, hoist: false }
 ]);
 const INTEREST_ROLES = Object.freeze([
-  { key: "interest_gaming", name: "Gaming", emoji: "cf3d_gaming", icon: "🎮", primary: 0x5274A8, secondary: 0x8BAEEA, permissions: 0n },
-  { key: "interest_programming", name: "Programming", emoji: "cf3d_programming", icon: "💻", primary: 0x367D88, secondary: 0x76C6D0, permissions: 0n },
-  { key: "interest_art", name: "Art & Design", emoji: "cf3d_design", icon: "🎨", primary: 0x925FA5, secondary: 0xCEA2E1, permissions: 0n },
-  { key: "interest_music", name: "Music", emoji: "cf3d_music", icon: "🎵", primary: 0xA45D83, secondary: 0xE29DC0, permissions: 0n },
-  { key: "interest_anime", name: "Anime", emoji: "cf3d_anime", icon: "🌸", primary: 0xB45E83, secondary: 0xEDA8C3, permissions: 0n },
-  { key: "interest_technology", name: "Technology", emoji: "cf3d_gear", icon: "⚙️", primary: 0x4A718F, secondary: 0x91B7D4, permissions: 0n },
-  { key: "interest_voice", name: "Voice Chat", emoji: "cf3d_voice", icon: "🎙️", primary: 0x39868C, secondary: 0x7FD1CE, permissions: 0n },
-  { key: "interest_events", name: "Community Events", emoji: "cf3d_event_ping", icon: "🎟️", primary: 0xA87838, secondary: 0xE6BA6E, permissions: 0n }
+  { key: "interest_gaming", name: "Gaming", emoji: "cf3d_gaming", icon: "🎮", primary: 0x5274A8, secondary: 0x8BAEEA, permissions: 0n, hoist: false },
+  { key: "interest_programming", name: "Programming", emoji: "cf3d_programming", icon: "💻", primary: 0x367D88, secondary: 0x76C6D0, permissions: 0n, hoist: false },
+  { key: "interest_art", name: "Art & Design", emoji: "cf3d_design", icon: "🎨", primary: 0x925FA5, secondary: 0xCEA2E1, permissions: 0n, hoist: false },
+  { key: "interest_music", name: "Music", emoji: "cf3d_music", icon: "🎵", primary: 0xA45D83, secondary: 0xE29DC0, permissions: 0n, hoist: false },
+  { key: "interest_anime", name: "Anime", emoji: "cf3d_anime", icon: "🌸", primary: 0xB45E83, secondary: 0xEDA8C3, permissions: 0n, hoist: false },
+  { key: "interest_technology", name: "Technology", emoji: "cf3d_gear", icon: "⚙️", primary: 0x4A718F, secondary: 0x91B7D4, permissions: 0n, hoist: false },
+  { key: "interest_voice", name: "Voice Chat", emoji: "cf3d_voice", icon: "🎙️", primary: 0x39868C, secondary: 0x7FD1CE, permissions: 0n, hoist: false },
+  { key: "interest_events", name: "Community Events", emoji: "cf3d_event_ping", icon: "🎟️", primary: 0xA87838, secondary: 0xE6BA6E, permissions: 0n, hoist: false }
 ]);
 const PING_ROLES = Object.freeze([
-  { key: "ping_announcements", name: "Announcements Ping", emoji: "cf3d_announcement_ping", icon: "📢", primary: 0xA24C43, secondary: 0xE18B7B, permissions: 0n, mentionable: false },
-  { key: "ping_events", name: "Events Ping", emoji: "cf3d_event_ping", icon: "📅", primary: 0xA87936, secondary: 0xE8BA68, permissions: 0n, mentionable: false },
-  { key: "ping_giveaways", name: "Giveaways Ping", emoji: "cf3d_giveaway_ping", icon: "🎁", primary: 0x94713B, secondary: 0xD7B56C, permissions: 0n, mentionable: false },
-  { key: "ping_community", name: "Community Updates Ping", emoji: "cf3d_updates_ping", icon: "🔔", primary: 0x477C82, secondary: 0x81C8C0, permissions: 0n, mentionable: false },
-  { key: "ping_game_nights", name: "Game Nights Ping", emoji: "cf3d_gaming", icon: "🎮", primary: 0x4F62A3, secondary: 0x909DE7, permissions: 0n, mentionable: false },
-  { key: "ping_bot_updates", name: "Bot Updates Ping", emoji: "cf3d_bots", icon: "🤖", primary: 0x596575, secondary: 0xA3B1C5, permissions: 0n, mentionable: false },
-  { key: "ping_lfg", name: "Looking for Group Ping", emoji: "cf3d_war", icon: "⚔️", primary: 0x526E99, secondary: 0x90B2E0, permissions: 0n, mentionable: false },
-  { key: "ping_voice", name: "Voice Activities Ping", emoji: "cf3d_voice", icon: "🎙️", primary: 0x39868C, secondary: 0x7FD1CE, permissions: 0n, mentionable: false }
+  { key: "ping_announcements", name: "Announcements Ping", emoji: "cf3d_announcement_ping", icon: "📢", primary: 0xA24C43, secondary: 0xE18B7B, permissions: 0n, mentionable: true, hoist: false },
+  { key: "ping_events", name: "Events Ping", emoji: "cf3d_event_ping", icon: "📅", primary: 0xA87936, secondary: 0xE8BA68, permissions: 0n, mentionable: true, hoist: false },
+  { key: "ping_giveaways", name: "Giveaways Ping", emoji: "cf3d_giveaway_ping", icon: "🎁", primary: 0x94713B, secondary: 0xD7B56C, permissions: 0n, mentionable: true, hoist: false },
+  { key: "ping_community", name: "Community Updates Ping", emoji: "cf3d_updates_ping", icon: "🔔", primary: 0x477C82, secondary: 0x81C8C0, permissions: 0n, mentionable: true, hoist: false },
+  { key: "ping_game_nights", name: "Game Nights Ping", emoji: "cf3d_gaming", icon: "🎮", primary: 0x4F62A3, secondary: 0x909DE7, permissions: 0n, mentionable: true, hoist: false },
+  { key: "ping_bot_updates", name: "Bot Updates Ping", emoji: "cf3d_bots", icon: "🤖", primary: 0x596575, secondary: 0xA3B1C5, permissions: 0n, mentionable: true, hoist: false },
+  { key: "ping_lfg", name: "Looking for Group Ping", emoji: "cf3d_war", icon: "⚔️", primary: 0x526E99, secondary: 0x90B2E0, permissions: 0n, mentionable: true, hoist: false },
+  { key: "ping_voice", name: "Voice Activities Ping", emoji: "cf3d_voice", icon: "🎙️", primary: 0x39868C, secondary: 0x7FD1CE, permissions: 0n, mentionable: true, hoist: false }
 ]);
 const ROLE_LAYOUT = Object.freeze([
   { bracket: "owner_rank", roles: ["owner", "co_owner", "monarch"] },
