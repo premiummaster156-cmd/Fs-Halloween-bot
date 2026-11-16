@@ -1057,6 +1057,7 @@ class CoopFTCommunityService {
     await this.ensureApplicationControlPanel(guild, privateByKey.application_control);
     await this.ensureStaffGuide(guild, privateByKey.staff_guide);
     await this.ensureBrandMessages(guild, publicByKey);
+    await this.ensureCustomBotRequestPanel(guild, publicByKey.custom_bot_requests);
     if (cleanup.awaitingConfirmation) {
       const previewAnnounced = await this.getSetting(guild.id, "role_cleanup_preview_announced");
       if (!previewAnnounced) {
@@ -2241,8 +2242,9 @@ class CoopFTCommunityService {
         "**CoopFT Server**",
         "Server bugs, community suggestions, member reports, staff concerns, general support and partnership enquiries.",
         "",
-        "**Custom Bot Development**",
-        "Commission a new custom bot or a defined feature build. Approved Developers can view and manage these private project tickets.",
+        "**Custom Bot Development — paid commission**",
+        "Commission a new custom bot or a defined feature build. Pricing depends on scope and features; Robux or Discord Nitro only. Payment goes only to Cookie/Brian or another verified Owner Rank member after the quote is confirmed.",
+        "Current delivery is a ZIP folder of code only. Hosting, deployment and 24/7 operation are not currently available.",
         "",
         "Your form answers are copied into the private ticket. One open ticket per member is allowed."
       ].join("\n"))
@@ -2540,6 +2542,19 @@ class CoopFTCommunityService {
     ];
     for (const [label, value] of Object.entries(ticketData.answers)) {
       fields.push({ name: label.slice(0, 256), value: value.slice(0, 1024) || "Not provided", inline: false });
+    }
+    if (ticketType === "custom_bot_request") {
+      fields.push({
+        name: "Commission terms — please read before proceeding",
+        value: [
+          "Paid commission. Accepted payment: **Robux or Discord Nitro only**.",
+          "The final price is quoted by Owner Rank after reviewing the scope, features and integrations.",
+          "Payment may go only to **Cookie/Brian (server Owner)** or another verified Owner Rank member. Developers and other staff do not collect payment.",
+          "Current delivery: **ZIP folder of code only**. Hosting, deployment and 24/7 operation are not currently offered.",
+          "Do not pay until Owner Rank confirms the exact quote and recipient in this ticket."
+        ].join("\n"),
+        inline: false
+      });
     }
     const embed = new EmbedBuilder().setColor(0x314D7A)
       .setTitle(this.emoji(guild.id, info.icon, info.fallback) + "  " + info.label)
