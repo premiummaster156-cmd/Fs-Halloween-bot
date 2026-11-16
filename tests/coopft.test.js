@@ -36,12 +36,17 @@ test("CoopFT exposes focused setup, sync, panel and operational commands", () =>
     "event-cancel", "event-create", "event-list", "kick", "lock", "member-note-remove",
     "nickname", "note", "notes", "poll", "purge", "reset-nickname", "role-add",
     "role-remove", "slowmode", "suggestion", "suggestion-review", "ticket-add",
-    "ticket-claim", "ticket-close", "ticket-info", "ticket-list", "ticket-priority",
+    "ticket-claim", "ticket-close", "ticket-cooldown", "ticket-info", "ticket-list", "ticket-priority",
     "ticket-remove", "ticket-rename", "timeout", "unban", "unlock", "untimeout",
     "warn", "warnings"
   ];
   assert.deepEqual([...commands.keys()].sort(), expected.sort());
   for (const command of commands.values()) assert.doesNotThrow(() => command.data.toJSON());
+  const cooldown = commands.get("ticket-cooldown").data.toJSON();
+  assert.deepEqual(cooldown.options.map((option) => option.name), ["member", "ticket_type", "reason"]);
+  assert.deepEqual(cooldown.options[1].choices.map((choice) => choice.value), [
+    "custom_bot_request", "partnership", "member_report", "staff_report", "bot_exploit"
+  ]);
   for (const configCommand of ["coopft-setup", "coopft-roles-sync", "coopft-channels-sync", "coopft-channel-decorate", "coopft-panel", "coopft-ticket-config"]) {
     assert.equal(commands.has(configCommand), true, configCommand + " must be available");
   }
