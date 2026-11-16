@@ -57,15 +57,15 @@ The `staff-team` channel contains one maintained staff-directory embed, not a se
 
 The public `rules` channel receives one concise community-code embed with a wide branded banner, six readable rule sections and a restrained red/charcoal visual theme. If the optional banner attachment fails, setup retries with the text-only version. If the rules post itself cannot be published, setup fails rather than reporting completion.
 
-The redundant `role-explanations` channel is retired. Previously saved bot-authored information posts in welcome, introductions, announcements, suggestions and bot-updates are removed so those channels remain available for real conversations. The only persistent public information panels are the rules, application, ticket and role-selection panels. The private `staff-guide` channel contains the full staff handbook as four compact posts with seven sections. It is read-only for staff and approved Developers.
+The redundant `role-explanations` channel is retired. Previously saved bot-authored information posts in welcome, introductions, announcements, suggestions and bot-updates are removed so those channels remain available for real conversations. The only persistent public information panels are the rules, application, ticket and role-selection panels. The private `staff-guide` channel contains the full staff handbook as six paginated embeds: staff standards, moderation levels, report handling, privacy and escalation, staff conduct and promotions, and the Developer playbook. It is read-only for staff and approved Developers.
 
 ## Staff guide and Developer role
 
 The private `staff-guide` channel contains the CoopFT handbook: staff expectations, moderation workflow, warning severity, context and evidence, leadership-controlled bans and appeals, staff strikes and promotion timing, plus the separate Developer workflow.
 
-The Developer role is a specialist service role for custom Discord bots requested by members. Developers can read the staff guide and access their Custom Bot Commission tickets, but it grants no moderation or administration permissions. Developers cannot access the application review or recruitment-control channels.
+The Developer role is a specialist service role for custom Discord bots requested by members. Developers can read the staff guide and access Custom Bot Commission tickets, but it grants no moderation or administration permissions. Developers cannot access general staff channels, application review or recruitment controls. A private read-only `custom-bot-requests` channel explains the paid service terms. Payment is limited to Robux or Discord Nitro and can be received only by Cookie/Brian (server Owner) or another verified Owner Rank member after a quote is confirmed. The price is based on project scope and features. Current delivery is a ZIP folder containing the code only; hosting, deployment and 24/7 operation are not currently offered.
 
-The private recruitment-control panel is operated by Owner, Co-Owner or Monarch. Opening and closing recruitment updates the public application panel immediately. Application submissions and decisions remain restricted to the Owner Rank review channel.
+The private recruitment-control panel is operated by Owner, Co-Owner or Monarch only. Opening and closing recruitment updates the public application panel immediately. Application submissions, answers and decisions remain restricted to the Owner Rank review channel. Recruitment offers exactly three tracks: Junior Moderator, Moderator and Developer.
 
 ## Channels and tickets
 
@@ -102,6 +102,6 @@ The CoopFT-only migration sequence is:
 - `0003_coopft_application_notifications.sql` — legacy application-notification table, created only for upgrade compatibility.
 - `0004_coopft_staff_applications.sql` — legacy operational application compatibility and notification cleanup.
 - `0005_coopft_operations.sql` — CoopFT support, ticket data and operational records.
-- `0006_coopft_recruitment_tracks.sql` — limits pending recruitment to Junior Moderator, Moderator and Developer while preserving reviewed historical records.
+- `0006_coopft_developer_applications.sql` — adds the Developer recruitment key while preserving historical application records.
 
 The migrations use the shared schema-migration ledger but never load the main Fukishōkai schema or modify player-economy tables.
