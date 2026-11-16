@@ -1498,12 +1498,12 @@ class CoopFTCommunityService {
       .setTitle(this.emoji(guild.id, "cf3d_rules", "📜") + "  COOPFT | COMMUNITY CODE")
       .setDescription("Welcome to **CoopFT**. Keep this community safe, respectful and enjoyable for everyone. These standards apply to all members, including staff.")
       .addFields(
-        { name: this.emoji(guild.id, "cf3d_handshake", "🤝") + "  RESPECT PEOPLE", value: "Treat others with dignity. Harassment, hate speech, discrimination, threats, targeted abuse and personal attacks are not allowed.", inline: true },
-        { name: this.emoji(guild.id, "cf3d_spark", "✨") + "  KEEP IT CONSTRUCTIVE", value: "Use the right channels. Do not flood chats, spam mentions, disrupt conversations or deliberately provoke arguments.", inline: true },
-        { name: this.emoji(guild.id, "cf3d_shield", "🛡️") + "  KEEP COOPFT SAFE", value: "No scams, phishing, malware, malicious links, raids, impersonation or attempts to bypass moderation.", inline: true },
-        { name: this.emoji(guild.id, "cf3d_key", "🔐") + "  PROTECT PRIVACY", value: "Never publish passwords, tokens, private documents, personal addresses or someone else's private information.", inline: true },
-        { name: this.emoji(guild.id, "cf3d_announce", "📢") + "  ADVERTISING AND CONTENT", value: "Promotions and server invites need staff approval. Keep shared content appropriate and follow Discord's Terms and Community Guidelines.", inline: true },
-        { name: this.emoji(guild.id, "cf3d_ticket", "🎟️") + "  STAFF AND SUPPORT", value: "Follow reasonable staff instructions. Use **#suggestions** for ideas and **#open-a-ticket** for support, reports or appeals.", inline: true }
+        { name: this.emoji(guild.id, "cf3d_handshake", "🤝") + "  RESPECT PEOPLE", value: "Treat others with dignity. Harassment, hate speech, discrimination, threats, targeted abuse and personal attacks are not allowed.", inline: false },
+        { name: this.emoji(guild.id, "cf3d_spark", "✨") + "  KEEP IT CONSTRUCTIVE", value: "Use the right channels. Do not flood chats, spam mentions, disrupt conversations or deliberately provoke arguments.", inline: false },
+        { name: this.emoji(guild.id, "cf3d_shield", "🛡️") + "  KEEP COOPFT SAFE", value: "No scams, phishing, malware, malicious links, raids, impersonation or attempts to bypass moderation.", inline: false },
+        { name: this.emoji(guild.id, "cf3d_key", "🔐") + "  PROTECT PRIVACY", value: "Never publish passwords, tokens, private documents, personal addresses or someone else's private information.", inline: false },
+        { name: this.emoji(guild.id, "cf3d_announce", "📢") + "  ADVERTISING AND CONTENT", value: "Promotions and server invites need staff approval. Keep shared content appropriate and follow Discord's Terms and Community Guidelines.", inline: false },
+        { name: this.emoji(guild.id, "cf3d_ticket", "🎟️") + "  STAFF AND SUPPORT", value: "Follow reasonable staff instructions. Use **#suggestions** for ideas and **#open-a-ticket** for support, reports or appeals.", inline: false }
       )
       .setFooter({ text: "CoopFT • Respect the space. Elevate the community." })
       .setTimestamp();
