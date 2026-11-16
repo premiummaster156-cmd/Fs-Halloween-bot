@@ -1,7 +1,7 @@
 "use strict";
-const {SlashCommandBuilder,EmbedBuilder,PermissionFlagsBits:P,MessageFlags}=require("discord.js");
-const names="coopft-setup coopft-roles-sync coopft-channels-sync coopft-panel announce poll event-create event-list event-cancel slowmode lock unlock purge timeout untimeout kick ban unban warn warnings clear-warnings case note notes member-note-remove role-add role-remove nickname reset-nickname channel-topic channel-rename ticket-claim ticket-close ticket-add ticket-remove ticket-rename ticket-priority ticket-info ticket-list suggestion suggestion-review".split(" ");
-const desc="Create missing CoopFT resources without overwriting custom settings|Explicitly apply configured CoopFT role names, colors, permissions and order|Explicitly apply configured CoopFT channel names, categories and permissions|Publish or move a CoopFT panel|Publish announcement|Create poll|Schedule event|List events|Cancel event|Set slowmode|Lock channel|Unlock channel|Purge messages|Timeout member|Remove timeout|Kick member|Ban member|Unban user|Issue warning|View warnings|Clear warnings|Moderation case|Add staff note|View staff notes|Remove staff note|Assign role|Remove role|Set nickname|Reset nickname|Edit channel topic|Rename channel|Claim ticket|Close ticket|Add ticket member|Remove ticket member|Rename ticket|Set ticket priority|Ticket details|List tickets|Submit suggestion|Review suggestion".split("|");
+const {SlashCommandBuilder,EmbedBuilder,PermissionFlagsBits:P,MessageFlags,ChannelType}=require("discord.js");
+const names="coopft-setup coopft-roles-sync coopft-channels-sync coopft-panel coopft-ticket-config announce poll event-create event-list event-cancel slowmode lock unlock purge timeout untimeout kick ban unban warn warnings clear-warnings case note notes member-note-remove role-add role-remove nickname reset-nickname channel-topic channel-rename ticket-claim ticket-close ticket-add ticket-remove ticket-rename ticket-priority ticket-info ticket-list suggestion suggestion-review".split(" ");
+const desc="Create missing CoopFT resources without overwriting custom settings|Explicitly apply configured CoopFT role names, colors, permissions and order|Explicitly apply configured CoopFT channel names, categories and permissions|Publish or move a CoopFT panel|Configure ticket category and transcript archive|Publish announcement|Create poll|Schedule event|List events|Cancel event|Set slowmode|Lock channel|Unlock channel|Purge messages|Timeout member|Remove timeout|Kick member|Ban member|Unban user|Issue warning|View warnings|Clear warnings|Moderation case|Add staff note|View staff notes|Remove staff note|Assign role|Remove role|Set nickname|Reset nickname|Edit channel topic|Rename channel|Claim ticket|Close ticket|Add ticket member|Remove ticket member|Rename ticket|Set ticket priority|Ticket details|List tickets|Submit suggestion|Review suggestion".split("|");
 const staff=(i,s)=>{if(!s.coopft.isStaff(i.member))throw Error("CoopFT staff only.");};
 const ownerConfig=(i,s)=>{if(!s.coopft.canManageApplications(i.member,i.guild))throw Error("Only the server owner or Owner Rank can configure CoopFT.");};
 const lead=(i,s)=>{if(!s.coopft.canManageStaff(i.member,i.guild))throw Error("CoopFT leadership only.");};
@@ -26,6 +26,14 @@ if(n==="coopft-panel"){
  const target=i.options.getChannel("channel")||null;
  const result=await s.coopft.configurePanel(g,panel,target);
  return say(i,"Published **"+result.panel+"** panel in <#"+result.channelId+">.");
+}
+if(n==="coopft-ticket-config"){
+ ownerConfig(i,s);
+ const result=await s.coopft.configureTicketing(g,{
+  category:i.options.getChannel("category"),
+  transcriptChannel:i.options.getChannel("transcript")
+ });
+ return say(i,"Ticket routing saved. Category: "+(result.categoryId?"<#"+result.categoryId+">":"not configured")+". Transcript archive: "+(result.transcriptChannelId?"<#"+result.transcriptChannelId+">":"not configured")+".");
 }
 if(n==="announce"){staff(i,s);if(!i.memberPermissions.has(P.ManageGuild))throw Error("Manage Server required.");const dest=i.options.getChannel("channel"),title=i.options.getString("title"),msg=i.options.getString("message");if(!dest||!title||!msg)throw Error("Set channel, title and message.");const m=await dest.send({embeds:[new EmbedBuilder().setColor(0x8C1D32).setTitle(title).setDescription(msg).setTimestamp()],allowedMentions:{parse:[]}});return say(i,"Announcement: "+m.url);}
 if(n==="poll"){staff(i,s);if(!i.memberPermissions.has(P.ManageMessages))throw Error("Manage Messages required.");const q=i.options.getString("question"),raw=i.options.getString("options");if(!q||!raw)throw Error("Set question and choices separated by |.");const a=raw.split("|").map(x=>x.trim()).filter(Boolean),em=["1️⃣","2️⃣","3️⃣","4️⃣","5️⃣"];if(a.length<2||a.length>5)throw Error("Provide 2-5 choices.");const m=await c.send({embeds:[new EmbedBuilder().setTitle("COMMUNITY POLL").setDescription("**"+q+"**\n"+a.map((x,k)=>em[k]+" "+x).join("\n"))]});for(let k=0;k<a.length;k++)await m.react(em[k]);return say(i,"Poll: "+m.url);}
@@ -125,6 +133,10 @@ function loadCoopFTCommands(){
      {name:"Staff directory",value:"directory"}
     ));
    b.addChannelOption(o=>o.setName("channel").setDescription("Destination text channel (defaults to the saved channel)").setRequired(false));
+  }
+  if(n==="coopft-ticket-config"){
+   b.addChannelOption(o=>o.setName("category").setDescription("Category where new tickets will be created").addChannelTypes(ChannelType.GuildCategory).setRequired(false));
+   b.addChannelOption(o=>o.setName("transcript").setDescription("Text channel that receives closed-ticket transcripts").addChannelTypes(ChannelType.GuildText,ChannelType.GuildAnnouncement).setRequired(false));
   }
   for(const key of (schema[n]||[])){
    const [kind,label]=optionDefinitions[key];
