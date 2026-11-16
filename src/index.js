@@ -218,7 +218,6 @@ async function start() {
   console.log("[workspace] Restored " + restoredCommandFiles + " JavaScript command file(s).");
   client.services = {
     pool, balancing, economy, inventory, combat, guildSettings, security, raidMonitor, serverBoosters, customCommands,
-    memberLifecycle,
     partyGames: new PartyGameService(pool, economy),
     trades: new TradeService(pool),
     economyEvents,
