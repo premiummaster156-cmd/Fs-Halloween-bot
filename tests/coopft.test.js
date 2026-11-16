@@ -137,15 +137,28 @@ test("autorole and onboarding configuration commands reject non-owners", async (
 test("onboarding setup enables Discord onboarding and preserves existing prompts", async () => {
   const commands = loadCoopFTCommands();
   const everyone = { id: "guild-1" };
-  const channels = Array.from({ length: 10 }, (_, index) => ({
-    id: "channel-" + index,
-    guildId: "guild-1",
-    name: ["rules", "announcements", "general", "introductions", "help", "media", "events", "gaming", "art", "music"][index],
-    type: ChannelType.GuildText,
-    nsfw: false,
-    rawPosition: index,
-    permissionsFor: () => ({ has: () => true })
-  }));
+  const channels = Array.from({ length: 10 }, (_, index) => {
+    const name = ["rules", "announcements", "general", "introductions", "help", "media", "showcase", "your-creation", "events", "gaming"][index];
+    const sendable = new Set(["general", "introductions"]);
+    const overwrites = [];
+    return {
+      id: "channel-" + index,
+      guildId: "guild-1",
+      name,
+      type: ChannelType.GuildText,
+      nsfw: false,
+      rawPosition: index,
+      permissionOverwrites: {
+        edit: async (id, permissions) => {
+          overwrites.push({ id, permissions });
+          if (permissions.SendMessages === true) sendable.add(name);
+        }
+      },
+      permissionsFor: () => ({ has: permission => permission === PermissionFlagsBits.ViewChannel || (permission === PermissionFlagsBits.SendMessages && sendable.has(name)) }),
+      _sendable: sendable,
+      _overwrites: overwrites
+    };
+  });
   const role = { id: "role-1", name: "Existing role" };
   const existingChannel = channels[0];
   const existingPrompt = {
@@ -192,6 +205,16 @@ test("onboarding setup enables Discord onboarding and preserves existing prompts
   assert.equal(saved.enabled, true);
   assert.equal(saved.mode, 0);
   assert.equal(saved.defaultChannels.length, 7);
+  const everyoneSendable = channels.filter(channel => channel.permissionsFor(everyone).has(PermissionFlagsBits.SendMessages));
+  assert.ok(everyoneSendable.length >= 5);
+  for (const name of ["general", "introductions", "media", "showcase", "your-creation"]) {
+    const channel = channels.find(item => item.name === name);
+    assert.ok(channel.permissionsFor(everyone).has(PermissionFlagsBits.SendMessages), name + " should be sendable for onboarding");
+  }
+  for (const name of ["rules", "announcements"]) {
+    const channel = channels.find(item => item.name === name);
+    assert.ok(!channel.permissionsFor(everyone).has(PermissionFlagsBits.SendMessages), name + " must remain read-only");
+  }
   assert.equal(saved.prompts.length, 2);
   assert.equal(saved.prompts[0].title, "Existing question");
   assert.equal(saved.prompts[0].singleSelect, true);
