@@ -969,38 +969,59 @@ class CoopFTCommunityService {
       if (result.created) counts.createdChannels += 1;
     }
 
-    // Application answers are sensitive. Only the server owner and designated
-    // senior staff ranks may see the review queue.
-    const applicationReviewRoles = [...STAFF_MANAGER_KEYS]
+    // Applications contain personal information. Only the three Owner Ranks
+    // can read submissions or operate recruitment controls.
+    const ownerApplicationRoles = [...APPLICATION_MANAGER_KEYS]
       .map((key) => this.roles.get(key))
       .filter(Boolean);
-    const applicationReviewOverwrites = [
+    const nonOwnerStaffDeny = STAFF_RANKS
+      .filter((spec) => !APPLICATION_MANAGER_KEYS.has(spec.key))
+      .map((spec) => this.roles.get(spec.key))
+      .filter(Boolean)
+      .map((role) => ({ id: role.id, deny: [PermissionFlagsBits.ViewChannel] }));
+    const ownerAllow = ownerApplicationRoles.map((role) => ({
+      id: role.id,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.AttachFiles,
+        PermissionFlagsBits.EmbedLinks
+      ]
+    }));
+    const ownerOnlyOverwrites = [
       { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
       {
         id: me.id,
         allow: [
-          PermissionFlagsBits.ViewChannel,
-          PermissionFlagsBits.SendMessages,
-          PermissionFlagsBits.ReadMessageHistory,
-          PermissionFlagsBits.ManageChannels,
-          PermissionFlagsBits.AttachFiles,
-          PermissionFlagsBits.EmbedLinks
+          PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageChannels,
+          PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks
         ]
       },
-      ...applicationReviewRoles.map((role) => ({
-        id: role.id,
-        allow: [
-          PermissionFlagsBits.ViewChannel,
-          PermissionFlagsBits.SendMessages,
-          PermissionFlagsBits.ReadMessageHistory,
-          PermissionFlagsBits.AttachFiles,
-          PermissionFlagsBits.EmbedLinks
-        ]
-      }))
+      ...nonOwnerStaffDeny,
+      ...ownerAllow
     ];
     await privateByKey.application_review.permissionOverwrites.set(
-      applicationReviewOverwrites,
-      "Restrict CoopFT application reviews to designated senior staff"
+      ownerOnlyOverwrites,
+      "Restrict application submissions to Owner, Co-Owner and Monarch"
+    );
+    await privateByKey.application_control.permissionOverwrites.set(
+      ownerOnlyOverwrites,
+      "Restrict recruitment controls to Owner, Co-Owner and Monarch"
+    );
+
+    const staffGuideOverwrites = await this.staffPermissionOverwrites(guild);
+    const developerRole = this.roles.get("developer_member");
+    if (developerRole) {
+      staffGuideOverwrites.push({
+        id: developerRole.id,
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory]
+      });
+    }
+    await privateByKey.staff_guide.permissionOverwrites.set(
+      staffGuideOverwrites,
+      "Allow staff and approved Developers to read the private CoopFT staff guide"
     );
 
     const ticketOverwrites = [
@@ -1013,6 +1034,8 @@ class CoopFTCommunityService {
     await this.ensureTicketPanel(guild, publicByKey.open_ticket);
     await this.ensureRoleSelectionPanel(guild, publicByKey.role_selection);
     await this.ensureApplicationPanel(guild, publicByKey.applications);
+    await this.ensureApplicationControlPanel(guild, privateByKey.application_control);
+    await this.ensureStaffGuide(guild, privateByKey.staff_guide);
     await this.ensureBrandMessages(guild, publicByKey);
     if (cleanup.awaitingConfirmation) {
       const previewAnnounced = await this.getSetting(guild.id, "role_cleanup_preview_announced");
