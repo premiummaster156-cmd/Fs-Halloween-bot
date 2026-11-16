@@ -32,6 +32,11 @@ if(n==="note"){staff(i,s);const x=i.options.getUser("member"),v=i.options.getStr
 if(n==="notes"){staff(i,s);const x=i.options.getUser("member");if(!x)throw Error("Select member.");const r=await s.pool.query("SELECT id,actor_id,note FROM coopft_staff_notes WHERE guild_id=$1 AND member_id=$2 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 10",[id,x.id]);return say(i,r.rows.map(a=>"#"+a.id+" by <@"+a.actor_id+"> • "+a.note).join("\n")||"No notes.");}
 if(n==="member-note-remove"){lead(i,s);const v=i.options.getInteger("amount"),r=await s.pool.query("UPDATE coopft_staff_notes SET deleted_at=NOW(),deleted_by=$3 WHERE guild_id=$1 AND id=$2 AND deleted_at IS NULL RETURNING id",[id,v,u.id]);if(!r.rowCount)throw Error("Set amount to an active note ID.");return say(i,"Note removed.");}
 if(n.startsWith("ticket-")){
+ if(n==="ticket-list"){
+  staff(i,s);
+  const r=await s.pool.query("SELECT channel_id,opener_id,ticket_type,priority FROM coopft_tickets WHERE guild_id=$1 AND status='open' ORDER BY created_at LIMIT 20",[id]);
+  return say(i,r.rows.map(a=>"<#"+a.channel_id+"> • "+a.priority+" • <@"+a.opener_id+"> • "+a.ticket_type).join("\n")||"No open tickets.");
+ }
  const t=await getTicket();
  const canHandle=s.coopft.canHandleTicket(i.member,t);
  if(n==="ticket-close"){
@@ -39,11 +44,6 @@ if(n.startsWith("ticket-")){
   await i.deferReply({flags:MessageFlags.Ephemeral});
   await s.coopft.closeTicket(g,c,t,u.id);
   return i.editReply("Ticket closed and transcript archived.");
- }
- if(n==="ticket-list"){
-  staff(i,s);
-  const r=await s.pool.query("SELECT channel_id,opener_id,ticket_type,priority FROM coopft_tickets WHERE guild_id=$1 AND status='open' ORDER BY created_at LIMIT 20",[id]);
-  return say(i,r.rows.map(a=>"<#"+a.channel_id+"> • "+a.priority+" • <@"+a.opener_id+"> • "+a.ticket_type).join("\n")||"No open tickets.");
  }
  if(!canHandle)throw Error("This ticket is reserved for its owner, CoopFT staff or the assigned Developer team.");
  if(n==="ticket-claim"){
