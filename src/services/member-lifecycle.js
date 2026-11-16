@@ -427,10 +427,7 @@ class MemberLifecycleService {
       ].filter(Boolean);
       const welcome = new EmbedBuilder()
         .setColor(0x32956B)
-        .setAuthor({
-          name: "A NEW MEMBER HAS ARRIVED",
-          iconURL: member.guild.iconURL?.({ size: 128 }) || undefined
-        })
+        .setAuthor({ name: "A NEW MEMBER HAS ARRIVED" })
         .setTitle("Welcome to " + safeDisplay(member.guild.name))
         .setDescription("We're glad you're here, <@" + member.id + ">! Make yourself at home and meet the community.")
         .addFields(
@@ -444,13 +441,11 @@ class MemberLifecycleService {
           },
           {
             name: "Roles assigned",
-            value: autoRoles.length ? autoRoles.map((role) => "<@&" + role.id + ">").join(", ") : "No automatic roles are configured.",
+            value: autoRoles.length ? autoRoles.map((role) => "<@&" + role.id + ">").join(", ") : "No automatic roles were assigned.",
             inline: false
           }
         )
         .setTimestamp();
-      const avatar = member.displayAvatarURL?.({ size: 256 });
-      if (avatar) welcome.setThumbnail(avatar);
       await welcomeChannel.send({
         embeds: [welcome],
         allowedMentions: { users: [member.id] }
