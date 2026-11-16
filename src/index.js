@@ -295,6 +295,11 @@ async function start() {
     memberLifecycle.handleJoin(member).catch((error) =>
       console.error("[member-lifecycle] Could not process member join:", error.message)
     );
+    if (member.guild.id === coopftGuildId) {
+      coopftCommunity.assignCommunityMemberRole(member).catch((error) =>
+        console.warn("[coopft] Could not assign the Community Member role:", error.message)
+      );
+    }
     if (member.guild.id === fukishokaiGuildId) {
       raidMonitor.handleMemberJoin(member, client).catch((error) =>
         console.error("[raid-monitor] Could not process member join:", error.message)
@@ -329,6 +334,10 @@ async function start() {
         try {
           if (interaction.isButton() && interaction.customId?.startsWith("cf-ticket:")) {
             await coopftCommunity.handleButton(interaction);
+            return;
+          }
+          if (interaction.isStringSelectMenu() && interaction.customId?.startsWith("cf-roles:")) {
+            await coopftCommunity.handleSelfRoleSelection(interaction);
             return;
           }
           if (interaction.isStringSelectMenu() && interaction.customId === "cf-ticket:section") {
