@@ -32,7 +32,7 @@ test("CoopFT exposes focused setup, sync, panel and operational commands", () =>
   const commands = loadCoopFTCommands();
   const expected = [
     "announce", "ban", "case", "channel-rename", "channel-topic", "clear-warnings",
-    "coopft-channels-sync", "coopft-panel", "coopft-roles-sync", "coopft-setup", "coopft-ticket-config",
+    "coopft-channel-decorate", "coopft-channels-sync", "coopft-panel", "coopft-roles-sync", "coopft-setup", "coopft-ticket-config",
     "event-cancel", "event-create", "event-list", "kick", "lock", "member-note-remove",
     "nickname", "note", "notes", "poll", "purge", "reset-nickname", "role-add",
     "role-remove", "slowmode", "suggestion", "suggestion-review", "ticket-add",
@@ -42,7 +42,7 @@ test("CoopFT exposes focused setup, sync, panel and operational commands", () =>
   ];
   assert.deepEqual([...commands.keys()].sort(), expected.sort());
   for (const command of commands.values()) assert.doesNotThrow(() => command.data.toJSON());
-  for (const configCommand of ["coopft-setup", "coopft-roles-sync", "coopft-channels-sync", "coopft-panel", "coopft-ticket-config"]) {
+  for (const configCommand of ["coopft-setup", "coopft-roles-sync", "coopft-channels-sync", "coopft-channel-decorate", "coopft-panel", "coopft-ticket-config"]) {
     assert.equal(commands.has(configCommand), true, configCommand + " must be available");
   }
   for (const removed of ["ping", "help", "serverinfo", "botinfo", "avatar", "application-status", "application-withdraw", "application-queue", "staff", "menu", "profile", "leaderboard"]) {
@@ -271,6 +271,63 @@ test("manual setup uploads all 50 CoopFT emblems as separate Discord-sized PNGs"
   for (const name of EMOJI_SPRITE) {
     assert.equal(service.emojis.get(name), "emoji-" + name);
   }
+});
+
+test("channel decoration updates only default plain names and preserves custom names", async () => {
+  const settings = new Map([
+    ["resource:channel:staff_guide", "guide-id"],
+    ["resource:channel:staff_chat", "custom-chat-id"],
+    ["resource:category:staff_hq", "staff-category-id"]
+  ]);
+  const renamed = [];
+  const guide = {
+    id: "guide-id",
+    name: "staff-guide",
+    setName: async (name, reason) => {
+      renamed.push({ id: "guide-id", name, reason });
+      guide.name = name;
+    },
+    permissionOverwrites: { set: async () => { throw new Error("Permissions must not be changed"); } }
+  };
+  const customChat = {
+    id: "custom-chat-id",
+    name: "team-lounge",
+    setName: async () => { throw new Error("Custom names must be preserved"); }
+  };
+  const staffCategory = {
+    id: "staff-category-id",
+    name: "STAFF OPERATIONS",
+    setName: async (name, reason) => {
+      renamed.push({ id: "staff-category-id", name, reason });
+      staffCategory.name = name;
+    }
+  };
+  const pool = {
+    async query(sql, params) {
+      if (sql.includes("SELECT setting_value")) {
+        return { rows: settings.has(params[1]) ? [{ setting_value: settings.get(params[1]) }] : [] };
+      }
+      throw new Error("Unexpected SQL in channel decoration test");
+    }
+  };
+  const service = new CoopFTCommunityService(pool, { guildId: coopftGuildId });
+  const channels = new Map([
+    ["guide-id", guide],
+    ["custom-chat-id", customChat],
+    ["staff-category-id", staffCategory]
+  ]);
+  const result = await service.decorateManagedChannelNames({
+    id: coopftGuildId,
+    channels: { fetch: async (id) => channels.get(id) || null }
+  });
+  assert.equal(guide.name, "▤・staff-guide");
+  assert.equal(staffCategory.name, "╭────〔 STAFF OPERATIONS 〕────╮");
+  assert.equal(customChat.name, "team-lounge");
+  assert.deepEqual(renamed.map((item) => item.id), ["guide-id", "staff-category-id"]);
+  assert.equal(result.renamed.length, 2);
+  assert.ok(result.preservedCustomNames.some((item) => item.key === "staff_chat"));
+  assert.ok(result.alreadyDecorated.length >= 0);
+  assert.equal(result.missing.length > 0, true);
 });
 
 test("Owner-controlled ticket configuration saves category and transcript destinations", async () => {
