@@ -313,15 +313,22 @@ class MemberLifecycleService {
         if (channel?.guildId === guild.id && channel.isTextBased?.()) return channel;
       }
     }
-    if (guild.id === this.coopftGuildId && this.coopftCommunity) {
+    if (guild.id !== this.coopftGuildId) {
+      console.error("[coopft-security] Blocked welcome-channel lookup outside CoopFT for guild " + guild.id + ".");
+      return null;
+    }
+    if (this.coopftCommunity) {
       const id = await this.coopftCommunity.getResource(guild.id, "channel:welcome").catch(() => null);
       if (id) {
         const channel = await guild.channels.fetch(id).catch(() => null);
-        if (channel) return channel;
+        if (channel?.guildId === this.coopftGuildId && channel.isTextBased?.()) return channel;
+        console.error("[coopft-security] Saved CoopFT welcome channel is invalid or belongs to another guild; refusing to send.");
       }
     }
-    // Never use a process-wide WELCOME_CHANNEL_ID for a server-specific welcome.
-    return guild.systemChannel || null;
+    // Fail closed. Do not fall back to guild.systemChannel, since it may be an
+    // announcements/boosts channel and must never substitute for CoopFT welcome.
+    console.warn("[coopft] No dedicated CoopFT welcome channel is configured; welcome message was not sent.");
+    return null;
   }
 
   async assignAutoroles(member) {
