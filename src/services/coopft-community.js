@@ -2344,27 +2344,18 @@ class CoopFTCommunityService {
 
   async buildStaffDirectoryEmbed(guild) {
     this.assertCoopFTGuild(guild, "build the CoopFT staff directory");
-    const result = await this.pool.query(
-      "SELECT member_id,rank_key FROM coopft_staff_members WHERE guild_id=$1 AND active=TRUE",
-      [guild.id]
-    );
-    const ordered = result.rows.sort((a, b) =>
-      STAFF_RANKS.findIndex((item) => item.key === a.rank_key) - STAFF_RANKS.findIndex((item) => item.key === b.rank_key)
-    );
+    if (!this.memberRosterLoaded) {
+      await guild.members.fetch();
+      this.memberRosterLoaded = true;
+    }
+    const members = [...guild.members.cache.values()];
     const grouped = new Map(STAFF_RANKS.map((rank) => [rank.key, []]));
-    for (const record of ordered) {
-      const group = grouped.get(record.rank_key);
-      if (!group) continue;
-      let member = guild.members.cache.get(record.member_id);
-      if (!member) member = await guild.members.fetch(record.member_id).catch(() => null);
-      if (!member) {
-        await this.pool.query(
-          "UPDATE coopft_staff_members SET active=FALSE,updated_at=NOW(),updated_by='directory-reconcile' WHERE guild_id=$1 AND member_id=$2",
-          [guild.id, record.member_id]
-        );
-        continue;
-      }
-      group.push("<@" + record.member_id + ">");
+    const developerMembers = [];
+    for (const member of members) {
+      const rankKey = this.getStaffRankKey(member);
+      if (rankKey && grouped.has(rankKey)) grouped.get(rankKey).push(member);
+      const developerRole = this.roles.get("developer_member");
+      if (developerRole && member.roles.cache.has(developerRole.id)) developerMembers.push(member);
     }
     const sectionFor = (key) => {
       if (["owner", "co_owner", "monarch"].includes(key)) return "OWNER RANK";
@@ -2372,7 +2363,7 @@ class CoopFTCommunityService {
       if (["staff_supervisor", "supreme_council", "senate", "head_moderator"].includes(key)) return "LOW RANK";
       return "MOD ROLES";
     };
-    const groups = [
+    const sections = [
       { name: "OWNER RANK", emoji: "cf3d_owner_crest", fallback: "👑" },
       { name: "HIGH RANK", emoji: "cf3d_high_rank", fallback: "🐉" },
       { name: "LOW RANK", emoji: "cf3d_low_rank", fallback: "⚖️" },
@@ -2381,14 +2372,16 @@ class CoopFTCommunityService {
     const embed = new EmbedBuilder()
       .setColor(0x8C2635)
       .setTitle("COOPFT  |  STAFF DIRECTORY")
-      .setDescription("The official CoopFT hierarchy. Each member appears under their current rank; an open position has no active staff assignment.\n**Last updated:** <t:" + Math.floor(Date.now() / 1000) + ":D>")
-      .setFooter({ text: "COOPFT  •  Maintained by server leadership" })
+      .setDescription("The live CoopFT hierarchy, read from current Discord role assignments. Every listed member currently holds the displayed role.\n**Last refreshed:** <t:" + Math.floor(Date.now() / 1000) + ":T>")
+      .setFooter({ text: "COOPFT  •  Live role-based directory • Refreshes every 15 seconds" })
       .setTimestamp();
-    for (const section of groups) {
+    for (const section of sections) {
       const lines = STAFF_RANKS.filter((rank) => sectionFor(rank.key) === section.name).map((rank) => {
         const people = grouped.get(rank.key) || [];
-        return this.emoji(guild.id, rank.emoji, rank.icon) + " **" + rank.name + "**  ›  " +
-          (people.length ? people.join(", ") : "_Open position_");
+        const names = people.length
+          ? people.sort((a, b) => a.displayName.localeCompare(b.displayName)).map((member) => "<@" + member.id + ">").join(", ")
+          : "_Open position_";
+        return this.emoji(guild.id, rank.emoji, rank.icon) + " **" + rank.name + "**  ›  " + names;
       });
       embed.addFields({
         name: "━━━━  " + this.emoji(guild.id, section.emoji, section.fallback) + "  " + section.name + "  ━━━━",
@@ -2396,7 +2389,76 @@ class CoopFTCommunityService {
         inline: false
       });
     }
+    const developerLines = developerMembers.length
+      ? developerMembers.sort((a, b) => a.displayName.localeCompare(b.displayName)).map((member) => "<@" + member.id + ">").join(", ")
+      : "_No active Developers_";
+    embed.addFields({
+      name: "━━━━  " + this.emoji(guild.id, "cf3d_developer", "💻") + "  DEVELOPER  ━━━━",
+      value: "**Developer**  ›  " + developerLines,
+      inline: false
+    });
     return embed;
+  }
+
+  async refreshStaffDirectory(guild, options = {}) {
+    this.assertCoopFTGuild(guild, "reconcile and refresh the CoopFT staff directory");
+    if (this.directoryRefreshRunning) return { skipped: true };
+    this.directoryRefreshRunning = true;
+    try {
+      if (options.fetchMembers || !this.memberRosterLoaded) {
+        await guild.members.fetch();
+        this.memberRosterLoaded = true;
+      }
+      const current = new Map();
+      for (const member of guild.members.cache.values()) {
+        const rankKey = this.getStaffRankKey(member);
+        if (rankKey) current.set(member.id, rankKey);
+      }
+      const existing = await this.pool.query(
+        "SELECT member_id,rank_key,active FROM coopft_staff_members WHERE guild_id=$1",
+        [guild.id]
+      );
+      const byMember = new Map(existing.rows.map((row) => [row.member_id, row]));
+      let added = 0;
+      let changed = 0;
+      let removed = 0;
+      for (const [memberId, rankKey] of current) {
+        const previous = byMember.get(memberId);
+        if (!previous || !previous.active) added += 1;
+        else if (previous.rank_key !== rankKey) changed += 1;
+        await this.pool.query(
+          "INSERT INTO coopft_staff_members (guild_id,member_id,rank_key,active,updated_by) VALUES ($1,$2,$3,TRUE,'guild-members-sync') " +
+          "ON CONFLICT (guild_id,member_id) DO UPDATE SET rank_key=EXCLUDED.rank_key,active=TRUE,updated_at=NOW(),updated_by=EXCLUDED.updated_by " +
+          "WHERE coopft_staff_members.rank_key IS DISTINCT FROM EXCLUDED.rank_key OR coopft_staff_members.active=FALSE",
+          [guild.id, memberId, rankKey]
+        );
+      }
+      const currentIds = [...current.keys()];
+      const stale = await this.pool.query(
+        "UPDATE coopft_staff_members SET active=FALSE,updated_at=NOW(),updated_by='guild-members-sync' " +
+        "WHERE guild_id=$1 AND active=TRUE AND NOT (member_id=ANY($2::text[])) RETURNING member_id",
+        [guild.id, currentIds]
+      );
+      removed = stale.rowCount;
+      await this.updateStaffDirectory(guild);
+      return { members: current.size, added, changed, removed };
+    } finally {
+      this.directoryRefreshRunning = false;
+    }
+  }
+
+  async startStaffDirectoryRefresh(guild, intervalMs = 15000) {
+    this.assertCoopFTGuild(guild, "start automatic staff directory refresh");
+    if (this.directoryRefreshTimer) clearInterval(this.directoryRefreshTimer);
+    await this.refreshStaffDirectory(guild, { fetchMembers: true });
+    this.directoryRefreshTimer = setInterval(() => {
+      this.refreshStaffDirectory(guild).catch((error) =>
+        console.warn("[coopft] Live staff directory refresh failed:", error.message)
+      );
+    }, intervalMs);
+    this.directoryRefreshTimer.unref?.();
+    console.info("[coopft] Live staff directory refresh started at " + intervalMs + " ms using GuildMembers data.");
+    return true;
   }
 
   async buildStaffDirectoryPayload(guild) {
