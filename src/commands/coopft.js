@@ -7,12 +7,8 @@ const staffCommand = {
     .setName("staff")
     .setDescription("View the official CoopFT staff directory."),
   async execute(interaction, services) {
-    const embed = await services.coopft.buildStaffDirectoryEmbed(interaction.guild);
-    return interaction.reply({
-      embeds: [embed],
-      ephemeral: true,
-      allowedMentions: { parse: [] }
-    });
+    const payload = await services.coopft.buildStaffDirectoryPayload(interaction.guild);
+    return interaction.reply({ ...payload, ephemeral: true });
   }
 };
 
