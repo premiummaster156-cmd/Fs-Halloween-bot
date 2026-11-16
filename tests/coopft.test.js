@@ -251,21 +251,50 @@ test("onboarding setup replaces only the legacy interests question with three Co
   assert.doesNotThrow(() => JSON.stringify(saved));
 });
 
-test("onboarding setup does not delete any other custom question to exceed Discord's five-question limit", async () => {
+test("onboarding setup refuses to delete other questions when three CoopFT questions exceed the limit", async () => {
   const commands = loadCoopFTCommands();
-  const prompts = ["Region", "What are ur interests?", "Level", "Platform"].map((title, index) => ({
+  const existingPrompts = ["Region", "What are ur interests?", "Level", "Platform"].map((title, index) => ({
     id: "prompt-" + index,
     title,
     type: 0,
+    singleSelect: true,
+    required: false,
+    inOnboarding: true,
     options: new Map()
   }));
+  const everyone = { id: "guild-1" };
+  const channels = Array.from({ length: 10 }, (_, index) => {
+    const name = ["rules", "announcements", "general", "introductions", "help", "media", "showcase", "your-creation", "events", "gaming"][index];
+    const sendable = new Set(["general", "introductions"]);
+    return {
+      id: "channel-" + index,
+      guildId: "guild-1",
+      name,
+      type: ChannelType.GuildText,
+      nsfw: false,
+      rawPosition: index,
+      permissionOverwrites: { edit: async (_id, permissions) => { if (permissions.SendMessages) sendable.add(name); } },
+      permissionsFor: () => ({
+        has: permission => permission === PermissionFlagsBits.ViewChannel ||
+          (permission === PermissionFlagsBits.SendMessages && sendable.has(name))
+      })
+    };
+  });
+  const roleSpecs = [...INTEREST_ROLES, ...PING_ROLES];
+  const configuredRoles = new Map(roleSpecs.map((spec, index) => [
+    spec.key, { id: "configured-role-" + index, name: spec.name }
+  ]));
   let editCalled = false;
+  const bot = { permissions: { has: () => true }, roles: { highest: { position: 20 } } };
   const guild = {
     id: "guild-1",
     ownerId: "owner-1",
-    members: { me: { permissions: { has: () => true } } },
+    features: ["COMMUNITY"],
+    roles: { everyone, fetch: async () => null },
+    members: { me: bot },
+    channels: { fetch: async () => new Map(channels.map(channel => [channel.id, channel])) },
     fetch: async function () { return this; },
-    fetchOnboarding: async () => ({ prompts: new Map(prompts.map(prompt => [prompt.id, prompt])) }),
+    fetchOnboarding: async () => ({ prompts: new Map(existingPrompts.map(prompt => [prompt.id, prompt])) }),
     editOnboarding: async () => { editCalled = true; }
   };
   const interaction = {
@@ -275,8 +304,9 @@ test("onboarding setup does not delete any other custom question to exceed Disco
     options: { getString: () => undefined },
     reply: async payload => payload
   };
+  const coopft = { roles: configuredRoles, getResource: async () => null };
   await assert.rejects(
-    commands.get("onboarding-setup").execute(interaction, {}),
+    commands.get("onboarding-setup").execute(interaction, { coopft }),
     /adding the 3 CoopFT questions would make 6/
   );
   assert.equal(editCalled, false, "existing onboarding must remain untouched when all five slots cannot fit");
