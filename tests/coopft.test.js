@@ -11,7 +11,10 @@ const {
 const {
   coopftGuildId, fukishokaiGuildId, personaForGuild, configuredGuildIds
 } = require("../src/config/server-personas");
-const { safeChannelName, TICKET_TYPES, CLEANUP_CONFIRMATION, CoopFTCommunityService, drawCoopFTEmoji } = require("../src/services/coopft-community");
+const {
+  safeChannelName, ticketChannelName, closedTicketChannelName, TICKET_TYPES,
+  CLEANUP_CONFIRMATION, CoopFTCommunityService, drawCoopFTEmoji
+} = require("../src/services/coopft-community");
 const { createCanvas } = require("@napi-rs/canvas");
 
 test("server personas are isolated and CoopFT uses the configured server ID", () => {
@@ -503,6 +506,38 @@ test("ticket types are distinct and channel names are safely normalized", () => 
   assert.equal(safeChannelName("Tommy Gun / Staff"), "tommy-gun-staff");
   assert.equal(safeChannelName("@everyone!!!"), "everyone");
   assert.equal(safeChannelName(""), "member");
+});
+
+test("newly opened and closed tickets keep consistent channel-name decorations", () => {
+  assert.equal(ticketChannelName("bot", "Brian"), "⌘・bot-brian");
+  assert.equal(ticketChannelName("server", "Brian"), "◈・server-brian");
+  assert.equal(ticketChannelName("development", "Brian"), "⌘・commission-brian");
+  assert.equal(closedTicketChannelName("⌘・bot-brian"), "⌑・closed-brian");
+  assert.equal(closedTicketChannelName("◈・server-brian"), "⌑・closed-brian");
+  assert.ok(ticketChannelName("development", "A".repeat(120)).length <= 100);
+  assert.ok(closedTicketChannelName("⌘・commission-" + "a".repeat(120)).length <= 100);
+});
+
+test("community rules use real Discord mentions for suggestions and ticket intake", () => {
+  const service = new CoopFTCommunityService(
+    { query: async () => ({ rows: [] }) },
+    { guildId: coopftGuildId }
+  );
+  const embed = service.buildCommunityRulesEmbed(
+    { id: coopftGuildId },
+    {
+      suggestions: { id: "111111111111111111" },
+      open_ticket: { id: "222222222222222222" }
+    }
+  ).toJSON();
+  const community = embed.fields.find((field) => field.name.includes("COMMUNITY"));
+  const support = embed.fields.find((field) => field.name.includes("SUPPORT"));
+  assert.match(community.value, /<#111111111111111111>/);
+  assert.match(support.value, /<#222222222222222222>/);
+  assert.equal(embed.image, undefined);
+  assert.equal(embed.thumbnail, undefined);
+  assert.equal(embed.footer, undefined);
+  assert.ok(embed.timestamp);
 });
 
 test("editable-role cleanup requires the exact one-time confirmation phrase", () => {
