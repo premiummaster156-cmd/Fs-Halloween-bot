@@ -164,7 +164,7 @@ const PRIVATE_CHANNELS = Object.freeze([
   { key: "staff_announcements", name: "▰・staff-announcements" },
   { key: "staff_bot_updates", name: "⌘・staff-bot-updates" },
   { key: "application_review", name: "⌑・application-review" },
-  { key: "application_control", name: "application-control" },
+  { key: "application_control", name: "⌑・application-control" },
   { key: "staff_guide", name: "staff-guide" },
   { key: "ticket_transcripts", name: "▤・ticket-transcripts" },
   { key: "member_logs", name: "⌁・member-logs" },
