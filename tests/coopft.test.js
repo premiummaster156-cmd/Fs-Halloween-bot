@@ -25,29 +25,41 @@ test("server personas are isolated and CoopFT uses the configured server ID", ()
   }
 });
 
-test("CoopFT registers only its community commands", () => {
+test("CoopFT exposes focused setup, sync, panel and operational commands", () => {
   const commands = loadCoopFTCommands();
-  assert.deepEqual([...commands.keys()].sort(), ["staff"]);
-  for (const removed of ["applications-admin", "hr-manage", "staff-manage", "coopft-setup", "ticket"]) {
-    assert.equal(commands.has(removed), false, removed + " is intentionally not exposed as a slash command");
-  }
+  const expected = [
+    "announce", "ban", "case", "channel-rename", "channel-topic", "clear-warnings",
+    "coopft-channels-sync", "coopft-panel", "coopft-roles-sync", "coopft-setup",
+    "event-cancel", "event-create", "event-list", "kick", "lock", "member-note-remove",
+    "nickname", "note", "notes", "poll", "purge", "reset-nickname", "role-add",
+    "role-remove", "slowmode", "suggestion", "suggestion-review", "ticket-add",
+    "ticket-claim", "ticket-close", "ticket-info", "ticket-list", "ticket-priority",
+    "ticket-remove", "ticket-rename", "timeout", "unban", "unlock", "untimeout",
+    "warn", "warnings"
+  ];
+  assert.deepEqual([...commands.keys()].sort(), expected.sort());
   for (const command of commands.values()) assert.doesNotThrow(() => command.data.toJSON());
-  assert.equal(commands.has("menu"), false);
-  assert.equal(commands.has("profile"), false);
-  assert.equal(commands.has("leaderboard"), false);
+  for (const configCommand of ["coopft-setup", "coopft-roles-sync", "coopft-channels-sync", "coopft-panel"]) {
+    assert.equal(commands.has(configCommand), true, configCommand + " must be available");
+  }
+  for (const removed of ["ping", "help", "serverinfo", "botinfo", "avatar", "application-status", "application-withdraw", "application-queue", "staff", "menu", "profile", "leaderboard"]) {
+    assert.equal(commands.has(removed), false, removed + " is intentionally not exposed");
+  }
 });
 
-test("CoopFT exposes only operational staff ranks as application choices", () => {
+test("CoopFT applications contain two moderation tracks and one specialist Developer track", () => {
   assert.equal(STAFF_RANKS.length, 17);
-  assert.equal(APPLICATION_RANKS.length, 8);
+  assert.equal(APPLICATION_RANKS.length, 3);
   assert.deepEqual(APPLICATION_RANKS.map((role) => role.key), [
-    "staff_supervisor", "supreme_council", "senate", "head_moderator",
-    "council", "senior_moderator", "moderator", "junior_moderator"
+    "junior_moderator", "moderator", "developer"
   ]);
-  for (const role of APPLICATION_RANKS) {
-    assert.ok(STAFF_RANKS.includes(role), role.name + " must be an actual staff rank");
+  for (const role of APPLICATION_RANKS.filter((item) => item.category === "staff")) {
+    assert.ok(STAFF_RANKS.some((staffRole) => staffRole.key === role.key), role.name + " must be an actual staff rank");
     assert.notEqual(role.permissions, 0n, role.name + " must use its staff permission profile");
   }
+  const developer = APPLICATION_RANKS.find((role) => role.key === "developer");
+  assert.equal(developer.roleKey, "developer_member");
+  assert.equal(developer.permissions, 0n, "Developer is a specialist role with no moderation permissions");
   for (const key of ["owner", "co_owner", "monarch", "high_rank_supervisor", "apex", "right_wing", "left_wing", "halo", "overseer"]) {
     assert.equal(APPLICATION_RANKS.some((role) => role.key === key), false, key + " is an appointment-only leadership rank");
   }
@@ -102,12 +114,12 @@ test("CoopFT category and channel names use distinctive emoji-free typography", 
   }
 });
 
-test("CoopFT has a distinct 3D custom emoji pack, role guide, applications and voice channels", () => {
-  assert.equal(EMOJI_SPRITE.length, 28);
-  assert.equal(new Set(EMOJI_SPRITE).size, 28);
+test("CoopFT emoji pack and channel layout use the current organized design", () => {
+  assert.equal(EMOJI_SPRITE.length, 50);
+  assert.equal(new Set(EMOJI_SPRITE).size, 50);
   assert.ok(EMOJI_SPRITE.includes("cf3d_community"));
   assert.ok(PUBLIC_CHANNELS.some((channel) => channel.key === "open_ticket"));
-  assert.ok(PUBLIC_CHANNELS.some((channel) => channel.key === "role_guide"));
+  assert.ok(PUBLIC_CHANNELS.some((channel) => channel.key === "role_selection"));
   assert.ok(PUBLIC_CHANNELS.some((channel) => channel.key === "applications"));
   assert.ok(PUBLIC_CHANNELS.some((channel) => channel.key === "suggestions"));
   assert.ok(PUBLIC_CHANNELS.some((channel) => channel.key === "announcement_stage" && channel.channelType === "stage"));
@@ -116,7 +128,8 @@ test("CoopFT has a distinct 3D custom emoji pack, role guide, applications and v
   assert.ok(PUBLIC_CHANNELS.some((channel) => channel.key === "announcements" && channel.channelType === "announcement"));
   assert.equal(PUBLIC_CHANNELS.some((channel) => channel.key === "help_study"), false);
   assert.ok(PRIVATE_CHANNELS.some((channel) => channel.key === "application_review"));
-  assert.ok(PRIVATE_CHANNELS.some((channel) => channel.key === "staff_team"));
+  assert.ok(PRIVATE_CHANNELS.some((channel) => channel.key === "staff_directory"));
+  assert.equal(PRIVATE_CHANNELS.some((channel) => channel.key === "staff_team"), false);
   assert.ok(PRIVATE_CHANNELS.some((channel) => channel.key === "staff_bot_updates"));
   assert.ok(PRIVATE_CHANNELS.some((channel) => channel.key === "ticket_transcripts"));
   assert.ok(PRIVATE_CHANNELS.some((channel) => channel.key === "member_logs"));
@@ -131,6 +144,9 @@ test("each staff application modal contains four required questions and one opti
     assert.equal(modal.components.length, 5);
     assert.equal(modal.components.slice(0, 4).every((row) => row.components[0].required), true);
     assert.equal(modal.components[4].components[0].required, false);
+    for (const row of modal.components) {
+      assert.ok(row.components[0].label.length <= 45, "Discord modal labels must not exceed 45 characters");
+    }
   }
 });
 
@@ -149,14 +165,25 @@ test("private application review exposes only the four requested decisions", () 
   ]);
 });
 
-test("CoopFT staff directory banner renders a professional 1200 by 340 PNG", async () => {
+test("CoopFT staff directory is text-only with section headings and timestamp", async () => {
   const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) }, { guildId: coopftGuildId });
-  const banner = service.buildStaffBanner();
-  const { loadImage } = require("@napi-rs/canvas");
-  const image = await loadImage(banner);
-  assert.equal(banner.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
-  assert.equal(image.width, 1200);
-  assert.equal(image.height, 340);
+  service.memberRosterLoaded = true;
+  const embed = await service.buildStaffDirectoryEmbed({
+    id: coopftGuildId,
+    members: { cache: new Map() }
+  });
+  const data = embed.toJSON();
+  assert.equal(data.title, "COOPFT  |  STAFF DIRECTORY");
+  assert.equal(data.image, undefined);
+  assert.equal(data.thumbnail, undefined);
+  assert.equal(data.footer, undefined);
+  assert.ok(data.timestamp);
+  assert.match(data.description, /Current CoopFT staff by assigned role/);
+  const headingText = data.fields.map((field) => field.name).join("\n");
+  for (const section of ["OWNER RANK", "HIGH RANK", "LOW RANK", "MOD ROLES", "Developers"]) {
+    assert.ok(headingText.includes(section), section + " section must be present");
+  }
+  assert.ok(data.fields.every((field) => field.value.includes("VACANT")));
 });
 
 test("all 28 CoopFT vector fallbacks render to transparent PNG images", () => {
@@ -169,7 +196,7 @@ test("all 28 CoopFT vector fallbacks render to transparent PNG images", () => {
   }
 });
 
-test("the generated 3D emoji artwork sprite contains 28 separate transparent icon tiles", async () => {
+test("the generated 3D emoji artwork sprite contains the original 28 transparent icon tiles", async () => {
   const fs = require("node:fs");
   const path = require("node:path");
   const { loadImage } = require("@napi-rs/canvas");
@@ -177,7 +204,7 @@ test("the generated 3D emoji artwork sprite contains 28 separate transparent ico
   const image = await loadImage(Buffer.from(encoded, "base64"));
   assert.equal(image.width, 128);
   assert.equal(image.height, 224);
-  for (let index = 0; index < EMOJI_SPRITE.length; index += 1) {
+  for (let index = 0; index < 28; index += 1) {
     const canvas = createCanvas(128, 128);
     const context = canvas.getContext("2d");
     context.drawImage(image, (index % 4) * 32, Math.floor(index / 4) * 32, 32, 32, 0, 0, 128, 128);
@@ -193,7 +220,7 @@ test("the generated 3D emoji artwork sprite contains 28 separate transparent ico
   }
 });
 
-test("manual setup uploads all 28 3D CoopFT emblems as separate Discord-sized PNGs", async () => {
+test("manual setup uploads all 50 CoopFT emblems as separate Discord-sized PNGs", async () => {
   const { PermissionFlagsBits } = require("discord.js");
   const { loadImage } = require("@napi-rs/canvas");
   const uploads = [];
@@ -218,10 +245,10 @@ test("manual setup uploads all 28 3D CoopFT emblems as separate Discord-sized PN
   };
 
   const result = await service.ensureEmojis(guild);
-  assert.equal(result.created, 28);
+  assert.equal(result.created, 50);
   assert.equal(result.available, 0);
   assert.deepEqual(result.failed, []);
-  assert.equal(uploads.length, 28);
+  assert.equal(uploads.length, 50);
   assert.deepEqual(uploads.map((item) => item.name), EMOJI_SPRITE);
 
   const uniqueImages = new Set();
@@ -234,7 +261,7 @@ test("manual setup uploads all 28 3D CoopFT emblems as separate Discord-sized PN
     assert.equal(image.height, 128);
     uniqueImages.add(upload.attachment.toString("base64"));
   }
-  assert.equal(uniqueImages.size, 28);
+  assert.equal(uniqueImages.size, 50);
   for (const name of EMOJI_SPRITE) {
     assert.equal(service.emojis.get(name), "emoji-" + name);
   }
@@ -334,18 +361,20 @@ test("CoopFT resource mutations refuse to touch the Fukishokai server", async ()
   assert.equal(fetches, 0, "no Discord resource request may be made in Fukishokai");
 });
 
-test("ensureRole reapplies the restricted High Rank Supervisor permission set", async () => {
+test("ensureRole preserves custom permissions unless explicit sync is requested", async () => {
   const highRankSpec = STAFF_RANKS.find((role) => role.key === "high_rank_supervisor");
+  const originalPermissionBits = ALL_PERMISSION_BITS;
   const role = {
     id: "high-rank-role",
-    name: "CF • High Rank Supervisor",
-    color: highRankSpec.primary,
-    hoist: true,
-    mentionable: false,
+    name: "My custom High Rank Supervisor",
+    color: 0x123456,
+    hoist: false,
+    mentionable: true,
     editable: true,
-    permissions: { bitfield: ALL_PERMISSION_BITS },
+    permissions: { bitfield: originalPermissionBits },
     edit: async (changes) => {
       role.permissions = { bitfield: new PermissionsBitField(changes.permissions).bitfield };
+      Object.assign(role, changes);
       return role;
     }
   };
@@ -366,6 +395,13 @@ test("ensureRole reapplies the restricted High Rank Supervisor permission set", 
   };
 
   await service.ensureRole(guild, highRankSpec);
+  assert.equal(role.name, "My custom High Rank Supervisor");
+  assert.equal(role.color, 0x123456);
+  assert.equal(role.hoist, false);
+  assert.equal(role.mentionable, true);
+  assert.equal(role.permissions.bitfield, originalPermissionBits);
+
+  await service.ensureRole(guild, highRankSpec, { force: true });
   assert.equal(role.permissions.bitfield, HIGH_RANK_SUPERVISOR_PERMISSIONS);
   assert.equal(
     role.permissions.bitfield & (
@@ -378,7 +414,13 @@ test("ensureRole reapplies the restricted High Rank Supervisor permission set", 
 });
 
 test("ticket types are distinct and channel names are safely normalized", () => {
-  assert.deepEqual(Object.keys(TICKET_TYPES).sort(), ["bug", "custom_bot", "suggestion", "support"]);
+  assert.deepEqual(Object.keys(TICKET_TYPES).sort(), [
+    "bot_account", "bot_bug", "bot_exploit", "bot_gameplay", "bot_suggestion",
+    "custom_bot_request", "member_report", "partnership", "server_bug",
+    "server_suggestion", "server_support", "staff_report"
+  ]);
+  assert.equal(TICKET_TYPES.custom_bot_request.section, "development");
+  assert.equal(TICKET_TYPES.custom_bot_request.questions.length > 0, true);
   assert.equal(safeChannelName("Tommy Gun / Staff"), "tommy-gun-staff");
   assert.equal(safeChannelName("@everyone!!!"), "everyone");
   assert.equal(safeChannelName(""), "member");
@@ -426,10 +468,10 @@ test("ensureRole repairs managed role properties and applies optional native gra
     }
   };
 
-  const result = await service.ensureRole(guild, STAFF_RANKS[0]);
+  const result = await service.ensureRole(guild, STAFF_RANKS[0], { force: true });
   assert.equal(result.role, role);
   assert.equal(calls[0].kind, "edit");
-  assert.equal(calls[0].changes.name, "CF • Owner");
+  assert.equal(calls[0].changes.name, "Owner");
   assert.equal(calls[0].changes.color, STAFF_RANKS[0].primary);
   assert.equal(
     new PermissionsBitField(calls[0].changes.permissions).bitfield,
