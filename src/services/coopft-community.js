@@ -2501,8 +2501,15 @@ class CoopFTCommunityService {
     const category = await this.getTicketCategory(guild);
     if (!category) throw new Error("The ticket category is not set up. Ask an administrator to run npm run coopft:setup from the hosting console.");
     const me = guild.members.me || await guild.members.fetchMe();
-    const staffRoles = STAFF_RANKS.map((spec) => this.roles.get(spec.key)).filter(Boolean);
-    const developerRole = info.section === "development" ? this.roles.get("developer_member") : null;
+    // Custom development commissions are private project work: only the
+    // customer, assigned Developer team, Owner Rank and bot can view them.
+    // Ordinary moderation staff do not receive access to commercial requests.
+    const isDevelopment = info.section === "development";
+    const permittedStaffKeys = isDevelopment
+      ? [...OWNER_RANK_KEYS]
+      : STAFF_RANKS.map((spec) => spec.key);
+    const staffRoles = permittedStaffKeys.map((key) => this.roles.get(key)).filter(Boolean);
+    const developerRole = isDevelopment ? this.roles.get("developer_member") : null;
     const overwrites = [
       { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
       { id: member.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] },
