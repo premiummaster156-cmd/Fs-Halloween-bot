@@ -2528,12 +2528,19 @@ class CoopFTCommunityService {
       if (value) answers[question.label] = value;
     }
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const result = await this.openTicket(interaction.guild, interaction.member, ticketType, answers);
-    await interaction.editReply({
-      content: result.existing
-        ? "You already have an open ticket: <#" + result.channel.id + ">. Your new form was not used to create a duplicate."
-        : "Your request has been submitted. Your private ticket is ready: <#" + result.channel.id + ">."
-    });
+    try {
+      const member = await interaction.guild.members.fetch(interaction.user.id);
+      const result = await this.openTicket(interaction.guild, member, ticketType, answers);
+      await interaction.editReply({
+        content: result.existing
+          ? "You already have an open ticket: <#" + result.channel.id + ">. Your new form was not used to create a duplicate."
+          : "Your request has been submitted. Your private ticket is ready: <#" + result.channel.id + ">."
+      });
+    } catch (error) {
+      await interaction.editReply({
+        content: error.message || "Your request could not be opened. Please contact staff."
+      });
+    }
     return true;
   }
 
