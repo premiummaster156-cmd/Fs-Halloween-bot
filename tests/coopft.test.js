@@ -142,8 +142,11 @@ test("each staff application modal contains four required questions and one opti
     const modal = service.createApplicationModal(role).toJSON();
     assert.equal(modal.custom_id, "cf-application:submit:" + role.key);
     assert.equal(modal.components.length, 5);
-    assert.equal(modal.components.slice(0, 4).every((row) => row.components[0].required), true);
-    assert.equal(modal.components[4].components[0].required, false);
+    assert.equal(modal.components.every((row) => row.components[0].required), role.category === "developer");
+    if (role.category !== "developer") {
+      assert.equal(modal.components.slice(0, 4).every((row) => row.components[0].required), true);
+      assert.equal(modal.components[4].components[0].required, false);
+    }
     for (const row of modal.components) {
       assert.ok(row.components[0].label.length <= 45, "Discord modal labels must not exceed 45 characters");
     }
@@ -373,8 +376,11 @@ test("ensureRole preserves custom permissions unless explicit sync is requested"
     editable: true,
     permissions: { bitfield: originalPermissionBits },
     edit: async (changes) => {
-      role.permissions = { bitfield: new PermissionsBitField(changes.permissions).bitfield };
-      Object.assign(role, changes);
+      if (changes.permissions) {
+        role.permissions = { bitfield: new PermissionsBitField(changes.permissions).bitfield };
+      }
+      const { permissions, ...ordinaryChanges } = changes;
+      Object.assign(role, ordinaryChanges);
       return role;
     }
   };
