@@ -3020,6 +3020,76 @@ class CoopFTCommunityService {
     }
   }
 
+  async decorateManagedChannelNames(guild) {
+    this.assertCoopFTGuild(guild, "apply decorations to default CoopFT channel names");
+    const renamed = [];
+    const alreadyDecorated = [];
+    const preservedCustomNames = [];
+    const missing = [];
+
+    const channelSpecs = [...PUBLIC_CHANNELS, ...PRIVATE_CHANNELS];
+    for (const spec of channelSpecs) {
+      const channelId = await this.getResource(guild.id, "channel:" + spec.key);
+      if (!channelId) {
+        missing.push(spec.key);
+        continue;
+      }
+      const channel = await guild.channels.fetch(channelId).catch(() => null);
+      if (!channel) {
+        missing.push(spec.key);
+        continue;
+      }
+
+      const separatorIndex = spec.name.indexOf("・");
+      const undecoratedName = separatorIndex >= 0
+        ? spec.name.slice(separatorIndex + 1)
+        : spec.name;
+      if (channel.name === spec.name) {
+        alreadyDecorated.push(spec.key);
+        continue;
+      }
+      // Only upgrade the exact old undecorated default slug. Custom names
+      // chosen by the server owner are left alone.
+      if (channel.name !== undecoratedName) {
+        preservedCustomNames.push({ key: spec.key, name: channel.name });
+        continue;
+      }
+      await channel.setName(spec.name, "Apply CoopFT channel-name decoration only");
+      renamed.push({ key: spec.key, name: spec.name });
+    }
+
+    for (const [key, styledName] of Object.entries(CATEGORY_NAMES)) {
+      const categoryId = await this.getResource(guild.id, "category:" + key);
+      if (!categoryId) {
+        missing.push("category:" + key);
+        continue;
+      }
+      const category = await guild.channels.fetch(categoryId).catch(() => null);
+      if (!category) {
+        missing.push("category:" + key);
+        continue;
+      }
+      const match = styledName.match(/^╭────〔 (.+) 〕────╮$/u);
+      const undecoratedName = match?.[1] || key.replace(/_/g, " ").toUpperCase();
+      if (category.name === styledName) {
+        alreadyDecorated.push("category:" + key);
+      } else if (category.name === undecoratedName) {
+        await category.setName(styledName, "Apply CoopFT category-name decoration only");
+        renamed.push({ key: "category:" + key, name: styledName });
+      } else {
+        preservedCustomNames.push({ key: "category:" + key, name: category.name });
+      }
+    }
+
+    console.info("[coopft] Channel-name decoration pass:", {
+      renamed: renamed.length,
+      alreadyDecorated: alreadyDecorated.length,
+      preservedCustomNames: preservedCustomNames.length,
+      missing: missing.length
+    });
+    return { renamed, alreadyDecorated, preservedCustomNames, missing };
+  }
+
   async configureTicketing(guild, options = {}) {
     this.assertCoopFTGuild(guild, "configure CoopFT ticket routing");
     const category = options.category || null;
