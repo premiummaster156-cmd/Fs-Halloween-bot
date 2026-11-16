@@ -1925,13 +1925,19 @@ class CoopFTCommunityService {
         ].join("\n"))
         .setFooter({ text: "7 / 7  •  Developer responsibilities and custom bot commissions" })
     ];
-    const savedId = await this.getResource(guild.id, "message:staff_guide");
-    let message = savedId ? await channel.messages.fetch(savedId).catch(() => null) : null;
-    const payload = { embeds: pages, components: [], allowedMentions: { parse: [] } };
-    if (message) await message.edit(payload);
-    else {
-      message = await channel.send(payload);
-      await this.saveResource(guild.id, "message:staff_guide", message.id);
+    // Discord limits the combined embed text in one message. Keep the handbook
+    // in four compact, maintained posts so no page is silently truncated.
+    const groups = [pages.slice(0, 2), pages.slice(2, 4), pages.slice(4, 6), pages.slice(6, 7)];
+    for (let index = 0; index < groups.length; index += 1) {
+      const key = index === 0 ? "message:staff_guide" : "message:staff_guide:" + (index + 1);
+      const savedId = await this.getResource(guild.id, key);
+      let message = savedId ? await channel.messages.fetch(savedId).catch(() => null) : null;
+      const payload = { embeds: groups[index], components: [], allowedMentions: { parse: [] } };
+      if (message) await message.edit(payload);
+      else {
+        message = await channel.send(payload);
+        await this.saveResource(guild.id, key, message.id);
+      }
     }
   }
 
