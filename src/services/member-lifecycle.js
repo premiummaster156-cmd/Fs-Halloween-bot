@@ -1,8 +1,7 @@
 "use strict";
 
 const { EmbedBuilder, AuditLogEvent } = require("discord.js");
-const settings = require("../config/settings");
-const { coopftGuildId, fukishokaiGuildId } = require("../config/server-personas");
+const { coopftGuildId } = require("../config/server-personas");
 
 function asDate(value) {
   if (!value) return null;
@@ -205,11 +204,11 @@ class MemberLifecycleService {
     this.guildSettings = options.guildSettings || null;
     this.coopftCommunity = options.coopftCommunity || null;
     this.coopftGuildId = options.coopftGuildId || coopftGuildId;
-    this.fukishokaiGuildId = options.fukishokaiGuildId || fukishokaiGuildId;
   }
 
   supportsGuild(guildId) {
-    return Boolean(guildId && [this.coopftGuildId, this.fukishokaiGuildId].filter(Boolean).includes(guildId));
+    // Welcome, autorole and lifecycle logging are CoopFT-only.
+    return Boolean(guildId && guildId === this.coopftGuildId);
   }
 
   async writeAudit(guildId, actorId, action, targetId, details) {
@@ -302,6 +301,7 @@ class MemberLifecycleService {
   }
 
   async resolveWelcomeChannel(guild) {
+    if (!guild || guild.id !== this.coopftGuildId) return null;
     const saved = await this.pool.query(
       "SELECT channel_id,enabled FROM guild_welcome_settings WHERE guild_id=$1",
       [guild.id]
@@ -320,11 +320,7 @@ class MemberLifecycleService {
         if (channel) return channel;
       }
     }
-    const configured = settings.welcomeChannelId;
-    if (configured) {
-      const channel = await guild.channels.fetch(configured).catch(() => null);
-      if (channel?.guildId === guild.id) return channel;
-    }
+    // Never use a process-wide WELCOME_CHANNEL_ID for a server-specific welcome.
     return guild.systemChannel || null;
   }
 
