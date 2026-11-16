@@ -2899,6 +2899,47 @@ class CoopFTCommunityService {
     }
   }
 
+  async configurePanel(guild, panelKey, targetChannel) {
+    this.assertCoopFTGuild(guild, "configure a CoopFT information panel");
+    const definitions = {
+      tickets: { channelKey: "open_ticket", messageKey: "ticket_panel", publish: (channel) => this.ensureTicketPanel(guild, channel) },
+      applications: { channelKey: "applications", messageKey: "application_panel", publish: (channel) => this.ensureApplicationPanel(guild, channel) },
+      roles: { channelKey: "role_selection", messageKey: "role_selection", publish: (channel) => this.ensureRoleSelectionPanel(guild, channel) },
+      "custom-bot": { channelKey: "custom_bot_requests", messageKey: "custom_bot_requests", publish: (channel) => this.ensureCustomBotRequestPanel(guild, channel) },
+      directory: { channelKey: "staff_directory", messageKey: "directory:staff_directory", publish: () => this.updateStaffDirectory(guild) }
+    };
+    const definition = definitions[panelKey];
+    if (!definition) throw new Error("Choose tickets, applications, roles, custom-bot or directory.");
+
+    const previousChannelId = await this.getResource(guild.id, "channel:" + definition.channelKey);
+    const previousMessageId = await this.getResource(guild.id, "message:" + definition.messageKey);
+    const channel = targetChannel || (previousChannelId
+      ? await guild.channels.fetch(previousChannelId).catch(() => null)
+      : null);
+    if (!channel?.isTextBased?.() || typeof channel.send !== "function") {
+      throw new Error("Select a valid text channel for this panel.");
+    }
+
+    await this.saveResource(guild.id, "channel:" + definition.channelKey, channel.id);
+    await definition.publish(channel);
+
+    // When moving a panel, remove only its previously recorded message after
+    // the replacement has been published successfully.
+    if (previousChannelId && previousChannelId !== channel.id && previousMessageId) {
+      const previousChannel = await guild.channels.fetch(previousChannelId).catch(() => null);
+      const previousMessage = previousChannel?.messages
+        ? await previousChannel.messages.fetch(previousMessageId).catch(() => null)
+        : null;
+      if (previousMessage) {
+        await previousMessage.delete("CoopFT panel moved to its configured destination").catch((error) =>
+          console.warn("[coopft] Could not remove the previous " + panelKey + " panel message:", error.message)
+        );
+      }
+    }
+
+    return { panel: panelKey, channelId: channel.id, channelName: channel.name };
+  }
+
   async postStaffUpdate(guild, description) {
     this.assertCoopFTGuild(guild, "post a CoopFT staff update");
     const channelId = await this.getResource(guild.id, "channel:staff_bot_updates");
