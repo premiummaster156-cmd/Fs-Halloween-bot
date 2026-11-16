@@ -1188,6 +1188,280 @@ class CoopFTCommunityService {
     return canvas.toBuffer("image/png");
   }
 
+  async ensureStaffGuide(guild, channel) {
+    this.assertCoopFTGuild(guild, "publish the private CoopFT staff guide");
+    if (!channel?.isTextBased?.() || typeof channel.send !== "function") {
+      throw new Error("The private staff-guide channel is unavailable.");
+    }
+    const me = guild.members.me || await guild.members.fetchMe();
+    const developerRole = this.roles.get("developer_member");
+    const readOnlyStaff = STAFF_RANKS.map((spec) => this.roles.get(spec.key)).filter(Boolean)
+      .map((role) => ({
+        id: role.id,
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+        deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.AddReactions]
+      }));
+    if (developerRole) readOnlyStaff.push({
+      id: developerRole.id,
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+      deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.AddReactions]
+    });
+    await channel.permissionOverwrites.set([
+      { id: guild.id, deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+      {
+        id: me.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages,
+          PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks
+        ]
+      },
+      ...readOnlyStaff
+    ], "Keep the CoopFT staff handbook readable by staff and Developers only");
+
+    const q = (name, fallback) => this.emoji(guild.id, name, fallback);
+    const pages = [
+      {
+        title: "1 • INTRODUCTION & STAFF STANDARDS",
+        icon: q("cf3d_rolebook", "📖"),
+        description: [
+          "Welcome to the CoopFT Staff Guide. This handbook explains how staff protect the community, apply the rules fairly, handle reports and keep internal work professional.",
+          "",
+          "THE STANDARD: be fair, calm, consistent, evidence-led and respectful. Always use common sense. Rank is responsibility, not permission to intimidate members.",
+          "",
+          "CORE DUTIES",
+          "• Help members and direct them to the correct channels or ticket.",
+          "• Enforce the published CoopFT rules consistently, without favoritism.",
+          "• Keep a clear record of formal actions and important decisions.",
+          "• Protect private reports, application answers, staff discussions and personal information.",
+          "• Ask for guidance when a case is unclear or serious. Do not guess.",
+          "",
+          "STAFF ROLES",
+          "• Junior Moderator: entry-level support, basic chat moderation, report triage and learning the procedures. Do not exceed your assigned permissions.",
+          "• Moderator: handles member reports, routine enforcement, timeouts and clear case documentation.",
+          "• Developer: builds custom Discord bots requested by members. This is a technical role, not a moderation rank; it has no moderator or administrative authority.",
+          "• Owner Rank: Owner, Co-Owner and Monarch. They supervise recruitment, sensitive cases, policy decisions and final escalations.",
+          "",
+          "This guide applies to CoopFT only. Fukishōkai economy commands, TSBCC procedures and Fukishōkai-only channels are not CoopFT workflows."
+        ].join("\n")
+      },
+      {
+        title: "2 • MODERATION DECISIONS & WARNINGS",
+        icon: q("cf3d_shield", "🛡️"),
+        description: [
+          "Choose the least severe action that safely addresses the behaviour. Consider intent, repetition, impact, context, prior history and whether the member complied after being asked to stop.",
+          "",
+          "LOW SEVERITY — REMINDER OR VERBAL WARNING",
+          "Examples: first minor disruption, off-topic posting, mild spam, excessive caps, repeated low-level interruptions or a minor misunderstanding of channel rules. Explain what needs to change and give the member a reasonable chance to comply.",
+          "",
+          "MODERATE SEVERITY — FORMAL WARNING AND PROPORTIONATE TIMEOUT",
+          "Examples: repeated disruption after a reminder, persistent spamming or mass mentions, targeted arguments, minimodding, repeated harassment, inappropriate sexual remarks, or continuing to ignore staff instructions. Record the exact behaviour and choose a proportionate timeout where necessary.",
+          "",
+          "SEVERE — IMMEDIATE STAFF INTERVENTION AND OWNER RANK ESCALATION",
+          "Examples: hate speech, targeted discrimination, serious harassment, sexual harassment, credible threats, malicious links, scams, raids, doxxing threats, attempts to compromise accounts or other serious Discord Terms violations. Preserve evidence and use a timeout, kick or ban only when justified and within your permissions.",
+          "",
+          "CRITICAL / SAFETY CASES",
+          "Credible threats of real-world harm, grooming, child sexual exploitation, extortion, doxxing or imminent danger must be escalated to Owner Rank immediately. Do not investigate alone, repost explicit material, confront suspected offenders privately or circulate sensitive evidence. Use Discord reporting tools where appropriate.",
+          "",
+          "CONTEXT MATTERS",
+          "A word filter, a quoted message, an obvious typo, reclaimed language, a joke and a direct targeted insult are not automatically the same situation. Review the surrounding context. When unsure, pause and ask Owner Rank before issuing a severe punishment."
+        ].join("\n")
+      },
+      {
+        title: "3 • HOW TO HANDLE A REPORT",
+        icon: q("verified", "✅"),
+        description: [
+          "1. REVIEW THE EVIDENCE. Read the surrounding conversation, check the message link and timestamp, identify the people involved, and distinguish first-hand evidence from hearsay.",
+          "",
+          "2. STOP IMMEDIATE HARM. Where necessary, use a proportionate timeout or remove harmful content. Do not publicly argue with the reported member.",
+          "",
+          "3. EXPLAIN THE ACTION. State the rule or behaviour, the action taken and what the member should do next. Keep wording neutral and specific.",
+          "",
+          "4. RECORD THE CASE. Use /warn, /timeout, /kick or /ban as appropriate. Add a clear reason. Use /case to check a case and /warnings to review a member's active warning history.",
+          "",
+          "5. ESCALATE UNCERTAINTY. Send a private summary to Owner Rank or ask a senior moderator for guidance. Include links, dates and the action already taken.",
+          "",
+          "6. CLOSE THE LOOP. Update the ticket/report, avoid promising a particular outcome and do not share internal deliberations with uninvolved members.",
+          "",
+          "USEFUL COOPFT COMMANDS",
+          "/warn • /warnings • /case • /timeout • /untimeout • /kick • /ban • /unban • /note • /notes",
+          "",
+          "A formal reason must be factual: describe the behaviour, not your opinion of the person. Never issue a warning simply because a member disagrees with staff."
+        ].join("\n")
+      },
+      {
+        title: "4 • BLACKLISTS, PRIVACY & ESCALATION",
+        icon: q("7300lock", "🔒"),
+        description: [
+          "COOPFT DOES NOT CURRENTLY OPERATE THE FUKISHŌKAI BLACKLIST SYSTEM. Do not use Fukishōkai /bl-request, TSBCC blacklist categories, blacklist appeal procedures or Fukishōkai-only channels in CoopFT. Do not invent a CoopFT blacklist or promise a blacklist outcome.",
+          "",
+          "For serious, repeated or safety-related behaviour, collect the available evidence and refer the case to Owner Rank. Owner Rank decides whether a ban, removal, further review or a future policy process is appropriate.",
+          "",
+          "PRIVATE INFORMATION",
+          "• Never leak application answers, staff conversations, internal announcements, moderation notes or ticket transcripts.",
+          "• Never publish addresses, phone numbers, account credentials, tokens, private documents or personal details.",
+          "• Share evidence only with staff who need it to resolve the case.",
+          "• Do not use personal DMs to threaten, pressure or negotiate with a reported member.",
+          "• Do not promise confidentiality beyond what the platform and staff process can provide.",
+          "",
+          "WHEN TO ESCALATE IMMEDIATELY",
+          "Doxxing, credible threats, exploitation, suspected account compromise, raids, extortion, serious TOS violations, staff misconduct involving authority, or any case where you feel unsafe or unsure.",
+          "",
+          "If a member reports an urgent safety issue, acknowledge the report, preserve relevant message links and notify Owner Rank. Do not delay escalation while trying to make the case look complete."
+        ].join("\n")
+      },
+      {
+        title: "5 • PROFESSIONAL CONDUCT, STRIKES & PROMOTIONS",
+        icon: q("cf3d_crown", "👑"),
+        description: [
+          "EXPECTED CONDUCT",
+          "• Be respectful in public and private. Do not bait, insult or argue with members.",
+          "• Do not show favoritism toward friends, partners, donors or other staff.",
+          "• Do not use staff powers for personal disputes, entertainment or retaliation.",
+          "• Follow reasonable instructions from higher-ranked staff.",
+          "• Do not leak the staff guide, moderation decisions, application details or internal announcements.",
+          "• If unavailable, notify the appropriate staff channel rather than silently disappearing.",
+          "• Correct mistakes honestly. Do not delete evidence or falsify a reason to hide an invalid action.",
+          "",
+          "STRIKEABLE CONDUCT MAY INCLUDE",
+          "False or unjustified warnings/timeouts, misuse of authority, favoritism, repeated unprofessional conduct, ignoring assigned duties, leaking internal material, avoidable inactivity without notice, or disrespect toward members or staff.",
+          "",
+          "SERIOUS MISCONDUCT MAY LEAD TO DEMOTION OR REMOVAL",
+          "Repeated abuse of moderation tools, deliberate disclosure of sensitive information, retaliation, deliberate insubordination, serious disloyalty, or actions that put the community at risk.",
+          "",
+          "PROMOTIONS AND QUOTAS",
+          "Promotion is based on consistent judgment, activity, professionalism, accurate records, teamwork and trust. Owner Rank publishes any applicable activity targets and promotion timelines. Do not invent a quota or promise a promotion date that has not been officially announced.",
+          "",
+          "Owner Rank determines the appropriate response to staff misconduct. Invalid or careless punishment decisions may themselves be reviewed."
+        ].join("\n")
+      },
+      {
+        title: "6 • DEVELOPER PLAYBOOK & CUSTOM BOT COMMISSIONS",
+        icon: q("cf3d_developer", "💻"),
+        description: [
+          "DEVELOPER RESPONSIBILITIES",
+          "The Developer role is responsible for designing and building custom Discord bots requested by members. It is a technical service role, not a moderation position.",
+          "",
+          "PROJECT WORKFLOW",
+          "1. Review the custom bot ticket and all form answers.",
+          "2. Clarify requirements, user flows, permissions, integrations, data storage and edge cases before agreeing to scope.",
+          "3. Ask Owner Rank to confirm the final price and payment terms with the customer.",
+          "4. Build only the agreed features. Keep credentials and private data secure; never ask a customer to post bot tokens in a ticket.",
+          "5. Test the bot, document setup requirements and prepare the project as a ZIP folder containing the code.",
+          "6. Explain what the customer must configure and what is not included.",
+          "",
+          "PAYMENT RULES",
+          "Only Robux or Discord Nitro are accepted. The price depends on the requested bot's complexity, features and integrations. Only Cookie/Brian (the server Owner) or another verified Owner Rank member may receive payment. Developers and other staff must never collect payment themselves. A customer must receive a confirmed quote and verified recipient from Owner Rank before paying.",
+          "",
+          "CURRENT DELIVERY LIMITATION",
+          "For now, the deliverable is the ZIP folder of code only. The team does not host, deploy or operate the customer's bot, and does not promise 24/7 uptime. Hosting may become available in the future, but it is not part of the current service.",
+          "",
+          "Never promise free work, a fixed price, hosting, a deployment date or ongoing maintenance unless Owner Rank has expressly approved it."
+        ].join("\n")
+      }
+    ];
+
+    for (let index = 0; index < pages.length; index += 1) {
+      const page = pages[index];
+      const embed = new EmbedBuilder()
+        .setColor(index === 5 ? 0x397C94 : 0x8C2635)
+        .setTitle(page.icon + "  COOPFT STAFF GUIDE  •  " + page.title)
+        .setDescription(page.description)
+        .setFooter({ text: "INTERNAL STAFF MATERIAL • Page " + (index + 1) + " of " + pages.length + " • Do not share outside CoopFT staff" })
+        .setTimestamp();
+      const resourceKey = "message:staff_guide_" + (index + 1);
+      const savedId = await this.getResource(guild.id, resourceKey);
+      let message = savedId ? await channel.messages.fetch(savedId).catch(() => null) : null;
+      if (message) {
+        await message.edit({ embeds: [embed], components: [], allowedMentions: { parse: [] } });
+      } else {
+        message = await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
+        await this.saveResource(guild.id, resourceKey, message.id);
+      }
+    }
+    console.info("[coopft] Published " + pages.length + " CoopFT staff-guide pages in #" + channel.name + ".");
+  }
+
+  async ensureCustomBotRequestPanel(guild, channel) {
+    this.assertCoopFTGuild(guild, "publish the custom bot commission information");
+    if (!channel?.isTextBased?.() || typeof channel.send !== "function") {
+      throw new Error("The custom-bot-requests channel is unavailable.");
+    }
+    const me = guild.members.me || await guild.members.fetchMe();
+    await channel.permissionOverwrites.set([
+      {
+        id: guild.id,
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+        deny: [
+          PermissionFlagsBits.SendMessages, PermissionFlagsBits.AddReactions,
+          PermissionFlagsBits.CreatePublicThreads, PermissionFlagsBits.CreatePrivateThreads,
+          PermissionFlagsBits.SendMessagesInThreads
+        ]
+      },
+      {
+        id: me.id,
+        allow: [
+          PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks,
+          PermissionFlagsBits.AttachFiles, PermissionFlagsBits.ManageMessages
+        ]
+      }
+    ], "Make custom bot commission information read-only for members");
+
+    const ticketChannelId = await this.getResource(guild.id, "channel:open_ticket");
+    const customEmoji = (name, fallback) => this.emoji(guild.id, name, fallback);
+    const banner = new AttachmentBuilder(
+      this.buildPanelBanner("Custom Bot Commissions", "Robux or Nitro • ZIP code delivery only", "#397C94"),
+      { name: "coopft-custom-bot-commissions.png" }
+    );
+    const embed = new EmbedBuilder()
+      .setColor(0x397C94)
+      .setTitle(customEmoji("cf3d_developer", "💻") + "  CUSTOM DISCORD BOT COMMISSIONS")
+      .setDescription([
+        "Want a custom Discord bot built for your server or project? CoopFT can review a scoped development request.",
+        "",
+        "WHAT YOU RECEIVE",
+        "A tested project delivered as a ZIP folder containing the code. You receive the project files and setup information.",
+        "",
+        "PAYMENT METHODS",
+        "Only Robux or Discord Nitro are accepted. " + customEmoji("boost", "✨") + " Server boosts are not a payment method. " +
+          customEmoji("PayPal", "🚫") + " PayPal and all other payment methods are not accepted.",
+        "",
+        "PRICING",
+        "There is no single fixed price. The final quote depends on the requested bot, complexity, features, integrations and scope. Owner Rank confirms the price before any payment is made.",
+        "",
+        "WHO CAN RECEIVE PAYMENT?",
+        customEmoji("verified", "✅") + " Payment goes only to Cookie/Brian (the CoopFT Owner) or another verified Owner Rank member (Owner, Co-Owner or Monarch). Developers and other staff must never collect payment. Confirm the recipient inside your private ticket before paying.",
+        "",
+        "CURRENT LIMITATION",
+        customEmoji("7300lock", "🔒") + " The current service provides the ZIP folder of code only. Hosting, deployment, operation and 24/7 uptime are not included or currently available. Hosting may be introduced in the future, but it is not offered yet.",
+        "",
+        "HOW TO REQUEST",
+        "Open " + (ticketChannelId ? "<#" + ticketChannelId + ">" : "the ticket channel") + ", choose Custom Bot Development, and complete the project form. Describe the features and integrations you need. Wait for Owner Rank to confirm the quote and payment recipient before sending anything.",
+        "",
+        "No payment is requested by this information panel. Do not send Robux or Nitro until Owner Rank confirms your quote and the verified recipient in the private ticket."
+      ].join("\n"))
+      .setImage("attachment://coopft-custom-bot-commissions.png")
+      .setFooter({ text: "COOPFT DEVELOPMENT • Paid commissions • ZIP delivery only • No hosting at present" })
+      .setTimestamp();
+
+    const savedId = await this.getResource(guild.id, "message:custom_bot_requests");
+    let message = savedId ? await channel.messages.fetch(savedId).catch(() => null) : null;
+    const payload = {
+      embeds: [embed],
+      files: [banner],
+      attachments: [],
+      components: [],
+      allowedMentions: { parse: [] }
+    };
+    if (message) await message.edit(payload);
+    else {
+      message = await channel.send(payload);
+      await this.saveResource(guild.id, "message:custom_bot_requests", message.id);
+    }
+    console.info("[coopft] Published read-only custom bot commission information.");
+  }
+
   async ensureBrandMessages(guild, publicChannels) {
     this.assertCoopFTGuild(guild, "publish CoopFT messages");
     const retiredKeys = ["welcome", "introductions", "announcements", "suggestions", "bot_updates"];
