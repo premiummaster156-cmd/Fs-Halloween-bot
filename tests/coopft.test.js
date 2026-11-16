@@ -178,7 +178,7 @@ test("onboarding setup enables Discord onboarding and preserves existing prompts
       roles: new Map([[role.id, role]])
     }]])
   };
-  const extraExistingPrompts = ["Region preference", "Member level"].map((title, index) => ({
+  const extraExistingPrompts = ["Region preference", "Member level", "What are ur interests?"].map((title, index) => ({
     id: "existing-prompt-" + (index + 2),
     type: 0,
     title,
@@ -237,6 +237,7 @@ test("onboarding setup enables Discord onboarding and preserves existing prompts
   assert.equal(saved.prompts[0].options[0].channels[0], existingChannel.id);
   assert.equal(saved.prompts[0].options[0].roles[0], role.id);
   assert.equal(saved.prompts.length, 5, "three existing custom prompts plus two generated prompts must fit Discord's five-prompt limit");
+  assert.equal(saved.prompts.some(prompt => /interest|topic/i.test(prompt.title)), false, "legacy interests prompts with alternate wording must be removed");
   assert.deepEqual(saved.prompts.slice(0, 3).map(prompt => prompt.title), [
     "Existing question", "Region preference", "Member level"
   ]);
