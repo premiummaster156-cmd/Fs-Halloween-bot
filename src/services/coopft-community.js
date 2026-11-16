@@ -898,14 +898,20 @@ class CoopFTCommunityService {
         missing.push(target.label);
         continue;
       }
+      let changed = false;
       for (const principal of principals) {
+        const existing = channel.permissionOverwrites.cache?.get(principal.id);
+        const alreadyAllowed = existing?.allow?.has(PermissionFlagsBits.ViewChannel) &&
+          existing?.allow?.has(PermissionFlagsBits.ReadMessageHistory);
+        if (alreadyAllowed) continue;
         await channel.permissionOverwrites.edit(
           principal.id,
           access,
           "Restore public CoopFT View Channel and Read Message History access"
         );
+        changed = true;
       }
-      updated.push(target.label);
+      if (changed) updated.push(target.label);
     }
 
     console.info("[coopft] Repaired public member visibility/history access:", {
