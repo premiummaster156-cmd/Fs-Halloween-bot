@@ -1774,6 +1774,23 @@ class CoopFTCommunityService {
       await interaction.reply({ content: "That staff position is not available for applications.", flags: MessageFlags.Ephemeral });
       return true;
     }
+    const applicant = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+    if (!applicant) {
+      await interaction.reply({ content: "I could not verify your server roles. Please try again.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    const alreadyHasRole = (key) => {
+      const managedRole = this.roles.get(key);
+      return Boolean(managedRole && applicant.roles.cache.has(managedRole.id));
+    };
+    if (role.category === "staff" && STAFF_RANKS.some((rank) => alreadyHasRole(rank.key))) {
+      await interaction.reply({ content: "You already hold a CoopFT staff role, so you cannot apply for Junior Moderator or Moderator.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    if (role.category === "developer" && alreadyHasRole("developer_member")) {
+      await interaction.reply({ content: "You already have the Developer role.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
     await interaction.showModal(this.createApplicationModal(role));
     return true;
   }
@@ -1829,6 +1846,23 @@ class CoopFTCommunityService {
     const role = APPLICATION_RANKS.find((item) => item.key === interaction.customId.split(":")[2]);
     if (!role) {
       await interaction.reply({ content: "That application track is no longer available.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    const applicant = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+    if (!applicant) {
+      await interaction.reply({ content: "I could not verify your server roles. Your application was not submitted.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    const alreadyHasRole = (key) => {
+      const managedRole = this.roles.get(key);
+      return Boolean(managedRole && applicant.roles.cache.has(managedRole.id));
+    };
+    if (role.category === "staff" && STAFF_RANKS.some((rank) => alreadyHasRole(rank.key))) {
+      await interaction.reply({ content: "You already hold a CoopFT staff role. Junior Moderator and Moderator applications are reserved for non-staff members.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    if (role.category === "developer" && alreadyHasRole("developer_member")) {
+      await interaction.reply({ content: "You already have the Developer role, so you cannot submit another Developer application.", flags: MessageFlags.Ephemeral });
       return true;
     }
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -2515,6 +2549,15 @@ class CoopFTCommunityService {
     if (!info) throw new Error("Unknown ticket type.");
     const section = TICKET_SECTIONS[info.section];
     if (!section) throw new Error("Unknown ticket section.");
+    const cooldown = await this.pool.query(
+      "SELECT expires_at,reason FROM coopft_ticket_cooldowns WHERE guild_id=$1 AND member_id=$2 AND ticket_type=$3 AND expires_at>NOW() LIMIT 1",
+      [guild.id, member.id, ticketType]
+    );
+    if (cooldown.rowCount) {
+      const until = Math.floor(new Date(cooldown.rows[0].expires_at).getTime() / 1000);
+      const reason = cooldown.rows[0].reason ? " Reason: " + cooldown.rows[0].reason : "";
+      throw new Error("A staff member placed a cooldown on this request type. You can submit it again <t:" + until + ":R>." + reason);
+    }
     const existing = await this.pool.query(
       "SELECT id,channel_id FROM coopft_tickets WHERE guild_id=$1 AND opener_id=$2 AND status='open' ORDER BY created_at DESC LIMIT 1",
       [guild.id, member.id]
