@@ -2895,6 +2895,34 @@ class CoopFTCommunityService {
     }
   }
 
+  async configureTicketing(guild, options = {}) {
+    this.assertCoopFTGuild(guild, "configure CoopFT ticket routing");
+    const category = options.category || null;
+    const transcriptChannel = options.transcriptChannel || null;
+    if (!category && !transcriptChannel) {
+      throw new Error("Select a ticket category, transcript channel, or both.");
+    }
+    if (category && category.type !== ChannelType.GuildCategory) {
+      throw new Error("The ticket destination must be a category channel.");
+    }
+    if (transcriptChannel && (
+      !transcriptChannel.isTextBased?.() ||
+      ![ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(transcriptChannel.type)
+    )) {
+      throw new Error("The transcript destination must be a text or announcement channel.");
+    }
+
+    if (category) await this.saveResource(guild.id, "category:tickets", category.id);
+    if (transcriptChannel) await this.saveResource(guild.id, "channel:ticket_transcripts", transcriptChannel.id);
+
+    const savedCategory = category || await this.getResource(guild.id, "category:tickets");
+    const savedTranscripts = transcriptChannel || await this.getResource(guild.id, "channel:ticket_transcripts");
+    return {
+      categoryId: typeof savedCategory === "string" ? savedCategory : savedCategory?.id || null,
+      transcriptChannelId: typeof savedTranscripts === "string" ? savedTranscripts : savedTranscripts?.id || null
+    };
+  }
+
   async configurePanel(guild, panelKey, targetChannel) {
     this.assertCoopFTGuild(guild, "configure a CoopFT information panel");
     const definitions = {
