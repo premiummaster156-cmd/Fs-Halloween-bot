@@ -1229,35 +1229,56 @@ class CoopFTCommunityService {
   async ensureApplicationPanel(guild, channel) {
     this.assertCoopFTGuild(guild, "publish the CoopFT application panel");
     if (!channel?.isTextBased?.()) return;
-    const banner = new AttachmentBuilder(this.buildPanelBanner("Staff Applications", "Join the CoopFT Staff Team", "#8C2635"), { name: "coopft-applications-banner.png" });
+    let applicationsOpen = await this.getSetting(guild.id, "applications_open");
+    if (applicationsOpen === null) {
+      applicationsOpen = true;
+      await this.setSetting(guild.id, "applications_open", true);
+    }
+    const banner = new AttachmentBuilder(
+      this.buildPanelBanner("Staff Applications", applicationsOpen ? "Applications now open" : "Applications temporarily closed", "#8C2635"),
+      { name: "coopft-applications-banner.png" }
+    );
     const embed = new EmbedBuilder()
-      .setColor(0x8C1D32)
-      .setTitle("COOPFT  |  STAFF APPLICATIONS")
-      .setDescription([
-        "Interested in joining the CoopFT staff team?",
+      .setColor(applicationsOpen ? 0x267A58 : 0x963A48)
+      .setTitle("COOPFT  |  STAFF & DEVELOPER APPLICATIONS")
+      .setDescription(applicationsOpen ? [
+        "**Applications are currently open.**",
         "",
-        "Choose one available operational rank and complete the private application form. Your answers are delivered directly to the leadership review channel.",
+        "Choose one of the three available tracks and complete the private form. Your answers are delivered to the Owner Rank review team.",
         "",
-        "**Review process**",
-        "Designated leadership reviews every application. You will receive a private decision summary. Accepted applicants are assigned the rank they applied for.",
+        "**Junior Moderator**",
+        "An entry-level moderation role focused on member support, learning procedures and handling approved low-risk duties.",
         "",
-        "**Leadership appointments**",
-        "Owner, Co-Owner, Monarch, High Rank Supervisor, and senior high-rank appointments are reserved for leadership selection."
+        "**Moderator**",
+        "A moderation role responsible for reports, member safety, consistent rule enforcement and clear case records.",
+        "",
+        "**Developer**",
+        "Builds custom Discord bots requested by members. This is a technical service role, not a moderation rank.",
+        "",
+        "Each applicant may have one pending application per track. Decisions are sent privately."
+      ].join("\n") : [
+        "**Applications are currently closed.**",
+        "",
+        "The CoopFT Owner Rank has temporarily paused recruitment. Please check again later.",
+        "",
+        "Available tracks when recruitment reopens: Junior Moderator, Moderator and Developer."
       ].join("\n"))
       .setImage("attachment://coopft-applications-banner.png")
-      .setFooter({ text: "COOPFT  •  STAFF RECRUITMENT" });
-    const menu = new StringSelectMenuBuilder()
-      .setCustomId("cf-application:position-select")
-      .setPlaceholder("Choose the staff position you want to apply for")
-      .setMinValues(1)
-      .setMaxValues(1)
-      .addOptions(APPLICATION_RANKS.map((role) => ({
-        label: role.name,
-        value: role.key,
-        description: role.description.slice(0, 100),
-        emoji: this.emojis.has(role.emoji) ? { id: this.emojis.get(role.emoji), name: role.emoji } : role.icon
-      })));
-    const components = [new ActionRowBuilder().addComponents(menu)];
+      .setFooter({ text: "COOPFT  •  " + (applicationsOpen ? "RECRUITMENT OPEN" : "RECRUITMENT CLOSED") });
+    const components = applicationsOpen ? [
+      new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId("cf-application:position-select")
+          .setPlaceholder("Choose Junior Moderator, Moderator or Developer")
+          .setMinValues(1).setMaxValues(1)
+          .addOptions(APPLICATION_RANKS.map((role) => ({
+            label: role.name,
+            value: role.key,
+            description: role.description.slice(0, 100),
+            emoji: this.emojis.has(role.emoji) ? { id: this.emojis.get(role.emoji), name: role.emoji } : role.icon
+          })))
+      )
+    ] : [];
     const savedId = await this.getResource(guild.id, "message:application_panel");
     let message = savedId ? await channel.messages.fetch(savedId).catch(() => null) : null;
     const payload = { embeds: [embed], components, files: [banner], attachments: [], allowedMentions: { parse: [] } };
@@ -1268,19 +1289,100 @@ class CoopFTCommunityService {
     }
   }
 
-  createApplicationModal(role) {
-    const modal = new ModalBuilder().setCustomId("cf-application:submit:" + role.key).setTitle("Staff application  |  " + role.name);
-    const questions = [
-      ["experience", "What relevant experience do you have?", TextInputStyle.Paragraph, true, 900],
+  async ensureApplicationControlPanel(guild, channel) {
+    this.assertCoopFTGuild(guild, "publish the private application controls");
+    if (!channel?.isTextBased?.()) throw new Error("The private application-control channel is unavailable.");
+    const open = (await this.getSetting(guild.id, "applications_open")) !== false;
+    const embed = new EmbedBuilder()
+      .setColor(0x8C2635)
+      .setTitle(this.emoji(guild.id, "cf3d_applications", "📋") + "  OWNER RANK | RECRUITMENT CONTROL")
+      .setDescription([
+        "This private panel is restricted to **Owner, Co-Owner and Monarch**.",
+        "",
+        "**Current status:** " + (open ? "🟢 OPEN — public applications are accepting submissions." : "🔴 CLOSED — the public form is disabled."),
+        "",
+        "Use the controls below to open or close recruitment. Closing applications removes the public submission menu immediately; existing pending applications remain in the review queue.",
+        "",
+        "**Available tracks:** Junior Moderator • Moderator • Developer"
+      ].join("\n"))
+      .setFooter({ text: "PRIVATE • OWNER RANK ONLY • CoopFT recruitment controls" })
+      .setTimestamp();
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("cf-application-control:open").setLabel("Open applications")
+        .setStyle(ButtonStyle.Success).setEmoji("🟢").setDisabled(open),
+      new ButtonBuilder().setCustomId("cf-application-control:close").setLabel("Close applications")
+        .setStyle(ButtonStyle.Danger).setEmoji("🔴").setDisabled(!open)
+    );
+    const payload = { embeds: [embed], components: [row], allowedMentions: { parse: [] } };
+    const savedId = await this.getResource(guild.id, "message:application_control");
+    let message = savedId ? await channel.messages.fetch(savedId).catch(() => null) : null;
+    if (message) await message.edit(payload);
+    else {
+      message = await channel.send(payload);
+      await this.saveResource(guild.id, "message:application_control", message.id);
+    }
+  }
+
+  async handleApplicationControlButton(interaction) {
+    this.assertCoopFTGuild(interaction.guild, "change CoopFT recruitment status");
+    if (interaction.guildId !== this.guildId) {
+      await interaction.reply({ content: "Recruitment controls are only available in CoopFT.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    if (!this.canManageApplications(interaction.member, interaction.guild)) {
+      await interaction.reply({ content: "Only Owner, Co-Owner or Monarch can open or close applications.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    const action = interaction.customId.split(":")[1];
+    if (!["open", "close"].includes(action)) {
+      await interaction.reply({ content: "Unknown recruitment control.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    const open = action === "open";
+    await this.setSetting(interaction.guildId, "applications_open", open);
+    const publicId = await this.getResource(interaction.guildId, "channel:applications");
+    const publicChannel = publicId ? await interaction.guild.channels.fetch(publicId).catch(() => null) : null;
+    if (!publicChannel?.isTextBased?.()) throw new Error("The public applications channel could not be found.");
+    await this.ensureApplicationPanel(interaction.guild, publicChannel);
+    await this.ensureApplicationControlPanel(interaction.guild, interaction.channel);
+    await interaction.reply({
+      content: open
+        ? "Recruitment is now **OPEN**. The public application menu is active."
+        : "Recruitment is now **CLOSED**. The public application menu has been disabled.",
+      flags: MessageFlags.Ephemeral
+    });
+    return true;
+  }
+
+  getApplicationQuestions(role) {
+    if (role.category === "developer") {
+      return [
+        ["experience", "What bots have you built before?", TextInputStyle.Paragraph, true, 900],
+        ["portfolio", "Share portfolio, GitHub or demo links", TextInputStyle.Paragraph, true, 900],
+        ["workflow", "How do you scope and build a custom bot request?", TextInputStyle.Paragraph, true, 900],
+        ["security", "How do you protect bot tokens and user data?", TextInputStyle.Paragraph, true, 900],
+        ["support", "What is your availability for updates and support?", TextInputStyle.Paragraph, true, 900]
+      ];
+    }
+    return [
+      ["experience", "What relevant moderation experience do you have?", TextInputStyle.Paragraph, true, 900],
       ["motivation", "Why do you want this position?", TextInputStyle.Paragraph, true, 900],
       ["scenario", "How would you handle a difficult situation?", TextInputStyle.Paragraph, true, 900],
       ["availability", "What is your usual weekly availability?", TextInputStyle.Short, true, 250],
       ["extra", "Anything else we should know? (optional)", TextInputStyle.Paragraph, false, 700]
     ];
+  }
+
+  createApplicationModal(role) {
+    const modal = new ModalBuilder()
+      .setCustomId("cf-application:submit:" + role.key)
+      .setTitle((role.category === "developer" ? "Developer application" : "Staff application") + " | " + role.name);
+    const questions = this.getApplicationQuestions(role);
     modal.addComponents(...questions.map(([id, label, style, required, maxLength]) =>
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId(id).setLabel(label)
         .setStyle(style).setRequired(required).setMaxLength(maxLength)
-        .setPlaceholder(id === "availability" ? "For example: weekday evenings and weekends" : "Write a clear, honest answer"))
+        .setPlaceholder(id === "portfolio" ? "Links to work you can share publicly" :
+          id === "availability" ? "For example: weekday evenings and weekends" : "Write a clear, honest answer"))
     ));
     return modal;
   }
