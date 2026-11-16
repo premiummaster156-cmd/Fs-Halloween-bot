@@ -532,23 +532,28 @@ class CoopFTCommunityService {
 
   async loadManagedRoles(guild) {
     this.assertCoopFTGuild(guild, "load managed CoopFT roles");
-    if (!guild || guild.id !== this.guildId) return { staff: 0, emojis: 0 };
-    const resourceKeys = STAFF_RANKS.map((spec) => "resource:role:" + spec.key);
+    if (!guild || guild.id !== this.guildId) return { staff: 0, member: 0, interest: 0, ping: 0, brackets: 0, emojis: 0 };
+    const roleSpecs = [...ROLE_BRACKETS, ...STAFF_RANKS, ...MEMBER_ROLES, ...INTEREST_ROLES, ...PING_ROLES, ...BOT_ROLES];
+    const resourceKeys = roleSpecs.map((spec) => "resource:role:" + spec.key);
     const result = await this.pool.query(
       "SELECT setting_key,setting_value FROM coopft_community_settings WHERE guild_id=$1 AND setting_key=ANY($2::text[])",
       [guild.id, [...resourceKeys, "emoji_map"]]
     );
     const settings = new Map(result.rows.map((row) => [row.setting_key, row.setting_value]));
     this.roles.clear();
-    const loadedRoles = await Promise.all(STAFF_RANKS.map(async (spec) => {
+    const loadedRoles = await Promise.all(roleSpecs.map(async (spec) => {
       const id = settings.get("resource:role:" + spec.key);
       return { spec, role: id ? await guild.roles.fetch(id).catch(() => null) : null };
     }));
-    const counts = { staff: 0, emojis: 0 };
+    const counts = { staff: 0, member: 0, interest: 0, ping: 0, brackets: 0, emojis: 0 };
     for (const item of loadedRoles) {
       if (!item.role) continue;
       this.roles.set(item.spec.key, item.role);
-      counts.staff += 1;
+      if (STAFF_RANKS.some((spec) => spec.key === item.spec.key)) counts.staff += 1;
+      else if (MEMBER_ROLES.some((spec) => spec.key === item.spec.key) || BOT_ROLES.some((spec) => spec.key === item.spec.key)) counts.member += 1;
+      else if (INTEREST_ROLES.some((spec) => spec.key === item.spec.key)) counts.interest += 1;
+      else if (PING_ROLES.some((spec) => spec.key === item.spec.key)) counts.ping += 1;
+      else counts.brackets += 1;
     }
     const savedEmojiMap = settings.get("emoji_map");
     this.emojis.clear();
@@ -605,8 +610,8 @@ class CoopFTCommunityService {
     const expectedName = spec.name;
     if (role.name !== expectedName) baseChanges.name = expectedName;
     if (role.color !== spec.primary) baseChanges.color = spec.primary;
-    if (role.hoist !== true) baseChanges.hoist = true;
-    if (role.mentionable !== false) baseChanges.mentionable = false;
+    if (role.hoist !== (spec.hoist ?? true)) baseChanges.hoist = spec.hoist ?? true;
+    if (role.mentionable !== (spec.mentionable ?? false)) baseChanges.mentionable = spec.mentionable ?? false;
     const permissionBits = role.permissions?.bitfield;
     const expectedPermissionBits = BigInt(spec.permissions ?? 0n);
     if (permissionBits !== undefined && BigInt(permissionBits) !== expectedPermissionBits) {
@@ -900,6 +905,7 @@ class CoopFTCommunityService {
     };
 
     await this.removeManagedChannel(guild, "help_study");
+    await this.removeManagedChannel(guild, "staff_directory");
     await this.removeRetiredRoleGuide(guild);
     const startCategory = (await this.ensureCategory(guild, "start_here", CATEGORY_NAMES.start_here)).channel;
     const communityCategory = (await this.ensureCategory(guild, "community", CATEGORY_NAMES.community)).channel;
@@ -913,15 +919,32 @@ class CoopFTCommunityService {
         : communityKeys.has(spec.key) ? communityCategory : servicesCategory;
       publicByKey[spec.key] = await createChannel(spec, parent);
     }
-    publicByKey.staff_directory = await createChannel({ key: "staff_directory", name: "⌗・staff-directory" }, servicesCategory);
 
     const retiredRoles = await this.retireLegacyManagedRoles(guild);
     const cleanup = await this.cleanupEditableRoles(guild);
     this.roles.clear();
-    for (const spec of STAFF_RANKS) {
+    const managedRoleSpecs = [...ROLE_BRACKETS, ...STAFF_RANKS, ...MEMBER_ROLES, ...INTEREST_ROLES, ...PING_ROLES, ...BOT_ROLES];
+    for (const spec of managedRoleSpecs) {
       const result = await this.ensureRole(guild, spec);
       this.roles.set(spec.key, result.role);
       if (result.created) counts.createdRoles += 1;
+    }
+
+    // Put the divider roles immediately above their own role groups. All existing
+    // non-managed roles remain intact; only this bot-owned role set is repositioned.
+    const roleKeyOrder = ROLE_LAYOUT.flatMap((group) => [group.bracket, ...group.roles]);
+    const topManagedPosition = Math.max(1, (me.roles.highest?.position || guild.roles.cache.size) - 1);
+    const positions = roleKeyOrder
+      .map((key, index) => ({ role: this.roles.get(key), position: topManagedPosition - index }))
+      .filter((item) => item.role && item.position > 0);
+    if (positions.length) {
+      await guild.roles.setPositions(positions, "Arrange CoopFT bracket roles and their grouped roles");
+    }
+    const assistantRole = this.roles.get("bot_coopft_assistant");
+    if (assistantRole && !me.roles.cache.has(assistantRole.id) && assistantRole.position < me.roles.highest.position) {
+      await me.roles.add(assistantRole, "Mark the CoopFT bot under the Bots role bracket").catch((error) =>
+        console.warn("[coopft] Could not add the CoopFT Assistant marker role:", error.message)
+      );
     }
     const staffOverwrites = await this.staffPermissionOverwrites(guild);
     const staffCategory = (await this.ensureCategory(guild, "staff_hq", CATEGORY_NAMES.staff_hq, staffOverwrites)).channel;
@@ -974,6 +997,7 @@ class CoopFTCommunityService {
 
     await this.updateStaffDirectory(guild);
     await this.ensureTicketPanel(guild, publicByKey.open_ticket);
+    await this.ensureRoleSelectionPanel(guild, publicByKey.role_selection);
     await this.ensureApplicationPanel(guild, publicByKey.applications);
     await this.ensureBrandMessages(guild, publicByKey);
     if (cleanup.awaitingConfirmation) {
@@ -2138,7 +2162,7 @@ class CoopFTCommunityService {
     const embed = await this.buildStaffDirectoryEmbed(guild);
     const banner = this.buildStaffBanner();
     embed.setThumbnail("attachment://coopft-staff-banner.png");
-    for (const key of ["staff_team", "staff_directory"]) {
+    for (const key of ["staff_team"]) {
       const channelId = await this.getResource(guild.id, "channel:" + key);
       const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
       if (!channel?.isTextBased?.()) continue;
