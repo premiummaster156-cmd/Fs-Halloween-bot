@@ -46,22 +46,15 @@ const STAFF_RANKS = Object.freeze([
   { key: "junior_moderator", name: "Junior Moderator", icon: "🌿", emoji: "cf3d_leaf", primary: 0x269B69, secondary: 0x76D8A7, permissions: permissionSet("ManageMessages", "CreatePublicThreads"), permissionSummary: "Can moderate messages and create public threads; cannot kick or timeout members.", description: "Learns the moderation process, assists members, and handles approved entry-level duties." }
 ]);
 
-const HR_ROLES = Object.freeze([
-  { key: "hr_director", name: "HR Director", icon: "🔑", emoji: "cf3d_key", primary: 0x9C315C, secondary: 0xF07DB0, permissions: permissionSet("ManageThreads", "CreatePrivateThreads", "SendMessagesInThreads"), permissionSummary: "Can manage recruitment threads, create private threads and reply in threads.", description: "Leads recruitment and staff development, maintains HR standards, and oversees the HR team." },
-  { key: "hr_manager", name: "HR Manager", icon: "📜", emoji: "cf3d_scroll", primary: 0x8A356B, secondary: 0xD68DBA, permissions: permissionSet("ManageThreads", "CreatePrivateThreads", "SendMessagesInThreads"), permissionSummary: "Can manage recruitment threads, create private threads and reply in threads.", description: "Coordinates recruitment activity, supports staff welfare, and manages approved junior HR assignments." },
-  { key: "hr_recruiter", name: "HR Recruiter", icon: "🤝", emoji: "cf3d_handshake", primary: 0x8A5B24, secondary: 0xE0B85F, permissions: permissionSet("CreatePrivateThreads", "CreatePublicThreads", "SendMessagesInThreads"), permissionSummary: "Can create public/private threads and reply in threads for candidate coordination.", description: "Supports candidate communication, screening coordination and recruitment outreach under HR leadership." },
-  { key: "hr_coordinator", name: "HR Coordinator", icon: "🎟️", emoji: "cf3d_ticket", primary: 0x275B9A, secondary: 0x6EA8E8, permissions: permissionSet("CreatePrivateThreads", "CreatePublicThreads", "SendMessagesInThreads"), permissionSummary: "Can create public/private threads and reply in threads for interview scheduling and follow-up.", description: "Coordinates interview scheduling, maintains recruitment records and supports HR-led candidate follow-up." },
-  { key: "hr_trainee", name: "HR Trainee", icon: "🔔", emoji: "cf3d_bell", primary: 0x59616F, secondary: 0xA9B4C7, permissions: permissionSet("CreatePublicThreads", "SendMessagesInThreads"), permissionSummary: "Can create public threads and reply in threads while working under HR supervision.", description: "Learns the HR workflow and assists with supervised administrative and candidate-support tasks." }
+// Applications are limited to operational staff ranks. Executive and high-rank
+// appointments remain leadership decisions and cannot be self-applied for.
+const APPLICATION_RANK_KEYS = new Set([
+  "staff_supervisor", "supreme_council", "senate", "head_moderator",
+  "council", "senior_moderator", "moderator", "junior_moderator"
 ]);
-
-// These are opt-in team positions, not moderation ranks or Discord permission roles.
-const APPLICATION_ROLES = Object.freeze([
-  { key: "war_manager", name: "War Manager", icon: "⚔️", emoji: "cf3d_war", primary: 0x8D2634, secondary: 0xF06473, permissions: 0n, permissionSummary: "No global permissions; this role identifies the specialist team and approved war-planning workflow only.", description: "Plans competitive matches, coordinates teams and schedules, and keeps war activities organized." },
-  { key: "referee", name: "Referee", icon: "⚖️", emoji: "cf3d_referee", primary: 0xA67821, secondary: 0xF3D17A, permissions: 0n, permissionSummary: "No global permissions; this role identifies the specialist team and match-referee workflow only.", description: "Oversees matches fairly, checks reported incidents, and records clear match outcomes." },
-  { key: "observer", name: "Observer", icon: "👁️", emoji: "cf3d_observer", primary: 0x176D91, secondary: 0x73DDF5, permissions: 0n, permissionSummary: "No global permissions; this role identifies the event-observer assignment only.", description: "Watches events, documents important moments, and supports transparent event oversight." },
-  { key: "helper", name: "Helper", icon: "🧭", emoji: "cf3d_helper", primary: 0x176B45, secondary: 0x62C987, permissions: 0n, permissionSummary: "No global permissions; this role identifies the community-helper assignment only.", description: "Welcomes members, answers everyday questions, and guides people to the right resources." },
-  { key: "ticket_staff", name: "Ticket Staff", icon: "🎫", emoji: "cf3d_ticket_staff", primary: 0x542A93, secondary: 0xB26AF2, permissions: 0n, permissionSummary: "No global permissions; ticket access is granted through private channel overwrites and the bot's ticket workflow.", description: "Handles support tickets, communicates clearly with members, and routes complex issues to the right team." }
-]);
+const APPLICATION_RANKS = Object.freeze(
+  STAFF_RANKS.filter((role) => APPLICATION_RANK_KEYS.has(role.key))
+);
 
 const EMOJI_SPRITE = Object.freeze([
   "cf3d_crown", "cf3d_shield", "cf3d_star", "cf3d_gem",
@@ -114,6 +107,6 @@ const PRIVATE_CHANNELS = Object.freeze([
 ]);
 
 module.exports = {
-  STAFF_RANKS, HR_ROLES, APPLICATION_ROLES, EMOJI_SPRITE, CATEGORY_NAMES, PUBLIC_CHANNELS, PRIVATE_CHANNELS,
+  STAFF_RANKS, APPLICATION_RANKS, EMOJI_SPRITE, CATEGORY_NAMES, PUBLIC_CHANNELS, PRIVATE_CHANNELS,
   OWNER_PERMISSIONS, HIGH_RANK_SUPERVISOR_PERMISSIONS, ALL_PERMISSION_BITS
 };
