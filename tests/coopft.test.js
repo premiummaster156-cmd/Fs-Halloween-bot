@@ -240,6 +240,46 @@ test("manual setup uploads all 28 3D CoopFT emblems as separate Discord-sized PN
   }
 });
 
+test("legacy role retirement deletes only exact saved CoopFT roles", async () => {
+  const values = new Map([
+    ["resource:role:hr_director", "legacy-hr"],
+    ["resource:role:hr_manager", "renamed-hr"],
+    ["resource:role:war_manager", "managed-war"]
+  ]);
+  const deleted = [];
+  const roles = new Map([
+    ["legacy-hr", { id: "legacy-hr", name: "CF • HR Director", managed: false, editable: true,
+      delete: async () => deleted.push("legacy-hr") }],
+    ["renamed-hr", { id: "renamed-hr", name: "Community Lead", managed: false, editable: true,
+      delete: async () => deleted.push("renamed-hr") }],
+    ["managed-war", { id: "managed-war", name: "CF • War Manager", managed: true, editable: false,
+      delete: async () => deleted.push("managed-war") }]
+  ]);
+  const pool = {
+    async query(sql, params) {
+      if (sql.includes("SELECT setting_value")) {
+        return { rows: values.has(params[1]) ? [{ setting_value: values.get(params[1]) }] : [] };
+      }
+      if (sql.includes("DELETE FROM coopft_community_settings")) {
+        values.delete(params[1]);
+        return { rows: [] };
+      }
+      throw new Error("Unexpected SQL in legacy role retirement test.");
+    }
+  };
+  const service = new CoopFTCommunityService(pool, { guildId: coopftGuildId });
+  const result = await service.retireLegacyManagedRoles({
+    id: coopftGuildId,
+    roles: { fetch: async (id) => roles.get(id) || null }
+  });
+  assert.deepEqual(deleted, ["legacy-hr"]);
+  assert.deepEqual(result.retired, ["CF • HR Director"]);
+  assert.equal(result.preserved.length, 2);
+  assert.equal(values.has("resource:role:hr_director"), false);
+  assert.equal(values.has("resource:role:hr_manager"), true);
+  assert.equal(values.has("resource:role:war_manager"), true);
+});
+
 test("CoopFT setup refuses to configure elevated roles unless the bot has Administrator", async () => {
   const service = new CoopFTCommunityService(
     { query: async () => ({ rows: [] }) },
