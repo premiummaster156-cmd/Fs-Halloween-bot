@@ -887,7 +887,7 @@ class CoopFTCommunityService {
     const updated = [];
     const missing = [];
     const targets = [
-      ...Object.keys(CATEGORY_NAMES).map((key) => ({ key: "category:" + key, label: "category:" + key })),
+      ...["start_here", "community", "services"].map((key) => ({ key: "category:" + key, label: "category:" + key })),
       ...PUBLIC_CHANNELS.map((spec) => ({ key: "channel:" + spec.key, label: spec.key }))
     ];
 
