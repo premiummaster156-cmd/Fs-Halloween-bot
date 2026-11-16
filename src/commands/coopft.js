@@ -83,19 +83,37 @@ if(n==="onboarding-setup"){
   id:SnowflakeUtil.generate(),
   type:0,
   title:promptTitle,
-  single_select:false,
+  singleSelect:false,
   required:false,
-  in_onboarding:true,
+  inOnboarding:true,
   options:extraChannels.map(channel=>({
    id:SnowflakeUtil.generate(),
    title:("#"+channel.name).slice(0,100),
    description:("Add "+channel.name+" to your channel list.").slice(0,100),
-   channel_ids:[channel.id],
-   role_ids:[]
+   channels:[channel],
+   roles:[]
   }))
  };
- const oldPrompts=Array.isArray(current.prompts)?current.prompts.map(item=>item.toJSON?.()||item):[];
- const prompts=oldPrompts.filter(item=>item.title!==promptTitle);
+ const existingPrompts=[...(current.prompts?.values?.()||[])];
+ const oldPrompts=existingPrompts
+  .filter(item=>item.title!==promptTitle)
+  .map(item=>({
+   id:item.id,
+   type:item.type,
+   title:item.title,
+   singleSelect:item.singleSelect,
+   required:item.required,
+   inOnboarding:item.inOnboarding,
+   options:[...(item.options?.values?.()||[])].map(option=>({
+    id:option.id,
+    title:option.title,
+    description:option.description,
+    emoji:option.emoji||undefined,
+    channels:[...(option.channels?.values?.()||[])],
+    roles:[...(option.roles?.values?.()||[])]
+   }))
+  }));
+ const prompts=oldPrompts;
  if(prompts.length>=5)throw Error("This server already has 5 onboarding questions. Remove an existing question in Server Settings, then rerun /onboarding-setup so the bot can add its generated question.");
  prompts.push(prompt);
  await g.editOnboarding({
