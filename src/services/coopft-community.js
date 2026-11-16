@@ -2959,12 +2959,14 @@ class CoopFTCommunityService {
       await guild.members.fetch();
       this.memberRosterLoaded = true;
     }
+
     const members = [...guild.members.cache.values()];
     const grouped = new Map(STAFF_RANKS.map((rank) => [rank.key, []]));
     const developerMembers = [];
+
+    // The directory is rendered from live Discord role assignments, never
+    // from application history or a manually maintained name list.
     for (const member of members) {
-      // Read every rank role independently. If a member currently holds more
-      // than one rank role, the directory reflects every actual assignment.
       for (const rank of STAFF_RANKS) {
         const role = this.roles.get(rank.key);
         if (role && member.roles.cache.has(role.id)) grouped.get(rank.key).push(member);
@@ -2972,6 +2974,7 @@ class CoopFTCommunityService {
       const developerRole = this.roles.get("developer_member");
       if (developerRole && member.roles.cache.has(developerRole.id)) developerMembers.push(member);
     }
+
     const sectionFor = (key) => {
       if (["owner", "co_owner", "monarch"].includes(key)) return "OWNER RANK";
       if (["high_rank_supervisor", "apex", "right_wing", "left_wing", "halo", "overseer"].includes(key)) return "HIGH RANK";
@@ -2979,37 +2982,56 @@ class CoopFTCommunityService {
       return "MOD ROLES";
     };
     const sections = [
-      { name: "OWNER RANK", emoji: "cf3d_owner_crest", fallback: "👑" },
-      { name: "HIGH RANK", emoji: "cf3d_high_rank", fallback: "🐉" },
-      { name: "LOW RANK", emoji: "cf3d_low_rank", fallback: "⚖️" },
-      { name: "MOD ROLES", emoji: "cf3d_mod_rank", fallback: "⚔️" }
+      { name: "OWNER RANK", title: "The royal family", emoji: "cf3d_owner_crest", fallback: "👑" },
+      { name: "HIGH RANK", title: "Wings", emoji: "cf3d_war", fallback: "🪽" },
+      { name: "LOW RANK", title: "High order", emoji: "cf3d_low_rank", fallback: "⚖️" },
+      { name: "MOD ROLES", title: "Moderation", emoji: "cf3d_mod_rank", fallback: "🛡️" }
     ];
+
+    const refreshedAt = Math.floor(Date.now() / 1000);
     const embed = new EmbedBuilder()
       .setColor(0x8C2635)
-      .setTitle("COOPFT  |  STAFF DIRECTORY")
-      .setDescription("The live CoopFT hierarchy, read from current Discord role assignments. Every listed member currently holds the displayed role.\n**Last refreshed:** <t:" + Math.floor(Date.now() / 1000) + ":T>")
-      .setFooter({ text: "COOPFT  •  Live role-based directory • Refreshes every 15 seconds" })
+      .setDescription(
+        "Below you'll find the current listed staff of **CoopFT**.\n" +
+        "*Staff listings are synced from current Discord role assignments. VACANT means nobody currently holds that role.*\n" +
+        "**Last refreshed:** <t:" + refreshedAt + ":T>"
+      )
+      .setFooter({ text: "COOPFT  •  Live staff directory  •  Automatically refreshed every 15 seconds" })
       .setTimestamp();
+
     for (const section of sections) {
-      const lines = STAFF_RANKS.filter((rank) => sectionFor(rank.key) === section.name).map((rank) => {
-        const people = grouped.get(rank.key) || [];
-        const names = people.length
-          ? people.sort((a, b) => a.displayName.localeCompare(b.displayName)).map((member) => "<@" + member.id + ">").join(", ")
-          : "_Open position_";
-        return this.emoji(guild.id, rank.emoji, rank.icon) + " **" + rank.name + "**  ›  " + names;
-      });
+      const lines = STAFF_RANKS
+        .filter((rank) => sectionFor(rank.key) === section.name)
+        .map((rank) => {
+          const people = [...(grouped.get(rank.key) || [])]
+            .sort((a, b) => a.displayName.localeCompare(b.displayName));
+          const names = people.length
+            ? people.map((member) => "<@" + member.id + ">").join(", ")
+            : "*VACANT*";
+          const role = this.roles.get(rank.key);
+          // A role mention inherits its configured Discord role colour.
+          // allowedMentions below suppresses notifications from these labels.
+          const roleLabel = role ? "<@&" + role.id + ">" : "**" + rank.name + "**";
+          return this.emoji(guild.id, rank.emoji, rank.icon) + "  " + roleLabel + "  ➜  " + names;
+        });
+
       embed.addFields({
-        name: "━━━━  " + this.emoji(guild.id, section.emoji, section.fallback) + "  " + section.name + "  ━━━━",
-        value: lines.join("\n").slice(0, 1024) || "_No positions configured._",
+        name: "━━━━━━━━  " + this.emoji(guild.id, section.emoji, section.fallback) + "  **_" + section.title + "_**  ━━━━━━━━",
+        value: lines.join("\n") || "*No positions configured.*",
         inline: false
       });
     }
-    const developerLines = developerMembers.length
-      ? developerMembers.sort((a, b) => a.displayName.localeCompare(b.displayName)).map((member) => "<@" + member.id + ">").join(", ")
-      : "_No active Developers_";
+
+    const developers = [...developerMembers]
+      .sort((a, b) => a.displayName.localeCompare(b.displayName));
+    const developerRole = this.roles.get("developer_member");
+    const developerLabel = developerRole ? "<@&" + developerRole.id + ">" : "**Developer**";
+    const developerNames = developers.length
+      ? developers.map((member) => "<@" + member.id + ">").join(", ")
+      : "*VACANT*";
     embed.addFields({
-      name: "━━━━  " + this.emoji(guild.id, "cf3d_developer", "💻") + "  DEVELOPER  ━━━━",
-      value: "**Developer**  ›  " + developerLines,
+      name: "━━━━━━━━  " + this.emoji(guild.id, "cf3d_developer", "💻") + "  **_Developers_**  ━━━━━━━━",
+      value: developerLabel + "  ➜  " + developerNames,
       inline: false
     });
     return embed;
@@ -3078,10 +3100,14 @@ class CoopFTCommunityService {
   }
 
   async buildStaffDirectoryPayload(guild) {
-    const embed = await this.buildStaffDirectoryEmbed(guild);
-    embed.setThumbnail("attachment://coopft-staff-banner.png");
+    const bannerEmbed = new EmbedBuilder()
+      .setColor(0x8C2635)
+      .setImage("attachment://coopft-staff-banner.png");
+    const directoryEmbed = await this.buildStaffDirectoryEmbed(guild);
     return {
-      embeds: [embed],
+      // A separate image embed places the wide banner above the directory,
+      // matching the editorial staff-list layout requested by the server owner.
+      embeds: [bannerEmbed, directoryEmbed],
       files: [new AttachmentBuilder(this.buildStaffBanner(), { name: "coopft-staff-banner.png" })],
       allowedMentions: { parse: [] }
     };
@@ -3089,24 +3115,17 @@ class CoopFTCommunityService {
 
   async updateStaffDirectory(guild) {
     this.assertCoopFTGuild(guild, "update the CoopFT staff directory");
-    const embed = await this.buildStaffDirectoryEmbed(guild);
-    const banner = this.buildStaffBanner();
-    embed.setThumbnail("attachment://coopft-staff-banner.png");
+    const basePayload = await this.buildStaffDirectoryPayload(guild);
     for (const key of ["staff_team"]) {
       const channelId = await this.getResource(guild.id, "channel:" + key);
       const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
       if (!channel?.isTextBased?.()) continue;
       const messageId = await this.getResource(guild.id, "message:directory:" + key);
       let message = messageId ? await channel.messages.fetch(messageId).catch(() => null) : null;
-      const payload = {
-        embeds: [EmbedBuilder.from(embed)],
-        files: [new AttachmentBuilder(banner, { name: "coopft-staff-banner.png" })],
-        attachments: [],
-        allowedMentions: { parse: [] }
-      };
+      const payload = { ...basePayload, attachments: [] };
       if (message) await message.edit(payload);
       else {
-        message = await channel.send(payload);
+        message = await channel.send(basePayload);
         await this.saveResource(guild.id, "message:directory:" + key, message.id);
       }
     }
