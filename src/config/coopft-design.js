@@ -47,14 +47,20 @@ const STAFF_RANKS = Object.freeze([
   { key: "developer", name: "Developer", icon: "💻", emoji: "cf3d_developer", primary: 0x397C94, secondary: 0x73C2D7, permissions: 0n, permissionSummary: "No moderation or server-administration permissions. Handles approved custom bot projects and technical support.", description: "Builds and maintains custom Discord bots requested by members, follows the approved project scope, and documents tested releases." }
 ]);
 
-// Applications are limited to operational staff ranks. Executive and high-rank
-// appointments remain leadership decisions and cannot be self-applied for.
-// Only the two moderator entry points and the Developer specialist role accept applications.
-const APPLICATION_RANK_KEYS = new Set(["junior_moderator", "moderator", "developer"]);
+// Recruitment is limited to two moderation entry points and one specialist
+// Developer track for commissioned custom Discord bots.
 const OWNER_RANK_KEYS = new Set(["owner", "co_owner", "monarch"]);
-const APPLICATION_RANKS = Object.freeze(
-  STAFF_RANKS.filter((role) => APPLICATION_RANK_KEYS.has(role.key))
-);
+const APPLICATION_RANKS = Object.freeze([
+  { ...STAFF_RANKS.find((role) => role.key === "junior_moderator"), category: "staff", roleKey: "junior_moderator" },
+  { ...STAFF_RANKS.find((role) => role.key === "moderator"), category: "staff", roleKey: "moderator" },
+  {
+    key: "developer", roleKey: "developer_member", category: "developer",
+    name: "Developer", icon: "💻", emoji: "cf3d_developer",
+    primary: 0x397C94, secondary: 0x73C2D7, permissions: 0n,
+    permissionSummary: "No moderation or administrative permissions.",
+    description: "Builds and maintains custom Discord bots commissioned by CoopFT members."
+  }
+]);
 
 const EMOJI_SPRITE = Object.freeze([
   "cf3d_crown", "cf3d_shield", "cf3d_star", "cf3d_gem",
@@ -159,6 +165,8 @@ const PRIVATE_CHANNELS = Object.freeze([
   { key: "staff_announcements", name: "▰・staff-announcements" },
   { key: "staff_bot_updates", name: "⌘・staff-bot-updates" },
   { key: "application_review", name: "⌑・application-review" },
+  { key: "application_control", name: "application-control" },
+  { key: "staff_guide", name: "staff-guide" },
   { key: "ticket_transcripts", name: "▤・ticket-transcripts" },
   { key: "member_logs", name: "⌁・member-logs" },
   { key: "server_logs", name: "⌁・server-logs" }
