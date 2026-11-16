@@ -93,7 +93,12 @@ function friendlyAuditValue(key, value) {
   if (value === undefined) return "Not set";
   if (value === null) return "None";
   if (typeof value === "boolean") return value ? "Enabled" : "Disabled";
-  if (key === "rate_limit_per_user" || key === "default_thread_rate_limit_per_user") return Number(value) + " seconds";
+  if (key === "rate_limit_per_user" || key === "default_thread_rate_limit_per_user") return Number(value) === 0 ? "Disabled" : Number(value) + " seconds";
+  if (key === "permissions") return "Role permission set updated";
+  if (key === "permission_overwrites") return "Channel access permissions updated";
+  if (key === "parent_id") return value ? "Assigned to a category" : "No category";
+  if (key === "flags") return "Channel settings updated";
+  if (key === "type") return readableChannelType(value);
   if (key === "bitrate") return Math.round(Number(value) / 1000) + " kbps";
   if (key === "color" && Number.isFinite(Number(value))) return "#" + Number(value).toString(16).padStart(6, "0").toUpperCase();
   if (Array.isArray(value)) {
@@ -317,7 +322,7 @@ class MemberLifecycleService {
     const joined = asDate(joinedAt);
     return new EmbedBuilder()
       .setColor(0x32956B)
-      .setTitle("MEMBER JOINED")
+      .setTitle((member.guild.id === this.coopftGuildId && this.coopftCommunity ? this.coopftCommunity.emoji(member.guild.id, "cf3d_member", "👋") : "👋") + "  MEMBER JOINED")
       .setDescription("<@" + member.id + "> • **" + safeDisplay(member.user?.tag || member.user?.username || member.displayName) + "**")
       .addFields(
         { name: "User ID", value: member.id, inline: true },
@@ -338,7 +343,7 @@ class MemberLifecycleService {
     const tenureMs = joinedAt ? Math.max(0, left.getTime() - joinedAt.getTime()) : null;
     return new EmbedBuilder()
       .setColor(0xB84A55)
-      .setTitle("MEMBER LEFT")
+      .setTitle((member.guild.id === this.coopftGuildId && this.coopftCommunity ? this.coopftCommunity.emoji(member.guild.id, "cf3d_member", "👋") : "👋") + "  MEMBER LEFT")
       .setDescription("**" + safeDisplay(member.user?.tag || member.user?.username || member.displayName) + "** • <@" + member.id + ">")
       .addFields(
         { name: "User ID", value: member.id, inline: true },
@@ -395,8 +400,8 @@ class MemberLifecycleService {
     const previousRoles = Array.isArray(previous?.roles) ? previous.roles : [];
     const previousIds = new Set(previousRoles.map((role) => String(role.id)));
     const currentIds = new Set(currentRoles.map((role) => String(role.id)));
-    const added = currentRoles.filter((role) => !previousIds.has(String(role.id)));
-    const removed = previousRoles.filter((role) => !currentIds.has(String(role.id)));
+    const added = previous ? currentRoles.filter((role) => !previousIds.has(String(role.id))) : [];
+    const removed = previous ? previousRoles.filter((role) => !currentIds.has(String(role.id))) : [];
     const snapshot = {
       source: "audit_role_update",
       roles: currentRoles,
@@ -413,13 +418,14 @@ class MemberLifecycleService {
       await this.writeAudit(guild.id, actorId, "member_roles_changed", memberId, details);
       const embed = new EmbedBuilder()
         .setColor(0xC18A37)
-        .setTitle("MEMBER ROLES UPDATED")
-        .setDescription("The role assignments for <@" + memberId + "> were changed.")
+        .setTitle((guild.id === this.coopftGuildId && this.coopftCommunity ? this.coopftCommunity.emoji(guild.id, "cf3d_role_select", "🎭") : "🎭") + "  MEMBER ROLES UPDATED")
+        .setDescription(previous ? "The role assignments for <@" + memberId + "> were changed." : "The role assignments for <@" + memberId + "> changed. A previous role snapshot was not available, so only the current role list can be confirmed.")
         .addFields(
           { name: "Member", value: "<@" + memberId + ">", inline: true },
           { name: "Changed by", value: "<@" + actorId + ">", inline: true },
           { name: "Roles added", value: addedText, inline: false },
-          { name: "Roles removed", value: removedText, inline: false }
+          { name: "Roles removed", value: removedText, inline: false },
+          ...(!previous ? [{ name: "Current roles", value: rolesText(currentRoles), inline: false }] : [])
         )
         .setFooter({ text: "The updated role list is saved for future leave logs." })
         .setTimestamp();
@@ -460,7 +466,9 @@ class MemberLifecycleService {
     await this.writeAudit(guild.id, actorId || "unknown", "server_audit_" + action.key, targetId, auditDetails);
     const embed = new EmbedBuilder()
       .setColor(action.color)
-      .setTitle(action.label)
+      .setTitle((guild.id === this.coopftGuildId && this.coopftCommunity
+        ? this.coopftCommunity.emoji(guild.id, action.key.startsWith("channel") ? "cf3d_gear" : action.key.startsWith("role") ? "cf3d_role_select" : action.key.startsWith("member") ? "cf3d_member" : "cf3d_bell", "✦") + "  "
+        : "✦  ") + action.label)
       .setDescription(summary + "\n\n**" + targetKind + ":** " + targetLabel)
       .addFields(
         { name: "Performed by", value: actorLabel, inline: false },
