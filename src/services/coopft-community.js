@@ -1091,7 +1091,9 @@ class CoopFTCommunityService {
         console.error("[coopft] Could not publish " + entry.key + " message in #" + entry.channel.name + ":", error.code || error.name, error.message);
         if (entry.key !== "rules") continue;
         try {
-          const fallbackEmbed = EmbedBuilder.from(entry.embed).setThumbnail(null);
+          const fallbackEmbedData = entry.embed.toJSON();
+          delete fallbackEmbedData.thumbnail;
+          const fallbackEmbed = new EmbedBuilder(fallbackEmbedData);
           const fallbackPayload = { embeds: [fallbackEmbed], files: [], attachments: [], allowedMentions: { parse: [] } };
           if (message) await message.edit(fallbackPayload);
           else {
