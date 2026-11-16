@@ -12,7 +12,16 @@ For first setup or an intentional repair, deploy the latest `main` branch and ru
 npm run coopft:setup
 ```
 
-The setup applies only numbered `*_coopft_*.sql` migrations, fetches only the fixed CoopFT guild, creates or repairs its 50-emoji pack, bracket roles, staff/member/ping roles, channels and interactive panels, publishes the consolidated rules embed and staff directory, removes obsolete saved informational posts, and then closes its temporary Discord client and database pool. Keep `DISCORD_TOKEN`, `DATABASE_URL` and the matching `COOPFT_GUILD_ID` configured. Do not put `npm run coopft:setup` in the normal Start Command.
+The setup applies only numbered `*_coopft_*.sql` migrations and fetches only the fixed CoopFT guild. It creates missing roles, categories, channels, emojis and interactive panels, then publishes the rules and live staff directory. **Existing role and channel settings are preserved**: setup does not reset an existing role's name, color, permissions, icon, or position, and does not reset an existing channel's name, category or permission overwrites. It does not perform broad role cleanup or retire unrelated legacy channels. Keep `DISCORD_TOKEN`, `DATABASE_URL` and the matching `COOPFT_GUILD_ID` configured. Do not put `npm run coopft:setup` in the normal Start Command.
+
+After first setup, Owner Rank can use the CoopFT configuration commands:
+
+- `/coopft-setup` — create missing resources while preserving current customization.
+- `/coopft-roles-sync` — explicitly reapply role names, colors, permissions and role order.
+- `/coopft-channels-sync` — explicitly reapply channel names, categories and permission overwrites.
+- `/coopft-panel` — publish or move the ticket, application, role-selection, custom-bot or staff-directory panel.
+
+The panel command accepts an optional destination channel. Moving a panel removes its previously saved panel message after the replacement is published.
 
 After deploying a release that changes the slash-command set, run:
 
@@ -20,7 +29,7 @@ After deploying a release that changes the slash-command set, run:
 npm run deploy-commands
 ```
 
-This refreshes both persona-specific slash-command registrations. It does not create channels or roles. CoopFT exposes 50 server-operations slash commands covering information, announcements, polls, events, moderation, staff notes, roles, channels, tickets, applications and suggestions. The Fukishōkai economy and gameplay command set is never registered in CoopFT. The obsolete `/staff` directory command has been removed; the maintained staff directory is published in the staff channels.
+This refreshes both persona-specific slash-command registrations. It does not create channels or roles. CoopFT exposes a streamlined 41-command set for setup, explicit role/channel synchronization, panel publishing, moderation, tickets, announcements, events and suggestions. The old information-only commands and public application status/queue/withdraw commands are not registered. Applications are submitted from the public panel and reviewed manually in the private review channel. The Fukishōkai economy and gameplay command set is never registered in CoopFT.
 
 ## Staff hierarchy and applications
 
@@ -36,7 +45,7 @@ CoopFT has one official 17-rank hierarchy, displayed in four bracket groups:
 
 The setup creates a divider role above each group and positions the individual ranks immediately below the matching divider. Divider roles have no members and no permissions. The separate **Bots** divider is configured with Administrator permission to match the requested layout, but it is deliberately left unassigned. The bot receives a separate non-administrator `CoopFT Assistant` marker role beneath that divider. Never assign the empty Bots divider to a person or bot.
 
-The setup creates and repairs only those staff roles. The former HR roles and specialist roles are retired when the role ID is still saved in CoopFT settings and its current name still matches the original managed name. Roles that are managed by an integration, above the bot, or renamed so ownership cannot be verified are left untouched. No broad role deletion is performed by this retirement pass.
+Ordinary setup creates missing managed roles and preserves all existing roles. It never reapplies configured colors, permissions, names, icons or ordering to an existing role. Owner Rank can deliberately apply the repository role template with `/coopft-roles-sync`; this is the only routine setup path that reapplies those properties and the configured role order. Role cleanup and legacy role retirement are not run automatically.
 
 The public `applications` panel offers exactly three tracks: **Junior Moderator**, **Moderator** and **Developer**. The Developer track is for people who build custom Discord bots requested by CoopFT members; it is not a moderation rank. Other staff appointments remain leadership decisions.
 
@@ -53,11 +62,11 @@ Only **Owner, Co-Owner and Monarch** can view the application queue or accept/de
 
 ## Staff directory and rules
 
-The `staff-team` channel contains one maintained staff-directory embed, not a separate banner embed or a duplicate directory post in another channel. Its custom 1200×360 banner is attached to the same embed as its thumbnail. The directory reads current Discord member-role assignments and displays Owner Rank, High Rank, Low Rank, Mod Roles and Developer. The approved `GuildMembers` intent is used for one full member fetch at startup; role changes and member joins/departures trigger refreshes, and a reconciliation updates the embed every 15 seconds.
+The `staff-directory` channel contains one maintained, text-only staff-directory embed. It has no banner image or footer. It reads current Discord member-role assignments and displays Owner Rank, High Rank, Low Rank, Mod Roles and Developers; empty roles are marked VACANT. The approved `GuildMembers` intent is used for one full member fetch at startup; role changes and member joins/departures trigger refreshes, and a reconciliation updates the embed every 15 seconds. Embeds use timestamps instead of decorative footer text.
 
-The public `rules` channel receives one concise community-code embed with a wide branded banner, six readable rule sections and a restrained red/charcoal visual theme. If the optional banner attachment fails, setup retries with the text-only version. If the rules post itself cannot be published, setup fails rather than reporting completion.
+The public `rules` channel receives one text-only community-rules embed with six clearly grouped sections. CoopFT information embeds no longer use decorative image attachments or footer text; timestamps are retained.
 
-The redundant `role-explanations` channel is retired. Previously saved bot-authored information posts in welcome, introductions, announcements, suggestions and bot-updates are removed so those channels remain available for real conversations. The persistent public information panels are the rules, application, ticket, role-selection and read-only custom-bot commission panels. The private `staff-guide` channel contains the full staff handbook as six paginated embeds: staff standards, moderation levels, report handling, privacy and escalation, staff conduct and promotions, and the Developer playbook. It is read-only for staff and approved Developers.
+The duplicate legacy `staff-team` channel is removed by the next setup run when its saved resource matches the old managed channel. The maintained directory is published only in `staff-directory`. Other existing channels—including renamed or customized legacy channels—are preserved by ordinary setup. The persistent information panels are the rules, application, ticket, role-selection and read-only custom-bot commission panels. The private `staff-guide` channel contains the staff handbook and is read-only for staff and approved Developers.
 
 ## Staff guide and Developer role
 
@@ -73,7 +82,7 @@ The layout includes START HERE, COMMUNITY, MEMBER SERVICES, STAFF OPERATIONS and
 
 Members open tickets from the service selector in `open-a-ticket`. They choose **Fukishōkai Economy Bot**, **CoopFT Server** or **Custom Bot Development**, then choose a relevant request type. A guided form asks the relevant questions before creating the ticket. The bot posts every submitted answer in the private ticket, prevents duplicate open tickets, supports claiming and closing, and archives a transcript to `ticket-transcripts`. Custom Bot Commission tickets are visible only to the ticket owner, the Developer role, Owner Rank and the bot; ordinary moderators do not receive access to paid project details. Developers do not receive general staff permissions or access to other ticket categories.
 
-Private staff channels include `staff-team`, `staff-chat`, `staff-announcements`, `staff-bot-updates`, `staff-guide`, `application-review`, `application-control`, `ticket-transcripts`, `member-logs` and `server-logs`. The application channels are Owner-Rank-only. The staff guide is read-only and is also visible to approved Developers.
+Private staff channels include `staff-directory`, `staff-chat`, `staff-announcements`, `staff-bot-updates`, `staff-guide`, `application-review`, `application-control`, `ticket-transcripts`, `member-logs` and `server-logs`. The application channels are Owner-Rank-only. The staff guide is read-only and is also visible to approved Developers.
 
 ## Member roles and notifications
 
@@ -91,7 +100,7 @@ The setup checks its fixed CoopFT guild ID before resource mutations. CoopFT mig
 
 The member log renders joins and departures with account age, join date, time in server and readable role names from the latest saved snapshot. Role-change entries distinguish roles added and removed. Server audit entries translate common channel, role, invite, webhook and moderation actions into a plain-English summary with the affected item, executor, changes and reason when Discord supplies one. Audit records are informational; they do not perform automatic moderation actions.
 
-The old general role-cleanup option remains separate from legacy CoopFT role retirement. The optional cleanup is preview-only unless `COOPFT_ROLE_CLEANUP_CONFIRM=DELETE_EDITABLE_ROLES` is explicitly configured. Review the candidate list and member role assignments before enabling it.
+Ordinary setup does not run role cleanup or apply a bulk role template. Existing manual changes to role colors, permissions, names and order remain authoritative. Use `/coopft-roles-sync` only when you intentionally want to restore the repository's role design. Use `/coopft-channels-sync` only when you intentionally want to restore configured channel names, categories and permission overwrites. Both commands are restricted to the server owner and Owner Rank.
 
 ## Database migrations
 
