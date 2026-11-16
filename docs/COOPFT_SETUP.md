@@ -19,6 +19,7 @@ After first setup, Owner Rank can use the CoopFT configuration commands:
 - `/coopft-setup` — create missing resources while preserving current customization.
 - `/coopft-roles-sync` — explicitly reapply role names, colors, permissions and role order.
 - `/coopft-channels-sync` — explicitly reapply channel names, categories and permission overwrites.
+- `/coopft-channel-decorate` — apply the configured decorative prefixes only to existing default channel/category names; custom names and permissions are preserved.
 - `/coopft-panel` — publish or move the ticket, application, role-selection, custom-bot or staff-directory panel.
 - `/coopft-ticket-config` — choose the category for new tickets and the transcript archive channel.
 
