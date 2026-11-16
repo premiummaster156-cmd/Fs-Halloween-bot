@@ -1,8 +1,10 @@
 "use strict";
-const {SlashCommandBuilder,EmbedBuilder,PermissionFlagsBits:P,MessageFlags,ChannelType}=require("discord.js");
-const names="coopft-setup coopft-roles-sync coopft-channels-sync coopft-channel-decorate coopft-panel coopft-ticket-config announce poll event-create event-list event-cancel slowmode lock unlock purge timeout untimeout kick ban unban warn warnings clear-warnings case note notes member-note-remove role-add role-remove nickname reset-nickname channel-topic channel-rename ticket-cooldown ticket-claim ticket-close ticket-add ticket-remove ticket-rename ticket-priority ticket-info ticket-list suggestion suggestion-review".split(" ");
-const desc="Create missing CoopFT resources without overwriting custom settings|Explicitly apply configured CoopFT role names, colors, permissions and order|Explicitly apply configured CoopFT channel names, categories and permissions|Apply decorative names to default CoopFT channels only|Publish or move a CoopFT panel|Configure ticket category and transcript archive|Publish announcement|Create poll|Schedule event|List events|Cancel event|Set slowmode|Lock channel|Unlock channel|Purge messages|Timeout member|Remove timeout|Kick member|Ban member|Unban user|Issue warning|View warnings|Clear warnings|Moderation case|Add staff note|View staff notes|Remove staff note|Assign role|Remove role|Set nickname|Reset nickname|Edit channel topic|Rename channel|Apply a manual seven-day cooldown to one request type|Claim ticket|Close ticket|Add ticket member|Remove ticket member|Rename ticket|Set ticket priority|Ticket details|List tickets|Submit suggestion|Review suggestion".split("|");
+const {SlashCommandBuilder,EmbedBuilder,PermissionFlagsBits:P,MessageFlags,ChannelType,SnowflakeUtil}=require("discord.js");
+const names="coopft-setup coopft-roles-sync coopft-channels-sync coopft-channel-decorate coopft-panel coopft-ticket-config announce poll event-create event-list event-cancel slowmode lock unlock purge timeout untimeout kick ban unban warn warnings clear-warnings case note notes member-note-remove role-add role-remove nickname reset-nickname channel-topic channel-rename ticket-cooldown ticket-claim ticket-close ticket-add ticket-remove ticket-rename ticket-priority ticket-info ticket-list suggestion suggestion-review autorole welcome-config onboarding-setup".split(" ");
+const desc="Create missing CoopFT resources without overwriting custom settings|Explicitly apply configured CoopFT role names, colors, permissions and order|Explicitly apply configured CoopFT channel names, categories and permissions|Apply decorative names to default CoopFT channels only|Publish or move a CoopFT panel|Configure ticket category and transcript archive|Publish announcement|Create poll|Schedule event|List events|Cancel event|Set slowmode|Lock channel|Unlock channel|Purge messages|Timeout member|Remove timeout|Kick member|Ban member|Unban user|Issue warning|View warnings|Clear warnings|Moderation case|Add staff note|View staff notes|Remove staff note|Assign role|Remove role|Set nickname|Reset nickname|Edit channel topic|Rename channel|Apply a manual seven-day cooldown to one request type|Claim ticket|Close ticket|Add ticket member|Remove ticket member|Rename ticket|Set ticket priority|Ticket details|List tickets|Submit suggestion|Review suggestion|Configure automatic join roles (server owner only)|Set the welcome channel or disable welcome messages (server owner only)|Build and enable Discord onboarding from public channels (server owner only)".split("|");
 const staff=(i,s)=>{if(!s.coopft.isStaff(i.member))throw Error("CoopFT staff only.");};
+const serverOwner=(i)=>{if(!i.guild||i.user.id!==i.guild.ownerId)throw Error("Only the actual server owner can use this configuration command.");};
+const requireBotPermission=async(g,permission,label)=>{const bot=g.members.me||await g.members.fetchMe().catch(()=>null);if(!bot?.permissions?.has(permission))throw Error("The bot needs "+label+" permission.");return bot;};
 const ownerConfig=(i,s)=>{if(!s.coopft.canManageApplications(i.member,i.guild))throw Error("Only the server owner or Owner Rank can configure CoopFT.");};
 const lead=(i,s)=>{if(!s.coopft.canManageStaff(i.member,i.guild))throw Error("CoopFT leadership only.");};
 const say=(i,c,e=[])=>i.reply({content:c,embeds:e,flags:MessageFlags.Ephemeral,allowedMentions:{parse:[]}});
@@ -10,6 +12,101 @@ async function run(n,i,s){
 const g=i.guild,id=i.guildId,u=i.user,c=i.channel,reason=i.options.getString("reason")||"CoopFT staff action";
 const getMember=async()=>{const x=i.options.getUser("member");if(!x)throw Error("Select a member.");const m=await g.members.fetch(x.id).catch(()=>null);if(!m)throw Error("Member not found.");return m;};
 const getTicket=async()=>{const r=await s.pool.query("SELECT * FROM coopft_tickets WHERE guild_id=$1 AND channel_id=$2 AND status='open'",[id,c.id]);if(!r.rows[0])throw Error("Use this inside an open ticket.");return r.rows[0];};
+if(n==="autorole"){
+ serverOwner(i);
+ const action=i.options.getString("action");
+ if(action==="status"){
+  const saved=await s.pool.query("SELECT role_ids,enabled FROM guild_autoroles WHERE guild_id=$1",[id]);
+  const row=saved.rows[0];
+  if(!row)return say(i,"Autorole is not configured.");
+  const roles=(await Promise.all((row.role_ids||[]).map(roleId=>g.roles.fetch(String(roleId)).catch(()=>null)))).filter(Boolean);
+  return say(i,(row.enabled?"Autorole is enabled":"Autorole is disabled")+". Roles: "+(roles.map(role=>"<@&"+role.id+">").join(", ")||"None saved")+".");
+ }
+ if(action==="disable"){
+  await s.pool.query("INSERT INTO guild_autoroles(guild_id,role_ids,enabled,updated_by) VALUES($1,'{}'::text[],FALSE,$2) ON CONFLICT(guild_id) DO UPDATE SET enabled=FALSE,updated_by=EXCLUDED.updated_by,updated_at=NOW()",[id,u.id]);
+  return say(i,"Automatic join roles are disabled. Existing member roles were not changed.");
+ }
+ await requireBotPermission(g,P.ManageRoles,"Manage Roles");
+ const roles=[];
+ for(let index=1;index<=20;index++){
+  const role=i.options.getRole("role_"+String(index).padStart(2,"0"));
+  if(role)roles.push(role);
+ }
+ const unique=[...new Map(roles.map(role=>[role.id,role])).values()];
+ if(!unique.length)throw Error("Choose at least one role. You can select up to 20 roles in one command.");
+ const bot=g.members.me||await g.members.fetchMe();
+ const invalid=unique.filter(role=>role.id===g.id||role.managed||role.position>=bot.roles.highest.position);
+ if(invalid.length)throw Error("The bot cannot assign these roles because they are managed or at/above its highest role: "+invalid.map(role=>role.name).join(", ")+". Move the bot role higher or remove those roles from the selection.");
+ await s.pool.query("INSERT INTO guild_autoroles(guild_id,role_ids,enabled,updated_by) VALUES($1,$2::text[],TRUE,$3) ON CONFLICT(guild_id) DO UPDATE SET role_ids=EXCLUDED.role_ids,enabled=TRUE,updated_by=EXCLUDED.updated_by,updated_at=NOW()",[id,unique.map(role=>role.id),u.id]);
+ return say(i,"Autorole enabled. New members will receive: "+unique.map(role=>"<@&"+role.id+">").join(", ")+". Existing members are unchanged.");
+}
+if(n==="welcome-config"){
+ serverOwner(i);
+ const action=i.options.getString("action");
+ if(action==="status"){
+  const saved=await s.pool.query("SELECT channel_id,enabled FROM guild_welcome_settings WHERE guild_id=$1",[id]);
+  const row=saved.rows[0];
+  if(!row)return say(i,"Welcome messages use the server's existing welcome-channel fallback.");
+  return say(i,row.enabled?"Welcome messages are enabled in "+(row.channel_id?"<#"+row.channel_id+">":"the fallback channel")+".":"Welcome messages are disabled.");
+ }
+ if(action==="disable"){
+  await s.pool.query("INSERT INTO guild_welcome_settings(guild_id,channel_id,enabled,updated_by) VALUES($1,NULL,FALSE,$2) ON CONFLICT(guild_id) DO UPDATE SET channel_id=NULL,enabled=FALSE,updated_by=EXCLUDED.updated_by,updated_at=NOW()",[id,u.id]);
+  return say(i,"Welcome messages have been disabled for this server.");
+ }
+ const channel=i.options.getChannel("channel");
+ if(!channel||channel.guildId!==id||![ChannelType.GuildText,ChannelType.GuildAnnouncement].includes(channel.type))throw Error("Choose a text or announcement channel from this server.");
+ const bot=await requireBotPermission(g,P.ViewChannel,"View Channel");
+ if(!channel.permissionsFor(bot)?.has(P.SendMessages))throw Error("The bot needs Send Messages permission in the selected welcome channel.");
+ await s.pool.query("INSERT INTO guild_welcome_settings(guild_id,channel_id,enabled,updated_by) VALUES($1,$2,TRUE,$3) ON CONFLICT(guild_id) DO UPDATE SET channel_id=EXCLUDED.channel_id,enabled=TRUE,updated_by=EXCLUDED.updated_by,updated_at=NOW()",[id,channel.id,u.id]);
+ return say(i,"Welcome messages will now be sent in <#"+channel.id+">.");
+}
+if(n==="onboarding-setup"){
+ serverOwner(i);
+ const bot=await requireBotPermission(g,P.ManageGuild,"Manage Server");
+ if(!bot.permissions.has(P.ManageRoles))throw Error("The bot also needs Manage Roles permission to assign onboarding roles and update onboarding.");
+ const fresh=await g.fetch();
+ if(!fresh.features?.includes("COMMUNITY"))throw Error("Enable Community in Server Settings first, then run /onboarding-setup again. The bot cannot enable the Community feature itself.");
+ const current=await g.fetchOnboarding();
+ const channels=await g.channels.fetch();
+ const everyone=g.roles.everyone;
+ const visible=[...channels.values()]
+  .filter(channel=>[ChannelType.GuildText,ChannelType.GuildAnnouncement].includes(channel.type)&&!channel.nsfw&&channel.permissionsFor(everyone)?.has(P.ViewChannel))
+  .sort((a,b)=>(a.rawPosition||a.position||0)-(b.rawPosition||b.position||0));
+ const sendable=visible.filter(channel=>channel.permissionsFor(everyone)?.has(P.SendMessages));
+ if(sendable.length<5||visible.length<7)throw Error("Discord needs 7 default text channels, and at least 5 must allow @everyone to send messages. I found "+visible.length+" public text channels, including "+sendable.length+" sendable channels. Create or expose the required channels, then rerun this command. No onboarding settings were changed.");
+ const defaultChannels=[...sendable.slice(0,7)];
+ if(defaultChannels.length<7)defaultChannels.push(...visible.filter(channel=>!defaultChannels.some(item=>item.id===channel.id)).slice(0,7-defaultChannels.length));
+ const extraChannels=visible.filter(channel=>!defaultChannels.some(item=>item.id===channel.id)).slice(0,25);
+ if(extraChannels.length<2)throw Error("Create at least two additional public text channels beyond the seven default channels so the bot can build useful onboarding choices.");
+ const promptTitle="What would you like to explore?";
+ const prompt={
+  id:SnowflakeUtil.generate(),
+  type:0,
+  title:promptTitle,
+  single_select:false,
+  required:false,
+  in_onboarding:true,
+  options:extraChannels.map(channel=>({
+   id:SnowflakeUtil.generate(),
+   title:("#"+channel.name).slice(0,100),
+   description:("Add "+channel.name+" to your channel list.").slice(0,100),
+   channel_ids:[channel.id],
+   role_ids:[]
+  }))
+ };
+ const oldPrompts=Array.isArray(current.prompts)?current.prompts.map(item=>item.toJSON?.()||item):[];
+ const prompts=oldPrompts.filter(item=>item.title!==promptTitle);
+ prompts.push(prompt);
+ await g.editOnboarding({
+  enabled:true,
+  mode:0,
+  defaultChannels:defaultChannels.map(channel=>channel.id),
+  prompts,
+  reason:"Server owner requested automatic community onboarding setup"
+ });
+ return say(i,"Discord onboarding is now enabled. I created one multi-select question, **"+promptTitle+"**, with "+extraChannels.length+" channel choices and selected 7 public default channels. Members can revisit their selections later in Channels & Roles.");
+}
+
 if(n==="coopft-setup"||n==="coopft-roles-sync"||n==="coopft-channels-sync"){
  ownerConfig(i,s);
  await i.deferReply({flags:MessageFlags.Ephemeral});
@@ -153,6 +250,20 @@ function loadCoopFTCommands(){
      {name:"Staff directory",value:"directory"}
     ));
    b.addChannelOption(o=>o.setName("channel").setDescription("Destination text channel (defaults to the saved channel)").setRequired(false));
+  }
+  if(n==="autorole"){
+   b.addStringOption(o=>o.setName("action").setDescription("Choose how to manage automatic join roles").setRequired(true).addChoices(
+    {name:"Set roles",value:"set"},{name:"Disable",value:"disable"},{name:"View current setup",value:"status"}
+   ));
+   for(let index=1;index<=20;index++){
+    b.addRoleOption(o=>o.setName("role_"+String(index).padStart(2,"0")).setDescription("Automatic role "+index+" (optional)").setRequired(false));
+   }
+  }
+  if(n==="welcome-config"){
+   b.addStringOption(o=>o.setName("action").setDescription("Choose how to manage welcome messages").setRequired(true).addChoices(
+    {name:"Set channel",value:"set"},{name:"Disable",value:"disable"},{name:"View current setup",value:"status"}
+   ));
+   b.addChannelOption(o=>o.setName("channel").setDescription("Welcome destination text channel").addChannelTypes(ChannelType.GuildText,ChannelType.GuildAnnouncement).setRequired(false));
   }
   if(n==="coopft-ticket-config"){
    b.addChannelOption(o=>o.setName("category").setDescription("Category where new tickets will be created").addChannelTypes(ChannelType.GuildCategory).setRequired(false));
