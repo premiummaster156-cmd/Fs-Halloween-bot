@@ -447,7 +447,9 @@ class MemberLifecycleService {
     const targetKind = action.key.startsWith("channel") ? "Channel" :
       action.key.startsWith("role") ? "Role" :
       action.key.startsWith("webhook") ? "Webhook" :
-      action.key.startsWith("invite") ? "Invite" : "Member";
+      action.key.startsWith("invite") ? "Invite" :
+      action.key.startsWith("server_") ? "Server" :
+      action.key.startsWith("message") ? "Messages" : "Member";
     const targetLabel = targetKind === "Channel" ? "#" + safeDisplay(targetName) :
       targetKind === "Role" ? "@" + safeDisplay(targetName) : safeDisplay(targetName);
     const summary = auditSummary(action.key, entry);
