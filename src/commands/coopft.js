@@ -55,8 +55,8 @@ if(n==="welcome-config"){
  }
  const channel=i.options.getChannel("channel");
  if(!channel||channel.guildId!==id||![ChannelType.GuildText,ChannelType.GuildAnnouncement].includes(channel.type))throw Error("Choose a text or announcement channel from this server.");
- const bot=await requireBotPermission(g,P.ViewChannel,"View Channel");
- if(!channel.permissionsFor(bot)?.has(P.SendMessages))throw Error("The bot needs Send Messages permission in the selected welcome channel.");
+ const bot=g.members.me||await g.members.fetchMe().catch(()=>null);
+ if(!bot||!channel.permissionsFor(bot)?.has(P.ViewChannel)||!channel.permissionsFor(bot)?.has(P.SendMessages))throw Error("The bot needs View Channel and Send Messages permissions in the selected welcome channel.");
  await s.pool.query("INSERT INTO guild_welcome_settings(guild_id,channel_id,enabled,updated_by) VALUES($1,$2,TRUE,$3) ON CONFLICT(guild_id) DO UPDATE SET channel_id=EXCLUDED.channel_id,enabled=TRUE,updated_by=EXCLUDED.updated_by,updated_at=NOW()",[id,channel.id,u.id]);
  return say(i,"Welcome messages will now be sent in <#"+channel.id+">.");
 }
@@ -96,6 +96,7 @@ if(n==="onboarding-setup"){
  };
  const oldPrompts=Array.isArray(current.prompts)?current.prompts.map(item=>item.toJSON?.()||item):[];
  const prompts=oldPrompts.filter(item=>item.title!==promptTitle);
+ if(prompts.length>=5)throw Error("This server already has 5 onboarding questions. Remove an existing question in Server Settings, then rerun /onboarding-setup so the bot can add its generated question.");
  prompts.push(prompt);
  await g.editOnboarding({
   enabled:true,
