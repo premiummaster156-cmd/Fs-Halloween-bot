@@ -322,7 +322,7 @@ async function start() {
             await coopftCommunity.handleApplicationButton(interaction);
             return;
           }
-          if (interaction.isStringSelectMenu() && interaction.customId === "cf-application:notify-select") {
+          if (interaction.isStringSelectMenu() && interaction.customId === "cf-application:position-select") {
             await coopftCommunity.handleApplicationSelectMenu(interaction);
             return;
           }
@@ -627,8 +627,7 @@ async function start() {
           guild.members.fetch(executorId)
         ]).then(async ([member, actor]) => {
           await coopftCommunity.syncStaffMember(guild, member, actor);
-          await coopftCommunity.syncHRMember(guild, member, actor);
-        }).catch((error) => console.warn("[coopft] Could not sync staff/HR audit entry:", error.message));
+        }).catch((error) => console.warn("[coopft] Could not sync staff audit entry:", error.message));
       }
       return;
     }
