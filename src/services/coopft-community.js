@@ -9,13 +9,24 @@ const {
   MessageFlags, PermissionFlagsBits, Routes
 } = require("discord.js");
 const {
-  STAFF_RANKS, HR_ROLES, APPLICATION_ROLES, EMOJI_SPRITE, CATEGORY_NAMES, PUBLIC_CHANNELS, PRIVATE_CHANNELS
+  STAFF_RANKS, APPLICATION_RANKS, EMOJI_SPRITE, CATEGORY_NAMES, PUBLIC_CHANNELS, PRIVATE_CHANNELS
 } = require("../config/coopft-design");
 const { COOPFT_DEFAULT_GUILD_ID, coopftGuildId } = require("../config/server-personas");
 
 const CLEANUP_CONFIRMATION = "DELETE_EDITABLE_ROLES";
-const STAFF_MANAGER_KEYS = new Set(["owner", "co_owner", "high_rank_supervisor"]);
-const HR_MANAGER_KEYS = new Set(["hr_director", "hr_manager"]);
+const STAFF_MANAGER_KEYS = new Set(["owner", "co_owner", "monarch", "high_rank_supervisor"]);
+const LEGACY_COOPFT_ROLES = Object.freeze([
+  { key: "hr_director", name: "CF • HR Director" },
+  { key: "hr_manager", name: "CF • HR Manager" },
+  { key: "hr_recruiter", name: "CF • HR Recruiter" },
+  { key: "hr_coordinator", name: "CF • HR Coordinator" },
+  { key: "hr_trainee", name: "CF • HR Trainee" },
+  { key: "war_manager", name: "CF • War Manager" },
+  { key: "referee", name: "CF • Referee" },
+  { key: "observer", name: "CF • Observer" },
+  { key: "helper", name: "CF • Helper" },
+  { key: "ticket_staff", name: "CF • Ticket Staff" }
+]);
 const TICKET_TYPES = Object.freeze({
   support: { label: "General Support", icon: "cf3d_headset", fallback: "🎧" },
   bug: { label: "Bug Report", icon: "cf3d_gear", fallback: "⚙️" },
@@ -244,7 +255,6 @@ class CoopFTCommunityService {
     }
     this.guildId = COOPFT_DEFAULT_GUILD_ID;
     this.roles = new Map();
-    this.applicationRoles = new Map();
     this.emojis = new Map();
   }
 
@@ -356,45 +366,60 @@ class CoopFTCommunityService {
     return result;
   }
 
+  async retireLegacyManagedRoles(guild) {
+    this.assertCoopFTGuild(guild, "retire obsolete CoopFT roles");
+    const retired = [];
+    const preserved = [];
+    for (const spec of LEGACY_COOPFT_ROLES) {
+      const resourceKey = "resource:role:" + spec.key;
+      const roleId = await this.getSetting(guild.id, resourceKey);
+      if (typeof roleId !== "string" || !roleId) continue;
+      const role = await guild.roles.fetch(roleId).catch(() => null);
+      if (!role) {
+        await this.pool.query("DELETE FROM coopft_community_settings WHERE guild_id=$1 AND setting_key=$2", [guild.id, resourceKey]);
+        retired.push(spec.name + " (already absent)");
+        continue;
+      }
+      if (role.managed || role.editable === false || role.name !== spec.name) {
+        preserved.push(spec.name + " (ownership or hierarchy could not be verified)");
+        continue;
+      }
+      try {
+        await role.delete("Retire obsolete CoopFT HR and specialist role");
+        await this.pool.query("DELETE FROM coopft_community_settings WHERE guild_id=$1 AND setting_key=$2", [guild.id, resourceKey]);
+        retired.push(spec.name);
+      } catch (error) {
+        preserved.push(spec.name + " (" + error.message + ")");
+      }
+    }
+    return { retired, preserved };
+  }
+
   async loadManagedRoles(guild) {
     this.assertCoopFTGuild(guild, "load managed CoopFT roles");
-    if (!guild || guild.id !== this.guildId) return { staff: 0, hr: 0, applications: 0, emojis: 0 };
-    const roleGroups = [
-      { specs: STAFF_RANKS, target: this.roles, count: "staff" },
-      { specs: HR_ROLES, target: this.roles, count: "hr" },
-      { specs: APPLICATION_ROLES, target: this.applicationRoles, count: "applications" }
-    ];
-    const resourceKeys = roleGroups.flatMap(({ specs }) => specs.map((spec) => "resource:role:" + spec.key));
+    if (!guild || guild.id !== this.guildId) return { staff: 0, emojis: 0 };
+    const resourceKeys = STAFF_RANKS.map((spec) => "resource:role:" + spec.key);
     const result = await this.pool.query(
-      "SELECT setting_key,setting_value FROM coopft_community_settings " +
-        "WHERE guild_id=$1 AND setting_key=ANY($2::text[])",
+      "SELECT setting_key,setting_value FROM coopft_community_settings WHERE guild_id=$1 AND setting_key=ANY($2::text[])",
       [guild.id, [...resourceKeys, "emoji_map"]]
     );
     const settings = new Map(result.rows.map((row) => [row.setting_key, row.setting_value]));
     this.roles.clear();
-    this.applicationRoles.clear();
-    const roleLookups = roleGroups.flatMap(({ specs, target, count }) => specs.map((spec) => ({
-      id: settings.get("resource:role:" + spec.key),
-      key: spec.key,
-      target,
-      count
-    })));
-    const loadedRoles = await Promise.all(roleLookups.map(async (item) => ({
-      ...item,
-      role: item.id ? await guild.roles.fetch(item.id).catch(() => null) : null
-    })));
-    const counts = { staff: 0, hr: 0, applications: 0, emojis: 0 };
+    const loadedRoles = await Promise.all(STAFF_RANKS.map(async (spec) => {
+      const id = settings.get("resource:role:" + spec.key);
+      return { spec, role: id ? await guild.roles.fetch(id).catch(() => null) : null };
+    }));
+    const counts = { staff: 0, emojis: 0 };
     for (const item of loadedRoles) {
       if (!item.role) continue;
-      item.target.set(item.key, item.role);
-      counts[item.count] += 1;
+      this.roles.set(item.spec.key, item.role);
+      counts.staff += 1;
     }
     const savedEmojiMap = settings.get("emoji_map");
     this.emojis.clear();
     if (savedEmojiMap && typeof savedEmojiMap === "object") {
       const emojiLookups = await Promise.all(Object.entries(savedEmojiMap).map(async ([name, id]) => ({
-        name,
-        emoji: await guild.emojis.fetch(id).catch(() => null)
+        name, emoji: await guild.emojis.fetch(id).catch(() => null)
       })));
       for (const item of emojiLookups) {
         if (!item.emoji) continue;
@@ -756,6 +781,7 @@ class CoopFTCommunityService {
     }
     publicByKey.staff_directory = await createChannel({ key: "staff_directory", name: "⌗・staff-directory" }, servicesCategory);
 
+    const retiredRoles = await this.retireLegacyManagedRoles(guild);
     const cleanup = await this.cleanupEditableRoles(guild);
     this.roles.clear();
     for (const spec of STAFF_RANKS) {
@@ -763,13 +789,6 @@ class CoopFTCommunityService {
       this.roles.set(spec.key, result.role);
       if (result.created) counts.createdRoles += 1;
     }
-    this.applicationRoles.clear();
-    for (const spec of APPLICATION_ROLES) {
-      const result = await this.ensureRole(guild, spec);
-      this.applicationRoles.set(spec.key, result.role);
-      if (result.created) counts.createdRoles += 1;
-    }
-
     const staffOverwrites = await this.staffPermissionOverwrites(guild);
     const staffCategory = (await this.ensureCategory(guild, "staff_hq", CATEGORY_NAMES.staff_hq, staffOverwrites)).channel;
     const privateByKey = {};
@@ -779,9 +798,9 @@ class CoopFTCommunityService {
       if (result.created) counts.createdChannels += 1;
     }
 
-    // Application answers are sensitive. Only the server owner, senior staff
-    // managers and HR Director/Manager may see the review queue.
-    const applicationReviewRoles = [...STAFF_MANAGER_KEYS, ...HR_MANAGER_KEYS]
+    // Application answers are sensitive. Only the server owner and designated
+    // senior staff ranks may see the review queue.
+    const applicationReviewRoles = [...STAFF_MANAGER_KEYS]
       .map((key) => this.roles.get(key))
       .filter(Boolean);
     const applicationReviewOverwrites = [
@@ -810,7 +829,7 @@ class CoopFTCommunityService {
     ];
     await privateByKey.application_review.permissionOverwrites.set(
       applicationReviewOverwrites,
-      "Restrict CoopFT application reviews to senior staff and HR managers"
+      "Restrict CoopFT application reviews to designated senior staff"
     );
 
     const ticketOverwrites = [
@@ -858,7 +877,9 @@ class CoopFTCommunityService {
     }
     if (cleanup.failures?.length) console.warn("[coopft] Some roles could not be deleted:", cleanup.failures.join("; "));
     if (emojiResult.failed.length) console.warn("[coopft] Emoji fallbacks will be used for:", emojiResult.failed.join("; "));
-    return { ...counts, cleanup, emojiResult };
+    if (retiredRoles.retired.length) console.info("[coopft] Retired legacy CoopFT roles:", retiredRoles.retired.join(", "));
+    if (retiredRoles.preserved.length) console.warn("[coopft] Legacy CoopFT roles were preserved for safety:", retiredRoles.preserved.join("; "));
+    return { ...counts, cleanup, emojiResult, retiredRoles };
   }
 
   buildRulesEmblem() {
@@ -1051,13 +1072,15 @@ class CoopFTCommunityService {
     ];
     for (const entry of entries) {
       if (!entry.channel?.isTextBased?.() || typeof entry.channel.send !== "function") {
-        console.warn("[coopft] Brand message channel is unavailable:", entry.key);
+        const unavailable = "Brand message channel is unavailable: " + entry.key;
+        console.error("[coopft]", unavailable);
+        if (entry.key === "rules") throw new Error(unavailable);
         continue;
       }
+      const savedId = await this.getResource(guild.id, "message:" + entry.key);
+      let message = savedId ? await entry.channel.messages.fetch(savedId).catch(() => null) : null;
+      const payload = { embeds: [entry.embed], files: entry.files || [], allowedMentions: { parse: [] } };
       try {
-        const savedId = await this.getResource(guild.id, "message:" + entry.key);
-        let message = savedId ? await entry.channel.messages.fetch(savedId).catch(() => null) : null;
-        const payload = { embeds: [entry.embed], files: entry.files || [], allowedMentions: { parse: [] } };
         if (message) await message.edit(payload);
         else {
           message = await entry.channel.send(payload);
@@ -1066,11 +1089,24 @@ class CoopFTCommunityService {
         console.info("[coopft] Published " + entry.key + " message in #" + entry.channel.name + ".");
       } catch (error) {
         console.error("[coopft] Could not publish " + entry.key + " message in #" + entry.channel.name + ":", error.code || error.name, error.message);
+        if (entry.key !== "rules") continue;
+        try {
+          const fallbackEmbed = EmbedBuilder.from(entry.embed).setThumbnail(null);
+          const fallbackPayload = { embeds: [fallbackEmbed], files: [], attachments: [], allowedMentions: { parse: [] } };
+          if (message) await message.edit(fallbackPayload);
+          else {
+            message = await entry.channel.send(fallbackPayload);
+            await this.saveResource(guild.id, "message:rules", message.id);
+          }
+          console.warn("[coopft] Published the rules embed without artwork after the attachment failed.");
+        } catch (fallbackError) {
+          throw new Error("The CoopFT rules embed could not be published: " + fallbackError.message);
+        }
       }
     }
   }
 
-  async buildRoleGuideEmbed(guild) {
+    async buildRoleGuideEmbed(guild) {
     this.assertCoopFTGuild(guild, "build the CoopFT role guide");
     const embed = new EmbedBuilder()
       .setColor(0x344E83)
@@ -1080,8 +1116,8 @@ class CoopFTCommunityService {
         "",
         "👑 **Owner / Co-Owner:** full permissions, including Administrator.",
         "🌟 **High Rank Supervisor:** all permissions except Administrator, Manage Server and Manage Channels.",
-        "🛡️ **Other staff and HR:** graduated operational permissions appropriate to their duties. Critical bot commands still use separate CoopFT authorization checks.",
-        "🎟️ **Specialist positions:** role identity only; no global server permissions."
+        "✦ **Operational staff:** graduated permissions appropriate to each position. Critical bot actions still require a separate leadership authorization check.",
+        "Applications are reviewed privately. Accepted applicants receive the staff rank they applied for."
       ].join("\n"))
       .setFooter({ text: "CoopFT • Clear roles. Clear responsibilities." });
     for (const role of STAFF_RANKS) embed.addFields({
@@ -1110,163 +1146,48 @@ class CoopFTCommunityService {
     }
   }
 
-  async isApplicationOpen(guildId, roleKey) {
-    const setting = await this.getSetting(guildId, "application_open:" + roleKey);
-    return setting !== false;
-  }
-
-  async setApplicationOpen(guild, roleKey, isOpen) {
-    this.assertCoopFTGuild(guild, "change CoopFT application availability");
-    if (!APPLICATION_ROLES.some((role) => role.key === roleKey)) throw new Error("Unknown application position.");
-    const wasOpen = await this.isApplicationOpen(guild.id, roleKey);
-    await this.setSetting(guild.id, "application_open:" + roleKey, Boolean(isOpen));
-    const channelId = await this.getResource(guild.id, "channel:applications");
-    const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
-    if (channel) await this.ensureApplicationPanel(guild, channel);
-    if (isOpen && !wasOpen) {
-      await this.notifyApplicationSubscribers(guild, roleKey).catch((error) => {
-        console.warn("[coopft] Could not send application opening notifications:", error.message);
-      });
-    }
-    return Boolean(isOpen);
-  }
-
-  async showApplicationNotificationPreferences(interaction) {
-    this.assertCoopFTGuild(interaction.guild, "read CoopFT application preferences");
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const saved = await this.pool.query(
-      "SELECT role_key FROM coopft_application_subscriptions WHERE guild_id=$1 AND member_id=$2",
-      [interaction.guildId, interaction.user.id]
-    );
-    const selected = new Set(saved.rows.map((row) => row.role_key));
-    const menu = new StringSelectMenuBuilder()
-      .setCustomId("cf-application:notify-select")
-      .setPlaceholder("Choose positions to receive opening alerts")
-      .setMinValues(0)
-      .setMaxValues(APPLICATION_ROLES.length)
-      .addOptions(APPLICATION_ROLES.map((role) => ({
-        label: role.name,
-        value: role.key,
-        description: "Notify me when " + role.name + " applications open",
-        default: selected.has(role.key),
-        emoji: this.emojis.has(role.emoji) ? { id: this.emojis.get(role.emoji), name: role.emoji } : role.icon
-      })));
-    const selectionRow = new ActionRowBuilder().addComponents(menu);
-    const clearRow = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("cf-application:clear-notifications")
-        .setLabel("Clear all alerts")
-        .setStyle(ButtonStyle.Secondary)
-    );
-    await interaction.editReply({
-      content: "🔔 **Application opening alerts**\\nChoose which positions you want a private DM about when applications reopen. No messages are sent unless you opt in.",
-      components: [selectionRow, clearRow]
-    });
-  }
-
-  async handleApplicationSelectMenu(interaction) {
-    this.assertCoopFTGuild(interaction.guild, "save CoopFT application preferences");
-    if (interaction.guildId !== this.guildId || interaction.customId !== "cf-application:notify-select") {
-      await interaction.reply({ content: "These notification settings are only available in CoopFT.", flags: MessageFlags.Ephemeral });
-      return true;
-    }
-    await interaction.deferUpdate();
-    const selected = interaction.values.filter((value) => APPLICATION_ROLES.some((role) => role.key === value));
-    await this.pool.query(
-      "DELETE FROM coopft_application_subscriptions WHERE guild_id=$1 AND member_id=$2",
-      [interaction.guildId, interaction.user.id]
-    );
-    if (selected.length) {
-      const placeholders = selected.map((_, index) => "($1,$2,$" + (index + 3) + ")").join(",");
-      await this.pool.query(
-        "INSERT INTO coopft_application_subscriptions (guild_id,member_id,role_key) VALUES " +
-          placeholders + " ON CONFLICT DO NOTHING",
-        [interaction.guildId, interaction.user.id, ...selected]
-      );
-    }
-    await interaction.editReply({
-      content: selected.length
-        ? "✅ Alerts saved. I'll DM you when " + selected.map((key) => APPLICATION_ROLES.find((role) => role.key === key).name).join(", ") + " applications reopen."
-        : "Application opening alerts are now turned off.",
-      components: []
-    });
-    return true;
-  }
-
-  async notifyApplicationSubscribers(guild, roleKey) {
-    this.assertCoopFTGuild(guild, "notify CoopFT application subscribers");
-    const role = APPLICATION_ROLES.find((item) => item.key === roleKey);
-    if (!role) return { sent: 0, failed: 0 };
-    const subscribers = await this.pool.query(
-      "SELECT member_id FROM coopft_application_subscriptions WHERE guild_id=$1 AND role_key=$2",
-      [guild.id, roleKey]
-    );
-    const channelId = await this.getResource(guild.id, "channel:applications");
-    const link = channelId
-      ? " https://discord.com/channels/" + guild.id + "/" + channelId
-      : "";
-    let sent = 0;
-    let failed = 0;
-    for (const row of subscribers.rows) {
-      const user = await guild.client.users.fetch(row.member_id).catch(() => null);
-      if (!user) { failed += 1; continue; }
-      try {
-        await user.send({
-          content: "🔔 **CoopFT application alert**\\nApplications for **" + role.name +
-            "** are now open again. You can apply here:" + link,
-          allowedMentions: { parse: [] }
-        });
-        sent += 1;
-      } catch (_) {
-        failed += 1;
-      }
-    }
-    return { sent, failed };
-  }
-
   async ensureApplicationPanel(guild, channel) {
     this.assertCoopFTGuild(guild, "publish the CoopFT application panel");
     if (!channel?.isTextBased?.()) return;
-    const statuses = await Promise.all(APPLICATION_ROLES.map(async (role) => ({
-      role, open: await this.isApplicationOpen(guild.id, role.key)
-    })));
     const embed = new EmbedBuilder()
-      .setColor(0x344E83)
-      .setTitle(this.emoji(guild.id, "cf3d_applications", "📝") + "  COOPFT • TEAM APPLICATIONS")
-      .setDescription("Ready to contribute? Choose the position that fits your skills. Your answers are sent privately and reviewed by authorized CoopFT staff. Quality and honesty matter more than length.")
-      .setFooter({ text: "One pending application per position • Keep your answers honest" });
-    for (const { role, open } of statuses) embed.addFields({
-      name: this.emoji(guild.id, role.emoji, role.icon) + "  " + role.name + "  •  " + (open ? "OPEN" : "CLOSED"),
-      value: role.description,
-      inline: false
-    });
-    const buttons = new ActionRowBuilder().addComponents(
-      ...statuses.map(({ role, open }) => new ButtonBuilder()
-        .setCustomId("cf-application:apply:" + role.key)
-        .setLabel(role.name)
-        .setEmoji(this.emojis.has(role.emoji) ? { id: this.emojis.get(role.emoji), name: role.emoji } : role.icon)
-        .setStyle(ButtonStyle.Primary)
-        .setDisabled(!open))
-    );
-    const notificationButton = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("cf-application:notifications")
-        .setLabel("Manage opening alerts")
-        .setEmoji(this.emojis.has("cf3d_bell") ? { id: this.emojis.get("cf3d_bell"), name: "cf3d_bell" } : "🔔")
-        .setStyle(ButtonStyle.Secondary)
-    );
+      .setColor(0x8C1D32)
+      .setTitle("COOPFT  |  STAFF APPLICATIONS")
+      .setDescription([
+        "Interested in joining the CoopFT staff team?",
+        "",
+        "Choose one available operational rank and complete the private application form. Your answers are delivered directly to the leadership review channel.",
+        "",
+        "**Review process**",
+        "Designated leadership reviews every application. You will receive a private decision summary. Accepted applicants are assigned the rank they applied for.",
+        "",
+        "**Leadership appointments**",
+        "Owner, Co-Owner, Monarch, High Rank Supervisor, and senior high-rank appointments are reserved for leadership selection."
+      ].join("\n"))
+      .setFooter({ text: "COOPFT  •  STAFF RECRUITMENT" });
+    const menu = new StringSelectMenuBuilder()
+      .setCustomId("cf-application:position-select")
+      .setPlaceholder("Choose the staff position you want to apply for")
+      .setMinValues(1)
+      .setMaxValues(1)
+      .addOptions(APPLICATION_RANKS.map((role) => ({
+        label: role.name,
+        value: role.key,
+        description: role.description.slice(0, 100),
+        emoji: this.emojis.has(role.emoji) ? { id: this.emojis.get(role.emoji), name: role.emoji } : role.icon
+      })));
+    const components = [new ActionRowBuilder().addComponents(menu)];
     const savedId = await this.getResource(guild.id, "message:application_panel");
     let message = savedId ? await channel.messages.fetch(savedId).catch(() => null) : null;
-    const components = [buttons, notificationButton];
-    if (message) await message.edit({ embeds: [embed], components, allowedMentions: { parse: [] } });
+    const payload = { embeds: [embed], components, allowedMentions: { parse: [] } };
+    if (message) await message.edit(payload);
     else {
-      message = await channel.send({ embeds: [embed], components, allowedMentions: { parse: [] } });
+      message = await channel.send(payload);
       await this.saveResource(guild.id, "message:application_panel", message.id);
     }
   }
 
   createApplicationModal(role) {
-    const modal = new ModalBuilder().setCustomId("cf-application:submit:" + role.key).setTitle("Apply • " + role.name);
+    const modal = new ModalBuilder().setCustomId("cf-application:submit:" + role.key).setTitle("Staff application  |  " + role.name);
     const questions = [
       ["experience", "What relevant experience do you have?", TextInputStyle.Paragraph, true, 900],
       ["motivation", "Why do you want this position?", TextInputStyle.Paragraph, true, 900],
@@ -1275,104 +1196,99 @@ class CoopFTCommunityService {
       ["extra", "Anything else we should know? (optional)", TextInputStyle.Paragraph, false, 700]
     ];
     modal.addComponents(...questions.map(([id, label, style, required, maxLength]) =>
-      new ActionRowBuilder().addComponents(new TextInputBuilder()
-        .setCustomId(id).setLabel(label).setStyle(style).setRequired(required)
-        .setMaxLength(maxLength)
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId(id).setLabel(label)
+        .setStyle(style).setRequired(required).setMaxLength(maxLength)
         .setPlaceholder(id === "availability" ? "For example: weekday evenings and weekends" : "Write a clear, honest answer"))
     ));
     return modal;
   }
 
+  buildApplicationReviewComponents(applicationId) {
+    return [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("cf-application:accept:" + applicationId).setLabel("Accept").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("cf-application:accept-reason:" + applicationId).setLabel("Accept with reason").setStyle(ButtonStyle.Success)
+      ),
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("cf-application:deny:" + applicationId).setLabel("Deny").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId("cf-application:deny-reason:" + applicationId).setLabel("Deny with reason").setStyle(ButtonStyle.Danger)
+      )
+    ];
+  }
+
+  async handleApplicationSelectMenu(interaction) {
+    this.assertCoopFTGuild(interaction.guild, "select a CoopFT staff application position");
+    if (interaction.guildId !== this.guildId || interaction.customId !== "cf-application:position-select") {
+      await interaction.reply({ content: "This application panel is only available in CoopFT.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    const role = APPLICATION_RANKS.find((item) => item.key === interaction.values?.[0]);
+    if (!role) {
+      await interaction.reply({ content: "That staff position is not available for applications.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    const existing = await this.pool.query(
+      "SELECT id FROM coopft_applications WHERE guild_id=$1 AND applicant_id=$2 AND role_key=$3 AND status='pending' LIMIT 1",
+      [interaction.guildId, interaction.user.id, role.key]
+    );
+    if (existing.rowCount) {
+      await interaction.reply({ content: "You already have a pending application for **" + role.name + "**. The review team will contact you when it has been processed.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    await interaction.showModal(this.createApplicationModal(role));
+    return true;
+  }
+
   async handleApplicationButton(interaction) {
-    this.assertCoopFTGuild(interaction.guild, "process a CoopFT application button");
+    this.assertCoopFTGuild(interaction.guild, "process a CoopFT application review");
     if (interaction.guildId !== this.guildId) {
-      await interaction.reply({ content: "Applications are only available in CoopFT.", flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: "Application reviews are only available in CoopFT.", flags: MessageFlags.Ephemeral });
       return true;
     }
-    const [, action, value] = interaction.customId.split(":");
-    if (action === "notifications") {
-      await this.showApplicationNotificationPreferences(interaction);
-      return true;
-    }
-    if (action === "clear-notifications") {
-      await interaction.deferUpdate();
-      await this.pool.query(
-        "DELETE FROM coopft_application_subscriptions WHERE guild_id=$1 AND member_id=$2",
-        [interaction.guildId, interaction.user.id]
-      );
-      await interaction.editReply({ content: "Application opening alerts have been cleared.", components: [] });
-      return true;
-    }
-    if (action === "apply") {
-      const role = APPLICATION_ROLES.find((item) => item.key === value);
-      if (!role) {
-        await interaction.reply({ content: "That application position is unavailable.", flags: MessageFlags.Ephemeral });
-        return true;
-      }
-      if (!(await this.isApplicationOpen(interaction.guildId, role.key))) {
-        await interaction.reply({ content: "Applications for **" + role.name + "** are currently closed.", flags: MessageFlags.Ephemeral });
-        return true;
-      }
-      const existing = await this.pool.query(
-        "SELECT id FROM coopft_applications WHERE guild_id=$1 AND applicant_id=$2 AND role_key=$3 AND status='pending' LIMIT 1",
-        [interaction.guildId, interaction.user.id, role.key]
-      );
-      if (existing.rowCount) {
-        await interaction.reply({ content: "You already have a pending **" + role.name + "** application. Staff will review it soon.", flags: MessageFlags.Ephemeral });
-        return true;
-      }
-      await interaction.showModal(this.createApplicationModal(role));
-      return true;
-    }
-    const applicationId = value;
+    const [, action, applicationId] = interaction.customId.split(":");
     if (!["accept", "accept-reason", "deny", "deny-reason"].includes(action)) {
-      await interaction.reply({ content: "Unknown application action.", flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: "This application review action is not recognized.", flags: MessageFlags.Ephemeral });
       return true;
     }
     if (!this.canManageStaff(interaction.member, interaction.guild)) {
-      await interaction.reply({ content: "Only authorized CoopFT reviewers can process applications.", flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: "Only designated CoopFT leadership can review staff applications.", flags: MessageFlags.Ephemeral });
       return true;
     }
     if (action.endsWith("-reason")) {
-      const accepting = action === "accept-reason";
+      const decision = action === "accept-reason" ? "accept" : "deny";
       const modal = new ModalBuilder()
-        .setCustomId("cf-application:decision-reason:" + (accepting ? "accept" : "deny") + ":" + applicationId)
-        .setTitle(accepting ? "Accept application" : "Deny application");
+        .setCustomId("cf-application:decision-reason:" + decision + ":" + applicationId)
+        .setTitle(decision === "accept" ? "Accept application" : "Deny application");
       modal.addComponents(new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId("reason")
-          .setLabel(accepting ? "Reason for acceptance" : "Reason for denial")
-          .setStyle(TextInputStyle.Paragraph)
-          .setRequired(true)
-          .setMaxLength(900)
+        new TextInputBuilder().setCustomId("reason")
+          .setLabel(decision === "accept" ? "Reason for acceptance" : "Reason for denial")
+          .setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(900)
           .setPlaceholder("Write a clear, respectful explanation.")
       ));
       await interaction.showModal(modal);
       return true;
     }
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const decision = action === "accept" ? "accept" : "deny";
-    await this.resolveApplication(interaction, applicationId, decision, null);
-    await interaction.editReply({ content: (decision === "accept" ? "✅ Application accepted" : "Application denied") + ". The applicant has been notified." });
+    const result = await this.resolveApplication(interaction, applicationId, action, null);
+    await interaction.editReply({
+      content: (action === "accept" ? "Application accepted" : "Application denied") +
+        " for **" + result.roleName + "**. The applicant has been sent a private decision summary."
+    });
     return true;
   }
 
   async handleApplicationModal(interaction) {
-    this.assertCoopFTGuild(interaction.guild, "save a CoopFT application");
+    this.assertCoopFTGuild(interaction.guild, "save a CoopFT staff application");
     if (interaction.guildId !== this.guildId) {
-      await interaction.reply({ content: "Applications are only available in CoopFT.", flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: "Staff applications are only available in CoopFT.", flags: MessageFlags.Ephemeral });
       return true;
     }
-    const roleKey = interaction.customId.split(":")[2];
-    const role = APPLICATION_ROLES.find((item) => item.key === roleKey);
+    const role = APPLICATION_RANKS.find((item) => item.key === interaction.customId.split(":")[2]);
     if (!role) {
-      await interaction.reply({ content: "That application position is unavailable.", flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: "That staff position is no longer accepting applications.", flags: MessageFlags.Ephemeral });
       return true;
     }
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    if (!(await this.isApplicationOpen(interaction.guildId, roleKey))) {
-      return interaction.editReply({ content: "Applications for **" + role.name + "** have closed. Your answers were not submitted." });
-    }
     const answers = {
       experience: interaction.fields.getTextInputValue("experience").trim(),
       motivation: interaction.fields.getTextInputValue("motivation").trim(),
@@ -1385,35 +1301,35 @@ class CoopFTCommunityService {
     }
     const duplicate = await this.pool.query(
       "SELECT id FROM coopft_applications WHERE guild_id=$1 AND applicant_id=$2 AND role_key=$3 AND status='pending' LIMIT 1",
-      [interaction.guildId, interaction.user.id, roleKey]
+      [interaction.guildId, interaction.user.id, role.key]
     );
-    if (duplicate.rowCount) return interaction.editReply({ content: "You already have a pending application for **" + role.name + "**." });
+    if (duplicate.rowCount) {
+      return interaction.editReply({ content: "You already have a pending application for **" + role.name + "**." });
+    }
     let inserted;
     try {
       inserted = await this.pool.query(
         "INSERT INTO coopft_applications (guild_id,applicant_id,role_key,answers) VALUES ($1,$2,$3,$4::jsonb) RETURNING id,created_at",
-        [interaction.guildId, interaction.user.id, roleKey, JSON.stringify(answers)]
+        [interaction.guildId, interaction.user.id, role.key, JSON.stringify(answers)]
       );
     } catch (error) {
-      if (error.code === "23505") {
-        return interaction.editReply({ content: "You already have a pending application for **" + role.name + "**." });
-      }
+      if (error.code === "23505") return interaction.editReply({ content: "You already have a pending application for **" + role.name + "**." });
       throw error;
     }
     const reviewChannelId = await this.getResource(interaction.guildId, "channel:application_review");
     const reviewChannel = reviewChannelId ? await interaction.guild.channels.fetch(reviewChannelId).catch(() => null) : null;
     if (!reviewChannel?.isTextBased?.()) {
       await this.pool.query("UPDATE coopft_applications SET status='withdrawn',review_note='Review channel unavailable' WHERE id=$1", [inserted.rows[0].id]);
-      return interaction.editReply({ content: "Your application could not be delivered to the review team. Please open a support ticket." });
+      return interaction.editReply({ content: "Your application could not be delivered to the private review team. Please contact a server owner." });
     }
     const application = inserted.rows[0];
     const reviewEmbed = new EmbedBuilder()
-      .setColor(0x344E83)
-      .setTitle(this.emoji(interaction.guildId, role.emoji, role.icon) + "  NEW APPLICATION • " + role.name.toUpperCase())
-      .setDescription("A new CoopFT team application is ready for review.")
+      .setColor(0x28384F)
+      .setTitle("NEW STAFF APPLICATION  |  " + role.name.toUpperCase())
+      .setDescription("A new CoopFT staff application has been submitted and is awaiting leadership review.")
       .addFields(
-        { name: "Applicant", value: "<@" + interaction.user.id + "> • " + interaction.user.tag, inline: false },
-        { name: "Position", value: role.name, inline: true },
+        { name: "Applicant", value: "<@" + interaction.user.id + ">  •  " + interaction.user.tag, inline: false },
+        { name: "Position requested", value: role.name, inline: true },
         { name: "Submitted", value: "<t:" + Math.floor(new Date(application.created_at).getTime() / 1000) + ":R>", inline: true },
         { name: "Relevant experience", value: answers.experience.slice(0, 1024), inline: false },
         { name: "Motivation", value: answers.motivation.slice(0, 1024), inline: false },
@@ -1421,22 +1337,12 @@ class CoopFTCommunityService {
         { name: "Availability", value: answers.availability.slice(0, 1024), inline: false },
         { name: "Additional notes", value: answers.extra ? answers.extra.slice(0, 1024) : "Not provided", inline: false }
       )
-      .setFooter({ text: "Application ID • " + application.id });
-    const controls = [
-      new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("cf-application:accept:" + application.id).setLabel("Accept").setStyle(ButtonStyle.Success).setEmoji("✅"),
-        new ButtonBuilder().setCustomId("cf-application:accept-reason:" + application.id).setLabel("Accept with reason").setStyle(ButtonStyle.Success).setEmoji("📝")
-      ),
-      new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("cf-application:deny:" + application.id).setLabel("Deny").setStyle(ButtonStyle.Danger).setEmoji("✖️"),
-        new ButtonBuilder().setCustomId("cf-application:deny-reason:" + application.id).setLabel("Deny with reason").setStyle(ButtonStyle.Danger).setEmoji("📝")
-      )
-    ];
+      .setFooter({ text: "Application reference  •  " + application.id });
     let reviewMessage;
     try {
       reviewMessage = await reviewChannel.send({
         embeds: [reviewEmbed],
-        components: controls,
+        components: this.buildApplicationReviewComponents(application.id),
         allowedMentions: { parse: [] }
       });
     } catch (error) {
@@ -1444,15 +1350,11 @@ class CoopFTCommunityService {
         "UPDATE coopft_applications SET status='withdrawn',review_note=$2 WHERE id=$1 AND status='pending'",
         [application.id, ("Review delivery failed: " + error.message).slice(0, 500)]
       );
-      console.error("[coopft] Could not publish an application to the private review channel:", error.message);
-      return interaction.editReply({
-        content: "Your application was saved, but the private review team could not receive it. Please open a support ticket so staff can help."
-      });
+      console.error("[coopft] Could not publish a staff application to the private review channel:", error.message);
+      return interaction.editReply({ content: "Your application was saved, but the private review team could not receive it. Please contact a server owner." });
     }
     await this.pool.query("UPDATE coopft_applications SET review_message_id=$2 WHERE id=$1", [application.id, reviewMessage.id]);
-    await interaction.editReply({
-      content: "✅ Your **" + role.name + "** application has been submitted privately. Reference: `" + application.id.slice(0, 8) + "`. Authorized staff will review it."
-    });
+    await interaction.editReply({ content: "Your application for **" + role.name + "** has been submitted privately. The review team will contact you with its decision." });
     return true;
   }
 
@@ -1464,7 +1366,7 @@ class CoopFTCommunityService {
       return true;
     }
     if (!this.canManageStaff(interaction.member, interaction.guild)) {
-      await interaction.reply({ content: "Only authorized CoopFT reviewers can process applications.", flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: "Only designated CoopFT leadership can review staff applications.", flags: MessageFlags.Ephemeral });
       return true;
     }
     const reason = interaction.fields.getTextInputValue("reason").trim();
@@ -1473,69 +1375,118 @@ class CoopFTCommunityService {
       return true;
     }
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    await this.resolveApplication(interaction, applicationId, decision, reason);
-    await interaction.editReply({ content: (decision === "accept" ? "✅ Application accepted" : "Application denied") + ". The applicant has been notified with your reason." });
+    const result = await this.resolveApplication(interaction, applicationId, decision, reason);
+    await interaction.editReply({
+      content: (decision === "accept" ? "Application accepted" : "Application denied") +
+        " for **" + result.roleName + "**. The applicant has been sent your decision summary."
+    });
     return true;
   }
 
   async resolveApplication(interaction, applicationId, decision, reason = null) {
-    this.assertCoopFTGuild(interaction.guild, "review a CoopFT application");
+    this.assertCoopFTGuild(interaction.guild, "review a CoopFT staff application");
+    if (!["accept", "deny"].includes(decision)) throw new Error("Unknown application decision.");
     const selected = await this.pool.query(
       "SELECT * FROM coopft_applications WHERE guild_id=$1 AND id=$2 AND status='pending' LIMIT 1",
       [interaction.guildId, applicationId]
     );
     const application = selected.rows[0];
     if (!application) throw new Error("This application has already been reviewed or no longer exists.");
-    const roleSpec = APPLICATION_ROLES.find((item) => item.key === application.role_key);
-    if (!roleSpec) throw new Error("The application position is no longer configured.");
+    const roleSpec = APPLICATION_RANKS.find((item) => item.key === application.role_key);
+    if (!roleSpec) throw new Error("This application is for a retired position and cannot be accepted.");
     const member = await interaction.guild.members.fetch(application.applicant_id).catch(() => null);
     if (decision === "accept" && !member) throw new Error("The applicant is no longer in CoopFT. The application was left pending.");
+
+    let role = null;
+    if (decision === "accept") {
+      role = this.roles.get(roleSpec.key) || null;
+      if (!role) {
+        role = (await this.ensureRole(interaction.guild, roleSpec)).role;
+        this.roles.set(roleSpec.key, role);
+      }
+    }
     const newStatus = decision === "accept" ? "approved" : "declined";
-    const updated = await this.pool.query(
+    const claimed = await this.pool.query(
       "UPDATE coopft_applications SET status=$3,reviewed_by=$4,reviewed_at=NOW(),review_note=$5 WHERE guild_id=$1 AND id=$2 AND status='pending' RETURNING id",
       [interaction.guildId, applicationId, newStatus, interaction.user.id, reason]
     );
-    if (!updated.rowCount) throw new Error("Another reviewer has already processed this application.");
+    if (!claimed.rowCount) throw new Error("Another reviewer has already processed this application.");
+
     if (decision === "accept") {
-      let role = this.applicationRoles.get(roleSpec.key);
-      if (!role) {
-        role = (await this.ensureRole(interaction.guild, roleSpec)).role;
-        this.applicationRoles.set(roleSpec.key, role);
-      }
+      const previousRank = this.getStaffRankKey(member);
+      const addedRole = !member.roles.cache.has(role.id);
+      const removedPreviousRoles = [];
       try {
-        await member.roles.add(role, "CoopFT application approved by " + interaction.user.tag);
+        if (addedRole) await member.roles.add(role, "CoopFT application accepted by " + interaction.user.tag);
+        for (const rank of STAFF_RANKS) {
+          if (rank.key === roleSpec.key) continue;
+          const oldRole = this.roles.get(rank.key);
+          if (!oldRole || !member.roles.cache.has(oldRole.id)) continue;
+          await member.roles.remove(oldRole, "CoopFT application accepted; replace previous staff rank");
+          removedPreviousRoles.push(oldRole);
+        }
+        await this.pool.query(
+          "INSERT INTO coopft_staff_members (guild_id,member_id,rank_key,active,updated_by) VALUES ($1,$2,$3,TRUE,$4) " +
+          "ON CONFLICT (guild_id,member_id) DO UPDATE SET rank_key=EXCLUDED.rank_key,active=TRUE,updated_at=NOW(),updated_by=EXCLUDED.updated_by",
+          [interaction.guildId, member.id, roleSpec.key, interaction.user.id]
+        );
+        await this.recordStaffAudit(interaction.guildId, interaction.user.id, member.id, "application_accepted", {
+          applicationId, from: previousRank, to: roleSpec.key, reason
+        });
+        await this.updateStaffDirectory(interaction.guild);
       } catch (error) {
         await this.pool.query(
-          "UPDATE coopft_applications SET status='pending',reviewed_by=NULL,reviewed_at=NULL WHERE id=$1",
+          "UPDATE coopft_applications SET status='pending',reviewed_by=NULL,reviewed_at=NULL,review_note=NULL WHERE id=$1",
           [applicationId]
-        );
+        ).catch(() => {});
+        if (addedRole) await member.roles.remove(role, "Roll back failed CoopFT application acceptance").catch(() => {});
+        for (const oldRole of removedPreviousRoles) {
+          await member.roles.add(oldRole, "Restore previous CoopFT staff rank after failed application acceptance").catch(() => {});
+        }
         throw error;
       }
     }
-    const reviewEmbed = new EmbedBuilder()
-      .setColor(decision === "accept" ? 0x26996B : 0x9C394B)
-      .setTitle(this.emoji(interaction.guildId, roleSpec.emoji, roleSpec.icon) + "  APPLICATION " + newStatus.toUpperCase())
-      .setDescription(["Applicant: <@" + application.applicant_id + ">", "Reviewed by: <@" + interaction.user.id + ">", reason ? "Reason: " + reason : null].filter(Boolean).join("\n"))
-      .setFooter({ text: "Application ID • " + applicationId });
+
     let reviewMessage = interaction.message || null;
     if (!reviewMessage && application.review_message_id) {
       const reviewChannelId = await this.getResource(interaction.guildId, "channel:application_review");
       const reviewChannel = reviewChannelId ? await interaction.guild.channels.fetch(reviewChannelId).catch(() => null) : null;
-      reviewMessage = reviewChannel?.messages
-        ? await reviewChannel.messages.fetch(application.review_message_id).catch(() => null)
-        : null;
+      reviewMessage = reviewChannel?.messages ? await reviewChannel.messages.fetch(application.review_message_id).catch(() => null) : null;
     }
     if (reviewMessage) {
-      await reviewMessage.edit({ embeds: [reviewEmbed], components: [], allowedMentions: { parse: [] } }).catch(() => {});
+      const original = reviewMessage.embeds?.[0];
+      const finalEmbed = original ? EmbedBuilder.from(original) : new EmbedBuilder().setTitle("COOPFT STAFF APPLICATION");
+      const decisionText = decision === "accept" ? "ACCEPTED" : "DENIED";
+      const summaryLines = [
+        "**Decision:** " + decisionText,
+        "**Reviewed by:** <@" + interaction.user.id + ">",
+        decision === "accept" ? "**Assigned rank:** " + roleSpec.name : "**No staff rank was assigned.**",
+        reason ? "**Review note:** " + reason : "**Review note:** No additional feedback was provided."
+      ];
+      finalEmbed
+        .setColor(decision === "accept" ? 0x267A58 : 0x963A48)
+        .setDescription([original?.description, "", summaryLines.join("\n")].filter(Boolean).join("\n"))
+        .setFooter({ text: "Application reference  •  " + applicationId + "  •  " + decisionText });
+      await reviewMessage.edit({ embeds: [finalEmbed], components: [], allowedMentions: { parse: [] } }).catch((error) => {
+        console.warn("[coopft] Could not update the reviewed application message:", error.message);
+      });
     }
+
     const applicant = await interaction.client.users.fetch(application.applicant_id).catch(() => null);
     if (applicant) {
-      const dm = decision === "accept"
-        ? "Your CoopFT **" + roleSpec.name + "** application has been accepted. Your role has been assigned. Welcome to the team!" + (reason ? "\n\nReviewer note: " + reason : "")
-        : "Thank you for applying for **" + roleSpec.name + "** at CoopFT. Your application was not accepted." + (reason ? "\n\nReviewer feedback: " + reason : " You may apply again when applications reopen or your experience changes.");
-      await applicant.send({ content: dm, allowedMentions: { parse: [] } }).catch(() => {});
+      const resultText = decision === "accept" ? "ACCEPTED" : "DENIED";
+      const dm = [
+        "**COOPFT  |  APPLICATION RESULT**",
+        "Your application for **" + roleSpec.name + "** has been **" + resultText + "**.",
+        decision === "accept" ? "Your staff rank has been assigned. Welcome to the team." : "No staff rank was assigned.",
+        "**Reviewed by:** " + interaction.user.tag,
+        reason ? "**Review note:** " + reason : "**Review note:** No additional feedback was provided."
+      ].join("\n\n");
+      await applicant.send({ content: dm, allowedMentions: { parse: [] } }).catch((error) => {
+        console.warn("[coopft] Could not DM application decision to " + application.applicant_id + ":", error.message);
+      });
     }
-    return { applicantId: application.applicant_id, roleName: roleSpec.name, status: newStatus };
+    return { applicantId: application.applicant_id, roleName: roleSpec.name, status: newStatus, reason };
   }
 
   async ensureTicketPanel(guild, channel) {
@@ -1588,9 +1539,7 @@ class CoopFTCommunityService {
     const category = await this.getTicketCategory(guild);
     if (!category) throw new Error("The ticket category is not set up. Ask an administrator to run /coopft-setup.");
     const me = guild.members.me || await guild.members.fetchMe();
-    const staffRoles = [...STAFF_RANKS, ...HR_ROLES].map((spec) => this.roles.get(spec.key)).filter(Boolean);
-    const ticketStaffRole = this.applicationRoles.get("ticket_staff");
-    if (ticketStaffRole) staffRoles.push(ticketStaffRole);
+    const staffRoles = STAFF_RANKS.map((spec) => this.roles.get(spec.key)).filter(Boolean);
     const overwrites = [
       { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
       { id: member.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] },
@@ -1653,9 +1602,7 @@ class CoopFTCommunityService {
 
   isStaff(member) {
     if (!member?.roles?.cache) return false;
-    const ids = new Set([...STAFF_RANKS, ...HR_ROLES].map((spec) => this.roles.get(spec.key)?.id).filter(Boolean));
-    const ticketStaffRole = this.applicationRoles.get("ticket_staff");
-    if (ticketStaffRole) ids.add(ticketStaffRole.id);
+    const ids = new Set(STAFF_RANKS.map((spec) => this.roles.get(spec.key)?.id).filter(Boolean));
     return member.roles.cache.some((role) => ids.has(role.id));
   }
 
@@ -1663,7 +1610,7 @@ class CoopFTCommunityService {
     if (!member || !guild) return false;
     if (member.id === guild.ownerId) return true;
     if (!member.roles?.cache) return false;
-    return [...STAFF_MANAGER_KEYS, ...HR_MANAGER_KEYS].some((key) => {
+    return [...STAFF_MANAGER_KEYS].some((key) => {
       const role = this.roles.get(key);
       return role && member.roles.cache.has(role.id);
     });
@@ -1676,135 +1623,7 @@ class CoopFTCommunityService {
     })?.key || null;
   }
 
-  getHRRoleKeys(member) {
-    return HR_ROLES
-      .filter((spec) => {
-        const role = this.roles.get(spec.key);
-        return role && member?.roles?.cache?.has(role.id);
-      })
-      .map((spec) => spec.key);
-  }
-
-  async getHRAssignment(guildId, memberId) {
-    this.assertCoopFTGuildId(guildId, "read CoopFT HR assignment data");
-    const result = await this.pool.query(
-      "SELECT action,details FROM coopft_staff_audit WHERE guild_id=$1 AND member_id=$2 " +
-      "AND action IN ('hr_role_assigned','hr_role_removed') ORDER BY created_at DESC,id DESC LIMIT 1",
-      [guildId, memberId]
-    );
-    const row = result.rows[0];
-    if (!row) return null;
-    let details = row.details || {};
-    if (typeof details === "string") {
-      try { details = JSON.parse(details); } catch (_) { details = {}; }
-    }
-    return { action: row.action, details };
-  }
-
-  assertHRRoleChangeAuthority(actor, target, guild, currentRoleKey, nextRoleKey = null) {
-    if (!actor || !target || actor.id === target.id) {
-      throw new Error("Ask another authorized CoopFT manager to make this HR change.");
-    }
-    if (actor.id === guild.ownerId) return;
-    if (target.id === guild.ownerId) {
-      throw new Error("Only the server owner can change the server owner's HR assignments.");
-    }
-
-    const hasRole = (key) => {
-      const role = this.roles.get(key);
-      return Boolean(role && actor.roles?.cache?.has(role.id));
-    };
-    if ([...STAFF_MANAGER_KEYS].some(hasRole)) return;
-
-    if (hasRole("hr_director")) {
-      if (currentRoleKey === "hr_director" || nextRoleKey === "hr_director") {
-        throw new Error("HR Directors cannot appoint, remove or replace another HR Director. A senior staff manager or the server owner must do that.");
-      }
-      return;
-    }
-
-    const juniorHrRoles = new Set(["hr_recruiter", "hr_coordinator", "hr_trainee"]);
-    if (hasRole("hr_manager")) {
-      if ((currentRoleKey && !juniorHrRoles.has(currentRoleKey)) ||
-          (nextRoleKey && !juniorHrRoles.has(nextRoleKey))) {
-        throw new Error("HR Managers can manage HR Recruiter, HR Coordinator and HR Trainee only.");
-      }
-      return;
-    }
-
-    throw new Error("You do not have authority to manage HR roles.");
-  }
-
-  async assignHRRole(interaction, member, roleKey) {
-    this.assertCoopFTGuild(interaction.guild, "assign a CoopFT HR role");
-    if (interaction.guildId !== this.guildId) throw new Error("This HR system is only available in CoopFT.");
-    const roleSpec = HR_ROLES.find((item) => item.key === roleKey);
-    const role = this.roles.get(roleKey);
-    if (!roleSpec || !role) throw new Error("Unknown HR role. Run /coopft-setup and try again.");
-
-    const previous = await this.getHRAssignment(interaction.guildId, member.id);
-    const recordedRoleKey = previous?.action === "hr_role_assigned" ? previous.details?.roleKey : null;
-    const currentRoleKeys = this.getHRRoleKeys(member);
-    const currentRoleKey = currentRoleKeys.find((key) => key !== roleKey) || currentRoleKeys[0] || recordedRoleKey;
-    this.assertHRRoleChangeAuthority(interaction.member, member, interaction.guild, currentRoleKey, roleKey);
-    if (currentRoleKeys.length === 1 && currentRoleKeys[0] === roleKey) {
-      return { roleName: roleSpec.name, previousRole: roleKey, alreadyAssigned: true };
-    }
-
-    for (const existingKey of currentRoleKeys) {
-      if (existingKey === roleKey) continue;
-      const existingRole = this.roles.get(existingKey);
-      if (existingRole) await member.roles.remove(existingRole, "CoopFT HR role reassignment");
-    }
-    if (!member.roles.cache.has(role.id)) await member.roles.add(role, "CoopFT HR role assignment");
-
-    await this.recordStaffAudit(interaction.guildId, interaction.user.id, member.id, "hr_role_assigned", {
-      roleKey,
-      roleName: roleSpec.name,
-      from: currentRoleKey,
-      status: "active"
-    });
-    await this.updateStaffDirectory(interaction.guild);
-    await this.postStaffUpdate(
-      interaction.guild,
-      this.emoji(interaction.guildId, roleSpec.emoji, roleSpec.icon) + " <@" + member.id + "> was assigned **" +
-      roleSpec.name + "** by <@" + interaction.user.id + ">."
-    );
-    return { roleName: roleSpec.name, previousRole: currentRoleKey, alreadyAssigned: false };
-  }
-
-  async removeHRRole(interaction, member) {
-    this.assertCoopFTGuild(interaction.guild, "remove a CoopFT HR role");
-    if (interaction.guildId !== this.guildId) throw new Error("This HR system is only available in CoopFT.");
-    const previous = await this.getHRAssignment(interaction.guildId, member.id);
-    const recordedRoleKey = previous?.action === "hr_role_assigned" ? previous.details?.roleKey : null;
-    const currentRoleKeys = this.getHRRoleKeys(member);
-    const currentRoleKey = currentRoleKeys[0] || recordedRoleKey;
-    if (!currentRoleKey) throw new Error("This member does not have an active HR role.");
-    this.assertHRRoleChangeAuthority(interaction.member, member, interaction.guild, currentRoleKey, null);
-
-    for (const roleKey of currentRoleKeys) {
-      const role = this.roles.get(roleKey);
-      if (role && member.roles.cache.has(role.id)) {
-        await member.roles.remove(role, "CoopFT HR role removal");
-      }
-    }
-    const roleSpec = HR_ROLES.find((item) => item.key === currentRoleKey);
-    await this.recordStaffAudit(interaction.guildId, interaction.user.id, member.id, "hr_role_removed", {
-      roleKey: currentRoleKey,
-      roleName: roleSpec?.name || currentRoleKey,
-      status: "inactive"
-    });
-    await this.updateStaffDirectory(interaction.guild);
-    await this.postStaffUpdate(
-      interaction.guild,
-      this.emoji(interaction.guildId, "cf3d_bell", "🔔") + " <@" + member.id + "> had **" +
-      (roleSpec?.name || currentRoleKey) + "** removed by <@" + interaction.user.id + ">."
-    );
-    return { roleName: roleSpec?.name || currentRoleKey };
-  }
-
-  assertStaffChangeAuthority(actor, target, guild, currentRankKey, nextRankKey = null) {
+  assertStaffChangeAuthority(actor, target, guild, currentRankKey, nextRankKey = null) {  assertStaffChangeAuthority(actor, target, guild, currentRankKey, nextRankKey = null) {
     if (actor?.id === guild.ownerId) return;
     if (!actor || !target || actor.id === target.id) {
       throw new Error("Ask another authorized CoopFT manager to make this staff change.");
@@ -1813,10 +1632,6 @@ class CoopFTCommunityService {
     const actorRankKey = this.getStaffRankKey(actor);
     const actorRankIndex = actorRankKey ? STAFF_RANKS.findIndex((item) => item.key === actorRankKey) : -1;
     const isStaffManager = [...STAFF_MANAGER_KEYS].some((key) => {
-      const role = this.roles.get(key);
-      return role && actor.roles?.cache?.has(role.id);
-    });
-    const isHrManager = [...HR_MANAGER_KEYS].some((key) => {
       const role = this.roles.get(key);
       return role && actor.roles?.cache?.has(role.id);
     });
@@ -1833,15 +1648,6 @@ class CoopFTCommunityService {
       return;
     }
 
-    if (isHrManager) {
-      const hrManagedFrom = STAFF_RANKS.findIndex((item) => item.key === "head_moderator");
-      if ((currentIndex >= 0 && currentIndex < hrManagedFrom) ||
-          (nextIndex >= 0 && nextIndex < hrManagedFrom)) {
-        throw new Error("HR can manage Head Moderator and lower ranks only. Higher ranks require a senior staff manager or the server owner.");
-      }
-      return;
-    }
-
     throw new Error("You do not have authority to make this staff change.");
   }
 
@@ -1849,7 +1655,7 @@ class CoopFTCommunityService {
     this.assertCoopFTGuild(interaction.guild, "change a CoopFT staff role");
     if (interaction.guildId !== this.guildId) throw new Error("This staff system is only available in CoopFT.");
     if (!this.canManageStaff(interaction.member, interaction.guild)) {
-      throw new Error("You do not have HR or senior staff authority to change staff ranks.");
+      throw new Error("Only designated CoopFT leadership can change staff ranks.");
     }
 
     const rank = STAFF_RANKS.find((item) => item.key === rankKey);
@@ -1910,7 +1716,7 @@ class CoopFTCommunityService {
     this.assertCoopFTGuild(interaction.guild, "remove a CoopFT staff role");
     if (interaction.guildId !== this.guildId) throw new Error("This staff system is only available in CoopFT.");
     if (!this.canManageStaff(interaction.member, interaction.guild)) {
-      throw new Error("You do not have HR or senior staff authority to change staff ranks.");
+      throw new Error("Only designated CoopFT leadership can change staff ranks.");
     }
     const previous = await this.pool.query(
       "SELECT rank_key,active FROM coopft_staff_members WHERE guild_id=$1 AND member_id=$2",
@@ -1975,7 +1781,7 @@ class CoopFTCommunityService {
       await this.postStaffUpdate(
         guild,
         this.emoji(guild.id, "cf3d_shield", "🛡️") + " An unauthorized staff-rank change for <@" +
-        member.id + "> was rejected. Ask the server owner or HR to use /staff-manage."
+        member.id + "> was rejected. Ask designated CoopFT leadership to review the change."
       );
       return;
     }
@@ -2006,69 +1812,6 @@ class CoopFTCommunityService {
     await this.postStaffUpdate(guild, this.emoji(guild.id, "cf3d_star", "✦") + " <@" + member.id + "> is now **" + rank.name + "**.");
   }
 
-  async syncHRMember(guild, member, actor) {
-    this.assertCoopFTGuild(guild, "synchronize CoopFT HR membership");
-    if (!guild || guild.id !== this.guildId || !member || !this.roles.size || !actor) return;
-    const previous = await this.getHRAssignment(guild.id, member.id);
-    const previousRoleKey = previous?.action === "hr_role_assigned" ? previous.details?.roleKey : null;
-    const currentRoleKeys = this.getHRRoleKeys(member);
-    const nextRoleKey = currentRoleKeys.find((key) => key !== previousRoleKey) ||
-      currentRoleKeys[0] || null;
-    if (nextRoleKey === previousRoleKey && currentRoleKeys.length <= 1) return;
-    if (!nextRoleKey && !previousRoleKey) return;
-
-    try {
-      this.assertHRRoleChangeAuthority(actor, member, guild, previousRoleKey, nextRoleKey);
-    } catch (error) {
-      for (const roleKey of currentRoleKeys) {
-        if (roleKey === previousRoleKey) continue;
-        const role = this.roles.get(roleKey);
-        if (role) await member.roles.remove(role, "Revert unauthorized CoopFT HR role change").catch(() => {});
-      }
-      if (previousRoleKey) {
-        const previousRole = this.roles.get(previousRoleKey);
-        if (previousRole && !member.roles.cache.has(previousRole.id)) {
-          await member.roles.add(previousRole, "Restore previous authorized CoopFT HR role").catch(() => {});
-        }
-      }
-      await this.postStaffUpdate(
-        guild,
-        this.emoji(guild.id, "cf3d_shield", "🛡️") + " An unauthorized HR role change for <@" +
-        member.id + "> was reverted: " + error.message
-      );
-      return;
-    }
-
-    if (nextRoleKey) {
-      for (const roleKey of currentRoleKeys) {
-        if (roleKey === nextRoleKey) continue;
-        const role = this.roles.get(roleKey);
-        if (role) await member.roles.remove(role, "Keep one active CoopFT HR assignment");
-      }
-      const roleSpec = HR_ROLES.find((item) => item.key === nextRoleKey);
-      await this.recordStaffAudit(guild.id, actor.id, member.id, "hr_role_assigned", {
-        roleKey: nextRoleKey,
-        roleName: roleSpec?.name || nextRoleKey,
-        from: previousRoleKey,
-        status: "active"
-      });
-      await this.postStaffUpdate(
-        guild,
-        this.emoji(guild.id, roleSpec?.emoji || "cf3d_key", roleSpec?.icon || "🔑") +
-        " <@" + member.id + "> is now **" + (roleSpec?.name || nextRoleKey) + "**."
-      );
-    } else if (previousRoleKey) {
-      const oldSpec = HR_ROLES.find((item) => item.key === previousRoleKey);
-      await this.recordStaffAudit(guild.id, actor.id, member.id, "hr_role_removed", {
-        roleKey: previousRoleKey,
-        roleName: oldSpec?.name || previousRoleKey,
-        status: "inactive"
-      });
-      await this.postStaffUpdate(guild, this.emoji(guild.id, "cf3d_bell", "🔔") + " <@" + member.id + "> no longer has an HR role.");
-    }
-    await this.updateStaffDirectory(guild);
-  }
-
   async handleMemberLeave(member) {
     if (!member || member.guild.id !== this.guildId) return;
     this.assertCoopFTGuild(member.guild, "record a CoopFT member departure");
@@ -2076,25 +1819,70 @@ class CoopFTCommunityService {
       "UPDATE coopft_staff_members SET active=FALSE,updated_at=NOW(),updated_by='member-left' WHERE guild_id=$1 AND member_id=$2 AND active=TRUE RETURNING rank_key",
       [this.guildId, member.id]
     );
-    if (result.rowCount) {
-      await this.recordStaffAudit(this.guildId, "member-left", member.id, "staff_left_server", { rank: result.rows[0].rank_key });
-    }
-
-    const hrAssignment = await this.getHRAssignment(this.guildId, member.id);
-    const hrRoleKey = hrAssignment?.action === "hr_role_assigned" ? hrAssignment.details?.roleKey : null;
-    if (hrRoleKey) {
-      const hrRole = HR_ROLES.find((item) => item.key === hrRoleKey);
-      await this.recordStaffAudit(this.guildId, "member-left", member.id, "hr_role_removed", {
-        roleKey: hrRoleKey,
-        roleName: hrRole?.name || hrRoleKey,
-        status: "inactive",
-        reason: "member_left_server"
-      });
-    }
-
-    if (!result.rowCount && !hrRoleKey) return;
+    if (!result.rowCount) return;
+    await this.recordStaffAudit(this.guildId, "member-left", member.id, "staff_left_server", { rank: result.rows[0].rank_key });
     await this.updateStaffDirectory(member.guild);
-    await this.postStaffUpdate(member.guild, this.emoji(this.guildId, "cf3d_bell", "🔔") + " A staff or HR member left the server; their active directory entry was removed.");
+    await this.postStaffUpdate(member.guild, "<@" + member.id + "> left the server. Their staff directory entry has been set inactive.");
+  }
+
+    buildStaffBanner() {
+    const { createCanvas } = require("@napi-rs/canvas");
+    const canvas = createCanvas(1200, 340);
+    const ctx = canvas.getContext("2d");
+    const bg = ctx.createLinearGradient(0, 0, 1200, 340);
+    bg.addColorStop(0, "#08090D");
+    bg.addColorStop(0.48, "#17191F");
+    bg.addColorStop(1, "#090A0E");
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, 1200, 340);
+    const glow = ctx.createRadialGradient(600, 165, 25, 600, 165, 560);
+    glow.addColorStop(0, "rgba(150,22,39,0.34)");
+    glow.addColorStop(0.65, "rgba(94,14,26,0.12)");
+    glow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, 1200, 340);
+    ctx.strokeStyle = "rgba(216,47,65,0.8)";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(24, 22, 1152, 296);
+    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(38, 36, 1124, 268);
+    for (const side of [-1, 1]) {
+      ctx.save();
+      ctx.translate(side < 0 ? 0 : 1200, 0);
+      ctx.scale(side, 1);
+      ctx.lineWidth = 5;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "rgba(196,36,54,0.62)";
+      for (let i = 0; i < 5; i += 1) {
+        ctx.beginPath();
+        ctx.moveTo(110 + i * 22, 70 + i * 20);
+        ctx.lineTo(230 + i * 12, 110 + i * 18);
+        ctx.lineTo(330 + i * 6, 155 + i * 12);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    ctx.textAlign = "center";
+    ctx.shadowColor = "rgba(0,0,0,0.9)";
+    ctx.shadowBlur = 18;
+    ctx.fillStyle = "#F4F0EF";
+    ctx.font = "bold 78px Arial";
+    ctx.fillText("COOPFT", 600, 150);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#D23A4A";
+    ctx.font = "bold 38px Arial";
+    ctx.fillText("STAFF TEAM", 600, 205);
+    ctx.strokeStyle = "rgba(211,58,74,0.8)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(390, 230);
+    ctx.lineTo(810, 230);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(236,232,232,0.72)";
+    ctx.font = "20px Arial";
+    ctx.fillText("LEADERSHIP  •  OPERATIONS  •  COMMUNITY", 600, 270);
+    return canvas.toBuffer("image/png");
   }
 
   async buildStaffDirectoryEmbed(guild) {
@@ -2121,37 +1909,6 @@ class CoopFTCommunityService {
       }
       group.push("<@" + record.member_id + ">");
     }
-    const hrResult = await this.pool.query(
-      "SELECT DISTINCT ON (member_id) member_id,action,details FROM coopft_staff_audit " +
-      "WHERE guild_id=$1 AND member_id IS NOT NULL AND action IN ('hr_role_assigned','hr_role_removed') " +
-      "ORDER BY member_id,created_at DESC,id DESC",
-      [guild.id]
-    );
-    const hrGrouped = new Map(HR_ROLES.map((role) => [role.key, []]));
-    for (const record of hrResult.rows) {
-      if (record.action !== "hr_role_assigned") continue;
-      let details = record.details || {};
-      if (typeof details === "string") {
-        try { details = JSON.parse(details); } catch (_) { details = {}; }
-      }
-      const group = hrGrouped.get(details.roleKey);
-      if (!group) continue;
-      let member = guild.members.cache.get(record.member_id);
-      if (!member) member = await guild.members.fetch(record.member_id).catch(() => null);
-      if (!member) {
-        await this.recordStaffAudit(guild.id, "directory-reconcile", record.member_id, "hr_role_removed", {
-          roleKey: details.roleKey,
-          roleName: details.roleName || details.roleKey,
-          status: "inactive",
-          reason: "member_not_found"
-        });
-        continue;
-      }
-      const role = this.roles.get(details.roleKey);
-      if (!role || !member.roles.cache.has(role.id)) continue;
-      group.push("<@" + record.member_id + ">");
-    }
-
     const sectionFor = (key) => {
       if (["owner", "co_owner", "monarch"].includes(key)) return "OWNER RANK";
       if (["high_rank_supervisor", "apex", "right_wing", "left_wing", "halo", "overseer"].includes(key)) return "HIGH RANK";
@@ -2161,38 +1918,61 @@ class CoopFTCommunityService {
     const sections = ["OWNER RANK", "HIGH RANK", "LOW RANK", "MOD RANK"];
     const embed = new EmbedBuilder()
       .setColor(0x8C1D32)
-      .setTitle("COOPFT  |  STAFF TEAM")
-      .setDescription("**STAFF DIRECTORY**\nThe official CoopFT staff structure. Members are listed under their current rank.")
-      .setFooter({ text: "COOPFT  •  STAFF & COMMUNITY OPERATIONS" });
+      .setTitle("COOPFT  |  STAFF DIRECTORY")
+      .setDescription("The official CoopFT staff structure. Members appear below their current rank.")
+      .setFooter({ text: "COOPFT  •  STAFF & COMMUNITY OPERATIONS" })
+      .setTimestamp();
     for (const section of sections) {
       const lines = STAFF_RANKS.filter((rank) => sectionFor(rank.key) === section).map((rank) => {
         const people = grouped.get(rank.key) || [];
         return this.emoji(guild.id, rank.emoji, rank.icon) + " **" + rank.name + "**  ›  " +
-          (people.length ? people.join(", ") : "_Vacant_");
+          (people.length ? people.join(", ") : "_No assigned member_");
       });
-      embed.addFields({ name: "━━━━━━━━  " + section + "  ━━━━━━━━", value: lines.join("\n").slice(0, 1024) || "_No positions configured._", inline: false });
+      embed.addFields({
+        name: "━━━━━━━━  " + section + "  ━━━━━━━━",
+        value: lines.join("\n").slice(0, 1024) || "_No positions configured._",
+        inline: false
+      });
     }
     return embed;
+  }
+
+  async buildStaffDirectoryPayload(guild) {
+    const embed = await this.buildStaffDirectoryEmbed(guild);
+    embed.setImage("attachment://coopft-staff-banner.png");
+    return {
+      embeds: [embed],
+      files: [new AttachmentBuilder(this.buildStaffBanner(), { name: "coopft-staff-banner.png" })],
+      allowedMentions: { parse: [] }
+    };
   }
 
   async updateStaffDirectory(guild) {
     this.assertCoopFTGuild(guild, "update the CoopFT staff directory");
     const embed = await this.buildStaffDirectoryEmbed(guild);
+    const banner = this.buildStaffBanner();
+    embed.setImage("attachment://coopft-staff-banner.png");
     for (const key of ["staff_team", "staff_directory"]) {
       const channelId = await this.getResource(guild.id, "channel:" + key);
       const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
       if (!channel?.isTextBased?.()) continue;
       const messageId = await this.getResource(guild.id, "message:directory:" + key);
       let message = messageId ? await channel.messages.fetch(messageId).catch(() => null) : null;
-      if (message) await message.edit({ embeds: [embed], allowedMentions: { parse: [] } });
+      const payload = {
+        embeds: [EmbedBuilder.from(embed)],
+        files: [new AttachmentBuilder(banner, { name: "coopft-staff-banner.png" })],
+        attachments: [],
+        allowedMentions: { parse: [] }
+      };
+      if (message) await message.edit(payload);
       else {
-        message = await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
+        message = await channel.send(payload);
         await this.saveResource(guild.id, "message:directory:" + key, message.id);
       }
     }
   }
 
-  async postStaffUpdate(guild, description) {
+  async postStaffUpdate(guild, description) {  async postStaffUpdate(guild, description) {
     this.assertCoopFTGuild(guild, "post a CoopFT staff update");
     const channelId = await this.getResource(guild.id, "channel:staff_bot_updates");
     const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
