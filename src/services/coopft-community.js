@@ -1645,6 +1645,122 @@ class CoopFTCommunityService {
     }
   }
 
+  async ensureRoleSelectionPanel(guild, channel) {
+    this.assertCoopFTGuild(guild, "publish the member role selector");
+    if (!channel?.isTextBased?.() || typeof channel.send !== "function") {
+      throw new Error("The CoopFT role-selection channel is unavailable.");
+    }
+    const menu = (action, group, label, specs) => new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId("cf-roles:" + action + ":" + group)
+        .setPlaceholder(label)
+        .setMinValues(1)
+        .setMaxValues(specs.length)
+        .addOptions(specs.map((spec) => {
+          const emojiId = this.emojis.get(spec.emoji);
+          return {
+            label: spec.name,
+            value: spec.key,
+            description: (action === "add" ? "Add" : "Remove") + " the " + spec.name + " role",
+            emoji: emojiId ? { id: emojiId, name: spec.emoji } : spec.icon
+          };
+        }))
+    );
+    const embed = new EmbedBuilder()
+      .setColor(0x344F73)
+      .setTitle(this.emoji(guild.id, "cf3d_role_select", "☷") + "  CHOOSE YOUR ROLES")
+      .setDescription([
+        "Customize your CoopFT experience with the menus below.",
+        "",
+        "**INTERESTS**",
+        "Choose topics you enjoy. These roles help members find people with similar interests.",
+        "",
+        "**NOTIFICATIONS**",
+        "Opt into only the updates you want to receive. Staff use these roles for relevant announcements and event notices.",
+        "",
+        "Use an **Add** menu to opt in and a **Remove** menu to opt out. You can change your selections at any time.",
+        "",
+        "Staff ranks, verification, VIP and contributor badges are assigned by CoopFT leadership and cannot be self-selected."
+      ].join("\n"))
+      .setFooter({ text: "Your selections affect only your own roles • No unnecessary pings" });
+    const components = [
+      menu("add", "interests", "Add interests", INTEREST_ROLES),
+      menu("remove", "interests", "Remove interests", INTEREST_ROLES),
+      menu("add", "pings", "Subscribe to notifications", PING_ROLES),
+      menu("remove", "pings", "Unsubscribe from notifications", PING_ROLES)
+    ];
+    const savedId = await this.getResource(guild.id, "message:role_selection");
+    let message = savedId ? await channel.messages.fetch(savedId).catch(() => null) : null;
+    const payload = { embeds: [embed], components, allowedMentions: { parse: [] } };
+    if (message) await message.edit(payload);
+    else {
+      message = await channel.send(payload);
+      await this.saveResource(guild.id, "message:role_selection", message.id);
+    }
+  }
+
+  async handleSelfRoleSelection(interaction) {
+    this.assertCoopFTGuild(interaction.guild, "process a member role selection");
+    if (interaction.guildId !== this.guildId || !interaction.customId?.startsWith("cf-roles:")) {
+      await interaction.reply({ content: "This role selector is only available in CoopFT.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    const [, action, group] = interaction.customId.split(":");
+    const specs = group === "interests" ? INTEREST_ROLES : group === "pings" ? PING_ROLES : null;
+    if (!specs || !["add", "remove"].includes(action)) {
+      await interaction.reply({ content: "That role-selection menu is not recognized.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    const allowed = new Map(specs.map((spec) => [spec.key, spec]));
+    const selected = [...new Set(interaction.values || [])];
+    if (!selected.length || selected.some((key) => !allowed.has(key))) {
+      await interaction.reply({ content: "Select one or more roles from this menu.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    const changed = [];
+    for (const key of selected) {
+      const spec = allowed.get(key);
+      let role = this.roles.get(key);
+      if (!role) {
+        const roleId = await this.getResource(interaction.guildId, "role:" + key);
+        role = roleId ? await interaction.guild.roles.fetch(roleId).catch(() => null) : null;
+        if (role) this.roles.set(key, role);
+      }
+      if (!role || role.managed || role.id === interaction.guild.id) continue;
+      const hasRole = interaction.member.roles.cache.has(role.id);
+      if (action === "add" && !hasRole) {
+        await interaction.member.roles.add(role, "Member self-selected " + spec.name);
+        changed.push(spec.name);
+      } else if (action === "remove" && hasRole) {
+        await interaction.member.roles.remove(role, "Member opted out of " + spec.name);
+        changed.push(spec.name);
+      }
+    }
+    const actionLabel = action === "add" ? "Added" : "Removed";
+    await interaction.reply({
+      content: changed.length
+        ? actionLabel + " your roles: **" + changed.join(", ") + "**."
+        : "No changes were needed. Your selected roles already match your current settings.",
+      flags: MessageFlags.Ephemeral,
+      allowedMentions: { parse: [] }
+    });
+    return true;
+  }
+
+  async assignCommunityMemberRole(member) {
+    if (!member?.guild || member.guild.id !== this.guildId) return false;
+    this.assertCoopFTGuild(member.guild, "assign the default Community Member role");
+    let role = this.roles.get("community_member");
+    if (!role) {
+      const id = await this.getResource(member.guild.id, "role:community_member");
+      role = id ? await member.guild.roles.fetch(id).catch(() => null) : null;
+      if (role) this.roles.set("community_member", role);
+    }
+    if (!role || member.roles.cache.has(role.id)) return false;
+    await member.roles.add(role, "Automatic CoopFT Community Member role");
+    return true;
+  }
+
   createTicketIntakeModal(ticketType) {
     const spec = TICKET_TYPES[ticketType];
     if (!spec) throw new Error("Unknown ticket type.");
