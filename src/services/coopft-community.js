@@ -585,8 +585,8 @@ class CoopFTCommunityService {
           name: spec.name,
           color: spec.primary,
           permissions: rolePermissionArray(spec),
-          hoist: true,
-          mentionable: false,
+          hoist: spec.hoist ?? true,
+          mentionable: spec.mentionable ?? false,
           reason: "CoopFT automatic server setup"
         });
       } catch (error) {
@@ -837,8 +837,10 @@ class CoopFTCommunityService {
   async staffPermissionOverwrites(guild) {
     this.assertCoopFTGuild(guild, "build CoopFT permission overrides");
     const botMember = guild.members.me || await guild.members.fetchMe();
-    const allowedRoles = [...this.roles.values()].map((role) => role.id);
-    const supportRoles = allowedRoles.map((id) => ({
+    // Only actual staff ranks can view staff-only categories. Member tags,
+    // interest roles, ping roles and divider roles must never grant staff access.
+    const allowedRoles = STAFF_RANKS.map((spec) => this.roles.get(spec.key)).filter(Boolean);
+    const supportRoles = allowedRoles.map((role) => ({ id: role.id,
       id,
       allow: [
         PermissionFlagsBits.ViewChannel,
