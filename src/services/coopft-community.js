@@ -2936,6 +2936,7 @@ class CoopFTCommunityService {
     const refreshedAt = Math.floor(Date.now() / 1000);
     const embed = new EmbedBuilder()
       .setColor(0x8C2635)
+      .setTitle("COOPFT  |  STAFF DIRECTORY")
       .setDescription(
         "Below you'll find the current listed staff of **CoopFT**.\n" +
         "*Staff listings are synced from current Discord role assignments. VACANT means nobody currently holds that role.*\n" +
