@@ -20,8 +20,9 @@ After first setup, Owner Rank can use the CoopFT configuration commands:
 - `/coopft-roles-sync` — explicitly reapply role names, colors, permissions and role order.
 - `/coopft-channels-sync` — explicitly reapply channel names, categories and permission overwrites.
 - `/coopft-panel` — publish or move the ticket, application, role-selection, custom-bot or staff-directory panel.
+- `/coopft-ticket-config` — choose the category for new tickets and the transcript archive channel.
 
-The panel command accepts an optional destination channel. Moving a panel removes its previously saved panel message after the replacement is published.
+The panel command accepts an optional destination channel. Moving a panel removes its previously saved panel message after the replacement is published. Ticket routing can be changed one destination at a time; the existing destination is retained when its option is omitted.
 
 After deploying a release that changes the slash-command set, run:
 
