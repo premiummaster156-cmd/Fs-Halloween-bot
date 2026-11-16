@@ -117,6 +117,24 @@ function safeChannelName(value) {
   return String(value || "member").toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 75) || "member";
 }
 
+function ticketChannelName(section, username) {
+  const styles = {
+    bot: { prefix: "⌘・bot-" },
+    server: { prefix: "◈・server-" },
+    development: { prefix: "⌘・commission-" }
+  };
+  const style = styles[section] || { prefix: "▣・ticket-" };
+  const available = Math.max(1, 96 - style.prefix.length);
+  return style.prefix + safeChannelName(username).slice(0, available);
+}
+
+function closedTicketChannelName(currentName) {
+  const base = String(currentName || "ticket")
+    .replace(/^[^a-z0-9]+・/iu, "")
+    .replace(/^(?:bot|server|commission|ticket)-/iu, "");
+  return "⌑・closed-" + safeChannelName(base).slice(0, 84);
+}
+
 function drawCoopFTEmoji(ctx, name, index) {
   const palettes = [
     ["#f9d5a4", "#9b2634", "#f04a57"], ["#dceaff", "#566477", "#a8c4e8"],
@@ -1513,6 +1531,31 @@ class CoopFTCommunityService {
     console.info("[coopft] Published the custom bot commission information.");
   }
 
+  buildCommunityRulesEmbed(guild, publicChannels) {
+    this.assertCoopFTGuild(guild, "build the CoopFT community rules");
+    const q = (name, fallback) => this.emoji(guild.id, name, fallback);
+    const channelMention = (key, fallback) => {
+      const channel = publicChannels?.[key];
+      return channel?.id ? "<#" + channel.id + ">" : "`#" + fallback + "`";
+    };
+    const suggestions = channelMention("suggestions", "suggestions");
+    const ticketIntake = channelMention("open_ticket", "open-a-ticket");
+
+    return new EmbedBuilder()
+      .setColor(0x8C2635)
+      .setTitle(q("cf3d_rules", "📜") + "  COOPFT | COMMUNITY RULES")
+      .setDescription("Keep CoopFT safe, respectful and welcoming. These standards apply to every member and staff member.")
+      .addFields(
+        { name: q("cf3d_handshake", "🤝") + "  RESPECT", value: "Treat others with dignity. Harassment, hate speech, threats and targeted abuse are prohibited.", inline: false },
+        { name: q("cf3d_spark", "✨") + "  COMMUNITY", value: "Share ideas in " + suggestions + ". Use the right channels and avoid spam, flooding and disruptive mentions.", inline: false },
+        { name: q("cf3d_shield", "🛡️") + "  SAFETY", value: "No scams, phishing, malware, raids, impersonation or attempts to bypass moderation.", inline: false },
+        { name: q("cf3d_key", "🔐") + "  PRIVACY", value: "Never publish passwords, tokens, private documents, addresses or another person's private information.", inline: false },
+        { name: q("cf3d_announce", "📢") + "  CONTENT", value: "Promotions and server invites require staff approval. Follow Discord's Terms and Community Guidelines.", inline: false },
+        { name: q("cf3d_ticket", "🎟️") + "  SUPPORT", value: "Open " + ticketIntake + " for support, reports or appeals.", inline: false }
+      )
+      .setTimestamp();
+  }
+
   async ensureBrandMessages(guild, publicChannels) {
     this.assertCoopFTGuild(guild, "publish CoopFT messages");
     const retiredKeys = ["welcome", "introductions", "announcements", "suggestions", "bot_updates"];
@@ -1528,21 +1571,7 @@ class CoopFTCommunityService {
       if (messageId) await this.setSetting(guild.id, "resource:message:" + key, null);
     }
 
-    const q = (name, fallback) => this.emoji(guild.id, name, fallback);
-    const rules = new EmbedBuilder()
-      .setColor(0x8C2635)
-      .setTitle(q("cf3d_rules", "📜") + "  COOPFT | COMMUNITY RULES")
-      .setDescription("Keep CoopFT safe, respectful and welcoming. These standards apply to every member and staff member.")
-      .addFields(
-        { name: q("cf3d_handshake", "🤝") + "  RESPECT", value: "Treat others with dignity. Harassment, hate speech, threats and targeted abuse are prohibited.", inline: false },
-        { name: q("cf3d_spark", "✨") + "  COMMUNITY", value: "Use the right channels. Avoid spam, flooding, disruptive mentions and deliberate provocation.", inline: false },
-        { name: q("cf3d_shield", "🛡️") + "  SAFETY", value: "No scams, phishing, malware, raids, impersonation or attempts to bypass moderation.", inline: false },
-        { name: q("cf3d_key", "🔐") + "  PRIVACY", value: "Never publish passwords, tokens, private documents, addresses or another person's private information.", inline: false },
-        { name: q("cf3d_announce", "📢") + "  CONTENT", value: "Promotions and server invites require staff approval. Follow Discord's Terms and Community Guidelines.", inline: false },
-        { name: q("cf3d_ticket", "🎟️") + "  SUPPORT", value: "Use #suggestions for ideas and #open-a-ticket for support, reports or appeals.", inline: false }
-      )
-      .setTimestamp();
-
+    const rules = this.buildCommunityRulesEmbed(guild, publicChannels);
     const channel = publicChannels.rules;
     if (!channel?.isTextBased?.() || typeof channel.send !== "function") {
       throw new Error("The CoopFT rules channel is unavailable.");
@@ -2511,7 +2540,7 @@ class CoopFTCommunityService {
       ...(developerRole ? [{ id: developerRole.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] }] : [])
     ];
     const channel = await guild.channels.create({
-      name: "▣・ticket-" + safeChannelName(member.user.username),
+      name: ticketChannelName(info.section, member.user.username),
       type: ChannelType.GuildText,
       parent: category.id,
       permissionOverwrites: overwrites,
@@ -3167,8 +3196,11 @@ class CoopFTCommunityService {
         .setTimestamp()],
       allowedMentions: { parse: [] }
     }).catch(() => {});
-    await channel.setName("⌁・closed-" + safeChannelName(channel.name).slice(0, 58)).catch(() => {});
+    await channel.setName(closedTicketChannelName(channel.name)).catch(() => {});
   }
 }
 
-module.exports = { CoopFTCommunityService, CLEANUP_CONFIRMATION, TICKET_TYPES, safeChannelName, drawCoopFTEmoji };
+module.exports = {
+  CoopFTCommunityService, CLEANUP_CONFIRMATION, TICKET_TYPES, safeChannelName,
+  ticketChannelName, closedTicketChannelName, drawCoopFTEmoji
+};
