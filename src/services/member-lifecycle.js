@@ -331,7 +331,6 @@ class MemberLifecycleService {
         { name: "Joined server", value: timestampText(joined), inline: false },
         { name: "Roles at join", value: rolesText(snapshot?.roles), inline: false }
       )
-      .setFooter({ text: "Member lifecycle • Join snapshot stored in audit history" })
       .setTimestamp();
   }
 
@@ -353,7 +352,6 @@ class MemberLifecycleService {
         { name: "Left server", value: timestampText(left), inline: false },
         { name: "Previous roles", value: rolesText(details.roles), inline: false }
       )
-      .setFooter({ text: "Member lifecycle • Previous role snapshot retrieved from audit history" })
       .setTimestamp(left);
   }
 
@@ -379,9 +377,7 @@ class MemberLifecycleService {
           { name: "Account age", value: createdAt ? formatDuration(Date.now() - createdAt.getTime()) : "Unknown", inline: true },
           { name: "Member count", value: String(member.guild.memberCount || "—"), inline: true }
         )
-        .setFooter({ text: "We are glad you are here." })
         .setTimestamp();
-      const avatarUrl = member.user?.displayAvatarURL?.({ size: 128 });
       if (avatarUrl) welcome.setThumbnail(avatarUrl);
       await welcomeChannel.send({
         embeds: [welcome],
@@ -427,7 +423,6 @@ class MemberLifecycleService {
           { name: "Roles removed", value: removedText, inline: false },
           ...(!previous ? [{ name: "Current roles", value: rolesText(currentRoles), inline: false }] : [])
         )
-        .setFooter({ text: "The updated role list is saved for future leave logs." })
         .setTimestamp();
       await this.sendServerLog(guild, embed);
     }
@@ -477,7 +472,6 @@ class MemberLifecycleService {
         ...(changes ? [{ name: "What changed", value: changes, inline: false }] : []),
         { name: "Reason", value: reason || "No reason was recorded in the Discord audit entry.", inline: false }
       )
-      .setFooter({ text: "COOPFT • SERVER AUDIT • Human-readable activity record" })
       .setTimestamp(asDate(entry.createdAt) || new Date());
     if (action.destination === "member") await this.sendMemberLog(guild, embed);
     else await this.sendServerLog(guild, embed);
