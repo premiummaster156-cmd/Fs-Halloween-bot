@@ -40,8 +40,17 @@ test("CoopFT exposes focused setup, sync, panel and operational commands", () =>
     "ticket-remove", "ticket-rename", "timeout", "unban", "unlock", "untimeout",
     "warn", "warnings"
   ];
+  expected.push("autorole", "onboarding-setup", "welcome-config");
   assert.deepEqual([...commands.keys()].sort(), expected.sort());
   for (const command of commands.values()) assert.doesNotThrow(() => command.data.toJSON());
+  const autorole = commands.get("autorole").data.toJSON();
+  assert.deepEqual(autorole.options.map(option => option.name), [
+    "action", ...Array.from({ length: 20 }, (_, index) => "role_" + String(index + 1).padStart(2, "0"))
+  ]);
+  assert.equal(autorole.options[1].required, false);
+  assert.equal(commands.get("onboarding-setup").data.toJSON().options.length, 0);
+  const welcomeConfig = commands.get("welcome-config").data.toJSON();
+  assert.deepEqual(welcomeConfig.options.map(option => option.name), ["action", "channel"]);
   const cooldown = commands.get("ticket-cooldown").data.toJSON();
   assert.deepEqual(cooldown.options.map((option) => option.name), ["member", "ticket_type", "reason"]);
   assert.deepEqual(cooldown.options[1].choices.map((choice) => choice.value), [
@@ -53,6 +62,19 @@ test("CoopFT exposes focused setup, sync, panel and operational commands", () =>
   for (const removed of ["ping", "help", "serverinfo", "botinfo", "avatar", "application-status", "application-withdraw", "application-queue", "staff", "menu", "profile", "leaderboard"]) {
     assert.equal(commands.has(removed), false, removed + " is intentionally not exposed");
   }
+});
+
+test("autorole and onboarding configuration commands reject non-owners", async () => {
+  const commands = loadCoopFTCommands();
+  const interaction = {
+    guild: { id: "guild-1", ownerId: "server-owner" },
+    guildId: "guild-1",
+    user: { id: "not-the-owner" },
+    options: { getString: () => "status" }
+  };
+  await assert.rejects(commands.get("autorole").execute(interaction, {}), /Only the actual server owner/);
+  await assert.rejects(commands.get("onboarding-setup").execute(interaction, {}), /Only the actual server owner/);
+  await assert.rejects(commands.get("welcome-config").execute(interaction, {}), /Only the actual server owner/);
 });
 
 test("CoopFT applications contain two moderation tracks and one specialist Developer track", () => {
