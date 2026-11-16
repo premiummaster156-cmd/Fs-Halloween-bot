@@ -1200,12 +1200,20 @@ class CoopFTCommunityService {
       .map((role) => ({
         id: role.id,
         allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
-        deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.AddReactions]
+        deny: [
+          PermissionFlagsBits.SendMessages, PermissionFlagsBits.AddReactions,
+          PermissionFlagsBits.CreatePublicThreads, PermissionFlagsBits.CreatePrivateThreads,
+          PermissionFlagsBits.SendMessagesInThreads
+        ]
       }));
     if (developerRole) readOnlyStaff.push({
       id: developerRole.id,
       allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
-      deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.AddReactions]
+      deny: [
+        PermissionFlagsBits.SendMessages, PermissionFlagsBits.AddReactions,
+        PermissionFlagsBits.CreatePublicThreads, PermissionFlagsBits.CreatePrivateThreads,
+        PermissionFlagsBits.SendMessagesInThreads
+      ]
     });
     await channel.permissionOverwrites.set([
       { id: guild.id, deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
