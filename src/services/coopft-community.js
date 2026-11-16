@@ -1105,6 +1105,7 @@ class CoopFTCommunityService {
     await this.ensureRoleSelectionPanel(guild, publicByKey.role_selection);
     await this.ensureApplicationPanel(guild, publicByKey.applications);
     await this.ensureApplicationControlPanel(guild, privateByKey.application_control);
+    await this.sanitizeApplicationReviewEmbeds(guild, privateByKey.application_review);
     await this.retireClosedApplicationReviews(guild, privateByKey.application_review);
     await this.ensureStaffGuide(guild, privateByKey.staff_guide, {
       syncChannels: options.syncChannels === true,
@@ -1152,6 +1153,95 @@ class CoopFTCommunityService {
     if (retiredRoles.retired.length) console.info("[coopft] Retired legacy CoopFT roles:", retiredRoles.retired.join(", "));
     if (retiredRoles.preserved.length) console.warn("[coopft] Legacy CoopFT roles were preserved for safety:", retiredRoles.preserved.join("; "));
     return { ...counts, cleanup, emojiResult, retiredRoles };
+  }
+
+  async sanitizeApplicationReviewEmbeds(guild, channel) {
+    this.assertCoopFTGuild(guild, "remove decorative images and footers from application reviews");
+    if (!channel?.messages) return { updated: 0, missing: 0 };
+    const result = await this.pool.query(
+      "SELECT id,review_message_id FROM coopft_applications WHERE guild_id=$1 " +
+      "AND review_message_id IS NOT NULL ORDER BY created_at DESC",
+      [guild.id]
+    );
+    let updated = 0;
+    let missing = 0;
+    for (const application of result.rows) {
+      const message = await channel.messages.fetch(application.review_message_id).catch(() => null);
+      if (!message) {
+        missing += 1;
+        continue;
+      }
+      const original = message.embeds?.[0];
+      if (!original) continue;
+      const data = EmbedBuilder.from(original).toJSON();
+      const hasDecorations = Boolean(
+        data.image || data.thumbnail || data.footer || data.author?.icon_url
+      );
+      if (!hasDecorations) continue;
+      delete data.image;
+      delete data.thumbnail;
+      delete data.footer;
+      if (data.author) delete data.author.icon_url;
+      const embed = new EmbedBuilder(data);
+      if (!data.timestamp && message.createdAt) embed.setTimestamp(message.createdAt);
+      await message.edit({
+        embeds: [embed],
+        allowedMentions: { parse: [] }
+      });
+      updated += 1;
+    }
+    if (updated || missing) {
+      console.info("[coopft] Application review embed cleanup:", { updated, missing });
+    }
+    return { updated, missing };
+  }
+
+  async retireClosedApplicationReviews(guild, channel) {
+    this.assertCoopFTGuild(guild, "close retired CoopFT application reviews");
+    if (!channel?.messages) return { closed: 0, missing: 0 };
+    const activeTracks = APPLICATION_RANKS.map((item) => item.key);
+    const result = await this.pool.query(
+      "SELECT id,role_key,review_message_id FROM coopft_applications " +
+      "WHERE guild_id=$1 AND status='withdrawn' AND NOT (role_key=ANY($2::text[])) " +
+      "AND review_message_id IS NOT NULL ORDER BY created_at DESC",
+      [guild.id, activeTracks]
+    );
+    let closed = 0;
+    let missing = 0;
+    for (const application of result.rows) {
+      const message = await channel.messages.fetch(application.review_message_id).catch(() => null);
+      if (!message) {
+        missing += 1;
+        continue;
+      }
+      const original = message.embeds?.[0];
+      const data = original
+        ? EmbedBuilder.from(original).toJSON()
+        : new EmbedBuilder().setTitle("COOPFT APPLICATION").toJSON();
+      delete data.image;
+      delete data.thumbnail;
+      delete data.footer;
+      if (data.author) delete data.author.icon_url;
+      const embed = new EmbedBuilder(data)
+        .setColor(0x606775)
+        .setDescription([
+          data.description || "",
+          "",
+          "**RECRUITMENT CLOSED**",
+          "This position is retired. The historical application is retained for reference and is no longer eligible for review."
+        ].filter(Boolean).join("\n"))
+        .setTimestamp();
+      await message.edit({
+        embeds: [embed],
+        components: [],
+        allowedMentions: { parse: [] }
+      });
+      closed += 1;
+    }
+    if (closed || missing) {
+      console.info("[coopft] Retired application reviews reconciled:", { closed, missing });
+    }
+    return { closed, missing };
   }
 
   async ensureStaffGuide(guild, channel, options = {}) {
@@ -1894,7 +1984,12 @@ class CoopFTCommunityService {
     }
     if (reviewMessage) {
       const original = reviewMessage.embeds?.[0];
-      const finalEmbed = original ? EmbedBuilder.from(original) : new EmbedBuilder().setTitle("COOPFT APPLICATION");
+      const originalData = original ? EmbedBuilder.from(original).toJSON() : { title: "COOPFT APPLICATION" };
+      delete originalData.image;
+      delete originalData.thumbnail;
+      delete originalData.footer;
+      if (originalData.author) delete originalData.author.icon_url;
+      const finalEmbed = new EmbedBuilder(originalData);
       const decisionText = decision === "accept" ? "ACCEPTED" : "DENIED";
       const summaryLines = [
         "**Decision:** " + decisionText,
@@ -1905,7 +2000,8 @@ class CoopFTCommunityService {
         reason ? "**Review note:** " + reason : "**Review note:** No additional feedback was provided."
       ];
       finalEmbed.setColor(decision === "accept" ? 0x267A58 : 0x963A48)
-        .setDescription([original?.description, "", summaryLines.join("\n")].filter(Boolean).join("\n"));
+        .setDescription([originalData.description, "", summaryLines.join("\n")].filter(Boolean).join("\n"))
+        .setTimestamp();
       await reviewMessage.edit({ embeds: [finalEmbed], components: [], allowedMentions: { parse: [] } }).catch((error) => {
         console.warn("[coopft] Could not update the reviewed application message:", error.message);
       });
