@@ -43,7 +43,7 @@ CoopFT has one official 17-rank hierarchy, displayed in four bracket groups:
 
 **Mod Roles:** Council, Senior Moderator, Moderator, Junior Moderator.
 
-The setup creates a divider role above each group and positions the individual ranks immediately below the matching divider. Divider roles have no members and no permissions. The separate **Bots** divider is configured with Administrator permission to match the requested layout, but it is deliberately left unassigned. The bot receives a separate non-administrator `CoopFT Assistant` marker role beneath that divider. Never assign the empty Bots divider to a person or bot.
+Newly created roles receive the repository's initial layout. Existing role order and styling are preserved during ordinary setup. Use `/coopft-roles-sync` only when you deliberately want to reapply the configured bracket order, colors, permissions, names and icons. Divider roles have no members and no permissions. The separate **Bots** divider is configured with Administrator permission to match the requested layout, but it is deliberately left unassigned. The bot receives a separate non-administrator `CoopFT Assistant` marker role. Never assign the empty Bots divider to a person or bot.
 
 Ordinary setup creates missing managed roles and preserves all existing roles. It never reapplies configured colors, permissions, names, icons or ordering to an existing role. Owner Rank can deliberately apply the repository role template with `/coopft-roles-sync`; this is the only routine setup path that reapplies those properties and the configured role order. Role cleanup and legacy role retirement are not run automatically.
 
