@@ -1118,6 +1118,10 @@ class CoopFTCommunityService {
     ];
     await this.ensureCategory(guild, "tickets", CATEGORY_NAMES.tickets, ticketOverwrites, { force: options.syncChannels === true });
 
+    // Upgrade only previously plain default names. Custom channel/category names
+    // are preserved, and this pass never changes permissions or category placement.
+    await this.decorateManagedChannelNames(guild);
+
     await this.updateStaffDirectory(guild);
     await this.ensureTicketPanel(guild, publicByKey.open_ticket);
     await this.ensureRoleSelectionPanel(guild, publicByKey.role_selection);
