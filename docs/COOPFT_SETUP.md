@@ -30,7 +30,7 @@ After deploying a release that changes the slash-command set, run:
 npm run deploy-commands
 ```
 
-This refreshes both persona-specific slash-command registrations. It does not create channels or roles. CoopFT exposes a streamlined 41-command set for setup, explicit role/channel synchronization, panel publishing, moderation, tickets, announcements, events and suggestions. The old information-only commands and public application status/queue/withdraw commands are not registered. Applications are submitted from the public panel and reviewed manually in the private review channel. The Fukishōkai economy and gameplay command set is never registered in CoopFT.
+This refreshes both persona-specific slash-command registrations. It does not create channels or roles. CoopFT exposes a streamlined 42-command set for setup, explicit role/channel synchronization, panel publishing, moderation, tickets, announcements, events and suggestions. The old information-only commands and public application status/queue/withdraw commands are not registered. Applications are submitted from the public panel and reviewed manually in the private review channel. The Fukishōkai economy and gameplay command set is never registered in CoopFT.
 
 ## Staff hierarchy and applications
 
