@@ -31,8 +31,56 @@ if(n==="case"){staff(i,s);const v=i.options.getInteger("amount"),r=await s.pool.
 if(n==="note"){staff(i,s);const x=i.options.getUser("member"),v=i.options.getString("note");if(!x||!v)throw Error("Select member and note.");const r=await s.pool.query("INSERT INTO coopft_staff_notes(guild_id,member_id,actor_id,note) VALUES($1,$2,$3,$4) RETURNING id",[id,x.id,u.id,v]);return say(i,"Private note #"+r.rows[0].id+" saved.");}
 if(n==="notes"){staff(i,s);const x=i.options.getUser("member");if(!x)throw Error("Select member.");const r=await s.pool.query("SELECT id,actor_id,note FROM coopft_staff_notes WHERE guild_id=$1 AND member_id=$2 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 10",[id,x.id]);return say(i,r.rows.map(a=>"#"+a.id+" by <@"+a.actor_id+"> • "+a.note).join("\n")||"No notes.");}
 if(n==="member-note-remove"){lead(i,s);const v=i.options.getInteger("amount"),r=await s.pool.query("UPDATE coopft_staff_notes SET deleted_at=NOW(),deleted_by=$3 WHERE guild_id=$1 AND id=$2 AND deleted_at IS NULL RETURNING id",[id,v,u.id]);if(!r.rowCount)throw Error("Set amount to an active note ID.");return say(i,"Note removed.");}
-if(n.startsWith("ticket-")){const t=await getTicket();if(n==="ticket-close"){if(t.opener_id!==u.id)staff(i,s);await i.deferReply({flags:MessageFlags.Ephemeral});await s.coopft.closeTicket(g,c,t,u.id);return i.editReply("Ticket closed and transcript archived.");}staff(i,s);if(n==="ticket-claim"){const r=await s.pool.query("UPDATE coopft_tickets SET claimed_by=$3 WHERE guild_id=$1 AND id=$2 AND status='open' AND (claimed_by IS NULL OR claimed_by=$3) RETURNING id",[id,t.id,u.id]);if(!r.rowCount)throw Error("Already claimed.");return say(i,"Ticket claimed.");}if(n==="ticket-add"||n==="ticket-remove"){const x=i.options.getUser("member");if(!x)throw Error("Select member.");if(n==="ticket-remove"&&x.id===t.opener_id)throw Error("Cannot remove opener.");if(n==="ticket-add")await c.permissionOverwrites.edit(x.id,{ViewChannel:true,SendMessages:true,ReadMessageHistory:true,AttachFiles:true});else await c.permissionOverwrites.delete(x.id);return say(i,"Ticket access updated.");}if(n==="ticket-rename"){const v=i.options.getString("name");if(!v)throw Error("Set name.");await c.setName("ticket-"+v.toLowerCase().replace(/[^a-z0-9-]/g,"-").slice(0,85));return say(i,"Ticket renamed.");}if(n==="ticket-priority"){const v=i.options.getString("value");if(!["low","normal","high","urgent"].includes(v))throw Error("Set value to low, normal, high or urgent.");await s.pool.query("UPDATE coopft_tickets SET priority=$3 WHERE guild_id=$1 AND id=$2",[id,t.id,v]);return say(i,"Priority updated.");}if(n==="ticket-info"){const d=t.ticket_data||{};return say(i,null,[new EmbedBuilder().setTitle("TICKET DETAILS").addFields({name:"Owner",value:"<@"+t.opener_id+">"},{name:"Priority",value:String(t.priority||"normal")},{name:"Type",value:String(d.typeLabel||t.ticket_type)},{name:"Answers",value:Object.entries(d.answers||{}).map(([k,v])=>k+": "+v).join("\n").slice(0,1024)||"None"})]);}const r=await s.pool.query("SELECT channel_id,opener_id,ticket_type,priority FROM coopft_tickets WHERE guild_id=$1 AND status='open' ORDER BY created_at LIMIT 20",[id]);return say(i,r.rows.map(a=>"<#"+a.channel_id+"> • "+a.priority+" • <@"+a.opener_id+"> • "+a.ticket_type).join("\n")||"No open tickets.");}
-if(n==="application-status"){const r=await s.pool.query("SELECT role_key,status,created_at,review_note FROM coopft_applications WHERE guild_id=$1 AND applicant_id=$2 ORDER BY created_at DESC LIMIT 1",[id,u.id]),a=r.rows[0];return say(i,a?"Position: "+a.role_key+"\nStatus: "+a.status+"\nSubmitted: <t:"+Math.floor(new Date(a.created_at).getTime()/1000)+":R>"+(a.review_note?"\nNote: "+a.review_note:""):"No application found.");}
+if(n.startsWith("ticket-")){
+ const t=await getTicket();
+ const canHandle=s.coopft.canHandleTicket(i.member,t);
+ if(n==="ticket-close"){
+  if(t.opener_id!==u.id&&!canHandle)throw Error("Only the ticket owner or assigned ticket team can close this request.");
+  await i.deferReply({flags:MessageFlags.Ephemeral});
+  await s.coopft.closeTicket(g,c,t,u.id);
+  return i.editReply("Ticket closed and transcript archived.");
+ }
+ if(n==="ticket-list"){
+  staff(i,s);
+  const r=await s.pool.query("SELECT channel_id,opener_id,ticket_type,priority FROM coopft_tickets WHERE guild_id=$1 AND status='open' ORDER BY created_at LIMIT 20",[id]);
+  return say(i,r.rows.map(a=>"<#"+a.channel_id+"> • "+a.priority+" • <@"+a.opener_id+"> • "+a.ticket_type).join("\n")||"No open tickets.");
+ }
+ if(!canHandle)throw Error("This ticket is reserved for its owner, CoopFT staff or the assigned Developer team.");
+ if(n==="ticket-claim"){
+  const r=await s.pool.query("UPDATE coopft_tickets SET claimed_by=$3 WHERE guild_id=$1 AND id=$2 AND status='open' AND (claimed_by IS NULL OR claimed_by=$3) RETURNING id",[id,t.id,u.id]);
+  if(!r.rowCount)throw Error("Already claimed.");
+  return say(i,"Ticket claimed.");
+ }
+ if(n==="ticket-add"||n==="ticket-remove"){
+  const x=i.options.getUser("member");
+  if(!x)throw Error("Select member.");
+  if(n==="ticket-remove"&&x.id===t.opener_id)throw Error("Cannot remove opener.");
+  if(n==="ticket-add")await c.permissionOverwrites.edit(x.id,{ViewChannel:true,SendMessages:true,ReadMessageHistory:true,AttachFiles:true});
+  else await c.permissionOverwrites.delete(x.id);
+  return say(i,"Ticket access updated.");
+ }
+ if(n==="ticket-rename"){
+  const v=i.options.getString("name");
+  if(!v)throw Error("Set name.");
+  await c.setName("ticket-"+v.toLowerCase().replace(/[^a-z0-9-]/g,"-").slice(0,85));
+  return say(i,"Ticket renamed.");
+ }
+ if(n==="ticket-priority"){
+  const v=i.options.getString("value");
+  if(!["low","normal","high","urgent"].includes(v))throw Error("Set value to low, normal, high or urgent.");
+  await s.pool.query("UPDATE coopft_tickets SET priority=$3 WHERE guild_id=$1 AND id=$2",[id,t.id,v]);
+  return say(i,"Priority updated.");
+ }
+ if(n==="ticket-info"){
+  const d=t.ticket_data||{};
+  return say(i,null,[new EmbedBuilder().setTitle("TICKET DETAILS").addFields(
+   {name:"Owner",value:"<@"+t.opener_id+">"},
+   {name:"Priority",value:String(t.priority||"normal")},
+   {name:"Type",value:String(d.typeLabel||t.ticket_type)},
+   {name:"Answers",value:Object.entries(d.answers||{}).map(([k,v])=>k+": "+v).join("\n").slice(0,1024)||"None"}
+  )]);
+ }
+}if(n==="application-status"){const r=await s.pool.query("SELECT role_key,status,created_at,review_note FROM coopft_applications WHERE guild_id=$1 AND applicant_id=$2 ORDER BY created_at DESC LIMIT 1",[id,u.id]),a=r.rows[0];return say(i,a?"Position: "+a.role_key+"\nStatus: "+a.status+"\nSubmitted: <t:"+Math.floor(new Date(a.created_at).getTime()/1000)+":R>"+(a.review_note?"\nNote: "+a.review_note:""):"No application found.");}
 if(n==="application-withdraw"){const r=await s.pool.query("UPDATE coopft_applications SET status='withdrawn',review_note='Withdrawn by applicant' WHERE guild_id=$1 AND applicant_id=$2 AND status='pending' RETURNING id",[id,u.id]);return say(i,r.rowCount?"Pending application withdrawn.":"No pending application.");}
 if(n==="application-queue"){if(!s.coopft.canManageApplications(i.member,i.guild))throw Error("CoopFT Owner Rank only.");const r=await s.pool.query("SELECT id,applicant_id,role_key FROM coopft_applications WHERE guild_id=$1 AND status='pending' ORDER BY created_at LIMIT 20",[id]);return say(i,r.rows.map(a=>"#"+a.id+" • <@"+a.applicant_id+"> • "+a.role_key).join("\n")||"No pending applications.");}
 if(n==="suggestion"){const destId=await s.coopft.getResource(id,"channel:suggestions"),dest=destId?await g.channels.fetch(destId).catch(()=>null):null;if(!dest?.send)throw Error("Suggestions channel not configured.");const title=i.options.getString("title"),details=i.options.getString("message");if(!title||!details)throw Error("Set title and message.");const r=await s.pool.query("INSERT INTO coopft_suggestions(guild_id,author_id,title,details) VALUES($1,$2,$3,$4) RETURNING id",[id,u.id,title,details]),m=await dest.send({embeds:[new EmbedBuilder().setTitle("SUGGESTION #"+r.rows[0].id).setDescription("**"+title+"**\n"+details).addFields({name:"Submitted by",value:"<@"+u.id+">"},{name:"Status",value:"Open"})],allowedMentions:{parse:[]}});await s.pool.query("UPDATE coopft_suggestions SET channel_id=$2,message_id=$3 WHERE id=$1",[r.rows[0].id,dest.id,m.id]);return say(i,"Suggestion submitted: "+m.url);}
