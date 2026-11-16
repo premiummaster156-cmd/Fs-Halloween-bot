@@ -9,7 +9,8 @@ const {
   MessageFlags, PermissionFlagsBits, Routes
 } = require("discord.js");
 const {
-  STAFF_RANKS, APPLICATION_RANKS, EMOJI_SPRITE, CATEGORY_NAMES, PUBLIC_CHANNELS, PRIVATE_CHANNELS
+  STAFF_RANKS, APPLICATION_RANKS, EMOJI_SPRITE, ROLE_BRACKETS, BOT_ROLES, MEMBER_ROLES,
+  INTEREST_ROLES, PING_ROLES, ROLE_LAYOUT, CATEGORY_NAMES, PUBLIC_CHANNELS, PRIVATE_CHANNELS
 } = require("../config/coopft-design");
 const { COOPFT_DEFAULT_GUILD_ID, coopftGuildId } = require("../config/server-personas");
 
@@ -292,6 +293,85 @@ function drawCoopFTEmoji(ctx, name, index) {
       ctx.beginPath(); ctx.arc(64, 54, 35, Math.PI, Math.PI * 2); ctx.lineTo(99, 66); ctx.lineTo(80, 88); ctx.lineTo(48, 88); ctx.lineTo(29, 66); ctx.closePath(); ctx.fillStyle = gem; ctx.fill(); ctx.strokeStyle = "#fff0ce"; ctx.lineWidth = 5; ctx.stroke();
       line(() => { ctx.moveTo(47, 97); ctx.lineTo(81, 97); ctx.moveTo(51, 108); ctx.lineTo(77, 108); ctx.moveTo(64, 6); ctx.lineTo(64, 15); }, "#fff0c8", 6);
       break;
+    case "cf3d_owner_crest":
+      shield(); star(64, 40, 26, 12, 5, gem); break;
+    case "cf3d_high_rank":
+      diamond(64, 45, 31, 38, gem); star(64, 85, 24, 10, 6, metal); break;
+    case "cf3d_low_rank":
+      line(() => { ctx.moveTo(64, 21); ctx.lineTo(64, 102); ctx.moveTo(26, 42); ctx.lineTo(102, 42); ctx.moveTo(22, 108); ctx.lineTo(106, 108); }, "#f5dda4", 7);
+      line(() => { ctx.moveTo(31, 43); ctx.lineTo(19, 78); ctx.quadraticCurveTo(31, 93, 43, 78); ctx.closePath(); ctx.moveTo(97, 43); ctx.lineTo(85, 78); ctx.quadraticCurveTo(97, 93, 109, 78); ctx.closePath(); }, gem, 5); break;
+    case "cf3d_mod_rank":
+      shield(); line(() => { ctx.moveTo(33, 36); ctx.lineTo(94, 96); ctx.moveTo(95, 36); ctx.lineTo(34, 96); }, "#fff0ca", 9); diamond(64, 66, 12, 13, gem); break;
+    case "cf3d_bots":
+      stroke(() => { roundedRect(22, 30, 84, 70, 16); }, metal);
+      line(() => { ctx.moveTo(64, 12); ctx.lineTo(64, 28); ctx.moveTo(53, 14); ctx.lineTo(75, 14); }, "#e6f4ff", 6);
+      ctx.beginPath(); ctx.arc(46, 61, 8, 0, Math.PI * 2); ctx.arc(82, 61, 8, 0, Math.PI * 2); ctx.fillStyle = gem; ctx.fill();
+      line(() => { ctx.moveTo(44, 83); ctx.lineTo(84, 83); }, "#d9f6ff", 6); break;
+    case "cf3d_member":
+      ctx.beginPath(); ctx.arc(64, 39, 17, 0, Math.PI * 2); ctx.fillStyle = gem; ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 4; ctx.stroke();
+      stroke(() => { ctx.moveTo(23, 112); ctx.quadraticCurveTo(25, 67, 64, 67); ctx.quadraticCurveTo(103, 67, 105, 112); ctx.closePath(); }, metal); break;
+    case "cf3d_vip":
+      star(64, 67, 48, 19, 8, gem);
+      line(() => { ctx.moveTo(29, 27); ctx.lineTo(42, 51); ctx.lineTo(64, 16); ctx.lineTo(86, 51); ctx.lineTo(99, 27); }, "#fff0bd", 7); break;
+    case "cf3d_verified":
+      shield();
+      line(() => { ctx.moveTo(39, 67); ctx.lineTo(57, 84); ctx.lineTo(91, 47); }, "#dffff0", 10); break;
+    case "cf3d_contributor":
+      stroke(() => { ctx.moveTo(12, 54); ctx.lineTo(38, 34); ctx.lineTo(61, 49); ctx.lineTo(84, 34); ctx.lineTo(116, 56); ctx.lineTo(91, 92); ctx.lineTo(76, 82); ctx.lineTo(63, 96); ctx.lineTo(48, 83); ctx.lineTo(36, 94); ctx.closePath(); }, metal);
+      star(64, 67, 17, 8, 5, gem); break;
+    case "cf3d_creator":
+      stroke(() => { ctx.moveTo(26, 94); ctx.lineTo(89, 31); ctx.lineTo(108, 50); ctx.lineTo(45, 113); ctx.closePath(); }, metal);
+      line(() => { ctx.moveTo(22, 116); ctx.lineTo(45, 113); ctx.lineTo(26, 94); }, "#ffe6ad", 6);
+      diamond(91, 31, 13, 13, gem); break;
+    case "cf3d_developer":
+      line(() => { ctx.moveTo(45, 34); ctx.lineTo(18, 64); ctx.lineTo(45, 94); ctx.moveTo(83, 34); ctx.lineTo(110, 64); ctx.lineTo(83, 94); }, "#e3f6ff", 10);
+      line(() => { ctx.moveTo(72, 24); ctx.lineTo(53, 104); }, "#83d6ff", 8); break;
+    case "cf3d_artist":
+      stroke(() => { ctx.moveTo(22, 22); ctx.quadraticCurveTo(113, 7, 111, 71); ctx.quadraticCurveTo(108, 118, 64, 112); ctx.quadraticCurveTo(18, 108, 22, 22); ctx.closePath(); }, metal);
+      for (const [x, y, color] of [[47,48,"#f5a0b5"],[78,43,"#7fd7ee"],[55,78,"#d0a2f2"],[86,81,"#f5d17d"]]) { ctx.beginPath(); ctx.arc(x,y,7,0,Math.PI*2); ctx.fillStyle=color; ctx.fill(); }
+      break;
+    case "cf3d_gaming":
+      stroke(() => { roundedRect(14, 40, 100, 58, 22); }, metal);
+      line(() => { ctx.moveTo(35, 69); ctx.lineTo(59, 69); ctx.moveTo(47, 57); ctx.lineTo(47, 81); }, "#fff0c2", 7);
+      ctx.beginPath(); ctx.arc(83, 63, 6, 0, Math.PI*2); ctx.arc(97, 77, 6, 0, Math.PI*2); ctx.fillStyle=gem; ctx.fill(); break;
+    case "cf3d_programming":
+      stroke(() => { roundedRect(17, 20, 94, 75, 9); }, metal);
+      line(() => { ctx.moveTo(9, 108); ctx.lineTo(119, 108); ctx.lineTo(105, 96); ctx.lineTo(23, 96); ctx.closePath(); }, "#e4f3ff", 6);
+      line(() => { ctx.moveTo(48, 46); ctx.lineTo(35, 59); ctx.lineTo(48, 72); ctx.moveTo(79, 46); ctx.lineTo(92, 59); ctx.lineTo(79, 72); }, gem, 6); break;
+    case "cf3d_music":
+      line(() => { ctx.moveTo(76, 20); ctx.lineTo(76, 86); ctx.lineTo(109, 76); ctx.lineTo(109, 11); ctx.lineTo(76, 20); }, "#ffe6aa", 8);
+      ctx.beginPath(); ctx.ellipse(57, 91, 18, 12, -0.35, 0, Math.PI*2); ctx.ellipse(92, 81, 18, 12, -0.35, 0, Math.PI*2); ctx.fillStyle=gem; ctx.fill(); ctx.fill(); break;
+    case "cf3d_anime":
+      ctx.beginPath(); ctx.arc(64, 64, 46, 0, Math.PI*2); ctx.fillStyle=metal; ctx.fill(); ctx.strokeStyle="#fff0f0"; ctx.lineWidth=5; ctx.stroke();
+      star(64, 20, 12, 5, 5, gem);
+      ctx.beginPath(); ctx.arc(48, 63, 7, 0, Math.PI*2); ctx.arc(80, 63, 7, 0, Math.PI*2); ctx.fillStyle="#fff"; ctx.fill();
+      line(() => { ctx.moveTo(49, 88); ctx.quadraticCurveTo(64, 100, 79, 88); }, "#ffc6d8", 6); break;
+    case "cf3d_design":
+      line(() => { ctx.moveTo(21, 105); ctx.lineTo(85, 27); ctx.lineTo(107, 48); ctx.lineTo(43, 112); ctx.closePath(); }, "#f2e0bc", 9);
+      diamond(94, 39, 12, 13, gem); star(31, 31, 13, 5, 4, metal); break;
+    case "cf3d_announcement_ping":
+      stroke(() => { ctx.moveTo(17, 52); ctx.lineTo(94, 23); ctx.lineTo(94, 99); ctx.lineTo(17, 76); ctx.closePath(); }, metal);
+      line(() => { ctx.moveTo(42, 82); ctx.lineTo(52, 111); ctx.lineTo(74, 111); ctx.moveTo(101, 36); ctx.quadraticCurveTo(119, 61, 101, 87); }, "#ffe6af", 7); break;
+    case "cf3d_event_ping":
+      stroke(() => { roundedRect(18, 27, 92, 88, 10); }, metal);
+      line(() => { ctx.moveTo(18, 51); ctx.lineTo(110, 51); ctx.moveTo(41, 16); ctx.lineTo(41, 39); ctx.moveTo(86, 16); ctx.lineTo(86, 39); }, "#fff1c5", 7);
+      star(64, 79, 20, 9, 5, gem); break;
+    case "cf3d_giveaway_ping":
+      stroke(() => { roundedRect(17, 50, 94, 62, 8); }, metal);
+      stroke(() => { roundedRect(12, 35, 104, 23, 7); }, gem);
+      line(() => { ctx.moveTo(64, 37); ctx.lineTo(64, 112); }, "#fff2cc", 6);
+      star(47, 24, 16, 7, 5, metal); star(82, 24, 16, 7, 5, metal); break;
+    case "cf3d_updates_ping":
+      stroke(() => { ctx.moveTo(30, 90); ctx.quadraticCurveTo(42, 77, 42, 52); ctx.arc(64, 52, 22, Math.PI, 0); ctx.quadraticCurveTo(86, 77, 98, 90); ctx.closePath(); }, metal);
+      line(() => { ctx.moveTo(22, 94); ctx.lineTo(106, 94); ctx.moveTo(56, 108); ctx.quadraticCurveTo(64, 120, 72, 108); }, "#fff0c2", 7);
+      break;
+    case "cf3d_role_select":
+      stroke(() => { roundedRect(19, 17, 90, 96, 12); }, metal);
+      for (let y of [42, 67, 92]) {
+        stroke(() => { ctx.moveTo(31, y); ctx.lineTo(40, y+9); ctx.lineTo(54, y-9); }, gem);
+        line(() => { ctx.moveTo(63, y); ctx.lineTo(96, y); }, "#f1f7ff", 6);
+      }
+      break;
     default:
       star(64, 64, 48, 20, 8, gem);
   }
@@ -398,7 +478,7 @@ class CoopFTCommunityService {
       try {
         const canvas = canvasApi.createCanvas(128, 128);
         const context = canvas.getContext("2d");
-        if (emojiImage) {
+        if (emojiImage && index < 28) {
           const sourceX = (index % 4) * 32;
           const sourceY = Math.floor(index / 4) * 32;
           context.drawImage(emojiImage, sourceX, sourceY, 32, 32, 0, 0, 128, 128);
