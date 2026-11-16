@@ -146,7 +146,7 @@ if(n==="onboarding-setup"){
    .replace(/-/g," ")
    .replace(/\\s+/g," ")
    .trim();
-  const title=cleanName.replace(/\\b\\w/g,letter=>letter.toUpperCase())||"Community channel";
+  const title=cleanName.replace(/\b\\w/g,letter=>letter.toUpperCase())||"Community channel";
   return {
    title,
    description:"Add #"+cleanName+" to your channel list",
@@ -172,8 +172,8 @@ if(n==="onboarding-setup"){
   .filter(item=>{
    const title=String(item.title||"").trim().toLowerCase();
    const normalized=title.replace(/[^a-z0-9]+/g," ").trim();
-   const isLegacyInterestPrompt=/\\binterest(?:s|ed)?\\b/.test(normalized) ||
-    /\\btopics?\\b/.test(normalized) && /\\bwhat|which|explore|like\\b/.test(normalized);
+   const isLegacyInterestPrompt=/\binterest(?:s|ed)?\b/.test(normalized) ||
+    /\btopics?\b/.test(normalized) && /\bwhat|which|explore|like\b/.test(normalized);
    return !generatedTitles.has(item.title) && !isLegacyInterestPrompt;
   })
   .map(item=>({
