@@ -29,6 +29,47 @@ test("role snapshots exclude @everyone and preserve role names and IDs", () => {
   ]);
 });
 
+test("configured autoroles assign only valid roles below the bot hierarchy", async () => {
+  const { PermissionFlagsBits } = require("discord.js");
+  const roles = [
+    { id: "role-public", name: "Community", position: 2, managed: false },
+    { id: "role-news", name: "News", position: 4, managed: false },
+    { id: "role-existing", name: "Already assigned", position: 3, managed: false },
+    { id: "role-managed", name: "Integration", position: 5, managed: true },
+    { id: "role-too-high", name: "Owner", position: 12, managed: false }
+  ];
+  const roleCache = new Map(roles.map(role => [role.id, role]));
+  const assigned = [];
+  const botMember = {
+    permissions: { has: permission => permission === PermissionFlagsBits.ManageRoles },
+    roles: { highest: { position: 10 } }
+  };
+  const guild = {
+    id: "guild-1",
+    members: { me: botMember },
+    roles: { cache: roleCache, fetch: async id => roleCache.get(id) || null }
+  };
+  const member = {
+    id: "user-1",
+    guild,
+    roles: {
+      cache: new Map([["role-existing", roles[2]]]),
+      add: async (items, reason) => { assigned.push({ items, reason }); }
+    }
+  };
+  const pool = {
+    query: async sql => {
+      assert.match(sql, /FROM guild_autoroles/);
+      return { rows: [{ role_ids: roles.map(role => role.id) }] };
+    }
+  };
+  const service = new MemberLifecycleService(pool, { fukishokaiGuildId: "guild-1", coopftGuildId: "" });
+  const result = await service.assignAutoroles(member);
+  assert.deepEqual(result.map(role => role.id), ["role-public", "role-news"]);
+  assert.equal(assigned.length, 1);
+  assert.equal(assigned[0].reason, "Configured automatic join roles");
+});
+
 test("join stores a role snapshot in the existing audit log table without a new migration", async () => {
   const calls = [];
   const pool = { query: async (sql, params) => { calls.push({ sql, params }); return { rows: [] }; } };
