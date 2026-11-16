@@ -175,7 +175,7 @@ test("onboarding setup enables Discord onboarding and preserves existing prompts
     features: ["COMMUNITY"],
     roles: { everyone },
     members: { me: bot },
-    channels: { fetch: async () => new Map(channels.map(channel => [channel.id, channel])) },
+    channels: { fetch: async () => new Map([...channels.map(channel => [channel.id, channel]), ["unavailable-channel", null]]) },
     fetch: async function () { return this; },
     fetchOnboarding: async () => ({ prompts: new Map([[existingPrompt.id, existingPrompt]]) }),
     editOnboarding: async payload => { saved = payload; }
