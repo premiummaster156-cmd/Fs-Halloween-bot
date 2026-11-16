@@ -17,6 +17,11 @@ const { COOPFT_DEFAULT_GUILD_ID, coopftGuildId } = require("../config/server-per
 const CLEANUP_CONFIRMATION = "DELETE_EDITABLE_ROLES";
 const STAFF_MANAGER_KEYS = new Set(["owner", "co_owner", "monarch", "high_rank_supervisor"]);
 const APPLICATION_MANAGER_KEYS = OWNER_RANK_KEYS;
+// Existing server emojis shown in the owner's screenshots. These are reused when
+// present; the setup never replaces or deletes member-supplied emoji assets.
+const EXISTING_SERVER_EMOJIS = Object.freeze([
+  "PayPal", "z1_quote", "boost", "emoji_19", "emoji_18", "7300lock", "verified"
+]);
 const LEGACY_COOPFT_ROLES = Object.freeze([
   { key: "hr_director", name: "CF • HR Director" },
   { key: "hr_manager", name: "CF • HR Manager" },
@@ -32,7 +37,7 @@ const LEGACY_COOPFT_ROLES = Object.freeze([
 const TICKET_SECTIONS = Object.freeze({
   bot: { label: "Fukishōkai Economy Bot", description: "Bot bugs, player-account support, gameplay issues, security reports and bot suggestions." },
   server: { label: "CoopFT Server", description: "Server bugs, community suggestions, member or staff concerns, general support and partnerships." },
-  development: { label: "Custom Bot Development", description: "Request a new custom Discord bot or a scoped feature build. The CoopFT Developer team will review your requirements privately." }
+  development: { label: "Custom Bot Development", description: "Paid custom Discord bot commissions. Owners quote the price after reviewing the requested features. Delivery is a ZIP folder containing the code; hosting is not currently included." }
 });
 const TICKET_TYPES = Object.freeze({
   bot_bug: { section: "bot", label: "Fukishōkai Bot Bug", icon: "cf3d_gear", fallback: "⚙️", questions: [
@@ -89,7 +94,7 @@ const TICKET_TYPES = Object.freeze({
     { id: "project", label: "What should the bot do?", style: "paragraph", required: true },
     { id: "features", label: "List the main features and workflows", style: "paragraph", required: true },
     { id: "integrations", label: "Required integrations or APIs", style: "paragraph", required: false },
-    { id: "hosting", label: "Hosting, database or uptime preferences", style: "paragraph", required: false },
+    { id: "hosting", label: "Database / technical preferences (hosting is not available yet)", style: "paragraph", required: false },
     { id: "timeline", label: "Expected timeline and ongoing support needs", style: "short", required: false }
   ] },
   partnership: { section: "server", label: "Partnership Enquiry", icon: "cf3d_handshake", fallback: "🤝", questions: [
@@ -507,6 +512,11 @@ class CoopFTCommunityService {
       } catch (error) {
         result.failed.push(name + ": " + error.message);
       }
+    }
+    // Reuse useful existing community emojis as well as the dedicated CoopFT pack.
+    for (const name of EXISTING_SERVER_EMOJIS) {
+      const existing = found.get(name);
+      if (existing) this.emojis.set(name, existing.id);
     }
     const nextMap = Object.fromEntries([...this.emojis.entries()]);
     await this.setSetting(guild.id, "emoji_map", nextMap);
