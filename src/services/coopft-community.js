@@ -9,13 +9,14 @@ const {
   MessageFlags, PermissionFlagsBits, Routes
 } = require("discord.js");
 const {
-  STAFF_RANKS, APPLICATION_RANKS, EMOJI_SPRITE, ROLE_BRACKETS, BOT_ROLES, MEMBER_ROLES,
+  STAFF_RANKS, APPLICATION_RANKS, OWNER_RANK_KEYS, EMOJI_SPRITE, ROLE_BRACKETS, BOT_ROLES, MEMBER_ROLES,
   INTEREST_ROLES, PING_ROLES, ROLE_LAYOUT, CATEGORY_NAMES, PUBLIC_CHANNELS, PRIVATE_CHANNELS
 } = require("../config/coopft-design");
 const { COOPFT_DEFAULT_GUILD_ID, coopftGuildId } = require("../config/server-personas");
 
 const CLEANUP_CONFIRMATION = "DELETE_EDITABLE_ROLES";
 const STAFF_MANAGER_KEYS = new Set(["owner", "co_owner", "monarch", "high_rank_supervisor"]);
+const APPLICATION_MANAGER_KEYS = OWNER_RANK_KEYS;
 const LEGACY_COOPFT_ROLES = Object.freeze([
   { key: "hr_director", name: "CF • HR Director" },
   { key: "hr_manager", name: "CF • HR Manager" },
@@ -30,7 +31,8 @@ const LEGACY_COOPFT_ROLES = Object.freeze([
 ]);
 const TICKET_SECTIONS = Object.freeze({
   bot: { label: "Fukishōkai Economy Bot", description: "Bot bugs, player-account support, gameplay issues, security reports and bot suggestions." },
-  server: { label: "CoopFT Server", description: "Server bugs, community suggestions, member or staff concerns, general support and partnerships." }
+  server: { label: "CoopFT Server", description: "Server bugs, community suggestions, member or staff concerns, general support and partnerships." },
+  development: { label: "Custom Bot Development", description: "Request a new custom Discord bot or a scoped feature build. The CoopFT Developer team will review your requirements privately." }
 });
 const TICKET_TYPES = Object.freeze({
   bot_bug: { section: "bot", label: "Fukishōkai Bot Bug", icon: "cf3d_gear", fallback: "⚙️", questions: [
@@ -82,6 +84,13 @@ const TICKET_TYPES = Object.freeze({
     { id: "staff", label: "Which staff member or decision?", style: "short", required: true },
     { id: "details", label: "Explain your concern", style: "paragraph", required: true },
     { id: "evidence", label: "Supporting information", style: "paragraph", required: false }
+  ] },
+  custom_bot_request: { section: "development", label: "Custom Bot Commission", icon: "cf3d_developer", fallback: "💻", questions: [
+    { id: "project", label: "What should the bot do?", style: "paragraph", required: true },
+    { id: "features", label: "List the main features and workflows", style: "paragraph", required: true },
+    { id: "integrations", label: "Required integrations or APIs", style: "paragraph", required: false },
+    { id: "hosting", label: "Hosting, database or uptime preferences", style: "paragraph", required: false },
+    { id: "timeline", label: "Expected timeline and ongoing support needs", style: "short", required: false }
   ] },
   partnership: { section: "server", label: "Partnership Enquiry", icon: "cf3d_handshake", fallback: "🤝", questions: [
     { id: "organization", label: "Community or organization", style: "short", required: true },
@@ -391,6 +400,9 @@ class CoopFTCommunityService {
     this.guildId = COOPFT_DEFAULT_GUILD_ID;
     this.roles = new Map();
     this.emojis = new Map();
+    this.memberRosterLoaded = false;
+    this.directoryRefreshRunning = false;
+    this.directoryRefreshTimer = null;
   }
 
   assertCoopFTGuildId(guildId, action = "access CoopFT data") {
@@ -1576,7 +1588,8 @@ class CoopFTCommunityService {
         .setPlaceholder("Choose Fukishōkai Bot or CoopFT Server").setMinValues(1).setMaxValues(1)
         .addOptions(
           { label: "Fukishōkai Economy Bot", value: "bot", description: "Bot bugs, accounts, gameplay and suggestions", emoji: "🎮" },
-          { label: "CoopFT Server", value: "server", description: "Server support, reports, suggestions and partnerships", emoji: "🏛️" }
+          { label: "CoopFT Server", value: "server", description: "Server support, reports, suggestions and partnerships", emoji: "🏛️" },
+          { label: "Custom Bot Development", value: "development", description: "Request a custom Discord bot or feature build", emoji: "💻" }
         )
     );
     if (message) await message.edit({ embeds: [embed], components: [row], files: [banner], attachments: [] });
@@ -1812,11 +1825,13 @@ class CoopFTCommunityService {
     if (!category) throw new Error("The ticket category is not set up. Ask an administrator to run npm run coopft:setup from the hosting console.");
     const me = guild.members.me || await guild.members.fetchMe();
     const staffRoles = STAFF_RANKS.map((spec) => this.roles.get(spec.key)).filter(Boolean);
+    const developerRole = info.section === "development" ? this.roles.get("developer_member") : null;
     const overwrites = [
       { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
       { id: member.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] },
       { id: me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] },
-      ...staffRoles.map((role) => ({ id: role.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] }))
+      ...staffRoles.map((role) => ({ id: role.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] })),
+      ...(developerRole ? [{ id: developerRole.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] }] : [])
     ];
     const channel = await guild.channels.create({
       name: "▣・ticket-" + safeChannelName(member.user.username),
