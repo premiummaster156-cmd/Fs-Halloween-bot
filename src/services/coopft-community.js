@@ -1040,228 +1040,126 @@ class CoopFTCommunityService {
   }
 
   buildRulesEmblem() {
-    const canvasApi = require("@napi-rs/canvas");
-    const canvas = canvasApi.createCanvas(768, 768);
+    const { createCanvas } = require("@napi-rs/canvas");
+    const canvas = createCanvas(1200, 360);
     const ctx = canvas.getContext("2d");
-    const bg = ctx.createLinearGradient(0, 0, 768, 768);
-    bg.addColorStop(0, "#070b17");
-    bg.addColorStop(0.48, "#20234e");
-    bg.addColorStop(1, "#090e20");
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, 768, 768);
-    const glow = ctx.createRadialGradient(384, 325, 20, 384, 325, 380);
-    glow.addColorStop(0, "rgba(109,141,255,0.55)");
-    glow.addColorStop(0.58, "rgba(135,68,202,0.22)");
+    const background = ctx.createLinearGradient(0, 0, 1200, 360);
+    background.addColorStop(0, "#07090D");
+    background.addColorStop(0.48, "#1A1015");
+    background.addColorStop(1, "#090B10");
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, 1200, 360);
+    const glow = ctx.createRadialGradient(600, 150, 10, 600, 150, 650);
+    glow.addColorStop(0, "rgba(184,35,54,0.30)");
+    glow.addColorStop(0.55, "rgba(107,20,33,0.13)");
     glow.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, 768, 768);
-    ctx.lineWidth = 8;
-    ctx.strokeStyle = "rgba(205,185,255,0.52)";
-    ctx.strokeRect(24, 24, 720, 720);
+    ctx.fillRect(0, 0, 1200, 360);
     ctx.lineWidth = 3;
-    ctx.strokeStyle = "rgba(106,183,255,0.45)";
-    ctx.strokeRect(42, 42, 684, 684);
-    for (let i = 0; i < 70; i += 1) {
-      const x = (i * 113 + 27) % 768;
-      const y = (i * 197 + 53) % 768;
-      ctx.beginPath();
-      ctx.arc(x, y, i % 8 === 0 ? 3.2 : 1.4, 0, Math.PI * 2);
-      ctx.fillStyle = i % 2 ? "rgba(255,255,255,0.72)" : "rgba(115,190,255,0.75)";
-      ctx.fill();
-    }
-    ctx.save();
-    ctx.translate(384, 335);
-    ctx.shadowColor = "#759fff";
-    ctx.shadowBlur = 48;
-    ctx.beginPath();
-    ctx.moveTo(0, -235);
-    ctx.lineTo(185, -165);
-    ctx.lineTo(168, 82);
-    ctx.quadraticCurveTo(118, 215, 0, 264);
-    ctx.quadraticCurveTo(-118, 215, -168, 82);
-    ctx.lineTo(-185, -165);
-    ctx.closePath();
-    const shield = ctx.createLinearGradient(-185, -235, 185, 260);
-    shield.addColorStop(0, "#f4e9ff");
-    shield.addColorStop(0.3, "#766be5");
-    shield.addColorStop(0.68, "#1765b9");
-    shield.addColorStop(1, "#7ceaff");
-    ctx.fillStyle = shield;
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = "#f4f8ff";
-    ctx.lineWidth = 13;
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0, -186);
-    ctx.lineTo(123, -132);
-    ctx.lineTo(108, 76);
-    ctx.lineTo(0, 205);
-    ctx.lineTo(-108, 76);
-    ctx.lineTo(-123, -132);
-    ctx.closePath();
-    ctx.fillStyle = "rgba(8,16,43,0.52)";
-    ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,0.78)";
-    ctx.lineWidth = 6;
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(-135, -188);
-    ctx.lineTo(-84, -305);
-    ctx.lineTo(-27, -223);
-    ctx.lineTo(0, -365);
-    ctx.lineTo(38, -223);
-    ctx.lineTo(98, -304);
-    ctx.lineTo(139, -188);
-    ctx.closePath();
-    const crown = ctx.createLinearGradient(-140, -360, 140, -180);
-    crown.addColorStop(0, "#fff2ce");
-    crown.addColorStop(0.46, "#aa7dff");
-    crown.addColorStop(1, "#66e5ff");
-    ctx.fillStyle = crown;
-    ctx.fill();
-    ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 8;
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0, -160);
-    ctx.lineTo(82, -25);
-    ctx.lineTo(0, 145);
-    ctx.lineTo(-82, -25);
-    ctx.closePath();
-    ctx.fillStyle = "rgba(97,187,255,0.46)";
-    ctx.fill();
-    ctx.strokeStyle = "#dff6ff";
-    ctx.lineWidth = 5;
-    ctx.stroke();
-    ctx.restore();
+    ctx.strokeStyle = "rgba(214,70,83,0.9)";
+    ctx.strokeRect(22, 22, 1156, 316);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(244,206,166,0.28)";
+    ctx.strokeRect(38, 38, 1124, 284);
     ctx.textAlign = "center";
     ctx.shadowColor = "rgba(0,0,0,0.9)";
-    ctx.shadowBlur = 14;
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 58px Arial";
-    ctx.fillText("COOPFT", 384, 666);
+    ctx.shadowBlur = 18;
+    ctx.fillStyle = "#F7F0EA";
+    ctx.font = "bold 92px Arial";
+    ctx.fillText("COOPFT", 600, 150);
     ctx.shadowBlur = 0;
-    ctx.fillStyle = "#c2d2ff";
-    ctx.font = "bold 20px Arial";
-    ctx.fillText("COMMUNITY  •  RULES  •  RESPECT", 384, 706);
+    ctx.fillStyle = "#E45A66";
+    ctx.font = "bold 38px Arial";
+    ctx.fillText("COMMUNITY CODE", 600, 210);
+    ctx.strokeStyle = "rgba(232,151,145,0.72)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(360, 232); ctx.lineTo(840, 232); ctx.stroke();
+    ctx.fillStyle = "rgba(245,231,224,0.82)";
+    ctx.font = "20px Arial";
+    ctx.fillText("RESPECT  •  SAFETY  •  PRIVACY  •  COMMUNITY", 600, 275);
+    for (const x of [120, 1080]) {
+      ctx.save();
+      ctx.translate(x, 180);
+      ctx.strokeStyle = "rgba(226,75,90,0.72)";
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.moveTo(-34, -48); ctx.lineTo(0, -15); ctx.lineTo(34, -48);
+      ctx.lineTo(28, 22); ctx.lineTo(0, 58); ctx.lineTo(-28, 22); ctx.closePath();
+      ctx.stroke();
+      ctx.fillStyle = "#9F2939";
+      ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
     return canvas.toBuffer("image/png");
   }
 
   async ensureBrandMessages(guild, publicChannels) {
     this.assertCoopFTGuild(guild, "publish CoopFT messages");
+    const retiredKeys = ["welcome", "introductions", "announcements", "suggestions", "bot_updates"];
+    for (const key of retiredKeys) {
+      const messageId = await this.getResource(guild.id, "message:" + key);
+      const channel = publicChannels[key];
+      if (messageId && channel?.messages) {
+        const message = await channel.messages.fetch(messageId).catch(() => null);
+        if (message) await message.delete().catch((error) =>
+          console.warn("[coopft] Could not remove the obsolete " + key + " information post:", error.message)
+        );
+      }
+      if (messageId) await this.setSetting(guild.id, "resource:message:" + key, null);
+    }
+
     let bannerAttachment = null;
     try {
-      bannerAttachment = new AttachmentBuilder(this.buildRulesEmblem(), { name: "coopft-rules-crest.png" });
+      bannerAttachment = new AttachmentBuilder(this.buildRulesEmblem(), { name: "coopft-rules-banner.png" });
     } catch (error) {
-      console.warn("[coopft] Could not render rules artwork; using the text-only rules embed:", error.message);
+      console.warn("[coopft] Could not render rules banner; using a clean text-only rules embed:", error.message);
     }
-    const rules = new EmbedBuilder().setColor(0x35245F)
-      .setTitle(this.emoji(guild.id, "cf3d_rules", "📜") + "  COOPFT • COMMUNITY CODE")
-      .setDescription([
-        "Welcome to **CoopFT** — a place to build, share, compete and meet good people. These standards apply to everyone.",
-        "",
-        this.emoji(guild.id, "cf3d_handshake", "🤝") + " **01 · RESPECT COMES FIRST**\nTreat every member with dignity. Harassment, hate speech, discrimination, threats and targeted abuse are not allowed.",
-        "",
-        this.emoji(guild.id, "cf3d_spark", "✨") + " **02 · KEEP IT CONSTRUCTIVE**\nStay on topic, use the right channels, and keep disagreements civil. No flooding, spam pings or disruptive behavior.",
-        "",
-        this.emoji(guild.id, "cf3d_shield", "🛡️") + " **03 · KEEP COOPFT SAFE**\nNo scams, phishing, malware, malicious links, raids, impersonation or attempts to evade moderation.",
-        "",
-        this.emoji(guild.id, "cf3d_key", "🔐") + " **04 · PROTECT PRIVACY**\nNever share passwords, tokens, private documents, personal addresses or another person's private information.",
-        "",
-        this.emoji(guild.id, "cf3d_ticket", "🎟️") + " **05 · NO UNAPPROVED ADVERTISING**\nPromotions, server invites and commercial posts require staff approval. Use the appropriate showcase channels.",
-        "",
-        this.emoji(guild.id, "cf3d_voice", "🎙️") + " **06 · RESPECT VOICE AND EVENTS**\nNo disruptive audio, recording people without consent, or interrupting hosted sessions.",
-        "",
-        this.emoji(guild.id, "cf3d_idea", "💡") + " **07 · SHARE IDEAS THE RIGHT WAY**\nUse #suggestions for proposals and #open-a-ticket for private support, reports or appeals.",
-        "",
-        this.emoji(guild.id, "cf3d_bell", "🔔") + " **08 · RESPECT MODERATION**\nFollow staff instructions. If you disagree with a decision, appeal calmly through a ticket.",
-        "",
-        this.emoji(guild.id, "cf3d_gem", "💎") + " **09 · KEEP CONTENT APPROPRIATE**\nNo explicit, exploitative or illegal content. Follow Discord's Terms of Service and Community Guidelines.",
-        "",
-        this.emoji(guild.id, "cf3d_star", "🌟") + " **10 · HELP THE COMMUNITY GROW**\nCredit creators, welcome newcomers and contribute in good faith."
-      ].join("\n"))
-      .setFooter({ text: "CoopFT • Respect the space. Elevate the community." });
-    if (bannerAttachment) rules.setThumbnail("attachment://coopft-rules-crest.png");
-    const entries = [
-      { key: "rules", channel: publicChannels.rules, embed: rules, files: bannerAttachment ? [bannerAttachment] : [] },
-      {
-        key: "welcome", channel: publicChannels.welcome,
-        embed: new EmbedBuilder().setColor(0x235A9A)
-          .setTitle(this.emoji(guild.id, "cf3d_spark", "✨") + "  WELCOME TO COOPFT")
-          .setDescription("A community for people who build, share, learn and compete together. Start with **#rules**, say hello in **#introductions**, join **#general**, and visit **#applications** when you're ready to join a team.")
-          .addFields(
-            { name: this.emoji(guild.id, "cf3d_rules", "📘") + " Start here", value: "Read the community code and explore the server.", inline: true },
-            { name: this.emoji(guild.id, "cf3d_community", "👥") + " Meet the community", value: "Introduce yourself, share your work and join conversations.", inline: true },
-            { name: this.emoji(guild.id, "cf3d_applications", "📝") + " Join a team", value: "See open positions and apply from the applications panel.", inline: true }
-          )
-          .setFooter({ text: "CoopFT • Build something great together" })
-      },
-      {
-        key: "introductions", channel: publicChannels.introductions,
-        embed: new EmbedBuilder().setColor(0x6B4BB8)
-          .setTitle(this.emoji(guild.id, "cf3d_butterfly", "👋") + "  YOUR INTRODUCTION")
-          .setDescription("New here? Tell us what you enjoy creating, your interests, the projects or games you're into, and what brought you to CoopFT. Only share information you're comfortable making public.")
-          .setFooter({ text: "No pressure • Be yourself • Welcome aboard" })
-      },
-      {
-        key: "announcements", channel: publicChannels.announcements,
-        embed: new EmbedBuilder().setColor(0x263F66)
-          .setTitle(this.emoji(guild.id, "cf3d_announce", "📢") + "  OFFICIAL ANNOUNCEMENTS")
-          .setDescription("Official community news, important updates, event schedules and service notices appear here. Join **announcements-live** for hosted briefings and community sessions.")
-          .setFooter({ text: "CoopFT • Official information" })
-      },
-      {
-        key: "suggestions", channel: publicChannels.suggestions,
-        embed: new EmbedBuilder().setColor(0x8B6AD8)
-          .setTitle(this.emoji(guild.id, "cf3d_idea", "💡") + "  THE IDEA FORGE")
-          .setDescription("Have an idea that could make CoopFT better? Post one suggestion per message and explain the problem, your proposed solution and the benefit to members. Keep feedback constructive and check existing ideas before posting.")
-          .addFields({ name: "What happens next?", value: "The community can discuss your idea. Staff may review it, ask follow-up questions or explain the next steps." })
-          .setFooter({ text: "Good ideas grow through good discussion." })
-      },
-      {
-        key: "bot_updates", channel: publicChannels.bot_updates,
-        embed: new EmbedBuilder().setColor(0x263F66)
-          .setTitle(this.emoji(guild.id, "cf3d_bell", "🔔") + "  COOPFT SYSTEM UPDATES")
-          .setDescription("Important CoopFT bot releases, maintenance notices and feature changes appear here.")
-          .setFooter({ text: "CoopFT • System notices" })
+    const rules = new EmbedBuilder()
+      .setColor(0x8C2635)
+      .setTitle(this.emoji(guild.id, "cf3d_rules", "📜") + "  COOPFT | COMMUNITY CODE")
+      .setDescription("Welcome to **CoopFT**. Keep this community safe, respectful and enjoyable for everyone. These standards apply to all members, including staff.")
+      .addFields(
+        { name: this.emoji(guild.id, "cf3d_handshake", "🤝") + "  RESPECT PEOPLE", value: "Treat others with dignity. Harassment, hate speech, discrimination, threats, targeted abuse and personal attacks are not allowed.", inline: true },
+        { name: this.emoji(guild.id, "cf3d_spark", "✨") + "  KEEP IT CONSTRUCTIVE", value: "Use the right channels. Do not flood chats, spam mentions, disrupt conversations or deliberately provoke arguments.", inline: true },
+        { name: this.emoji(guild.id, "cf3d_shield", "🛡️") + "  KEEP COOPFT SAFE", value: "No scams, phishing, malware, malicious links, raids, impersonation or attempts to bypass moderation.", inline: true },
+        { name: this.emoji(guild.id, "cf3d_key", "🔐") + "  PROTECT PRIVACY", value: "Never publish passwords, tokens, private documents, personal addresses or someone else's private information.", inline: true },
+        { name: this.emoji(guild.id, "cf3d_announce", "📢") + "  ADVERTISING AND CONTENT", value: "Promotions and server invites need staff approval. Keep shared content appropriate and follow Discord's Terms and Community Guidelines.", inline: true },
+        { name: this.emoji(guild.id, "cf3d_ticket", "🎟️") + "  STAFF AND SUPPORT", value: "Follow reasonable staff instructions. Use **#suggestions** for ideas and **#open-a-ticket** for support, reports or appeals.", inline: true }
+      )
+      .setFooter({ text: "CoopFT • Respect the space. Elevate the community." })
+      .setTimestamp();
+    if (bannerAttachment) rules.setImage("attachment://coopft-rules-banner.png");
+
+    const channel = publicChannels.rules;
+    if (!channel?.isTextBased?.() || typeof channel.send !== "function") {
+      throw new Error("The CoopFT rules channel is unavailable.");
+    }
+    const savedId = await this.getResource(guild.id, "message:rules");
+    let message = savedId ? await channel.messages.fetch(savedId).catch(() => null) : null;
+    const payload = {
+      embeds: [rules],
+      files: bannerAttachment ? [bannerAttachment] : [],
+      allowedMentions: { parse: [] }
+    };
+    try {
+      if (message) await message.edit({ ...payload, attachments: [] });
+      else {
+        message = await channel.send(payload);
+        await this.saveResource(guild.id, "message:rules", message.id);
       }
-    ];
-    for (const entry of entries) {
-      if (!entry.channel?.isTextBased?.() || typeof entry.channel.send !== "function") {
-        const unavailable = "Brand message channel is unavailable: " + entry.key;
-        console.error("[coopft]", unavailable);
-        if (entry.key === "rules") throw new Error(unavailable);
-        continue;
+      console.info("[coopft] Published the consolidated community code in #" + channel.name + ".");
+    } catch (error) {
+      console.error("[coopft] Could not publish the CoopFT community code:", error.code || error.name, error.message);
+      if (!bannerAttachment) throw error;
+      const fallback = EmbedBuilder.from(rules.toJSON());
+      fallback.setImage(null);
+      if (message) await message.edit({ embeds: [fallback], files: [], attachments: [], allowedMentions: { parse: [] } });
+      else {
+        message = await channel.send({ embeds: [fallback], allowedMentions: { parse: [] } });
+        await this.saveResource(guild.id, "message:rules", message.id);
       }
-      const savedId = await this.getResource(guild.id, "message:" + entry.key);
-      let message = savedId ? await entry.channel.messages.fetch(savedId).catch(() => null) : null;
-      const payload = { embeds: [entry.embed], files: entry.files || [], allowedMentions: { parse: [] } };
-      try {
-        if (message) await message.edit(payload);
-        else {
-          message = await entry.channel.send(payload);
-          await this.saveResource(guild.id, "message:" + entry.key, message.id);
-        }
-        console.info("[coopft] Published " + entry.key + " message in #" + entry.channel.name + ".");
-      } catch (error) {
-        console.error("[coopft] Could not publish " + entry.key + " message in #" + entry.channel.name + ":", error.code || error.name, error.message);
-        if (entry.key !== "rules") continue;
-        try {
-          const fallbackEmbedData = entry.embed.toJSON();
-          delete fallbackEmbedData.thumbnail;
-          const fallbackEmbed = new EmbedBuilder(fallbackEmbedData);
-          const fallbackPayload = { embeds: [fallbackEmbed], files: [], attachments: [], allowedMentions: { parse: [] } };
-          if (message) await message.edit(fallbackPayload);
-          else {
-            message = await entry.channel.send(fallbackPayload);
-            await this.saveResource(guild.id, "message:rules", message.id);
-          }
-          console.warn("[coopft] Published the rules embed without artwork after the attachment failed.");
-        } catch (fallbackError) {
-          throw new Error("The CoopFT rules embed could not be published: " + fallbackError.message);
-        }
-      }
+      console.warn("[coopft] Published the community code without the optional banner image.");
     }
   }
 
