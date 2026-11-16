@@ -1055,6 +1055,7 @@ class CoopFTCommunityService {
     await this.ensureRoleSelectionPanel(guild, publicByKey.role_selection);
     await this.ensureApplicationPanel(guild, publicByKey.applications);
     await this.ensureApplicationControlPanel(guild, privateByKey.application_control);
+    await this.retireClosedApplicationReviews(guild, privateByKey.application_review);
     await this.ensureStaffGuide(guild, privateByKey.staff_guide);
     await this.ensureBrandMessages(guild, publicByKey);
     await this.ensureCustomBotRequestPanel(guild, publicByKey.custom_bot_requests);
@@ -1551,6 +1552,43 @@ class CoopFTCommunityService {
     await this.setSetting(guild.id, "resource:channel:role_guide", null);
     await this.setSetting(guild.id, "resource:message:role_guide", null);
     return Boolean(shouldDelete);
+  }
+
+  async retireClosedApplicationReviews(guild, channel) {
+    this.assertCoopFTGuild(guild, "close retired application review messages");
+    if (!channel?.messages) return { closed: 0, missing: 0 };
+    const activeTracks = APPLICATION_RANKS.map((item) => item.key);
+    const result = await this.pool.query(
+      "SELECT id,role_key,review_message_id FROM coopft_applications " +
+      "WHERE guild_id=$1 AND status='withdrawn' AND NOT (role_key=ANY($2::text[])) " +
+      "AND review_message_id IS NOT NULL ORDER BY created_at DESC",
+      [guild.id, activeTracks]
+    );
+    let closed = 0;
+    let missing = 0;
+    for (const application of result.rows) {
+      const message = await channel.messages.fetch(application.review_message_id).catch(() => null);
+      if (!message) {
+        missing += 1;
+        continue;
+      }
+      const original = message.embeds?.[0];
+      const embed = original
+        ? EmbedBuilder.from(original)
+        : new EmbedBuilder().setTitle("COOPFT APPLICATION");
+      const existingText = original?.description || "";
+      embed.setColor(0x606775)
+        .setDescription(
+          existingText + "\n\n**RECRUITMENT CLOSED**\nThis position is no longer offered. The historical application was retained, but it is no longer eligible for review."
+        )
+        .setFooter({ text: "Historical application  •  " + application.id + "  •  CLOSED" });
+      await message.edit({ embeds: [embed], components: [], allowedMentions: { parse: [] } });
+      closed += 1;
+    }
+    if (closed || missing) {
+      console.info("[coopft] Retired application reviews reconciled:", { closed, missing });
+    }
+    return { closed, missing };
   }
 
   async ensureApplicationPanel(guild, channel) {
