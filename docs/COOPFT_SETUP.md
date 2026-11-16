@@ -12,7 +12,7 @@ For first setup or an intentional repair, deploy the latest `main` branch and ru
 npm run coopft:setup
 ```
 
-The setup applies only numbered `*_coopft_*.sql` migrations, fetches only the fixed CoopFT guild, creates or repairs CoopFT resources, publishes the rules and other maintained embeds, refreshes the staff directory, and then closes its temporary Discord client and database pool. Keep `DISCORD_TOKEN`, `DATABASE_URL` and the matching `COOPFT_GUILD_ID` configured. Do not put `npm run coopft:setup` in the normal Start Command.
+The setup applies only numbered `*_coopft_*.sql` migrations, fetches only the fixed CoopFT guild, creates or repairs its 50-emoji pack, bracket roles, staff/member/ping roles, channels and interactive panels, publishes the consolidated rules embed and staff directory, removes obsolete saved informational posts, and then closes its temporary Discord client and database pool. Keep `DISCORD_TOKEN`, `DATABASE_URL` and the matching `COOPFT_GUILD_ID` configured. Do not put `npm run coopft:setup` in the normal Start Command.
 
 After deploying a release that changes the slash-command set, run:
 
@@ -24,15 +24,17 @@ This refreshes both persona-specific slash-command registrations. It does not cr
 
 ## Staff hierarchy and applications
 
-CoopFT has one official 17-rank hierarchy, displayed in four groups:
+CoopFT has one official 17-rank hierarchy, displayed in four bracket groups:
 
 **Owner Rank:** Owner, Co-Owner, Monarch.
 
-**Senior Operations:** High Rank Supervisor, Apex, Right Wing, Left Wing, Halo, Overseer.
+**High Rank:** High Rank Supervisor, Apex, Right Wing, Left Wing, Halo, Overseer.
 
-**Department Leadership:** Staff Supervisor, Supreme Council, Senate, Head Moderator.
+**Low Rank:** Staff Supervisor, Supreme Council, Senate, Head Moderator.
 
-**Mod Rank:** Council, Senior Moderator, Moderator, Junior Moderator.
+**Mod Roles:** Council, Senior Moderator, Moderator, Junior Moderator.
+
+The setup creates a divider role above each group and positions the individual ranks immediately below the matching divider. Divider roles have no members and no permissions. The separate **Bots** divider is configured with Administrator permission to match the requested layout, but it is deliberately left unassigned. The bot receives a separate non-administrator `CoopFT Assistant` marker role beneath that divider. Never assign the empty Bots divider to a person or bot.
 
 The setup creates and repairs only those staff roles. The former HR roles and specialist roles are retired when the role ID is still saved in CoopFT settings and its current name still matches the original managed name. Roles that are managed by an integration, above the bot, or renamed so ownership cannot be verified are left untouched. No broad role deletion is performed by this retirement pass.
 
@@ -51,25 +53,35 @@ Only the server owner and designated senior staff ranks (Owner, Co-Owner, Monarc
 
 ## Staff directory and rules
 
-The `staff-team` and `staff-directory` messages use one maintained directory embed with four clearly separated rank groups. The custom CoopFT banner is attached to the same embed as its thumbnail, positioned at the top of that embed rather than sent as a separate embed. The directory refreshes when staff roles change through the bot's approved audit flow or when a staff member leaves. Role names are concise and do not carry a repeated `CF •` prefix.
+The `staff-team` channel contains one maintained staff-directory embed, not a separate banner embed or a duplicate directory post in another channel. Its custom 1200×360 banner is attached to the same embed as its thumbnail. Four clear sections—Owner Rank, High Rank, Low Rank and Mod Roles—use distinct custom icons and matching role names. The directory refreshes when staff roles change through the bot's approved audit flow or when a staff member leaves.
 
-The public `rules` channel receives the CoopFT community code embed. Setup first attempts to publish the branded version with its generated artwork; if the artwork attachment fails, it retries with a text-only rules embed. If the rules embed itself cannot be published, setup fails rather than reporting a completed setup.
+The public `rules` channel receives one concise community-code embed with a wide branded banner, six readable rule sections and a restrained red/charcoal visual theme. If the optional banner attachment fails, setup retries with the text-only version. If the rules post itself cannot be published, setup fails rather than reporting completion.
 
-The redundant `role-explanations` channel is retired and removed during CoopFT setup. Permission descriptions are not duplicated into a separate public channel. Welcome, introductions, announcements, suggestions and bot-updates receive maintained information embeds.
+The redundant `role-explanations` channel is retired. Previously saved bot-authored information posts in welcome, introductions, announcements, suggestions and bot-updates are removed so those channels remain available for real conversations. The only persistent public information panels are the rules, application, ticket and role-selection panels.
 
 ## Channels and tickets
 
-The layout includes START HERE, COMMUNITY, MEMBER SERVICES, STAFF OPERATIONS and SUPPORT DESK categories. Category names and text-channel names use restrained Unicode typography; channel names do not use emoji decorations.
+The layout includes START HERE, COMMUNITY, MEMBER SERVICES, STAFF OPERATIONS and SUPPORT DESK categories. `choose-roles` is the public role-selection channel. Category names and text-channel names use restrained Unicode typography.
 
 Members open tickets from the service selector in `open-a-ticket`. They first choose **Fukishōkai Economy Bot** or **CoopFT Server**, then choose a relevant request type such as bot bug, gameplay issue, account support, exploit report, server bug, server suggestion, member report, staff concern or partnership. A guided form asks the relevant questions before creating the ticket. The bot posts every submitted answer in the private ticket, prevents duplicate open tickets, supports claiming and closing, and archives a transcript to `ticket-transcripts`.
 
 Staff-only channels include `staff-team`, `staff-chat`, `staff-announcements`, `staff-bot-updates`, `application-review`, `ticket-transcripts`, `member-logs` and `server-logs`.
 
+## Member roles and notifications
+
+The server receives 50 named custom emojis. The original 28 names remain stable for existing embeds; 22 new purpose-specific icons cover rank brackets, member badges, interests and notifications. Custom emojis are used in role groups, the staff directory, panels and system messages. If Discord's emoji quota or permissions prevent an upload, setup records the failure and retains a readable Unicode fallback.
+
+The **Member Roles** bracket contains leadership-managed badges such as Community Member, Verified, VIP, Contributor, Event Winner, Content Creator, Developer and Artist. New members are automatically given Community Member. VIP, verification and other status badges are not self-assignable.
+
+The **Interests** and **Ping Roles** brackets contain self-selectable roles. In `#choose-roles`, members use four dropdowns: add interests, remove interests, subscribe to notification pings and unsubscribe from notification pings. Interests include Gaming, Programming, Art & Design, Music, Anime, Technology, Voice Chat and Community Events. Notification roles cover announcements, events, giveaways, community updates, game nights, bot updates, looking for group and voice activities. These roles are non-mentionable so members can subscribe without enabling unrestricted role pings.
+
 ## Permissions and safety
 
 The setup requires the bot to have Administrator, Manage Roles, Manage Channels, View Channel, Send Messages, Embed Links, Read Message History, Attach Files and View Audit Log in CoopFT. Administrator is needed because Owner and Co-Owner are configured with Administrator. The bot's highest role must be above the CoopFT-managed staff roles.
 
-The setup checks its fixed CoopFT guild ID before resource mutations. CoopFT migrations do not load the Fukishōkai schema or alter player tables. The application and directory services use only CoopFT guild IDs.
+The setup checks its fixed CoopFT guild ID before resource mutations. CoopFT migrations do not load the Fukishōkai schema or alter player tables. The application, role selector, audit logs and directory services use only CoopFT guild IDs.
+
+The member log renders joins and departures with account age, join date, time in server and readable role names from the latest saved snapshot. Role-change entries distinguish roles added and removed. Server audit entries translate common channel, role, invite, webhook and moderation actions into a plain-English summary with the affected item, executor, changes and reason when Discord supplies one. Audit records are informational; they do not perform automatic moderation actions.
 
 The old general role-cleanup option remains separate from legacy CoopFT role retirement. The optional cleanup is preview-only unless `COOPFT_ROLE_CLEANUP_CONFIRM=DELETE_EDITABLE_ROLES` is explicitly configured. Review the candidate list and member role assignments before enabling it.
 
