@@ -305,6 +305,44 @@ test("Owner-controlled ticket configuration saves category and transcript destin
   );
 });
 
+test("saved application-review embeds lose legacy images and footer metadata", async () => {
+  const edits = [];
+  const message = {
+    embeds: [{
+      title: "Previous application",
+      description: "Application details",
+      footer: { text: "Old footer" },
+      image: { url: "https://example.com/banner.png" },
+      thumbnail: { url: "https://example.com/avatar.png" },
+      author: { name: "Old author", icon_url: "https://example.com/icon.png" }
+    }],
+    createdAt: new Date("2026-11-15T10:00:00.000Z"),
+    edit: async (payload) => edits.push(payload)
+  };
+  const pool = {
+    async query(sql) {
+      if (sql.includes("SELECT id,review_message_id")) {
+        return { rows: [{ id: "application-1", review_message_id: "review-message-1" }] };
+      }
+      if (sql.includes("SELECT id,role_key,review_message_id")) {
+        return { rows: [] };
+      }
+      throw new Error("Unexpected SQL in application review sanitation test.");
+    }
+  };
+  const service = new CoopFTCommunityService(pool, { guildId: coopftGuildId });
+  const channel = { messages: { fetch: async () => message } };
+  const result = await service.sanitizeApplicationReviewEmbeds({ id: coopftGuildId }, channel);
+  assert.deepEqual(result, { updated: 1, missing: 0 });
+  const cleaned = edits[0].embeds[0].toJSON();
+  assert.equal(cleaned.image, undefined);
+  assert.equal(cleaned.thumbnail, undefined);
+  assert.equal(cleaned.footer, undefined);
+  assert.equal(cleaned.author.icon_url, undefined);
+  assert.ok(cleaned.timestamp);
+  assert.equal(edits[0].components, undefined);
+});
+
 test("legacy role retirement deletes only exact saved CoopFT roles", async () => {
   const values = new Map([
     ["resource:role:hr_director", "legacy-hr"],
