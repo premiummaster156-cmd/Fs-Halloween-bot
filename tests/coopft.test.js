@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { PermissionFlagsBits, PermissionsBitField } = require("discord.js");
+const { PermissionFlagsBits, PermissionsBitField, ChannelType } = require("discord.js");
 const { loadCoopFTCommands } = require("../src/commands/coopft");
 const {
   STAFF_RANKS, APPLICATION_RANKS, EMOJI_SPRITE, CATEGORY_NAMES, PUBLIC_CHANNELS, PRIVATE_CHANNELS,
@@ -29,7 +29,7 @@ test("CoopFT exposes focused setup, sync, panel and operational commands", () =>
   const commands = loadCoopFTCommands();
   const expected = [
     "announce", "ban", "case", "channel-rename", "channel-topic", "clear-warnings",
-    "coopft-channels-sync", "coopft-panel", "coopft-roles-sync", "coopft-setup",
+    "coopft-channels-sync", "coopft-panel", "coopft-roles-sync", "coopft-setup", "coopft-ticket-config",
     "event-cancel", "event-create", "event-list", "kick", "lock", "member-note-remove",
     "nickname", "note", "notes", "poll", "purge", "reset-nickname", "role-add",
     "role-remove", "slowmode", "suggestion", "suggestion-review", "ticket-add",
@@ -39,7 +39,7 @@ test("CoopFT exposes focused setup, sync, panel and operational commands", () =>
   ];
   assert.deepEqual([...commands.keys()].sort(), expected.sort());
   for (const command of commands.values()) assert.doesNotThrow(() => command.data.toJSON());
-  for (const configCommand of ["coopft-setup", "coopft-roles-sync", "coopft-channels-sync", "coopft-panel"]) {
+  for (const configCommand of ["coopft-setup", "coopft-roles-sync", "coopft-channels-sync", "coopft-panel", "coopft-ticket-config"]) {
     assert.equal(commands.has(configCommand), true, configCommand + " must be available");
   }
   for (const removed of ["ping", "help", "serverinfo", "botinfo", "avatar", "application-status", "application-withdraw", "application-queue", "staff", "menu", "profile", "leaderboard"]) {
@@ -268,6 +268,41 @@ test("manual setup uploads all 50 CoopFT emblems as separate Discord-sized PNGs"
   for (const name of EMOJI_SPRITE) {
     assert.equal(service.emojis.get(name), "emoji-" + name);
   }
+});
+
+test("Owner-controlled ticket configuration saves category and transcript destinations", async () => {
+  const settings = new Map();
+  const pool = {
+    async query(sql, params) {
+      if (sql.includes("SELECT setting_value")) {
+        return { rows: settings.has(params[1]) ? [{ setting_value: settings.get(params[1]) }] : [] };
+      }
+      if (sql.includes("INSERT INTO coopft_community_settings")) {
+        settings.set(params[1], JSON.parse(params[2]));
+        return { rows: [] };
+      }
+      throw new Error("Unexpected SQL in ticket configuration test.");
+    }
+  };
+  const service = new CoopFTCommunityService(pool, { guildId: coopftGuildId });
+  const category = { id: "ticket-category", type: ChannelType.GuildCategory };
+  const transcripts = { id: "ticket-archive", type: ChannelType.GuildText, isTextBased: () => true };
+  const saved = await service.configureTicketing(
+    { id: coopftGuildId },
+    { category, transcriptChannel: transcripts }
+  );
+  assert.equal(saved.categoryId, "ticket-category");
+  assert.equal(saved.transcriptChannelId, "ticket-archive");
+  assert.equal(settings.get("resource:category:tickets"), "ticket-category");
+  assert.equal(settings.get("resource:channel:ticket_transcripts"), "ticket-archive");
+  await assert.rejects(
+    service.configureTicketing({ id: coopftGuildId }, { category: { id: "not-a-category", type: ChannelType.GuildText } }),
+    /must be a category channel/
+  );
+  await assert.rejects(
+    service.configureTicketing({ id: coopftGuildId }, {}),
+    /Select a ticket category/
+  );
 });
 
 test("legacy role retirement deletes only exact saved CoopFT roles", async () => {
