@@ -2000,6 +2000,7 @@ class CoopFTCommunityService {
           await this.recordStaffAudit(interaction.guildId, interaction.user.id, member.id, "developer_application_accepted", {
             applicationId, role: assignedRoleKey, reason
           });
+          await this.updateStaffDirectory(interaction.guild);
         }
         await this.updateStaffDirectory(interaction.guild);
       } catch (error) {
