@@ -302,6 +302,17 @@ class MemberLifecycleService {
   }
 
   async resolveWelcomeChannel(guild) {
+    const saved = await this.pool.query(
+      "SELECT channel_id,enabled FROM guild_welcome_settings WHERE guild_id=$1",
+      [guild.id]
+    ).catch(() => ({ rows: [] }));
+    if (saved.rows[0]) {
+      if (!saved.rows[0].enabled) return null;
+      if (saved.rows[0].channel_id) {
+        const channel = await guild.channels.fetch(saved.rows[0].channel_id).catch(() => null);
+        if (channel?.guildId === guild.id && channel.isTextBased?.()) return channel;
+      }
+    }
     if (guild.id === this.coopftGuildId && this.coopftCommunity) {
       const id = await this.coopftCommunity.getResource(guild.id, "channel:welcome").catch(() => null);
       if (id) {
@@ -315,6 +326,32 @@ class MemberLifecycleService {
       if (channel?.guildId === guild.id) return channel;
     }
     return guild.systemChannel || null;
+  }
+
+  async assignAutoroles(member) {
+    if (!member?.guild || !this.supportsGuild(member.guild.id)) return [];
+    const saved = await this.pool.query(
+      "SELECT role_ids FROM guild_autoroles WHERE guild_id=$1 AND enabled=TRUE",
+      [member.guild.id]
+    );
+    const ids = Array.isArray(saved.rows[0]?.role_ids) ? saved.rows[0].role_ids.map(String) : [];
+    if (!ids.length) return [];
+    const botMember = member.guild.members.me || await member.guild.members.fetchMe().catch(() => null);
+    if (!botMember?.permissions?.has?.(require("discord.js").PermissionFlagsBits.ManageRoles)) {
+      console.warn("[member-lifecycle] Autoroles are configured but the bot is missing Manage Roles in guild " + member.guild.id + ".");
+      return [];
+    }
+    const roles = [];
+    for (const id of [...new Set(ids)]) {
+      const role = member.guild.roles.cache.get(id) || await member.guild.roles.fetch(id).catch(() => null);
+      if (!role || role.id === member.guild.id || role.managed ||
+          role.position >= botMember.roles.highest.position ||
+          member.roles.cache.has(role.id)) continue;
+      roles.push(role);
+    }
+    if (!roles.length) return [];
+    await member.roles.add(roles, "Configured automatic join roles");
+    return roles;
   }
 
   buildJoinLogEmbed(member, snapshot, joinedAt) {
@@ -357,27 +394,63 @@ class MemberLifecycleService {
 
   async handleJoin(member) {
     if (!member?.guild || !this.supportsGuild(member.guild.id)) return false;
+    const autoRoles = await this.assignAutoroles(member).catch((error) => {
+      console.warn("[member-lifecycle] Autorole assignment failed:", error.message);
+      return [];
+    });
     const snapshot = await this.recordRoleSnapshot(member, member.id, "join");
     const joinedAt = asDate(member.joinedAt)?.toISOString() || new Date().toISOString();
     await this.writeAudit(member.guild.id, member.id, "member_joined", member.id, {
       joinedAt,
       accountCreatedAt: snapshot?.accountCreatedAt || null,
-      roles: snapshot?.roles || []
+      roles: snapshot?.roles || [],
+      autorolesAssigned: autoRoles.map((role) => ({ id: role.id, name: role.name }))
     });
     await this.sendMemberLog(member.guild, this.buildJoinLogEmbed(member, snapshot, joinedAt));
     const welcomeChannel = await this.resolveWelcomeChannel(member.guild);
     if (welcomeChannel?.guildId === member.guild.id && welcomeChannel.isTextBased?.() && typeof welcomeChannel.send === "function") {
       const createdAt = asDate(snapshot?.accountCreatedAt);
+      const publicChannels = [...(member.guild.channels.cache?.values?.() || [])]
+        .filter((channel) => channel?.isTextBased?.() && channel.guildId === member.guild.id &&
+          channel.permissionsFor?.(member)?.has?.(require("discord.js").PermissionFlagsBits.ViewChannel))
+        .sort((a, b) => (a.rawPosition || a.position || 0) - (b.rawPosition || b.position || 0));
+      const findChannel = (names) => publicChannels.find((channel) =>
+        names.includes(String(channel.name || "").toLowerCase().replace(/[^a-z0-9-]/g, ""))
+      );
+      const rulesChannel = findChannel(["rules", "server-rules", "read-me-first"]);
+      const introChannel = findChannel(["introductions", "introduction", "introduce-yourself", "introduce-yourself-here"]);
+      const startChannel = findChannel(["start-here", "getting-started", "welcome"]);
+      const nextSteps = [
+        rulesChannel ? "Read <#" + rulesChannel.id + ">" : null,
+        introChannel ? "Introduce yourself in <#" + introChannel.id + ">" : null,
+        startChannel && startChannel.id !== welcomeChannel.id ? "Explore <#" + startChannel.id + ">" : null
+      ].filter(Boolean);
       const welcome = new EmbedBuilder()
         .setColor(0x32956B)
-        .setTitle("WELCOME TO " + safeDisplay(member.guild.name).toUpperCase())
-        .setDescription("A warm welcome to <@" + member.id + ">! Take a moment to read the rules and introduce yourself.")
+        .setAuthor({
+          name: "A NEW MEMBER HAS ARRIVED",
+          iconURL: member.guild.iconURL?.({ size: 128 }) || undefined
+        })
+        .setTitle("Welcome to " + safeDisplay(member.guild.name))
+        .setDescription("We're glad you're here, <@" + member.id + ">! Make yourself at home and meet the community.")
         .addFields(
           { name: "Member", value: "<@" + member.id + ">", inline: true },
-          { name: "Account age", value: createdAt ? formatDuration(Date.now() - createdAt.getTime()) : "Unknown", inline: true },
-          { name: "Member count", value: String(member.guild.memberCount || "—"), inline: true }
+          { name: "Member number", value: "#" + String(member.guild.memberCount || "—"), inline: true },
+          { name: "Account created", value: createdAt ? "<t:" + Math.floor(createdAt.getTime() / 1000) + ":R>" : "Unknown", inline: true },
+          {
+            name: "Getting started",
+            value: nextSteps.length ? nextSteps.join("\n") : "Take a look around the public channels and check the server guidelines.",
+            inline: false
+          },
+          {
+            name: "Roles assigned",
+            value: autoRoles.length ? autoRoles.map((role) => "<@&" + role.id + ">").join(", ") : "No automatic roles are configured.",
+            inline: false
+          }
         )
         .setTimestamp();
+      const avatar = member.displayAvatarURL?.({ size: 256 });
+      if (avatar) welcome.setThumbnail(avatar);
       await welcomeChannel.send({
         embeds: [welcome],
         allowedMentions: { users: [member.id] }
