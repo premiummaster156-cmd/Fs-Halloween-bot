@@ -221,6 +221,9 @@ test("onboarding setup enables Discord onboarding and preserves existing prompts
   assert.equal(saved.prompts[0].options[0].channels[0].id, existingChannel.id);
   assert.equal(saved.prompts[0].options[0].roles[0].id, role.id);
   assert.equal(saved.prompts[1].title, "What would you like to explore?");
+  assert.equal(typeof saved.prompts[1].id, "string", "generated onboarding prompt IDs must be JSON-safe strings");
+  assert.equal(typeof saved.prompts[1].options[0].id, "string", "generated onboarding option IDs must be JSON-safe strings");
+  assert.doesNotThrow(() => JSON.stringify(saved), "onboarding payload must not contain BigInt values");
   assert.equal(saved.prompts[1].singleSelect, false);
   assert.equal(saved.prompts[1].options.length, 3);
   assert.equal(saved.prompts[1].options[0].channels.length, 1);
