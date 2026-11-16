@@ -103,5 +103,6 @@ The CoopFT-only migration sequence is:
 - `0004_coopft_staff_applications.sql` — legacy operational application compatibility and notification cleanup.
 - `0005_coopft_operations.sql` — CoopFT support, ticket data and operational records.
 - `0006_coopft_developer_applications.sql` — adds the Developer recruitment key while preserving historical application records.
+- `0007_coopft_close_legacy_recruitment.sql` — withdraws pending applications for retired tracks while preserving them for audit.
 
 The migrations use the shared schema-migration ledger but never load the main Fukishōkai schema or modify player-economy tables.
