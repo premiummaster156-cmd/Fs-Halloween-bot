@@ -2060,6 +2060,16 @@ class CoopFTCommunityService {
     });
   }
 
+  canManageApplications(member, guild) {
+    if (!member || !guild) return false;
+    if (member.id === guild.ownerId) return true;
+    if (!member.roles?.cache) return false;
+    return [...APPLICATION_MANAGER_KEYS].some((key) => {
+      const role = this.roles.get(key);
+      return role && member.roles.cache.has(role.id);
+    });
+  }
+
   getStaffRankKey(member) {
     return STAFF_RANKS.find((spec) => {
       const role = this.roles.get(spec.key);
