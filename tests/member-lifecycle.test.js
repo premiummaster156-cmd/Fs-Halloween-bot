@@ -94,10 +94,11 @@ test("join stores a role snapshot in the existing audit log table without a new 
 test("leave logs use the latest saved role snapshot and calculate server tenure", async () => {
   const sentPayloads = [];
   const inserted = [];
+  const joinedAt = new Date(Date.now() - 2.5 * 24 * 60 * 60 * 1000);
   const snapshot = {
     source: "audit_role_update",
     roles: [{ id: "role-7", name: "Senior Moderator", position: 7 }],
-    joinedAt: "2026-11-13T10:00:00.000Z",
+    joinedAt: joinedAt.toISOString(),
     accountCreatedAt: "2024-01-01T00:00:00.000Z"
   };
   const pool = {
@@ -136,7 +137,7 @@ test("leave logs use the latest saved role snapshot and calculate server tenure"
   assert.match(embed.title, /MEMBER LEFT/);
   const fields = Object.fromEntries(embed.fields.map((field) => [field.name, field.value]));
   assert.match(fields["Previous roles"], /Senior Moderator/);
-  assert.match(fields["Joined server"], /<t:1794564000:F>/);
+  assert.match(fields["Joined server"], new RegExp("<t:" + Math.floor(joinedAt.getTime() / 1000) + ":F>"));
   assert.match(fields["Time in server"], /2d/);
   assert.equal(inserted.length, 1);
   assert.match(inserted[0].sql, /INSERT INTO audit_logs/);
