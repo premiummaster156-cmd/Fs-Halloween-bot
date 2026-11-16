@@ -77,6 +77,76 @@ test("autorole and onboarding configuration commands reject non-owners", async (
   await assert.rejects(commands.get("welcome-config").execute(interaction, {}), /Only the actual server owner/);
 });
 
+test("onboarding setup enables Discord onboarding and preserves existing prompts", async () => {
+  const commands = loadCoopFTCommands();
+  const everyone = { id: "guild-1" };
+  const channels = Array.from({ length: 10 }, (_, index) => ({
+    id: "channel-" + index,
+    guildId: "guild-1",
+    name: ["rules", "announcements", "general", "introductions", "help", "media", "events", "gaming", "art", "music"][index],
+    type: ChannelType.GuildText,
+    nsfw: false,
+    rawPosition: index,
+    permissionsFor: () => ({ has: () => true })
+  }));
+  const role = { id: "role-1", name: "Existing role" };
+  const existingChannel = channels[0];
+  const existingPrompt = {
+    id: "existing-prompt",
+    type: 0,
+    title: "Existing question",
+    singleSelect: true,
+    required: true,
+    inOnboarding: true,
+    options: new Map([["existing-option", {
+      id: "existing-option",
+      title: "Existing option",
+      description: "Keep this",
+      emoji: null,
+      channels: new Map([[existingChannel.id, existingChannel]]),
+      roles: new Map([[role.id, role]])
+    }]])
+  };
+  let saved;
+  const bot = {
+    permissions: { has: () => true },
+    roles: { highest: { position: 20 } }
+  };
+  const guild = {
+    id: "guild-1",
+    ownerId: "owner-1",
+    features: ["COMMUNITY"],
+    roles: { everyone },
+    members: { me: bot },
+    channels: { fetch: async () => new Map(channels.map(channel => [channel.id, channel])) },
+    fetch: async function () { return this; },
+    fetchOnboarding: async () => ({ prompts: new Map([[existingPrompt.id, existingPrompt]]) }),
+    editOnboarding: async payload => { saved = payload; }
+  };
+  const interaction = {
+    guild,
+    guildId: guild.id,
+    user: { id: guild.ownerId },
+    options: { getString: () => undefined },
+    reply: async payload => payload
+  };
+
+  await commands.get("onboarding-setup").execute(interaction, {});
+  assert.equal(saved.enabled, true);
+  assert.equal(saved.mode, 0);
+  assert.equal(saved.defaultChannels.length, 7);
+  assert.equal(saved.prompts.length, 2);
+  assert.equal(saved.prompts[0].title, "Existing question");
+  assert.equal(saved.prompts[0].singleSelect, true);
+  assert.equal(saved.prompts[0].options[0].channels[0].id, existingChannel.id);
+  assert.equal(saved.prompts[0].options[0].roles[0].id, role.id);
+  assert.equal(saved.prompts[1].title, "What would you like to explore?");
+  assert.equal(saved.prompts[1].singleSelect, false);
+  assert.equal(saved.prompts[1].options.length, 3);
+  assert.equal(saved.prompts[1].options[0].channels.length, 1);
+  assert.deepEqual(saved.prompts[1].options[0].roles, []);
+});
+
 test("CoopFT applications contain two moderation tracks and one specialist Developer track", () => {
   assert.equal(STAFF_RANKS.length, 17);
   assert.equal(APPLICATION_RANKS.length, 3);
