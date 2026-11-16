@@ -167,7 +167,15 @@ if(n==="onboarding-setup"){
  ]);
  const existingPrompts=[...(current.prompts?.values?.()||[])];
  const oldPrompts=existingPrompts
-  .filter(item=>!generatedTitles.has(item.title))
+  // Remove legacy CoopFT-generated interest prompts even when their wording
+  // was manually shortened or changed (for example, "What are ur interests?").
+  .filter(item=>{
+   const title=String(item.title||"").trim().toLowerCase();
+   const normalized=title.replace(/[^a-z0-9]+/g," ").trim();
+   const isLegacyInterestPrompt=/\\binterest(?:s|ed)?\\b/.test(normalized) ||
+    /\\btopics?\\b/.test(normalized) && /\\bwhat|which|explore|like\\b/.test(normalized);
+   return !generatedTitles.has(item.title) && !isLegacyInterestPrompt;
+  })
   .map(item=>({
    id:String(item.id),
    type:Number(item.type),
