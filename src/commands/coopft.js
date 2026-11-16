@@ -1,5 +1,6 @@
 "use strict";
 const {SlashCommandBuilder,EmbedBuilder,PermissionFlagsBits:P,MessageFlags,ChannelType,SnowflakeUtil}=require("discord.js");
+const { INTEREST_ROLES, PING_ROLES } = require("../config/coopft-design");
 const names="coopft-setup coopft-roles-sync coopft-channels-sync coopft-channel-decorate coopft-panel coopft-ticket-config announce poll event-create event-list event-cancel slowmode lock unlock purge timeout untimeout kick ban unban warn warnings clear-warnings case note notes member-note-remove role-add role-remove nickname reset-nickname channel-topic channel-rename ticket-cooldown ticket-claim ticket-close ticket-add ticket-remove ticket-rename ticket-priority ticket-info ticket-list suggestion suggestion-review autorole welcome-config onboarding-setup coopft-public-access".split(" ");
 const desc="Create missing CoopFT resources without overwriting custom settings|Explicitly apply configured CoopFT role names, colors, permissions and order|Explicitly apply configured CoopFT channel names, categories and permissions|Apply decorative names to default CoopFT channels only|Publish or move a CoopFT panel|Configure ticket category and transcript archive|Publish announcement|Create poll|Schedule event|List events|Cancel event|Set slowmode|Lock channel|Unlock channel|Purge messages|Timeout member|Remove timeout|Kick member|Ban member|Unban user|Issue warning|View warnings|Clear warnings|Moderation case|Add staff note|View staff notes|Remove staff note|Assign role|Remove role|Set nickname|Reset nickname|Edit channel topic|Rename channel|Apply a manual seven-day cooldown to one request type|Claim ticket|Close ticket|Add ticket member|Remove ticket member|Rename ticket|Set ticket priority|Ticket details|List tickets|Submit suggestion|Review suggestion|Configure automatic join roles (server owner only)|Set the welcome channel or disable welcome messages (server owner only)|Build and enable Discord onboarding from public channels (server owner only)|Restore public channel visibility and message history for members".split("|");
 const staff=(i,s)=>{if(!s.coopft.isStaff(i.member))throw Error("CoopFT staff only.");};
@@ -91,44 +92,131 @@ if(n==="onboarding-setup"){
  if(defaultChannels.length<7)defaultChannels.push(...visible.filter(channel=>!defaultChannels.some(item=>item.id===channel.id)).slice(0,7-defaultChannels.length));
  const extraChannels=visible.filter(channel=>!defaultChannels.some(item=>item.id===channel.id)).slice(0,25);
  if(extraChannels.length<2)throw Error("Create at least two additional public text channels beyond the seven default channels so the bot can build useful onboarding choices.");
- const promptTitle="What would you like to explore?";
- const prompt={
+
+ const interestDescriptions={
+  interest_gaming:"Find people to play with and talk about games",
+  interest_programming:"Discuss software, bots, coding and technology",
+  interest_art:"Share artwork, graphics and creative projects",
+  interest_music:"Talk about music, artists and playlists",
+  interest_anime:"Discuss anime, manga and related media",
+  interest_technology:"Explore tech, devices and new ideas",
+  interest_voice:"Join voice chats and community conversations",
+  interest_events:"Take part in community activities and events"
+ };
+ const pingDescriptions={
+  ping_announcements:"Important server news and official notices",
+  ping_events:"Community events, activities and schedules",
+  ping_giveaways:"Giveaways, prizes and special drops",
+  ping_community:"General community news and updates",
+  ping_game_nights:"Game sessions and group activities",
+  ping_bot_updates:"Bot releases, fixes and feature announcements",
+  ping_lfg:"Find members to play or work with",
+  ping_voice:"Voice sessions and live conversations"
+ };
+ const resolveRole=async spec=>{
+  let role=s.coopft.roles.get(spec.key)||null;
+  if(!role){
+   const savedId=await s.coopft.getResource(id,"role:"+spec.key);
+   role=savedId?await g.roles.fetch(savedId).catch(()=>null):null;
+   if(role)s.coopft.roles.set(spec.key,role);
+  }
+  if(!role)throw Error("The configured role **"+spec.name+"** is missing. Run the CoopFT setup command before creating onboarding.");
+  return role;
+ };
+ const makePrompt=(title,options)=>({
   id:SnowflakeUtil.generate().toString(),
   type:0,
-  title:promptTitle,
+  title,
   singleSelect:false,
   required:false,
   inOnboarding:true,
-  options:extraChannels.map(channel=>({
+  options:options.map(option=>({
    id:SnowflakeUtil.generate().toString(),
-   title:("#"+channel.name).slice(0,100),
-   description:("Add "+channel.name+" to your channel list.").slice(0,100),
-   channels:[channel.id],
-   roles:[]
+   title:String(option.title).slice(0,100),
+   description:String(option.description||"").slice(0,100),
+   emoji:option.emoji||undefined,
+   channels:(option.channels||[]).map(String),
+   roles:(option.roles||[]).map(String)
   }))
- };
+ });
+ const interestOptions=[];
+ for(const spec of INTEREST_ROLES){
+  const role=await resolveRole(spec);
+  interestOptions.push({
+   title:spec.name,
+   description:interestDescriptions[spec.key]||"Choose this topic to personalize your community experience",
+   emoji:spec.icon,
+   roles:[String(role.id)]
+  });
+ }
+ const pingOptions=[];
+ for(const spec of PING_ROLES){
+  const role=await resolveRole(spec);
+  pingOptions.push({
+   title:spec.name.replace(/\\s+Ping$/i,""),
+   description:pingDescriptions[spec.key]||"Choose whether you want these notifications",
+   emoji:spec.icon,
+   roles:[String(role.id)]
+  });
+ }
+ const channelEmojis=["👋","📜","📣","💬","🎨","✨","🧩","💻","🤝","🛠️","📌","🎟️"];
+ const channelOptions=extraChannels.map((channel,index)=>{
+  const cleanName=String(channel.name||"channel")
+   .replace(/^[^・]+・/u,"")
+   .replace(/-/g," ")
+   .replace(/\\s+/g," ")
+   .trim();
+  const title=cleanName.replace(/\\b\\w/g,letter=>letter.toUpperCase())||"Community channel";
+  return {
+   title,
+   description:"Add #"+cleanName+" to your channel list",
+   emoji:channelEmojis[index%channelEmojis.length],
+   channels:[String(channel.id)]
+  };
+ });
+
+ const generatedTitles=new Set([
+  "What would you like to explore?",
+  "What topics are you interested in?",
+  "Which updates would you like to receive?",
+  "Which spaces should we add to your channel list?"
+ ]);
  const existingPrompts=[...(current.prompts?.values?.()||[])];
  const oldPrompts=existingPrompts
-  .filter(item=>item.title!==promptTitle)
+  .filter(item=>!generatedTitles.has(item.title))
   .map(item=>({
-   id:item.id,
-   type:item.type,
-   title:item.title,
-   singleSelect:item.singleSelect,
-   required:item.required,
-   inOnboarding:item.inOnboarding,
-   options:[...(item.options?.values?.()||[])].map(option=>({
-    id:option.id,
-    title:option.title,
-    description:option.description,
-    emoji:option.emoji?.identifier || option.emoji?.name || undefined,
-    channels:[...(option.channels?.keys?.()||[])],
-    roles:[...(option.roles?.keys?.()||[])]
-   }))
+   id:String(item.id),
+   type:Number(item.type),
+   title:String(item.title),
+   singleSelect:Boolean(item.singleSelect),
+   required:Boolean(item.required),
+   inOnboarding:Boolean(item.inOnboarding),
+   options:[...(item.options?.values?.()||[])].map(option=>{
+    const currentEmoji=option.emoji;
+    let emoji;
+    if(typeof currentEmoji==="string")emoji=currentEmoji;
+    else if(currentEmoji?.id&&currentEmoji?.name){
+     emoji="<"+(currentEmoji.animated?"a":"")+":"+String(currentEmoji.name)+":"+String(currentEmoji.id)+">";
+    } else if(typeof currentEmoji?.name==="string")emoji=currentEmoji.name;
+    return {
+     id:String(option.id),
+     title:String(option.title),
+     description:option.description==null?null:String(option.description),
+     emoji,
+     channels:[...(option.channels?.keys?.()||[])].map(String),
+     roles:[...(option.roles?.keys?.()||[])].map(String)
+    };
+   })
   }));
- const prompts=oldPrompts;
- if(prompts.length>=5)throw Error("This server already has 5 onboarding questions. Remove an existing question in Server Settings, then rerun /onboarding-setup so the bot can add its generated question.");
- prompts.push(prompt);
+ const prompts=[
+  ...oldPrompts,
+  makePrompt("What topics are you interested in?",interestOptions),
+  makePrompt("Which updates would you like to receive?",pingOptions),
+  makePrompt("Which spaces should we add to your channel list?",channelOptions)
+ ];
+ if(prompts.length>5)throw Error("Discord allows up to 5 onboarding questions. There are "+oldPrompts.length+" existing custom questions; remove "+(prompts.length-5)+" or more in Server Settings, then rerun /onboarding-setup.");
+ const jsonSafe=JSON.stringify(prompts);
+ if(typeof jsonSafe!=="string")throw Error("Onboarding data could not be prepared safely. No onboarding settings were changed.");
  await g.editOnboarding({
   enabled:true,
   mode:0,
@@ -136,7 +224,7 @@ if(n==="onboarding-setup"){
   prompts,
   reason:"Server owner requested automatic community onboarding setup"
  });
- return say(i,"Discord onboarding is now enabled. I created one multi-select question, **"+promptTitle+"**, with "+extraChannels.length+" channel choices and selected 7 public default channels. Members can revisit their selections later in Channels & Roles.");
+ return say(i,"Discord onboarding is enabled with **3 interactive questions**: community interests, notification preferences and channel shortcuts. It includes "+interestOptions.length+" interest roles, "+pingOptions.length+" notification roles and "+channelOptions.length+" channel choices. Members can update their selections later in Channels & Roles.");
 }
 
 if(n==="coopft-public-access"){
