@@ -865,6 +865,63 @@ class CoopFTCommunityService {
     return { channel, created };
   }
 
+  async repairPublicChannelAccess(guild) {
+    this.assertCoopFTGuild(guild, "restore public member channel visibility and history access");
+    const botMember = guild.members.me || await guild.members.fetchMe().catch(() => null);
+    if (!botMember?.permissions?.has(PermissionFlagsBits.ManageChannels) &&
+        !botMember?.permissions?.has(PermissionFlagsBits.Administrator)) {
+      throw new Error("The bot needs Manage Channels or Administrator to repair public channel permissions.");
+    }
+
+    let communityRole = this.roles.get("community_member") || null;
+    if (!communityRole) {
+      const roleId = await this.getResource(guild.id, "role:community_member");
+      communityRole = roleId ? await guild.roles.fetch(roleId).catch(() => null) : null;
+      if (communityRole) this.roles.set("community_member", communityRole);
+    }
+    const principals = [guild.roles.everyone, communityRole].filter(Boolean);
+    const access = {
+      ViewChannel: true,
+      ReadMessageHistory: true
+    };
+    const updated = [];
+    const missing = [];
+    const targets = [
+      ...Object.keys(CATEGORY_NAMES).map((key) => ({ key: "category:" + key, label: "category:" + key })),
+      ...PUBLIC_CHANNELS.map((spec) => ({ key: "channel:" + spec.key, label: spec.key }))
+    ];
+
+    for (const target of targets) {
+      const channelId = await this.getResource(guild.id, target.key);
+      const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
+      if (!channel || channel.guildId !== guild.id || !channel.permissionOverwrites?.edit) {
+        missing.push(target.label);
+        continue;
+      }
+      for (const principal of principals) {
+        await channel.permissionOverwrites.edit(
+          principal.id,
+          access,
+          "Restore public CoopFT View Channel and Read Message History access"
+        );
+      }
+      updated.push(target.label);
+    }
+
+    console.info("[coopft] Repaired public member visibility/history access:", {
+      categories: updated.filter((item) => item.startsWith("category:")).length,
+      channels: updated.filter((item) => !item.startsWith("category:")).length,
+      missing: missing.length
+    });
+    return {
+      updated,
+      missing,
+      categoriesUpdated: updated.filter((item) => item.startsWith("category:")).length,
+      channelsUpdated: updated.filter((item) => !item.startsWith("category:")).length,
+      principalsUpdated: principals.length
+    };
+  }
+
   async removeManagedChannel(guild, key, expectedName = null) {
     this.assertCoopFTGuild(guild, "remove a CoopFT-managed channel");
     const resourceKey = "channel:" + key;
@@ -1020,6 +1077,7 @@ class CoopFTCommunityService {
         }
       }
     }
+    const publicAccess = await this.repairPublicChannelAccess(guild);
     const assistantRole = this.roles.get("bot_coopft_assistant");
     if (assistantRole && !me.roles.cache.has(assistantRole.id) && assistantRole.position < me.roles.highest.position) {
       await me.roles.add(assistantRole, "Mark the CoopFT bot under the Bots role bracket").catch((error) =>
@@ -1174,7 +1232,7 @@ class CoopFTCommunityService {
     if (emojiResult.failed.length) console.warn("[coopft] Emoji fallbacks will be used for:", emojiResult.failed.join("; "));
     if (retiredRoles.retired.length) console.info("[coopft] Retired legacy CoopFT roles:", retiredRoles.retired.join(", "));
     if (retiredRoles.preserved.length) console.warn("[coopft] Legacy CoopFT roles were preserved for safety:", retiredRoles.preserved.join("; "));
-    return { ...counts, cleanup, emojiResult, retiredRoles };
+    return { ...counts, cleanup, emojiResult, retiredRoles, publicAccess };
   }
 
   async sanitizeApplicationReviewEmbeds(guild, channel) {
