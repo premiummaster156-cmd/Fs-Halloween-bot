@@ -104,5 +104,6 @@ The CoopFT-only migration sequence is:
 - `0005_coopft_operations.sql` — CoopFT support, ticket data and operational records.
 - `0006_coopft_developer_applications.sql` — adds the Developer recruitment key while preserving historical application records.
 - `0007_coopft_close_legacy_recruitment.sql` — withdraws pending applications for retired tracks while preserving them for audit.
+- `0008_coopft_custom_bot_commission_ticket.sql` — permits the `custom_bot_request` ticket type while preserving older ticket values.
 
 The migrations use the shared schema-migration ledger but never load the main Fukishōkai schema or modify player-economy tables.
