@@ -103,7 +103,7 @@ if(n==="onboarding-setup"){
    id:SnowflakeUtil.generate(),
    title:("#"+channel.name).slice(0,100),
    description:("Add "+channel.name+" to your channel list.").slice(0,100),
-   channels:[channel],
+   channels:[channel.id],
    roles:[]
   }))
  };
@@ -121,9 +121,9 @@ if(n==="onboarding-setup"){
     id:option.id,
     title:option.title,
     description:option.description,
-    emoji:option.emoji||undefined,
-    channels:[...(option.channels?.values?.()||[])],
-    roles:[...(option.roles?.values?.()||[])]
+    emoji:option.emoji?.identifier || option.emoji?.name || undefined,
+    channels:[...(option.channels?.keys?.()||[])],
+    roles:[...(option.roles?.keys?.()||[])]
    }))
   }));
  const prompts=oldPrompts;
