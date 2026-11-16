@@ -6,6 +6,7 @@ const { PermissionFlagsBits, PermissionsBitField, ChannelType } = require("disco
 const { loadCoopFTCommands } = require("../src/commands/coopft");
 const {
   STAFF_RANKS, APPLICATION_RANKS, EMOJI_SPRITE, CATEGORY_NAMES, PUBLIC_CHANNELS, PRIVATE_CHANNELS,
+  INTEREST_ROLES, PING_ROLES,
   OWNER_PERMISSIONS, HIGH_RANK_SUPERVISOR_PERMISSIONS, ALL_PERMISSION_BITS
 } = require("../src/config/coopft-design");
 const {
@@ -201,7 +202,11 @@ test("onboarding setup enables Discord onboarding and preserves existing prompts
     reply: async payload => payload
   };
 
-  await commands.get("onboarding-setup").execute(interaction, {});
+  const configuredRoles = new Map([...INTEREST_ROLES, ...PING_ROLES].map((spec, index) => [
+    spec.key, { id: "configured-role-" + index, name: spec.name }
+  ]));
+  const coopft = { roles: configuredRoles, getResource: async () => null };
+  await commands.get("onboarding-setup").execute(interaction, { coopft });
   assert.equal(saved.enabled, true);
   assert.equal(saved.mode, 0);
   assert.equal(saved.defaultChannels.length, 7);
@@ -218,16 +223,33 @@ test("onboarding setup enables Discord onboarding and preserves existing prompts
   assert.equal(saved.prompts.length, 2);
   assert.equal(saved.prompts[0].title, "Existing question");
   assert.equal(saved.prompts[0].singleSelect, true);
-  assert.equal(saved.prompts[0].options[0].channels[0].id, existingChannel.id);
-  assert.equal(saved.prompts[0].options[0].roles[0].id, role.id);
-  assert.equal(saved.prompts[1].title, "What would you like to explore?");
-  assert.equal(typeof saved.prompts[1].id, "string", "generated onboarding prompt IDs must be JSON-safe strings");
-  assert.equal(typeof saved.prompts[1].options[0].id, "string", "generated onboarding option IDs must be JSON-safe strings");
+  assert.equal(saved.prompts[0].options[0].channels[0], existingChannel.id);
+  assert.equal(saved.prompts[0].options[0].roles[0], role.id);
+  assert.equal(saved.prompts.length, 4);
+  assert.equal(saved.prompts[1].title, "What topics are you interested in?");
+  assert.equal(saved.prompts[2].title, "Which updates would you like to receive?");
+  assert.equal(saved.prompts[3].title, "Which spaces should we add to your channel list?");
+  for (const prompt of saved.prompts.slice(1)) {
+    assert.equal(prompt.singleSelect, false, prompt.title + " should allow multiple selections");
+    assert.equal(prompt.required, false);
+    assert.equal(prompt.inOnboarding, true);
+    assert.equal(typeof prompt.id, "string", "generated onboarding prompt IDs must be JSON-safe strings");
+    assert.ok(prompt.options.length >= 2);
+    for (const option of prompt.options) {
+      assert.equal(typeof option.id, "string", "generated onboarding option IDs must be JSON-safe strings");
+      assert.ok(option.emoji, "onboarding choices should have a visual emoji");
+      assert.ok(option.roles.every(id => typeof id === "string"));
+      assert.ok(option.channels.every(id => typeof id === "string"));
+    }
+  }
+  assert.equal(saved.prompts[1].options.length, INTEREST_ROLES.length);
+  assert.equal(saved.prompts[2].options.length, PING_ROLES.length);
+  assert.equal(saved.prompts[1].options[0].roles.length, 1);
+  assert.equal(saved.prompts[2].options[0].roles.length, 1);
+  assert.equal(saved.prompts[3].options.length, 3);
+  assert.equal(saved.prompts[3].options[0].channels.length, 1);
+  assert.deepEqual(saved.prompts[3].options[0].roles, []);
   assert.doesNotThrow(() => JSON.stringify(saved), "onboarding payload must not contain BigInt values");
-  assert.equal(saved.prompts[1].singleSelect, false);
-  assert.equal(saved.prompts[1].options.length, 3);
-  assert.equal(saved.prompts[1].options[0].channels.length, 1);
-  assert.deepEqual(saved.prompts[1].options[0].roles, []);
 });
 
 test("CoopFT applications contain two moderation tracks and one specialist Developer track", () => {
