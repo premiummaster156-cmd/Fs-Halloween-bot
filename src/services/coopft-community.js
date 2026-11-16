@@ -1615,6 +1615,11 @@ class CoopFTCommunityService {
       await interaction.reply({ content: "Select one or more roles from this menu.", flags: MessageFlags.Ephemeral });
       return true;
     }
+    const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+    if (!member) {
+      await interaction.reply({ content: "I couldn't load your server member profile. Please try again.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
     const changed = [];
     for (const key of selected) {
       const spec = allowed.get(key);
@@ -1625,12 +1630,12 @@ class CoopFTCommunityService {
         if (role) this.roles.set(key, role);
       }
       if (!role || role.managed || role.id === interaction.guild.id) continue;
-      const hasRole = interaction.member.roles.cache.has(role.id);
+      const hasRole = member.roles.cache.has(role.id);
       if (action === "add" && !hasRole) {
-        await interaction.member.roles.add(role, "Member self-selected " + spec.name);
+        await member.roles.add(role, "Member self-selected " + spec.name);
         changed.push(spec.name);
       } else if (action === "remove" && hasRole) {
-        await interaction.member.roles.remove(role, "Member opted out of " + spec.name);
+        await member.roles.remove(role, "Member opted out of " + spec.name);
         changed.push(spec.name);
       }
     }
