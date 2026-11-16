@@ -43,15 +43,15 @@ const STAFF_RANKS = Object.freeze([
   { key: "council", name: "Council", icon: "⚔️", emoji: "cf3d_shield", primary: 0x5542A5, secondary: 0x9B8CEB, permissions: permissionSet("ModerateMembers", "ManageMessages"), permissionSummary: "Can timeout members and moderate messages.", description: "Provides moderation support and helps maintain consistent community standards." },
   { key: "senior_moderator", name: "Senior Moderator", icon: "🌟", emoji: "cf3d_spark", primary: 0xD3A33B, secondary: 0xF5D77C, permissions: permissionSet("ModerateMembers", "ManageMessages", "ManageThreads"), permissionSummary: "Can timeout members, moderate messages and manage threads.", description: "Handles escalated reports, mentors moderators, and applies server rules consistently." },
   { key: "moderator", name: "Moderator", icon: "🔱", emoji: "cf3d_flame", primary: 0xA52A20, secondary: 0xE45A48, permissions: permissionSet("ModerateMembers", "ManageMessages"), permissionSummary: "Can timeout members and moderate messages.", description: "Keeps conversations safe and welcoming, responds to reports, and documents moderation actions." },
-  { key: "junior_moderator", name: "Junior Moderator", icon: "🌿", emoji: "cf3d_leaf", primary: 0x269B69, secondary: 0x76D8A7, permissions: permissionSet("ManageMessages", "CreatePublicThreads"), permissionSummary: "Can moderate messages and create public threads; cannot kick or timeout members.", description: "Learns the moderation process, assists members, and handles approved entry-level duties." }
+  { key: "junior_moderator", name: "Junior Moderator", icon: "🌿", emoji: "cf3d_leaf", primary: 0x269B69, secondary: 0x76D8A7, permissions: permissionSet("ManageMessages", "CreatePublicThreads"), permissionSummary: "Can moderate messages and create public threads; cannot kick or timeout members.", description: "Learns the moderation process, assists members, and handles approved entry-level duties." },
+  { key: "developer", name: "Developer", icon: "💻", emoji: "cf3d_developer", primary: 0x397C94, secondary: 0x73C2D7, permissions: 0n, permissionSummary: "No moderation or server-administration permissions. Handles approved custom bot projects and technical support.", description: "Builds and maintains custom Discord bots requested by members, follows the approved project scope, and documents tested releases." }
 ]);
 
 // Applications are limited to operational staff ranks. Executive and high-rank
 // appointments remain leadership decisions and cannot be self-applied for.
-const APPLICATION_RANK_KEYS = new Set([
-  "staff_supervisor", "supreme_council", "senate", "head_moderator",
-  "council", "senior_moderator", "moderator", "junior_moderator"
-]);
+// Only the two moderator entry points and the Developer specialist role accept applications.
+const APPLICATION_RANK_KEYS = new Set(["junior_moderator", "moderator", "developer"]);
+const OWNER_RANK_KEYS = new Set(["owner", "co_owner", "monarch"]);
 const APPLICATION_RANKS = Object.freeze(
   STAFF_RANKS.filter((role) => APPLICATION_RANK_KEYS.has(role.key))
 );
@@ -117,7 +117,7 @@ const ROLE_LAYOUT = Object.freeze([
   { bracket: "owner_rank", roles: ["owner", "co_owner", "monarch"] },
   { bracket: "high_rank", roles: ["high_rank_supervisor", "apex", "right_wing", "left_wing", "halo", "overseer"] },
   { bracket: "low_rank", roles: ["staff_supervisor", "supreme_council", "senate", "head_moderator"] },
-  { bracket: "mod_roles", roles: ["council", "senior_moderator", "moderator", "junior_moderator"] },
+  { bracket: "mod_roles", roles: ["council", "senior_moderator", "moderator", "junior_moderator", "developer"] },
   { bracket: "member_roles", roles: MEMBER_ROLES.map((role) => role.key) },
   { bracket: "interest_roles", roles: INTEREST_ROLES.map((role) => role.key) },
   { bracket: "ping_roles", roles: PING_ROLES.map((role) => role.key) },
@@ -165,6 +165,6 @@ const PRIVATE_CHANNELS = Object.freeze([
 ]);
 
 module.exports = {
-  STAFF_RANKS, APPLICATION_RANKS, EMOJI_SPRITE, ROLE_BRACKETS, BOT_ROLES, MEMBER_ROLES, INTEREST_ROLES, PING_ROLES, ROLE_LAYOUT,
+  STAFF_RANKS, APPLICATION_RANKS, OWNER_RANK_KEYS, EMOJI_SPRITE, ROLE_BRACKETS, BOT_ROLES, MEMBER_ROLES, INTEREST_ROLES, PING_ROLES, ROLE_LAYOUT,
   CATEGORY_NAMES, PUBLIC_CHANNELS, PRIVATE_CHANNELS, OWNER_PERMISSIONS, HIGH_RANK_SUPERVISOR_PERMISSIONS, ALL_PERMISSION_BITS
 };
