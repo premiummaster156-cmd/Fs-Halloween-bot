@@ -9,7 +9,7 @@ const runtimeLogger = installConsoleFileLogging();
 installProcessErrorLogging(runtimeLogger);
 const memoryMonitor = startMemoryMonitor(runtimeLogger);
 
-const { Client, Events, MessageFlags, AuditLogEvent, MessageType, PermissionFlagsBits } = require("discord.js");
+const { Client, Events, MessageFlags, AuditLogEvent, MessageType, SystemChannelFlags, PermissionFlagsBits } = require("discord.js");
 const { getGatewayIntents } = require("./config/gateway-intents");
 const { DomainError } = require("./utils/core");
 const settings = require("./config/settings");
@@ -218,7 +218,6 @@ async function start() {
   console.log("[workspace] Restored " + restoredCommandFiles + " JavaScript command file(s).");
   client.services = {
     pool, balancing, economy, inventory, combat, guildSettings, security, raidMonitor, serverBoosters, customCommands,
-    coopft: coopftCommunity,
     memberLifecycle,
     partyGames: new PartyGameService(pool, economy),
     trades: new TradeService(pool),
@@ -272,6 +271,18 @@ async function start() {
     if (fukishokaiGuildId) {
       const fsGuild = ready.guilds.cache.get(fukishokaiGuildId);
       if (fsGuild) {
+        // Suppress Discord's native boost notice in Fukishōkai's system channel.
+        // This does not change CoopFT's server notification settings.
+        try {
+          const flags = fsGuild.systemChannelFlags;
+          if (!flags.has(SystemChannelFlags.SuppressGuildBoostNotifications)) {
+            await fsGuild.edit({
+              systemChannelFlags: flags.add(SystemChannelFlags.SuppressGuildBoostNotifications)
+            }, "Disable server boost notifications in Fukishōkai");
+          }
+        } catch (error) {
+          console.warn("[fukishokai] Could not suppress native boost notices (Manage Server may be required):", error.message);
+        }
         const me = fsGuild.members.me;
         me?.setNickname("Fukishōkai", "Per-server Fukishōkai identity").catch((error) =>
           console.warn("[fukishokai] Could not set server nickname:", error.message)
@@ -303,17 +314,19 @@ async function start() {
   });
 
   client.on(Events.GuildMemberAdd, (member) => {
-    if (![fukishokaiGuildId, coopftGuildId].filter(Boolean).includes(member.guild.id)) return;
-    memberLifecycle.handleJoin(member).then(async () => {
-      if (member.guild.id === coopftGuildId) {
-        await coopftCommunity.refreshStaffDirectory(member.guild);
-      }
-    }).catch((error) =>
-      console.error("[member-lifecycle] Could not process member join:", error.message)
-    );
+    // Member lifecycle, welcome embeds and autoroles belong exclusively to CoopFT.
+    // Fukishōkai only runs its own anti-raid join monitor here.
+    if (member.guild.id === coopftGuildId) {
+      memberLifecycle.handleJoin(member).then(() =>
+        coopftCommunity.refreshStaffDirectory(member.guild)
+      ).catch((error) =>
+        console.error("[coopft] Could not process CoopFT member join:", error.message)
+      );
+      return;
+    }
     if (member.guild.id === fukishokaiGuildId) {
       raidMonitor.handleMemberJoin(member, client).catch((error) =>
-        console.error("[raid-monitor] Could not process member join:", error.message)
+        console.error("[raid-monitor] Could not process Fukishōkai member join:", error.message)
       );
     }
   });
@@ -329,15 +342,14 @@ async function start() {
   });
 
   client.on(Events.GuildMemberRemove, (member) => {
-    if (![fukishokaiGuildId, coopftGuildId].filter(Boolean).includes(member.guild.id)) return;
+    // Leave logs and directory updates are CoopFT-only; never emit them in Fukishōkai.
+    if (member.guild.id !== coopftGuildId) return;
     memberLifecycle.handleLeave(member).catch((error) =>
-      console.error("[member-lifecycle] Could not process member departure:", error.message)
+      console.error("[coopft] Could not process CoopFT member departure:", error.message)
     );
-    if (member.guild.id === coopftGuildId) {
-      coopftCommunity.handleMemberLeave(member).catch((error) =>
-        console.warn("[coopft] Could not update staff directory after member departure:", error.message)
-      );
-    }
+    coopftCommunity.handleMemberLeave(member).catch((error) =>
+      console.warn("[coopft] Could not update staff directory after member departure:", error.message)
+    );
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
@@ -609,22 +621,9 @@ async function start() {
   client.on(Events.MessageCreate, async (message) => {
     if (!message.guildId || message.guildId !== fukishokaiGuildId) return;
 
-    // Discord's GUILD_BOOST system message records the member who performed a boost.
-    // The unique message ID prevents retries or duplicate gateway delivery from granting twice.
-    if (message.type === MessageType.GuildBoost) {
-      const reward = await serverBoosters.recordBoostMessage(message).catch((error) => {
-        console.error("[boosters] Could not record personal boost:", error.message);
-        return null;
-      });
-      if (reward?.granted && reward.item) {
-        await message.channel.send({
-          content: "🌟 <@" + message.author.id + "> earned **" + reward.item.name +
-            "** for personal boost #" + reward.personalBoostCount + "! It was added to your inventory and equipped automatically. Upgrade it from **/menu → Gear**.",
-          allowedMentions: { users: [message.author.id] }
-        }).catch((error) => console.warn("[boosters] Could not announce booster reward:", error.message));
-      }
-      return;
-    }
+    // Server boost notifications/reward announcements are disabled for Fukishōkai.
+    // Ignore Discord's native boost system messages instead of turning them into game activity.
+    if (message.type === MessageType.GuildBoost) return;
 
     if (message.author.bot || message.webhookId) return;
     const roleIds = message.member?.roles?.cache
