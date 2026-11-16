@@ -1108,7 +1108,7 @@ class CoopFTCommunityService {
     }
   }
 
-    async buildRoleGuideEmbed(guild) {
+  async buildRoleGuideEmbed(guild) {
     this.assertCoopFTGuild(guild, "build the CoopFT role guide");
     const embed = new EmbedBuilder()
       .setColor(0x344E83)
@@ -1819,7 +1819,7 @@ class CoopFTCommunityService {
     await this.postStaffUpdate(member.guild, "<@" + member.id + "> left the server. Their staff directory entry has been set inactive.");
   }
 
-    buildStaffBanner() {
+  buildStaffBanner() {
     const { createCanvas } = require("@napi-rs/canvas");
     const canvas = createCanvas(1200, 340);
     const ctx = canvas.getContext("2d");
