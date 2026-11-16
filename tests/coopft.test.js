@@ -6,7 +6,7 @@ const { PermissionFlagsBits, PermissionsBitField, ChannelType } = require("disco
 const { loadCoopFTCommands } = require("../src/commands/coopft");
 const {
   STAFF_RANKS, APPLICATION_RANKS, EMOJI_SPRITE, CATEGORY_NAMES, PUBLIC_CHANNELS, PRIVATE_CHANNELS,
-  INTEREST_ROLES, PING_ROLES,
+  PING_ROLES,
   OWNER_PERMISSIONS, HIGH_RANK_SUPERVISOR_PERMISSIONS, ALL_PERMISSION_BITS
 } = require("../src/config/coopft-design");
 const {
@@ -214,7 +214,7 @@ test("onboarding setup enables Discord onboarding and preserves existing prompts
     reply: async payload => payload
   };
 
-  const configuredRoles = new Map([...INTEREST_ROLES, ...PING_ROLES].map((spec, index) => [
+  const configuredRoles = new Map(PING_ROLES.map((spec, index) => [
     spec.key, { id: "configured-role-" + index, name: spec.name }
   ]));
   const coopft = { roles: configuredRoles, getResource: async () => null };
@@ -240,8 +240,9 @@ test("onboarding setup enables Discord onboarding and preserves existing prompts
   assert.deepEqual(saved.prompts.slice(0, 3).map(prompt => prompt.title), [
     "Existing question", "Region preference", "Member level"
   ]);
-  assert.equal(saved.prompts[3].title, "What are you interested in and what updates do you want?");
+  assert.equal(saved.prompts[3].title, "Which updates would you like to receive?");
   assert.equal(saved.prompts[4].title, "Which spaces should we add to your channel list?");
+  assert.equal(saved.prompts.some(prompt => /interest|topic/i.test(prompt.title)), false, "the interests question must not be present");
   for (const prompt of saved.prompts.slice(3)) {
     assert.equal(prompt.singleSelect, false, prompt.title + " should allow multiple selections");
     assert.equal(prompt.required, false);
@@ -255,9 +256,8 @@ test("onboarding setup enables Discord onboarding and preserves existing prompts
       assert.ok(option.channels.every(id => typeof id === "string"));
     }
   }
-  assert.equal(saved.prompts[3].options.length, INTEREST_ROLES.length + PING_ROLES.length);
+  assert.equal(saved.prompts[3].options.length, PING_ROLES.length);
   assert.equal(saved.prompts[3].options[0].roles.length, 1);
-  assert.equal(saved.prompts[3].options[INTEREST_ROLES.length].roles.length, 1);
   assert.equal(saved.prompts[4].options.length, 3);
   assert.equal(saved.prompts[4].options[0].channels.length, 1);
   assert.deepEqual(saved.prompts[4].options[0].roles, []);
