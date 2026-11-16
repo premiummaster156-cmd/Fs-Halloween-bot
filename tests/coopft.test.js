@@ -5,7 +5,7 @@ const assert = require("node:assert/strict");
 const { PermissionFlagsBits, PermissionsBitField } = require("discord.js");
 const { loadCoopFTCommands } = require("../src/commands/coopft");
 const {
-  STAFF_RANKS, HR_ROLES, APPLICATION_ROLES, EMOJI_SPRITE, CATEGORY_NAMES, PUBLIC_CHANNELS, PRIVATE_CHANNELS,
+  STAFF_RANKS, APPLICATION_RANKS, EMOJI_SPRITE, CATEGORY_NAMES, PUBLIC_CHANNELS, PRIVATE_CHANNELS,
   OWNER_PERMISSIONS, HIGH_RANK_SUPERVISOR_PERMISSIONS, ALL_PERMISSION_BITS
 } = require("../src/config/coopft-design");
 const {
@@ -37,28 +37,19 @@ test("CoopFT registers only its community commands", () => {
   assert.equal(commands.has("leaderboard"), false);
 });
 
-test("the CoopFT staff, HR and specialist application roles are distinct", () => {
+test("CoopFT exposes only operational staff ranks as application choices", () => {
   assert.equal(STAFF_RANKS.length, 17);
-  assert.equal(HR_ROLES.length, 5);
-  assert.equal(APPLICATION_ROLES.length, 5);
-  const allRoles = [...STAFF_RANKS, ...HR_ROLES, ...APPLICATION_ROLES];
-  const allKeys = allRoles.map((role) => role.key);
-  const allNames = allRoles.map((role) => role.name);
-  assert.equal(new Set(allKeys).size, 27);
-  assert.equal(new Set(allNames).size, 27);
-  for (const role of allRoles) {
-    assert.match(role.key, /^[a-z_]+$/);
-    assert.ok(Number.isInteger(role.primary));
-    assert.ok(Number.isInteger(role.secondary));
-    assert.ok(role.icon);
-    assert.ok(role.emoji);
-    assert.equal(typeof role.permissions, "bigint", role.name + " has an explicit permission bitfield");
-    assert.ok(role.permissionSummary, role.name + " has a human-readable permission summary");
-    if (STAFF_RANKS.includes(role) || HR_ROLES.includes(role)) {
-      assert.notEqual(role.permissions, 0n, role.name + " must have useful non-zero permissions");
-    } else {
-      assert.equal(role.permissions, 0n, role.name + " remains a permission-neutral specialist assignment");
-    }
+  assert.equal(APPLICATION_RANKS.length, 8);
+  assert.deepEqual(APPLICATION_RANKS.map((role) => role.key), [
+    "staff_supervisor", "supreme_council", "senate", "head_moderator",
+    "council", "senior_moderator", "moderator", "junior_moderator"
+  ]);
+  for (const role of APPLICATION_RANKS) {
+    assert.ok(STAFF_RANKS.includes(role), role.name + " must be an actual staff rank");
+    assert.notEqual(role.permissions, 0n, role.name + " must use its staff permission profile");
+  }
+  for (const key of ["owner", "co_owner", "monarch", "high_rank_supervisor", "apex", "right_wing", "left_wing", "halo", "overseer"]) {
+    assert.equal(APPLICATION_RANKS.some((role) => role.key === key), false, key + " is an appointment-only leadership rank");
   }
 });
 
@@ -82,14 +73,6 @@ test("CoopFT leadership permissions match the explicitly requested hierarchy", (
   )) {
     assert.notEqual(role.permissions, 0n, role.name + " receives a limited operational permission set");
     assert.equal(role.permissions & reserved, 0n, role.name + " cannot gain administrator/server/channel management");
-  }
-  for (const role of HR_ROLES) {
-    assert.notEqual(role.permissions, 0n, role.name + " receives recruitment permissions");
-    assert.equal(role.permissions & reserved, 0n, role.name + " cannot gain administrator/server/channel management");
-    assert.equal(role.permissions & PermissionFlagsBits.ManageRoles, 0n, role.name + " cannot manage server roles");
-  }
-  for (const role of APPLICATION_ROLES) {
-    assert.equal(role.permissions, 0n, role.name + " remains a permission-neutral specialist assignment");
   }
 });
 
@@ -140,9 +123,9 @@ test("CoopFT has a distinct 3D custom emoji pack, role guide, applications and v
   assert.ok(PRIVATE_CHANNELS.some((channel) => channel.key === "server_logs"));
 });
 
-test("each specialist application modal contains four required questions and one optional question", () => {
+test("each staff application modal contains four required questions and one optional question", () => {
   const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) }, { guildId: coopftGuildId });
-  for (const role of APPLICATION_ROLES) {
+  for (const role of APPLICATION_RANKS) {
     const modal = service.createApplicationModal(role).toJSON();
     assert.equal(modal.custom_id, "cf-application:submit:" + role.key);
     assert.equal(modal.components.length, 5);
@@ -151,26 +134,29 @@ test("each specialist application modal contains four required questions and one
   }
 });
 
-test("application availability defaults to open and can be switched per position", async () => {
-  const values = new Map();
-  const pool = {
-    async query(sql, params) {
-      if (sql.includes("SELECT setting_value")) {
-        return { rows: values.has(params[1]) ? [{ setting_value: values.get(params[1]) }] : [] };
-      }
-      if (sql.includes("INSERT INTO coopft_community_settings")) {
-        values.set(params[1], JSON.parse(params[2]));
-        return { rows: [] };
-      }
-      throw new Error("Unexpected SQL in application availability test.");
-    }
-  };
-  const service = new CoopFTCommunityService(pool, { guildId: coopftGuildId });
-  assert.equal(await service.isApplicationOpen(coopftGuildId, "referee"), true);
-  await service.setApplicationOpen({ id: coopftGuildId, channels: { fetch: async () => null } }, "referee", false);
-  assert.equal(await service.isApplicationOpen(coopftGuildId, "referee"), false);
-  await service.setApplicationOpen({ id: coopftGuildId, channels: { fetch: async () => null } }, "referee", true);
-  assert.equal(await service.isApplicationOpen(coopftGuildId, "referee"), true);
+test("private application review exposes only the four requested decisions", () => {
+  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) }, { guildId: coopftGuildId });
+  const rows = service.buildApplicationReviewComponents("application-id").map((row) => row.toJSON());
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows.flatMap((row) => row.components.map((component) => component.label)), [
+    "Accept", "Accept with reason", "Deny", "Deny with reason"
+  ]);
+  assert.deepEqual(rows.flatMap((row) => row.components.map((component) => component.custom_id)), [
+    "cf-application:accept:application-id",
+    "cf-application:accept-reason:application-id",
+    "cf-application:deny:application-id",
+    "cf-application:deny-reason:application-id"
+  ]);
+});
+
+test("CoopFT staff directory banner renders a professional 1200 by 340 PNG", async () => {
+  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) }, { guildId: coopftGuildId });
+  const banner = service.buildStaffBanner();
+  const { loadImage } = require("@napi-rs/canvas");
+  const image = await loadImage(banner);
+  assert.equal(banner.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+  assert.equal(image.width, 1200);
+  assert.equal(image.height, 340);
 });
 
 test("all 28 CoopFT vector fallbacks render to transparent PNG images", () => {
@@ -362,48 +348,6 @@ test("editable-role cleanup requires the exact one-time confirmation phrase", ()
   assert.equal(CLEANUP_CONFIRMATION, "DELETE_EDITABLE_ROLES");
 });
 
-
-test("HR managers have limited delegation authority and cannot grant senior HR roles", () => {
-  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) }, { guildId: coopftGuildId });
-  for (const spec of HR_ROLES) service.roles.set(spec.key, { id: spec.key });
-  for (const spec of STAFF_RANKS) service.roles.set(spec.key, { id: spec.key });
-
-  const guild = { ownerId: "server-owner" };
-  const target = { id: "target" };
-  const actorWith = (id, roles) => ({ id, roles: { cache: new Set(roles) } });
-
-  const senior = actorWith("senior", ["high_rank_supervisor"]);
-  assert.doesNotThrow(() => service.assertHRRoleChangeAuthority(senior, target, guild, null, "hr_director"));
-
-  const director = actorWith("director", ["hr_director"]);
-  assert.doesNotThrow(() => service.assertHRRoleChangeAuthority(director, target, guild, "hr_recruiter", "hr_manager"));
-  assert.throws(
-    () => service.assertHRRoleChangeAuthority(director, target, guild, null, "hr_director"),
-    /cannot appoint/
-  );
-
-  const manager = actorWith("manager", ["hr_manager"]);
-  assert.doesNotThrow(() => service.assertHRRoleChangeAuthority(manager, target, guild, "hr_trainee", "hr_recruiter"));
-  assert.throws(
-    () => service.assertHRRoleChangeAuthority(manager, target, guild, null, "hr_manager"),
-    /HR Managers can manage/
-  );
-  assert.throws(
-    () => service.assertHRRoleChangeAuthority(manager, target, guild, "hr_recruiter", "hr_director"),
-    /HR Managers can manage/
-  );
-});
-
-
-test("no one, including the server owner, can change their own HR role", () => {
-  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) }, { guildId: coopftGuildId });
-  const owner = { id: "server-owner", roles: { cache: new Set() } };
-  const guild = { ownerId: "server-owner" };
-  assert.throws(
-    () => service.assertHRRoleChangeAuthority(owner, owner, guild, null, "hr_director"),
-    /another authorized CoopFT manager/
-  );
-});
 
 test("ensureRole repairs managed role properties and applies optional native gradient/icon styling", async () => {
   const calls = [];
