@@ -840,8 +840,8 @@ class CoopFTCommunityService {
     // Only actual staff ranks can view staff-only categories. Member tags,
     // interest roles, ping roles and divider roles must never grant staff access.
     const allowedRoles = STAFF_RANKS.map((spec) => this.roles.get(spec.key)).filter(Boolean);
-    const supportRoles = allowedRoles.map((role) => ({ id: role.id,
-      id,
+    const supportRoles = allowedRoles.map((role) => ({
+      id: role.id,
       allow: [
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.SendMessages,
