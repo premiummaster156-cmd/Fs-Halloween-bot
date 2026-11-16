@@ -63,127 +63,25 @@ if(n==="welcome-config"){
 }
 if(n==="onboarding-setup"){
  serverOwner(i);
- const bot=await requireBotPermission(g,P.ManageGuild,"Manage Server");
- if(!bot.permissions.has(P.ManageRoles))throw Error("The bot also needs Manage Roles permission to assign onboarding roles and update onboarding.");
- const fresh=await g.fetch();
- if(!fresh.features?.includes("COMMUNITY"))throw Error("Enable Community in Server Settings first, then run /onboarding-setup again. The bot cannot enable the Community feature itself.");
+ await requireBotPermission(g,P.ManageGuild,"Manage Server");
  const current=await g.fetchOnboarding();
- const channels=await g.channels.fetch();
- const everyone=g.roles.everyone;
- const visible=[...channels.values()]
-  .filter(channel=>channel&&[ChannelType.GuildText,ChannelType.GuildAnnouncement].includes(channel.type)&&!channel.nsfw&&channel.permissionsFor(everyone)?.has(P.ViewChannel))
-  .sort((a,b)=>(a.rawPosition||a.position||0)-(b.rawPosition||b.position||0));
- // Discord requires five sendable default channels. Keep read-only announcements,
- // rules, welcome, application panels and ticket panels locked; enable chat only in
- // the five intended community conversation channels.
- const chatChannelNames=["introductions","general","media","showcase","your-creation"];
- const chatChannels=[];
- for(const name of chatChannelNames){
-  const channel=visible.find(item=>String(item.name||"").toLowerCase().replace(/[^a-z0-9-]/g,"")===name.replace(/[^a-z0-9-]/g,""));
-  if(!channel)continue;
-  if(!channel.permissionsFor(everyone)?.has(P.SendMessages)){
-   await channel.permissionOverwrites.edit(g.id,{SendMessages:true},"Enable Discord onboarding default conversation channel");
-  }
-  chatChannels.push(channel);
- }
- const sendable=visible.filter(channel=>channel.permissionsFor(everyone)?.has(P.SendMessages));
- if(sendable.length<5||visible.length<7)throw Error("Discord needs 7 default text channels, with at least 5 allowing @everyone to send messages. I found "+visible.length+" public text channels and "+sendable.length+" sendable channels after checking the five intended conversation channels (introductions, general, media, showcase and your-creation). Make sure these channels exist and the bot can manage their permissions, then rerun. Read-only announcement, rules, application and ticket panels were not opened.");
- const defaultChannels=[...sendable.slice(0,7)];
- if(defaultChannels.length<7)defaultChannels.push(...visible.filter(channel=>!defaultChannels.some(item=>item.id===channel.id)).slice(0,7-defaultChannels.length));
- const extraChannels=visible.filter(channel=>!defaultChannels.some(item=>item.id===channel.id)).slice(0,25);
- if(extraChannels.length<2)throw Error("Create at least two additional public text channels beyond the seven default channels so the bot can build useful onboarding choices.");
-
- const pingDescriptions={
-  ping_announcements:"Important server news and official notices",
-  ping_events:"Community events, activities and schedules",
-  ping_giveaways:"Giveaways, prizes and special drops",
-  ping_community:"General community news and updates",
-  ping_game_nights:"Game sessions and group activities",
-  ping_bot_updates:"Bot releases, fixes and feature announcements",
-  ping_lfg:"Find members to play or work with",
-  ping_voice:"Voice sessions and live conversations"
- };
- const resolveRole=async spec=>{
-  let role=s.coopft.roles.get(spec.key)||null;
-  if(!role){
-   const savedId=await s.coopft.getResource(id,"role:"+spec.key);
-   role=savedId?await g.roles.fetch(savedId).catch(()=>null):null;
-   if(role)s.coopft.roles.set(spec.key,role);
-  }
-  if(!role)throw Error("The configured role **"+spec.name+"** is missing. Run the CoopFT setup command before creating onboarding.");
-  return role;
- };
- const makePrompt=(title,options)=>({
-  id:SnowflakeUtil.generate().toString(),
-  type:0,
-  title,
-  singleSelect:false,
-  required:false,
-  inOnboarding:true,
-  options:options.map(option=>({
-   id:SnowflakeUtil.generate().toString(),
-   title:String(option.title).slice(0,100),
-   description:String(option.description||"").slice(0,100),
-   emoji:option.emoji||undefined,
-   channels:(option.channels||[]).map(String),
-   roles:(option.roles||[]).map(String)
-  }))
- });
- const pingOptions=[];
- for(const spec of PING_ROLES){
-  const role=await resolveRole(spec);
-  pingOptions.push({
-   title:spec.name.replace(/\\s+Ping$/i,""),
-   description:pingDescriptions[spec.key]||"Choose whether you want these notifications",
-   emoji:spec.icon,
-   roles:[String(role.id)]
-  });
- }
- const channelEmojis=["👋","📜","📣","💬","🎨","✨","🧩","💻","🤝","🛠️","📌","🎟️"];
- const channelOptions=extraChannels.map((channel,index)=>{
-  const cleanName=String(channel.name||"channel")
-   .replace(/^[^・]+・/u,"")
-   .replace(/-/g," ")
-   .replace(/\\s+/g," ")
-   .trim();
-  const title=cleanName.replace(/\b\\w/g,letter=>letter.toUpperCase())||"Community channel";
-  return {
-   title,
-   description:"Add #"+cleanName+" to your channel list",
-   emoji:channelEmojis[index%channelEmojis.length],
-   channels:[String(channel.id)]
-  };
- });
-
- const generatedTitles=new Set([
-  "What would you like to explore?",
-  "What are you interested in and what updates do you want?",
-  "What are you interested in?",
-  "What are your interests?",
-  "What topics are you interested in?",
-  "Which interests do you have?",
-  "Which updates would you like to receive?",
-  "Which spaces should we add to your channel list?"
- ]);
  const existingPrompts=[...(current.prompts?.values?.()||[])];
- const oldPrompts=existingPrompts
-  // Remove legacy CoopFT-generated interest prompts even when their wording
-  // was manually shortened or changed (for example, "What are ur interests?").
-  .filter(item=>{
-   const title=String(item.title||"").trim().toLowerCase();
-   const normalized=title.replace(/[^a-z0-9]+/g," ").trim();
-   const isLegacyInterestPrompt=/\binterest(?:s|ed)?\b/.test(normalized) ||
-    /\btopics?\b/.test(normalized) && /\bwhat|which|explore|like\b/.test(normalized);
-   return !generatedTitles.has(item.title) && !isLegacyInterestPrompt;
-  })
-  .map(item=>({
-   id:String(item.id),
-   type:Number(item.type),
-   title:String(item.title),
-   singleSelect:Boolean(item.singleSelect),
-   required:Boolean(item.required),
-   inOnboarding:Boolean(item.inOnboarding),
-   options:[...(item.options?.values?.()||[])].map(option=>{
+ const isInterestsPrompt=prompt=>{
+  const title=String(prompt.title||"").trim().toLowerCase();
+  const normalized=title.replace(/[^a-z0-9]+/g," ").trim();
+  return /\\binterest(?:s|ed)?\\b/.test(normalized) ||
+   /\\btopics?\\b/.test(normalized) && /\\bwhat|which|explore|like\\b/.test(normalized);
+ };
+ const prompts=existingPrompts
+  .filter(prompt=>!isInterestsPrompt(prompt))
+  .map(prompt=>({
+   id:String(prompt.id),
+   type:Number(prompt.type),
+   title:String(prompt.title),
+   singleSelect:Boolean(prompt.singleSelect),
+   required:Boolean(prompt.required),
+   inOnboarding:Boolean(prompt.inOnboarding),
+   options:[...(prompt.options?.values?.()||[])].map(option=>{
     const currentEmoji=option.emoji;
     let emoji;
     if(typeof currentEmoji==="string")emoji=currentEmoji;
@@ -200,31 +98,14 @@ if(n==="onboarding-setup"){
     };
    })
   }));
- const availableSlots=5-oldPrompts.length;
- if(availableSlots<1)throw Error("Discord already has 5 custom onboarding questions. Remove at least 1 question in Server Settings so CoopFT can add its member preference choices, then rerun /onboarding-setup.");
- // Keep onboarding focused on notification preferences; interest roles remain
- // available through the separate role-selection panel.
- const generatedPrompts=[
-  makePrompt("Which updates would you like to receive?",pingOptions)
- ];
- if(availableSlots>=2){
-  generatedPrompts.push(makePrompt("Which spaces should we add to your channel list?",channelOptions));
- }
- const prompts=[...oldPrompts,...generatedPrompts];
- if(prompts.length>5)throw Error("Discord allows up to 5 onboarding questions. Remove an existing custom question and rerun /onboarding-setup.");
- const jsonSafe=JSON.stringify(prompts);
- if(typeof jsonSafe!=="string")throw Error("Onboarding data could not be prepared safely. No onboarding settings were changed.");
+ const removed=existingPrompts.length-prompts.length;
+ if(!removed)return say(i,"I couldn't find an interests question in the current Discord onboarding prompts. No onboarding settings were changed. Please check the exact question title in Server Settings → Onboarding.");
+ // Only update prompts. Do not add questions, alter default channels, or change channel permissions.
  await g.editOnboarding({
-  enabled:true,
-  mode:0,
-  defaultChannels:defaultChannels.map(channel=>channel.id),
   prompts,
-  reason:"Server owner requested automatic community onboarding setup"
+  reason:"Server owner requested removal of the interests onboarding question"
  });
- const channelMessage=generatedPrompts.length===2
-  ? " plus "+channelOptions.length+" channel shortcuts"
-  : "; channel shortcuts were skipped to preserve your existing questions";
- return say(i,"Discord onboarding is enabled with **"+generatedPrompts.length+" new question(s)**. The notification question contains "+pingOptions.length+" opt-in notification roles"+channelMessage+". The interests question has been removed; existing custom questions were preserved. Members can update their selections later in Channels & Roles.");
+ return say(i,"Removed the interests question from Discord onboarding. All other existing questions and their choices were preserved; no new questions or channel changes were made.");
 }
 
 if(n==="coopft-public-access"){
