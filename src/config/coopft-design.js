@@ -159,7 +159,7 @@ const PUBLIC_CHANNELS = Object.freeze([
 ]);
 
 const PRIVATE_CHANNELS = Object.freeze([
-  { key: "staff_team", name: "⌖・staff-team" },
+  { key: "staff_directory", name: "⌖・staff-directory" },
   { key: "staff_chat", name: "◌・staff-chat" },
   { key: "staff_announcements", name: "▰・staff-announcements" },
   { key: "staff_bot_updates", name: "⌘・staff-bot-updates" },
