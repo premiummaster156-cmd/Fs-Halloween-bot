@@ -1,7 +1,7 @@
 "use strict";
 const {SlashCommandBuilder,EmbedBuilder,PermissionFlagsBits:P,MessageFlags,ChannelType,SnowflakeUtil}=require("discord.js");
-const names="coopft-setup coopft-roles-sync coopft-channels-sync coopft-channel-decorate coopft-panel coopft-ticket-config announce poll event-create event-list event-cancel slowmode lock unlock purge timeout untimeout kick ban unban warn warnings clear-warnings case note notes member-note-remove role-add role-remove nickname reset-nickname channel-topic channel-rename ticket-cooldown ticket-claim ticket-close ticket-add ticket-remove ticket-rename ticket-priority ticket-info ticket-list suggestion suggestion-review autorole welcome-config onboarding-setup".split(" ");
-const desc="Create missing CoopFT resources without overwriting custom settings|Explicitly apply configured CoopFT role names, colors, permissions and order|Explicitly apply configured CoopFT channel names, categories and permissions|Apply decorative names to default CoopFT channels only|Publish or move a CoopFT panel|Configure ticket category and transcript archive|Publish announcement|Create poll|Schedule event|List events|Cancel event|Set slowmode|Lock channel|Unlock channel|Purge messages|Timeout member|Remove timeout|Kick member|Ban member|Unban user|Issue warning|View warnings|Clear warnings|Moderation case|Add staff note|View staff notes|Remove staff note|Assign role|Remove role|Set nickname|Reset nickname|Edit channel topic|Rename channel|Apply a manual seven-day cooldown to one request type|Claim ticket|Close ticket|Add ticket member|Remove ticket member|Rename ticket|Set ticket priority|Ticket details|List tickets|Submit suggestion|Review suggestion|Configure automatic join roles (server owner only)|Set the welcome channel or disable welcome messages (server owner only)|Build and enable Discord onboarding from public channels (server owner only)".split("|");
+const names="coopft-setup coopft-roles-sync coopft-channels-sync coopft-channel-decorate coopft-panel coopft-ticket-config announce poll event-create event-list event-cancel slowmode lock unlock purge timeout untimeout kick ban unban warn warnings clear-warnings case note notes member-note-remove role-add role-remove nickname reset-nickname channel-topic channel-rename ticket-cooldown ticket-claim ticket-close ticket-add ticket-remove ticket-rename ticket-priority ticket-info ticket-list suggestion suggestion-review autorole welcome-config onboarding-setup coopft-public-access".split(" ");
+const desc="Create missing CoopFT resources without overwriting custom settings|Explicitly apply configured CoopFT role names, colors, permissions and order|Explicitly apply configured CoopFT channel names, categories and permissions|Apply decorative names to default CoopFT channels only|Publish or move a CoopFT panel|Configure ticket category and transcript archive|Publish announcement|Create poll|Schedule event|List events|Cancel event|Set slowmode|Lock channel|Unlock channel|Purge messages|Timeout member|Remove timeout|Kick member|Ban member|Unban user|Issue warning|View warnings|Clear warnings|Moderation case|Add staff note|View staff notes|Remove staff note|Assign role|Remove role|Set nickname|Reset nickname|Edit channel topic|Rename channel|Apply a manual seven-day cooldown to one request type|Claim ticket|Close ticket|Add ticket member|Remove ticket member|Rename ticket|Set ticket priority|Ticket details|List tickets|Submit suggestion|Review suggestion|Configure automatic join roles (server owner only)|Set the welcome channel or disable welcome messages (server owner only)|Build and enable Discord onboarding from public channels (server owner only)|Restore public channel visibility and message history for members".split("|");
 const staff=(i,s)=>{if(!s.coopft.isStaff(i.member))throw Error("CoopFT staff only.");};
 const serverOwner=(i)=>{if(!i.guild||i.user.id!==i.guild.ownerId)throw Error("Only the actual server owner can use this configuration command.");};
 const requireBotPermission=async(g,permission,label)=>{const bot=g.members.me||await g.members.fetchMe().catch(()=>null);if(!bot?.permissions?.has(permission))throw Error("The bot needs "+label+" permission.");return bot;};
@@ -126,6 +126,15 @@ if(n==="onboarding-setup"){
  return say(i,"Discord onboarding is now enabled. I created one multi-select question, **"+promptTitle+"**, with "+extraChannels.length+" channel choices and selected 7 public default channels. Members can revisit their selections later in Channels & Roles.");
 }
 
+if(n==="coopft-public-access"){
+ ownerConfig(i,s);
+ await i.deferReply({flags:MessageFlags.Ephemeral});
+ const result=await s.coopft.repairPublicChannelAccess(g);
+ const categories=result.categoriesUpdated;
+ const channels=result.channelsUpdated;
+ const missing=result.missing.length?("\\nNot found in saved CoopFT setup: "+result.missing.join(", ")):"";
+ return i.editReply("Public access repaired. **"+categories+" categories** and **"+channels+" member-facing channels** now explicitly allow @everyone and Community Member to view channels and read message history. Private staff, review, logs and transcript channels were not changed."+missing);
+}
 if(n==="coopft-setup"||n==="coopft-roles-sync"||n==="coopft-channels-sync"){
  ownerConfig(i,s);
  await i.deferReply({flags:MessageFlags.Ephemeral});
@@ -134,7 +143,7 @@ if(n==="coopft-setup"||n==="coopft-roles-sync"||n==="coopft-channels-sync"){
  if(n==="coopft-channels-sync")options.syncChannels=true;
  const result=await s.coopft.bootstrap(g,options);
  const label=n==="coopft-roles-sync"?"Configured role properties and order applied.":n==="coopft-channels-sync"?"Configured channel names, categories and permissions applied.":"Missing CoopFT resources created; existing role and channel customizations preserved.";
- return i.editReply(label+" Created "+result.createdRoles+" roles and "+result.createdChannels+" channels. Existing settings were not reset unless you ran an explicit sync command.");
+ return i.editReply(label+" Created "+result.createdRoles+" roles and "+result.createdChannels+" channels. Public access was also repaired for "+(result.publicAccess?.channelsUpdated||0)+" member-facing channels (View Channel + Read Message History). Existing custom settings were otherwise preserved unless you ran an explicit sync command.");
 }
 if(n==="coopft-channel-decorate"){
  ownerConfig(i,s);
