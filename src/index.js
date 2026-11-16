@@ -275,9 +275,9 @@ async function start() {
         // This does not change CoopFT's server notification settings.
         try {
           const flags = fsGuild.systemChannelFlags;
-          if (!flags.has(SystemChannelFlags.SuppressGuildBoostNotifications)) {
+          if (!flags.has(SystemChannelFlags.SuppressPremiumSubscriptions)) {
             await fsGuild.edit({
-              systemChannelFlags: flags.add(SystemChannelFlags.SuppressGuildBoostNotifications)
+              systemChannelFlags: flags.add(SystemChannelFlags.SuppressPremiumSubscriptions)
             }, "Disable server boost notifications in Fukishōkai");
           }
         } catch (error) {
