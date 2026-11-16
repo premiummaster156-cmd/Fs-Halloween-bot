@@ -2,7 +2,7 @@
 
 const { GatewayIntentBits } = require("discord.js");
 
-// GuildMembers was approved specifically for actual member-join raid detection.
+// GuildMembers is approved and used for member-join detection plus CoopFT's live, role-based staff directory reconciliation.
 // GuildMessages and GuildModeration are non-privileged event intents used by
 // existing activity/boost tracking and audit-log monitoring. Do not add
 // GuildPresences or MessageContent without a separate approved use case.
