@@ -224,10 +224,9 @@ test("onboarding setup enables Discord onboarding and preserves existing prompts
   assert.equal(saved.prompts[0].singleSelect, true);
   assert.equal(saved.prompts[0].options[0].channels[0], existingChannel.id);
   assert.equal(saved.prompts[0].options[0].roles[0], role.id);
-  assert.equal(saved.prompts.length, 4);
-  assert.equal(saved.prompts[1].title, "What topics are you interested in?");
-  assert.equal(saved.prompts[2].title, "Which updates would you like to receive?");
-  assert.equal(saved.prompts[3].title, "Which spaces should we add to your channel list?");
+  assert.equal(saved.prompts.length, 3, "one existing prompt plus two generated prompts must stay within Discord's five-prompt limit");
+  assert.equal(saved.prompts[1].title, "What are you interested in and what updates do you want?");
+  assert.equal(saved.prompts[2].title, "Which spaces should we add to your channel list?");
   for (const prompt of saved.prompts.slice(1)) {
     assert.equal(prompt.singleSelect, false, prompt.title + " should allow multiple selections");
     assert.equal(prompt.required, false);
@@ -241,13 +240,12 @@ test("onboarding setup enables Discord onboarding and preserves existing prompts
       assert.ok(option.channels.every(id => typeof id === "string"));
     }
   }
-  assert.equal(saved.prompts[1].options.length, INTEREST_ROLES.length);
-  assert.equal(saved.prompts[2].options.length, PING_ROLES.length);
+  assert.equal(saved.prompts[1].options.length, INTEREST_ROLES.length + PING_ROLES.length);
   assert.equal(saved.prompts[1].options[0].roles.length, 1);
-  assert.equal(saved.prompts[2].options[0].roles.length, 1);
-  assert.equal(saved.prompts[3].options.length, 3);
-  assert.equal(saved.prompts[3].options[0].channels.length, 1);
-  assert.deepEqual(saved.prompts[3].options[0].roles, []);
+  assert.equal(saved.prompts[1].options[INTEREST_ROLES.length].roles.length, 1);
+  assert.equal(saved.prompts[2].options.length, 3);
+  assert.equal(saved.prompts[2].options[0].channels.length, 1);
+  assert.deepEqual(saved.prompts[2].options[0].roles, []);
   assert.doesNotThrow(() => JSON.stringify(saved), "onboarding payload must not contain BigInt values");
 });
 
