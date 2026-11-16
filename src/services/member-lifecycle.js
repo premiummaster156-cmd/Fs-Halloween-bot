@@ -378,7 +378,6 @@ class MemberLifecycleService {
           { name: "Member count", value: String(member.guild.memberCount || "—"), inline: true }
         )
         .setTimestamp();
-      if (avatarUrl) welcome.setThumbnail(avatarUrl);
       await welcomeChannel.send({
         embeds: [welcome],
         allowedMentions: { users: [member.id] }
