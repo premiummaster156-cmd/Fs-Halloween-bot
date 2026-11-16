@@ -39,5 +39,40 @@ if(n==="suggestion"){const destId=await s.coopft.getResource(id,"channel:suggest
 if(n==="suggestion-review"){lead(i,s);const x=i.options.getInteger("amount"),st=i.options.getString("value"),valid=["under_review","accepted","planned","implemented","declined"];if(!x||!valid.includes(st))throw Error("Set amount to suggestion ID and value to "+valid.join(", "));const r=await s.pool.query("UPDATE coopft_suggestions SET status=$3,reviewed_by=$4,updated_at=NOW() WHERE guild_id=$1 AND id=$2 RETURNING id",[id,x,st,u.id]);if(!r.rowCount)throw Error("Suggestion not found.");return say(i,"Suggestion review saved.");}
 throw Error("No handler for "+n);
 }
-function loadCoopFTCommands(){const map=new Map();for(let k=0;k<names.length;k++){const n=names[k];let b=new SlashCommandBuilder().setName(n).setDescription(desc[k]);for(const [key,label] of [["member","Member"],["role","Role"],["channel","Channel"]]){if(key==="member")b.addUserOption(o=>o.setName(key).setDescription(label).setRequired(false));else if(key==="role")b.addRoleOption(o=>o.setName(key).setDescription(label).setRequired(false));else b.addChannelOption(o=>o.setName(key).setDescription(label).setRequired(false));}for(const [key,label] of [["title","Title"],["message","Message"],["question","Question"],["options","Choices separated by |"],["start","ISO start"],["end","ISO end"],["event_id","Event ID"],["user_id","User ID"],["reason","Reason"],["note","Private note"],["topic","Topic"],["name","Name"],["value","Text value or status"]])b.addStringOption(o=>o.setName(key).setDescription(label).setRequired(false));b.addIntegerOption(o=>o.setName("amount").setDescription("Amount, ID, seconds or minutes").setMinValue(0).setMaxValue(40320).setRequired(false));map.set(n,{data:b,execute:(i,s)=>run(n,i,s)});}if(map.size!==50||map.has("staff"))throw Error("Expected 50 commands and no /staff.");return map;}
+function loadCoopFTCommands(){
+ const map=new Map();
+ const schema={
+  memberinfo:["member"],avatar:["member"],roleinfo:["role"],channelinfo:["channel"],
+  announce:["channel","title","message"],poll:["question","options"],
+  "event-create":["title","start","end"],"event-cancel":["event_id"],
+  slowmode:["amount"],purge:["amount"],
+  timeout:["member","amount","reason"],untimeout:["member","reason"],kick:["member","reason"],ban:["member","reason"],unban:["user_id","reason"],warn:["member","reason"],warnings:["member"],"clear-warnings":["member"],case:["amount"],
+  note:["member","note"],notes:["member"],"member-note-remove":["amount"],
+  "role-add":["member","role","reason"],"role-remove":["member","role","reason"],nickname:["member","name","reason"],"reset-nickname":["member","reason"],
+  "channel-topic":["topic"],"channel-rename":["name"],
+  "ticket-add":["member"],"ticket-remove":["member"],"ticket-rename":["name"],"ticket-priority":["value"],
+  suggestion:["title","message"],"suggestion-review":["amount","value","reason"]
+ };
+ const optionDefinitions={
+  member:["user","Member to target"],role:["role","Role to target"],channel:["channel","Destination channel"],
+  title:["string","Title"],message:["string","Message or details"],question:["string","Poll question"],options:["string","Poll choices separated by |"],
+  start:["string","Start time in ISO 8601"],end:["string","End time in ISO 8601"],event_id:["string","Scheduled event ID"],user_id:["string","Discord user ID"],
+  reason:["string","Reason"],note:["string","Private staff note"],topic:["string","New channel topic"],name:["string","New name or nickname"],value:["string","Priority or review status"],
+  amount:["integer","Number, ID, seconds or minutes"]
+ };
+ for(let k=0;k<names.length;k++){
+  const n=names[k];let b=new SlashCommandBuilder().setName(n).setDescription(desc[k]);
+  for(const key of (schema[n]||[])){
+   const [kind,label]=optionDefinitions[key];
+   if(kind==="user")b.addUserOption(o=>o.setName(key).setDescription(label).setRequired(true));
+   else if(kind==="role")b.addRoleOption(o=>o.setName(key).setDescription(label).setRequired(true));
+   else if(kind==="channel")b.addChannelOption(o=>o.setName(key).setDescription(label).setRequired(true));
+   else if(kind==="integer")b.addIntegerOption(o=>o.setName(key).setDescription(label).setMinValue(0).setMaxValue(40320).setRequired(true));
+   else b.addStringOption(o=>o.setName(key).setDescription(label).setMaxLength(key==="message"||key==="note"?2500:1000).setRequired(true));
+  }
+  map.set(n,{data:b,execute:(i,s)=>run(n,i,s)});
+ }
+ if(map.size!==50||map.has("staff"))throw Error("Expected 50 commands and no /staff.");
+ return map;
+}
 module.exports={loadCoopFTCommands};
