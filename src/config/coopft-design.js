@@ -24,8 +24,8 @@ const HIGH_RANK_SUPERVISOR_PERMISSIONS = ALL_PERMISSION_BITS & ~(
   PermissionFlagsBits.ManageChannels
 );
 
-// Ten operational staff ranks, five HR roles, and five separate application tracks.
-// Staff privileges are defined explicitly; all other generated roles default to none.
+// The official 17-rank staff hierarchy. Only the eight operational ranks below
+// the leadership appointment tier are available through the public application panel.
 const STAFF_RANKS = Object.freeze([
   { key: "owner", name: "Owner", icon: "👑", emoji: "cf3d_crown", primary: 0x7A101C, secondary: 0xE13D4B, permissions: OWNER_PERMISSIONS, permissionSummary: "Every Discord permission, including Administrator.", description: "Leads CoopFT, sets the community direction, makes final decisions, and protects the long-term vision." },
   { key: "co_owner", name: "Co-Owner", icon: "🛡️", emoji: "cf3d_shield", primary: 0x7E2732, secondary: 0xC84B60, permissions: OWNER_PERMISSIONS, permissionSummary: "Every Discord permission, including Administrator.", description: "Supports the Owner, coordinates major operations, and keeps the community running smoothly." },
