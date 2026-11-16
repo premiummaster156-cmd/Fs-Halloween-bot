@@ -1227,14 +1227,6 @@ class CoopFTCommunityService {
       await interaction.reply({ content: "That staff position is not available for applications.", flags: MessageFlags.Ephemeral });
       return true;
     }
-    const existing = await this.pool.query(
-      "SELECT id FROM coopft_applications WHERE guild_id=$1 AND applicant_id=$2 AND role_key=$3 AND status='pending' LIMIT 1",
-      [interaction.guildId, interaction.user.id, role.key]
-    );
-    if (existing.rowCount) {
-      await interaction.reply({ content: "You already have a pending application for **" + role.name + "**. The review team will contact you when it has been processed.", flags: MessageFlags.Ephemeral });
-      return true;
-    }
     await interaction.showModal(this.createApplicationModal(role));
     return true;
   }
@@ -1972,7 +1964,7 @@ class CoopFTCommunityService {
     }
   }
 
-  async postStaffUpdate(guild, description) {  async postStaffUpdate(guild, description) {
+  async postStaffUpdate(guild, description) {
     this.assertCoopFTGuild(guild, "post a CoopFT staff update");
     const channelId = await this.getResource(guild.id, "channel:staff_bot_updates");
     const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
