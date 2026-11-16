@@ -251,6 +251,16 @@ async function start() {
         );
         coopftCommunity.loadManagedRoles(coopGuild).then(async (loaded) => {
           console.info("[coopft] Loaded managed role references:", loaded);
+          try {
+            const access = await coopftCommunity.repairPublicChannelAccess(coopGuild);
+            console.info("[coopft] Public member visibility/history repair completed:", {
+              categories: access.categoriesUpdated,
+              channels: access.channelsUpdated,
+              missing: access.missing.length
+            });
+          } catch (error) {
+            console.warn("[coopft] Could not repair public member channel access:", error.message);
+          }
           const directory = await coopftCommunity.startStaffDirectoryRefresh(coopGuild, 15000);
           console.info("[coopft] Initial live staff directory sync completed:", directory);
         }).catch((error) => {
