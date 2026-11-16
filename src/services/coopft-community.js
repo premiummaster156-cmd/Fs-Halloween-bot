@@ -27,11 +27,66 @@ const LEGACY_COOPFT_ROLES = Object.freeze([
   { key: "helper", name: "CF • Helper" },
   { key: "ticket_staff", name: "CF • Ticket Staff" }
 ]);
+const TICKET_SECTIONS = Object.freeze({
+  bot: { label: "Fukishōkai Economy Bot", description: "Bot bugs, player-account support, gameplay issues, security reports and bot suggestions." },
+  server: { label: "CoopFT Server", description: "Server bugs, community suggestions, member or staff concerns, general support and partnerships." }
+});
 const TICKET_TYPES = Object.freeze({
-  support: { label: "General Support", icon: "cf3d_headset", fallback: "🎧" },
-  bug: { label: "Bug Report", icon: "cf3d_gear", fallback: "⚙️" },
-  custom_bot: { label: "Custom Bot Request", icon: "cf3d_key", fallback: "🔑" },
-  suggestion: { label: "Suggestion", icon: "cf3d_spark", fallback: "✨" }
+  bot_bug: { section: "bot", label: "Fukishōkai Bot Bug", icon: "cf3d_gear", fallback: "⚙️", questions: [
+    { id: "summary", label: "What is broken?", style: "short", required: true },
+    { id: "details", label: "Describe the bug", style: "paragraph", required: true },
+    { id: "steps", label: "Steps to reproduce", style: "paragraph", required: false },
+    { id: "expected", label: "Expected result", style: "paragraph", required: false }
+  ] },
+  bot_suggestion: { section: "bot", label: "Fukishōkai Bot Suggestion", icon: "cf3d_spark", fallback: "✨", questions: [
+    { id: "idea", label: "What is your idea?", style: "short", required: true },
+    { id: "details", label: "How should it work?", style: "paragraph", required: true },
+    { id: "benefit", label: "Who would this help?", style: "paragraph", required: true }
+  ] },
+  bot_gameplay: { section: "bot", label: "Gameplay or Balance Issue", icon: "cf3d_gem", fallback: "🎮", questions: [
+    { id: "feature", label: "Which game feature?", style: "short", required: true },
+    { id: "details", label: "Describe the issue", style: "paragraph", required: true },
+    { id: "example", label: "Example or relevant values", style: "paragraph", required: false }
+  ] },
+  bot_account: { section: "bot", label: "Player Account Support", icon: "cf3d_key", fallback: "🔑", questions: [
+    { id: "issue", label: "What do you need help with?", style: "short", required: true },
+    { id: "details", label: "Explain what happened", style: "paragraph", required: true },
+    { id: "when", label: "When did this start?", style: "short", required: false }
+  ] },
+  bot_exploit: { section: "bot", label: "Exploit or Security Report", icon: "cf3d_shield", fallback: "🛡️", questions: [
+    { id: "summary", label: "What vulnerability did you find?", style: "short", required: true },
+    { id: "details", label: "Explain the issue privately", style: "paragraph", required: true },
+    { id: "impact", label: "What could be affected?", style: "paragraph", required: false }
+  ] },
+  server_support: { section: "server", label: "General Server Support", icon: "cf3d_headset", fallback: "🎧", questions: [
+    { id: "topic", label: "What do you need help with?", style: "short", required: true },
+    { id: "details", label: "Describe your request", style: "paragraph", required: true }
+  ] },
+  server_bug: { section: "server", label: "CoopFT Server Bug", icon: "cf3d_gear", fallback: "⚙️", questions: [
+    { id: "location", label: "Where is the issue?", style: "short", required: true },
+    { id: "details", label: "What is going wrong?", style: "paragraph", required: true },
+    { id: "steps", label: "Steps to reproduce", style: "paragraph", required: false }
+  ] },
+  server_suggestion: { section: "server", label: "CoopFT Server Suggestion", icon: "cf3d_spark", fallback: "✨", questions: [
+    { id: "idea", label: "What would you improve?", style: "short", required: true },
+    { id: "details", label: "How should it work?", style: "paragraph", required: true },
+    { id: "benefit", label: "What would this improve?", style: "paragraph", required: true }
+  ] },
+  member_report: { section: "server", label: "Member Report", icon: "cf3d_shield", fallback: "🛡️", questions: [
+    { id: "member", label: "Who is involved?", style: "short", required: true },
+    { id: "details", label: "What happened?", style: "paragraph", required: true },
+    { id: "evidence", label: "Evidence or message links", style: "paragraph", required: false }
+  ] },
+  staff_report: { section: "server", label: "Staff Concern or Appeal", icon: "cf3d_applications", fallback: "📝", questions: [
+    { id: "staff", label: "Which staff member or decision?", style: "short", required: true },
+    { id: "details", label: "Explain your concern", style: "paragraph", required: true },
+    { id: "evidence", label: "Supporting information", style: "paragraph", required: false }
+  ] },
+  partnership: { section: "server", label: "Partnership Enquiry", icon: "cf3d_handshake", fallback: "🤝", questions: [
+    { id: "organization", label: "Community or organization", style: "short", required: true },
+    { id: "proposal", label: "What are you proposing?", style: "paragraph", required: true },
+    { id: "contact", label: "Preferred public contact", style: "short", required: false }
+  ] }
 });
 
 function rolePermissionArray(spec) {
@@ -435,12 +490,14 @@ class CoopFTCommunityService {
     const resourceKey = "role:" + spec.key;
     const savedId = await this.getResource(guild.id, resourceKey);
     let role = savedId ? await guild.roles.fetch(savedId).catch(() => null) : null;
-    if (!role) role = guild.roles.cache.find((item) => item.name === "CF • " + spec.name && !item.managed) || null;
+    if (!role) role = guild.roles.cache.find((item) =>
+      !item.managed && [spec.name, "CF • " + spec.name].includes(item.name)
+    ) || null;
     let created = false;
     if (!role) {
       try {
         role = await guild.roles.create({
-          name: "CF • " + spec.name,
+          name: spec.name,
           color: spec.primary,
           permissions: rolePermissionArray(spec),
           hoist: true,
@@ -450,7 +507,7 @@ class CoopFTCommunityService {
       } catch (error) {
         if (!String(error.message).toLowerCase().includes("unicode") && error.code !== 50035) throw error;
         role = await guild.roles.create({
-          name: "CF • " + spec.name,
+          name: spec.name,
           color: spec.primary,
           permissions: rolePermissionArray(spec),
           hoist: true,
@@ -465,7 +522,7 @@ class CoopFTCommunityService {
     // Repair the ordinary role properties on every setup run. This also gives
     // servers without enhanced role colours a predictable solid-colour fallback.
     const baseChanges = {};
-    const expectedName = "CF • " + spec.name;
+    const expectedName = spec.name;
     if (role.name !== expectedName) baseChanges.name = expectedName;
     if (role.color !== spec.primary) baseChanges.color = spec.primary;
     if (role.hoist !== true) baseChanges.hoist = true;
@@ -763,11 +820,12 @@ class CoopFTCommunityService {
     };
 
     await this.removeManagedChannel(guild, "help_study");
+    await this.removeRetiredRoleGuide(guild);
     const startCategory = (await this.ensureCategory(guild, "start_here", CATEGORY_NAMES.start_here)).channel;
     const communityCategory = (await this.ensureCategory(guild, "community", CATEGORY_NAMES.community)).channel;
     const servicesCategory = (await this.ensureCategory(guild, "services", CATEGORY_NAMES.services)).channel;
     const publicByKey = {};
-    const startKeys = new Set(["welcome", "rules", "announcements", "introductions", "role_guide"]);
+    const startKeys = new Set(["welcome", "rules", "announcements", "introductions"]);
     const communityKeys = new Set(["general", "media", "showcase", "your_creation", "announcement_stage", "community_voice", "event_voice"]);
     for (const spec of PUBLIC_CHANNELS) {
       const parent = startKeys.has(spec.key)
@@ -837,7 +895,6 @@ class CoopFTCommunityService {
     await this.updateStaffDirectory(guild);
     await this.ensureTicketPanel(guild, publicByKey.open_ticket);
     await this.ensureApplicationPanel(guild, publicByKey.applications);
-    await this.ensureRoleGuide(guild, publicByKey.role_guide);
     await this.ensureBrandMessages(guild, publicByKey);
     if (cleanup.awaitingConfirmation) {
       const previewAnnounced = await this.getSetting(guild.id, "role_cleanup_preview_announced");
@@ -1028,7 +1085,7 @@ class CoopFTCommunityService {
         key: "welcome", channel: publicChannels.welcome,
         embed: new EmbedBuilder().setColor(0x235A9A)
           .setTitle(this.emoji(guild.id, "cf3d_spark", "✨") + "  WELCOME TO COOPFT")
-          .setDescription("A community for people who build, share, learn and compete together. Start with **#rules**, say hello in **#introductions**, explore **#role-explanations**, and visit **#applications** when you're ready to join a team.")
+          .setDescription("A community for people who build, share, learn and compete together. Start with **#rules**, say hello in **#introductions**, join **#general**, and visit **#applications** when you're ready to join a team.")
           .addFields(
             { name: this.emoji(guild.id, "cf3d_rules", "📘") + " Start here", value: "Read the community code and explore the server.", inline: true },
             { name: this.emoji(guild.id, "cf3d_community", "👥") + " Meet the community", value: "Introduce yourself, share your work and join conversations.", inline: true },
@@ -1104,44 +1161,16 @@ class CoopFTCommunityService {
     }
   }
 
-  async buildRoleGuideEmbed(guild) {
-    this.assertCoopFTGuild(guild, "build the CoopFT role guide");
-    const embed = new EmbedBuilder()
-      .setColor(0x344E83)
-      .setTitle(this.emoji(guild.id, "cf3d_rolebook", "📚") + "  COOPFT • ROLE GUIDE")
-      .setDescription([
-        "Every role has a purpose. Each entry lists its actual Discord permissions.",
-        "",
-        "👑 **Owner / Co-Owner:** full permissions, including Administrator.",
-        "🌟 **High Rank Supervisor:** all permissions except Administrator, Manage Server and Manage Channels.",
-        "✦ **Operational staff:** graduated permissions appropriate to each position. Critical bot actions still require a separate leadership authorization check.",
-        "Applications are reviewed privately. Accepted applicants receive the staff rank they applied for."
-      ].join("\n"))
-      .setFooter({ text: "CoopFT • Clear roles. Clear responsibilities." });
-    for (const role of STAFF_RANKS) embed.addFields({
-      name: this.emoji(guild.id, role.emoji, role.icon) + "  " + role.name,
-      value: role.description + "\n\n**Discord permissions:** " + role.permissionSummary,
-      inline: false
-    });
-    embed.addFields({
-      name: "STAFF STRUCTURE",
-      value: "The hierarchy above is the complete CoopFT staff structure. Applications and assignments are reviewed privately by authorized leadership.",
-      inline: false
-    });
-    return embed;
-  }
-
-  async ensureRoleGuide(guild, channel) {
-    this.assertCoopFTGuild(guild, "publish the CoopFT role guide");
-    if (!channel?.isTextBased?.()) return;
-    const embed = await this.buildRoleGuideEmbed(guild);
-    const savedId = await this.getResource(guild.id, "message:role_guide");
-    let message = savedId ? await channel.messages.fetch(savedId).catch(() => null) : null;
-    if (message) await message.edit({ embeds: [embed], allowedMentions: { parse: [] } });
-    else {
-      message = await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
-      await this.saveResource(guild.id, "message:role_guide", message.id);
-    }
+  async removeRetiredRoleGuide(guild) {
+    this.assertCoopFTGuild(guild, "retire the obsolete CoopFT role guide");
+    const channelId = await this.getResource(guild.id, "channel:role_guide");
+    const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
+    const shouldDelete = channel && ["▤・role-explanations", "role-explanations"].includes(channel.name);
+    if (shouldDelete) await channel.delete("Retire the unnecessary CoopFT role explanations channel");
+    else if (channel) console.warn("[coopft] Preserved the saved role-guide channel because its name no longer matches the managed channel.");
+    await this.setSetting(guild.id, "resource:channel:role_guide", null);
+    await this.setSetting(guild.id, "resource:message:role_guide", null);
+    return Boolean(shouldDelete);
   }
 
   async ensureApplicationPanel(guild, channel) {
@@ -1483,22 +1512,27 @@ class CoopFTCommunityService {
     this.assertCoopFTGuild(guild, "publish the CoopFT ticket panel");
     const savedId = await this.getResource(guild.id, "message:ticket_panel");
     let message = savedId ? await channel.messages.fetch(savedId).catch(() => null) : null;
-    const embed = new EmbedBuilder()
-      .setColor(0x354F86)
-      .setTitle(this.emoji(guild.id, "cf3d_ticket", "🎟️") + "  CoopFT Support Centre")
-      .setDescription("Choose the kind of help you need. Every ticket creates a private channel visible only to you, CoopFT staff and the bot. Please do not open duplicate tickets.")
-      .addFields(
-        { name: this.emoji(guild.id, "cf3d_headset", "🎧") + "  General support", value: "Questions or help using CoopFT services.", inline: true },
-        { name: this.emoji(guild.id, "cf3d_gear", "⚙️") + "  Bug report", value: "Something is broken or behaving incorrectly.", inline: true },
-        { name: this.emoji(guild.id, "cf3d_key", "🔑") + "  Custom bot request", value: "Request a bot or automation idea.", inline: true },
-        { name: this.emoji(guild.id, "cf3d_spark", "✨") + "  Suggestion", value: "Suggest a feature or improvement.", inline: true }
-      )
-      .setFooter({ text: "CoopFT • Private ticket system" });
+    const embed = new EmbedBuilder().setColor(0x354F86)
+      .setTitle(this.emoji(guild.id, "cf3d_ticket", "🎟️") + "  COMMUNITY SUPPORT CENTRE")
+      .setDescription([
+        "Choose which service your request concerns. The next menu shows relevant request types, then a short form collects details before a private ticket is opened.",
+        "",
+        "**Fukishōkai Economy Bot**",
+        "Bot bugs, gameplay and balance issues, player-account support, security reports and bot suggestions.",
+        "",
+        "**CoopFT Server**",
+        "Server bugs, community suggestions, member reports, staff concerns, general support and partnership enquiries.",
+        "",
+        "Your form answers are copied into the private ticket. One open ticket per member is allowed."
+      ].join("\n"))
+      .setFooter({ text: "Select a service below • no ticket is created until the form is submitted" });
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("cf-ticket:open:support").setLabel("Support").setStyle(ButtonStyle.Primary).setEmoji("🎧"),
-      new ButtonBuilder().setCustomId("cf-ticket:open:bug").setLabel("Report bug").setStyle(ButtonStyle.Danger).setEmoji("⚙️"),
-      new ButtonBuilder().setCustomId("cf-ticket:open:custom_bot").setLabel("Custom bot").setStyle(ButtonStyle.Secondary).setEmoji("🔑"),
-      new ButtonBuilder().setCustomId("cf-ticket:open:suggestion").setLabel("Suggestion").setStyle(ButtonStyle.Success).setEmoji("✨")
+      new StringSelectMenuBuilder().setCustomId("cf-ticket:section")
+        .setPlaceholder("Choose Fukishōkai Bot or CoopFT Server").setMinValues(1).setMaxValues(1)
+        .addOptions(
+          { label: "Fukishōkai Economy Bot", value: "bot", description: "Bot bugs, accounts, gameplay and suggestions", emoji: "🎮" },
+          { label: "CoopFT Server", value: "server", description: "Server support, reports, suggestions and partnerships", emoji: "🏛️" }
+        )
     );
     if (message) await message.edit({ embeds: [embed], components: [row] });
     else {
@@ -1507,15 +1541,96 @@ class CoopFTCommunityService {
     }
   }
 
+  createTicketIntakeModal(ticketType) {
+    const spec = TICKET_TYPES[ticketType];
+    if (!spec) throw new Error("Unknown ticket type.");
+    const modal = new ModalBuilder().setCustomId("cf-ticket:submit:" + ticketType).setTitle(spec.label.slice(0, 45));
+    for (const question of spec.questions) {
+      const input = new TextInputBuilder().setCustomId(question.id)
+        .setLabel(question.label.slice(0, 45))
+        .setStyle(question.style === "short" ? TextInputStyle.Short : TextInputStyle.Paragraph)
+        .setRequired(Boolean(question.required))
+        .setMaxLength(question.style === "short" ? 100 : 1000);
+      modal.addComponents(new ActionRowBuilder().addComponents(input));
+    }
+    return modal;
+  }
+
+  async handleTicketSectionSelect(interaction) {
+    this.assertCoopFTGuild(interaction.guild, "choose a CoopFT support section");
+    if (interaction.guildId !== this.guildId || interaction.customId !== "cf-ticket:section") {
+      await interaction.reply({ content: "This support panel is only available in CoopFT.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    const sectionKey = interaction.values?.[0];
+    const section = TICKET_SECTIONS[sectionKey];
+    if (!section) {
+      await interaction.reply({ content: "Choose one of the available support areas.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    const types = Object.entries(TICKET_TYPES).filter(([, spec]) => spec.section === sectionKey);
+    const rows = [];
+    for (let index = 0; index < types.length; index += 5) {
+      const buttons = types.slice(index, index + 5).map(([key, spec]) =>
+        new ButtonBuilder().setCustomId("cf-ticket:type:" + key)
+          .setLabel(spec.label.slice(0, 80))
+          .setStyle(key.includes("bug") || key.includes("report") || key.includes("exploit") ? ButtonStyle.Danger :
+            key.includes("suggestion") ? ButtonStyle.Success : ButtonStyle.Secondary)
+          .setEmoji(spec.fallback)
+      );
+      rows.push(new ActionRowBuilder().addComponents(buttons));
+    }
+    await interaction.reply({
+      content: "**" + section.label + "**\n" + section.description + "\n\nChoose the request type. A short form will appear next.",
+      components: rows,
+      flags: MessageFlags.Ephemeral
+    });
+    return true;
+  }
+
+  async handleTicketIntakeModal(interaction) {
+    this.assertCoopFTGuild(interaction.guild, "submit a CoopFT support request");
+    if (interaction.guildId !== this.guildId || !interaction.customId?.startsWith("cf-ticket:submit:")) {
+      await interaction.reply({ content: "This support form is only available in CoopFT.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    const ticketType = interaction.customId.split(":")[2];
+    const spec = TICKET_TYPES[ticketType];
+    if (!spec) {
+      await interaction.reply({ content: "This request type is no longer available.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    const answers = {};
+    for (const question of spec.questions) {
+      const value = interaction.fields.getTextInputValue(question.id).trim();
+      if (question.required && !value) {
+        await interaction.reply({ content: "Please complete the required field: " + question.label + ".", flags: MessageFlags.Ephemeral });
+        return true;
+      }
+      if (value) answers[question.label] = value;
+    }
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const result = await this.openTicket(interaction.guild, interaction.member, ticketType, answers);
+    await interaction.editReply({
+      content: result.existing
+        ? "You already have an open ticket: <#" + result.channel.id + ">. Your new form was not used to create a duplicate."
+        : "Your request has been submitted. Your private ticket is ready: <#" + result.channel.id + ">."
+    });
+    return true;
+  }
+
   async getTicketCategory(guild) {
     this.assertCoopFTGuild(guild, "read the CoopFT ticket category");
     const id = await this.getResource(guild.id, "category:tickets");
     return id ? guild.channels.fetch(id).catch(() => null) : null;
   }
 
-  async openTicket(guild, member, ticketType) {
+  async openTicket(guild, member, ticketType, answers = {}) {
     this.assertCoopFTGuild(guild, "open a CoopFT ticket");
-    if (!TICKET_TYPES[ticketType]) throw new Error("Unknown ticket type.");
+    const info = TICKET_TYPES[ticketType];
+    if (!info) throw new Error("Unknown ticket type.");
+    const section = TICKET_SECTIONS[info.section];
+    if (!section) throw new Error("Unknown ticket section.");
     const existing = await this.pool.query(
       "SELECT id,channel_id FROM coopft_tickets WHERE guild_id=$1 AND opener_id=$2 AND status='open' ORDER BY created_at DESC LIMIT 1",
       [guild.id, member.id]
@@ -1525,19 +1640,15 @@ class CoopFTCommunityService {
       if (channel) return { channel, existing: true };
       await this.pool.query("UPDATE coopft_tickets SET status='closed',closed_at=NOW() WHERE guild_id=$1 AND channel_id=$2", [guild.id, existing.rows[0].channel_id]);
     }
-
     const category = await this.getTicketCategory(guild);
-    if (!category) throw new Error("The ticket category is not set up. Ask an administrator to run `npm run coopft:setup` from the hosting console.");
+    if (!category) throw new Error("The ticket category is not set up. Ask an administrator to run npm run coopft:setup from the hosting console.");
     const me = guild.members.me || await guild.members.fetchMe();
     const staffRoles = STAFF_RANKS.map((spec) => this.roles.get(spec.key)).filter(Boolean);
     const overwrites = [
       { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
       { id: member.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] },
       { id: me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] },
-      ...staffRoles.map((role) => ({
-        id: role.id,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks]
-      }))
+      ...staffRoles.map((role) => ({ id: role.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] }))
     ];
     const channel = await guild.channels.create({
       name: "▣・ticket-" + safeChannelName(member.user.username),
@@ -1548,10 +1659,16 @@ class CoopFTCommunityService {
       reason: "CoopFT ticket opened by " + member.user.tag
     });
     const ticketId = randomUUID();
+    const ticketData = {
+      sectionKey: info.section,
+      sectionLabel: section.label,
+      typeLabel: info.label,
+      answers: Object.fromEntries(Object.entries(answers || {}).map(([key, value]) => [String(key).slice(0, 80), String(value).slice(0, 1000)]))
+    };
     try {
       await this.pool.query(
-        "INSERT INTO coopft_tickets (id,guild_id,channel_id,opener_id,ticket_type) VALUES ($1,$2,$3,$4,$5)",
-        [ticketId, guild.id, channel.id, member.id, ticketType]
+        "INSERT INTO coopft_tickets (id,guild_id,channel_id,opener_id,ticket_type,ticket_data) VALUES ($1,$2,$3,$4,$5,$6::jsonb)",
+        [ticketId, guild.id, channel.id, member.id, ticketType, JSON.stringify(ticketData)]
       );
     } catch (error) {
       await channel.delete("Ticket record creation failed").catch(() => {});
@@ -1567,26 +1684,25 @@ class CoopFTCommunityService {
       }
       throw error;
     }
-
-    const info = TICKET_TYPES[ticketType];
+    const fields = [
+      { name: "Ticket owner", value: "<@" + member.id + ">", inline: true },
+      { name: "Service", value: section.label, inline: true },
+      { name: "Request type", value: info.label, inline: true },
+      { name: "Status", value: this.emoji(guild.id, "cf3d_spark", "🟢") + " Open", inline: true }
+    ];
+    for (const [label, value] of Object.entries(ticketData.answers)) {
+      fields.push({ name: label.slice(0, 256), value: value.slice(0, 1024) || "Not provided", inline: false });
+    }
     const embed = new EmbedBuilder().setColor(0x314D7A)
       .setTitle(this.emoji(guild.id, info.icon, info.fallback) + "  " + info.label)
-      .setDescription("Welcome, <@" + member.id + ">. Describe your request with useful detail. A staff member will join shortly.")
-      .addFields(
-        { name: "Ticket owner", value: "<@" + member.id + ">", inline: true },
-        { name: "Status", value: this.emoji(guild.id, "cf3d_spark", "🟢") + " Open", inline: true }
-      )
-      .setFooter({ text: "CoopFT • Ticket " + ticketId.slice(0, 8) });
+      .setDescription("A private request was submitted by <@" + member.id + ">. Intake answers are included below so the team can start with the right context.")
+      .addFields(fields.slice(0, 25))
+      .setFooter({ text: "CoopFT • Ticket " + ticketId.slice(0, 8) }).setTimestamp();
     const controls = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("cf-ticket:claim:" + ticketId).setLabel("Claim").setStyle(ButtonStyle.Primary).setEmoji("🛡️"),
       new ButtonBuilder().setCustomId("cf-ticket:close:" + ticketId).setLabel("Close ticket").setStyle(ButtonStyle.Danger).setEmoji("🔒")
     );
-    await channel.send({
-      content: "<@" + member.id + ">",
-      embeds: [embed],
-      components: [controls],
-      allowedMentions: { users: [member.id] }
-    });
+    await channel.send({ content: "<@" + member.id + ">", embeds: [embed], components: [controls], allowedMentions: { users: [member.id] } });
     return { channel, existing: false };
   }
 
@@ -1901,11 +2017,11 @@ class CoopFTCommunityService {
     }
     const sectionFor = (key) => {
       if (["owner", "co_owner", "monarch"].includes(key)) return "OWNER RANK";
-      if (["high_rank_supervisor", "apex", "right_wing", "left_wing", "halo", "overseer"].includes(key)) return "HIGH RANK";
-      if (["staff_supervisor", "supreme_council", "senate", "head_moderator"].includes(key)) return "LOW RANK";
+      if (["high_rank_supervisor", "apex", "right_wing", "left_wing", "halo", "overseer"].includes(key)) return "SENIOR OPERATIONS";
+      if (["staff_supervisor", "supreme_council", "senate", "head_moderator"].includes(key)) return "DEPARTMENT LEADERSHIP";
       return "MOD RANK";
     };
-    const sections = ["OWNER RANK", "HIGH RANK", "LOW RANK", "MOD RANK"];
+    const sections = ["OWNER RANK", "SENIOR OPERATIONS", "DEPARTMENT LEADERSHIP", "MOD RANK"];
     const embed = new EmbedBuilder()
       .setColor(0x8C1D32)
       .setTitle("COOPFT  |  STAFF DIRECTORY")
@@ -1929,7 +2045,7 @@ class CoopFTCommunityService {
 
   async buildStaffDirectoryPayload(guild) {
     const embed = await this.buildStaffDirectoryEmbed(guild);
-    embed.setImage("attachment://coopft-staff-banner.png");
+    embed.setThumbnail("attachment://coopft-staff-banner.png");
     return {
       embeds: [embed],
       files: [new AttachmentBuilder(this.buildStaffBanner(), { name: "coopft-staff-banner.png" })],
@@ -1941,7 +2057,7 @@ class CoopFTCommunityService {
     this.assertCoopFTGuild(guild, "update the CoopFT staff directory");
     const embed = await this.buildStaffDirectoryEmbed(guild);
     const banner = this.buildStaffBanner();
-    embed.setImage("attachment://coopft-staff-banner.png");
+    embed.setThumbnail("attachment://coopft-staff-banner.png");
     for (const key of ["staff_team", "staff_directory"]) {
       const channelId = await this.getResource(guild.id, "channel:" + key);
       const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
@@ -1984,10 +2100,12 @@ class CoopFTCommunityService {
       return true;
     }
     const [, action, value] = interaction.customId.split(":");
-    if (action === "open") {
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-      const result = await this.openTicket(interaction.guild, interaction.member, value);
-      await interaction.editReply({ content: result.existing ? "You already have an open ticket: <#" + result.channel.id + ">." : "Your private ticket is ready: <#" + result.channel.id + ">." });
+    if (action === "type") {
+      if (!TICKET_TYPES[value]) {
+        await interaction.reply({ content: "That request type is unavailable.", flags: MessageFlags.Ephemeral });
+        return true;
+      }
+      await interaction.showModal(this.createTicketIntakeModal(value));
       return true;
     }
     const ticketResult = await this.pool.query(
