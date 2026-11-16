@@ -644,7 +644,7 @@ class CoopFTCommunityService {
       channel = guild.channels.cache.find((item) =>
         acceptedTypes.includes(item.type) &&
         item.parentId === parent.id &&
-        item.topic === marker
+        (item.name === spec.name || item.topic === marker)
       ) || null;
     }
     const permissionOverwrites = [...parent.permissionOverwrites.cache.values()].map((overwrite) => ({
@@ -658,7 +658,6 @@ class CoopFTCommunityService {
       const base = {
         name: spec.name,
         parent: parent.id,
-        topic: marker,
         permissionOverwrites,
         reason: "CoopFT managed community layout"
       };
@@ -675,9 +674,6 @@ class CoopFTCommunityService {
       if (channel.name !== spec.name) await channel.setName(spec.name, "Repair CoopFT managed channel name");
       if (channel.parentId !== parent.id) await channel.setParent(parent.id, { lockPermissions: false, reason: "Repair CoopFT managed channel category" });
       await channel.permissionOverwrites.set(permissionOverwrites, "CoopFT managed channel permission synchronization");
-      if (typeof channel.setTopic === "function" && channel.topic !== marker) {
-        await channel.setTopic(marker, "Repair CoopFT managed channel marker");
-      }
     }
     await this.saveResource(guild.id, resourceKey, channel.id);
     return { channel, created };
