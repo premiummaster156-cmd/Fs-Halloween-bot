@@ -1226,6 +1226,7 @@ class CoopFTCommunityService {
         title: "1 • INTRODUCTION & STAFF STANDARDS",
         icon: q("cf3d_rolebook", "📖"),
         description: [
+          q("emoji_18", "👥") + " Staff recruitment is limited to Junior Moderator, Moderator and Developer. Application controls are visible only to Owner Rank.",
           "Welcome to the CoopFT Staff Guide. This handbook explains how staff protect the community, apply the rules fairly, handle reports and keep internal work professional.",
           "",
           "THE STANDARD: be fair, calm, consistent, evidence-led and respectful. Always use common sense. Rank is responsibility, not permission to intimidate members.",
