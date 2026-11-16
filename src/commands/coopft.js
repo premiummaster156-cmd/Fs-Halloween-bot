@@ -1,6 +1,6 @@
 "use strict";
 const {SlashCommandBuilder,EmbedBuilder,PermissionFlagsBits:P,MessageFlags,ChannelType,SnowflakeUtil}=require("discord.js");
-const { INTEREST_ROLES, PING_ROLES } = require("../config/coopft-design");
+const { PING_ROLES } = require("../config/coopft-design");
 const names="coopft-setup coopft-roles-sync coopft-channels-sync coopft-channel-decorate coopft-panel coopft-ticket-config announce poll event-create event-list event-cancel slowmode lock unlock purge timeout untimeout kick ban unban warn warnings clear-warnings case note notes member-note-remove role-add role-remove nickname reset-nickname channel-topic channel-rename ticket-cooldown ticket-claim ticket-close ticket-add ticket-remove ticket-rename ticket-priority ticket-info ticket-list suggestion suggestion-review autorole welcome-config onboarding-setup coopft-public-access".split(" ");
 const desc="Create missing CoopFT resources without overwriting custom settings|Explicitly apply configured CoopFT role names, colors, permissions and order|Explicitly apply configured CoopFT channel names, categories and permissions|Apply decorative names to default CoopFT channels only|Publish or move a CoopFT panel|Configure ticket category and transcript archive|Publish announcement|Create poll|Schedule event|List events|Cancel event|Set slowmode|Lock channel|Unlock channel|Purge messages|Timeout member|Remove timeout|Kick member|Ban member|Unban user|Issue warning|View warnings|Clear warnings|Moderation case|Add staff note|View staff notes|Remove staff note|Assign role|Remove role|Set nickname|Reset nickname|Edit channel topic|Rename channel|Apply a manual seven-day cooldown to one request type|Claim ticket|Close ticket|Add ticket member|Remove ticket member|Rename ticket|Set ticket priority|Ticket details|List tickets|Submit suggestion|Review suggestion|Configure automatic join roles (server owner only)|Set the welcome channel or disable welcome messages (server owner only)|Build and enable Discord onboarding from public channels (server owner only)|Restore public channel visibility and message history for members".split("|");
 const staff=(i,s)=>{if(!s.coopft.isStaff(i.member))throw Error("CoopFT staff only.");};
@@ -93,16 +93,6 @@ if(n==="onboarding-setup"){
  const extraChannels=visible.filter(channel=>!defaultChannels.some(item=>item.id===channel.id)).slice(0,25);
  if(extraChannels.length<2)throw Error("Create at least two additional public text channels beyond the seven default channels so the bot can build useful onboarding choices.");
 
- const interestDescriptions={
-  interest_gaming:"Find people to play with and talk about games",
-  interest_programming:"Discuss software, bots, coding and technology",
-  interest_art:"Share artwork, graphics and creative projects",
-  interest_music:"Talk about music, artists and playlists",
-  interest_anime:"Discuss anime, manga and related media",
-  interest_technology:"Explore tech, devices and new ideas",
-  interest_voice:"Join voice chats and community conversations",
-  interest_events:"Take part in community activities and events"
- };
  const pingDescriptions={
   ping_announcements:"Important server news and official notices",
   ping_events:"Community events, activities and schedules",
@@ -139,16 +129,6 @@ if(n==="onboarding-setup"){
    roles:(option.roles||[]).map(String)
   }))
  });
- const interestOptions=[];
- for(const spec of INTEREST_ROLES){
-  const role=await resolveRole(spec);
-  interestOptions.push({
-   title:spec.name,
-   description:interestDescriptions[spec.key]||"Choose this topic to personalize your community experience",
-   emoji:spec.icon,
-   roles:[String(role.id)]
-  });
- }
  const pingOptions=[];
  for(const spec of PING_ROLES){
   const role=await resolveRole(spec);
@@ -177,7 +157,11 @@ if(n==="onboarding-setup"){
 
  const generatedTitles=new Set([
   "What would you like to explore?",
+  "What are you interested in and what updates do you want?",
+  "What are you interested in?",
+  "What are your interests?",
   "What topics are you interested in?",
+  "Which interests do you have?",
   "Which updates would you like to receive?",
   "Which spaces should we add to your channel list?"
  ]);
@@ -210,14 +194,10 @@ if(n==="onboarding-setup"){
   }));
  const availableSlots=5-oldPrompts.length;
  if(availableSlots<1)throw Error("Discord already has 5 custom onboarding questions. Remove at least 1 question in Server Settings so CoopFT can add its member preference choices, then rerun /onboarding-setup.");
- // Discord permits only five prompts in total. Combine the two role-based
- // preference groups so three existing custom questions can remain untouched.
- const preferenceOptions=[
-  ...interestOptions.map(option=>({...option,description:"Interest · "+option.description})),
-  ...pingOptions.map(option=>({...option,description:"Notification · "+option.description}))
- ];
+ // Keep onboarding focused on notification preferences; interest roles remain
+ // available through the separate role-selection panel.
  const generatedPrompts=[
-  makePrompt("What are you interested in and what updates do you want?",preferenceOptions)
+  makePrompt("Which updates would you like to receive?",pingOptions)
  ];
  if(availableSlots>=2){
   generatedPrompts.push(makePrompt("Which spaces should we add to your channel list?",channelOptions));
@@ -236,7 +216,7 @@ if(n==="onboarding-setup"){
  const channelMessage=generatedPrompts.length===2
   ? " plus "+channelOptions.length+" channel shortcuts"
   : "; channel shortcuts were skipped to preserve your existing questions";
- return say(i,"Discord onboarding is enabled with **"+generatedPrompts.length+" new question(s)**. The preference question contains "+interestOptions.length+" interest roles and "+pingOptions.length+" notification roles"+channelMessage+". Existing custom questions were preserved. Members can update their selections later in Channels & Roles.");
+ return say(i,"Discord onboarding is enabled with **"+generatedPrompts.length+" new question(s)**. The notification question contains "+pingOptions.length+" opt-in notification roles"+channelMessage+". The interests question has been removed; existing custom questions were preserved. Members can update their selections later in Channels & Roles.");
 }
 
 if(n==="coopft-public-access"){
