@@ -40,7 +40,7 @@ test("CoopFT exposes focused setup, sync, panel and operational commands", () =>
     "ticket-remove", "ticket-rename", "timeout", "unban", "unlock", "untimeout",
     "warn", "warnings"
   ];
-  expected.push("autorole", "onboarding-setup", "welcome-config");
+  expected.push("autorole", "onboarding-setup", "welcome-config", "coopft-public-access");
   assert.deepEqual([...commands.keys()].sort(), expected.sort());
   for (const command of commands.values()) assert.doesNotThrow(() => command.data.toJSON());
   const autorole = commands.get("autorole").data.toJSON();
@@ -62,6 +62,63 @@ test("CoopFT exposes focused setup, sync, panel and operational commands", () =>
   for (const removed of ["ping", "help", "serverinfo", "botinfo", "avatar", "application-status", "application-withdraw", "application-queue", "staff", "menu", "profile", "leaderboard"]) {
     assert.equal(commands.has(removed), false, removed + " is intentionally not exposed");
   }
+});
+
+test("public access repair grants view and message history without exposing private CoopFT channels", async () => {
+  const resources = new Map();
+  const channels = new Map();
+  const edits = [];
+  for (const key of ["start_here", "community", "services"]) {
+    const id = "category-" + key;
+    resources.set("resource:category:" + key, id);
+    channels.set(id, {
+      id,
+      guildId: coopftGuildId,
+      permissionOverwrites: {
+        edit: async (principalId, permissions, reason) => edits.push({ channelId: id, principalId, permissions, reason })
+      }
+    });
+  }
+  for (const spec of PUBLIC_CHANNELS) {
+    const id = "public-" + spec.key;
+    resources.set("resource:channel:" + spec.key, id);
+    channels.set(id, {
+      id,
+      guildId: coopftGuildId,
+      permissionOverwrites: {
+        edit: async (principalId, permissions, reason) => edits.push({ channelId: id, principalId, permissions, reason })
+      }
+    });
+  }
+  const everyone = { id: coopftGuildId };
+  const communityRole = { id: "community-member-role" };
+  const bot = {
+    permissions: { has: permission => permission === PermissionFlagsBits.ManageChannels },
+    roles: { highest: { position: 50 } }
+  };
+  const guild = {
+    id: coopftGuildId,
+    roles: { everyone },
+    members: { me: bot },
+    channels: { fetch: async id => channels.get(id) || null }
+  };
+  const pool = {
+    query: async (_sql, params) => ({
+      rows: resources.has(params[1]) ? [{ setting_value: resources.get(params[1]) }] : []
+    })
+  };
+  const service = new CoopFTCommunityService(pool, { guildId: coopftGuildId });
+  service.roles.set("community_member", communityRole);
+
+  const result = await service.repairPublicChannelAccess(guild);
+  assert.equal(result.categoriesUpdated, 3);
+  assert.equal(result.channelsUpdated, PUBLIC_CHANNELS.length);
+  assert.equal(result.missing.length, 0);
+  assert.equal(edits.length, (3 + PUBLIC_CHANNELS.length) * 2);
+  assert.ok(edits.every(edit => edit.permissions.ViewChannel === true));
+  assert.ok(edits.every(edit => edit.permissions.ReadMessageHistory === true));
+  assert.deepEqual(new Set(edits.map(edit => edit.principalId)), new Set([coopftGuildId, communityRole.id]));
+  assert.equal([...resources.keys()].some(key => key.includes("staff_hq") || key.includes("application_review") || key.includes("ticket_transcripts")), false);
 });
 
 test("autorole and onboarding configuration commands reject non-owners", async () => {
