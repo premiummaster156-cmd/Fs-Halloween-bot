@@ -1967,13 +1967,16 @@ class CoopFTCommunityService {
         "**CoopFT Server**",
         "Server bugs, community suggestions, member reports, staff concerns, general support and partnership enquiries.",
         "",
+        "**Custom Bot Development**",
+        "Commission a new custom bot or a defined feature build. Approved Developers can view and manage these private project tickets.",
+        "",
         "Your form answers are copied into the private ticket. One open ticket per member is allowed."
       ].join("\n"))
       .setImage("attachment://coopft-support-banner.png")
       .setFooter({ text: "Select a service below • no ticket is created until the form is submitted" });
     const row = new ActionRowBuilder().addComponents(
       new StringSelectMenuBuilder().setCustomId("cf-ticket:section")
-        .setPlaceholder("Choose Fukishōkai Bot or CoopFT Server").setMinValues(1).setMaxValues(1)
+        .setPlaceholder("Choose a service or custom bot development").setMinValues(1).setMaxValues(1)
         .addOptions(
           { label: "Fukishōkai Economy Bot", value: "bot", description: "Bot bugs, accounts, gameplay and suggestions", emoji: "🎮" },
           { label: "CoopFT Server", value: "server", description: "Server support, reports, suggestions and partnerships", emoji: "🏛️" },
@@ -2291,6 +2294,16 @@ class CoopFTCommunityService {
       const role = this.roles.get(key);
       return role && member.roles.cache.has(role.id);
     });
+  }
+
+  isDeveloper(member) {
+    const role = this.roles.get("developer_member");
+    return Boolean(role && member?.roles?.cache?.has(role.id));
+  }
+
+  canHandleTicket(member, ticket) {
+    if (this.isStaff(member)) return true;
+    return ticket?.ticket_type === "custom_bot_request" && this.isDeveloper(member);
   }
 
   canManageApplications(member, guild) {
@@ -2768,10 +2781,10 @@ class CoopFTCommunityService {
       await interaction.reply({ content: "That ticket is already closed or no longer exists.", flags: MessageFlags.Ephemeral });
       return true;
     }
-    const staff = this.isStaff(interaction.member);
+    const staff = this.canHandleTicket(interaction.member, ticket);
     if (action === "claim") {
       if (!staff) {
-        await interaction.reply({ content: "Only CoopFT staff can claim tickets.", flags: MessageFlags.Ephemeral });
+        await interaction.reply({ content: "Only the ticket owner or authorized ticket team can claim this request.", flags: MessageFlags.Ephemeral });
         return true;
       }
       const claimed = await this.pool.query(
@@ -2788,7 +2801,7 @@ class CoopFTCommunityService {
     }
     if (action === "close") {
       if (!staff && interaction.user.id !== ticket.opener_id) {
-        await interaction.reply({ content: "Only the ticket owner or CoopFT staff can close this ticket.", flags: MessageFlags.Ephemeral });
+        await interaction.reply({ content: "Only the ticket owner or authorized ticket team can close this ticket.", flags: MessageFlags.Ephemeral });
         return true;
       }
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
