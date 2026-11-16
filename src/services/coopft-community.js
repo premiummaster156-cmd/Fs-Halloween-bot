@@ -1429,6 +1429,10 @@ class CoopFTCommunityService {
       await interaction.reply({ content: "This application panel is only available in CoopFT.", flags: MessageFlags.Ephemeral });
       return true;
     }
+    if ((await this.getSetting(interaction.guildId, "applications_open")) === false) {
+      await interaction.reply({ content: "CoopFT recruitment is currently closed.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
     const role = APPLICATION_RANKS.find((item) => item.key === interaction.values?.[0]);
     if (!role) {
       await interaction.reply({ content: "That staff position is not available for applications.", flags: MessageFlags.Ephemeral });
@@ -1449,8 +1453,8 @@ class CoopFTCommunityService {
       await interaction.reply({ content: "This application review action is not recognized.", flags: MessageFlags.Ephemeral });
       return true;
     }
-    if (!this.canManageStaff(interaction.member, interaction.guild)) {
-      await interaction.reply({ content: "Only designated CoopFT leadership can review staff applications.", flags: MessageFlags.Ephemeral });
+    if (!this.canManageApplications(interaction.member, interaction.guild)) {
+      await interaction.reply({ content: "Only Owner, Co-Owner or Monarch can review CoopFT applications.", flags: MessageFlags.Ephemeral });
       return true;
     }
     if (action.endsWith("-reason")) {
@@ -1479,24 +1483,27 @@ class CoopFTCommunityService {
   async handleApplicationModal(interaction) {
     this.assertCoopFTGuild(interaction.guild, "save a CoopFT staff application");
     if (interaction.guildId !== this.guildId) {
-      await interaction.reply({ content: "Staff applications are only available in CoopFT.", flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: "Applications are only available in CoopFT.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    if ((await this.getSetting(interaction.guildId, "applications_open")) === false) {
+      await interaction.reply({ content: "CoopFT recruitment has closed. Your form was not submitted.", flags: MessageFlags.Ephemeral });
       return true;
     }
     const role = APPLICATION_RANKS.find((item) => item.key === interaction.customId.split(":")[2]);
     if (!role) {
-      await interaction.reply({ content: "That staff position is no longer accepting applications.", flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: "That application track is no longer available.", flags: MessageFlags.Ephemeral });
       return true;
     }
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const answers = {
-      experience: interaction.fields.getTextInputValue("experience").trim(),
-      motivation: interaction.fields.getTextInputValue("motivation").trim(),
-      scenario: interaction.fields.getTextInputValue("scenario").trim(),
-      availability: interaction.fields.getTextInputValue("availability").trim(),
-      extra: interaction.fields.getTextInputValue("extra").trim()
-    };
-    if (Object.entries(answers).filter(([key]) => key !== "extra").some(([, value]) => !value)) {
-      return interaction.editReply({ content: "Please answer every required question before submitting." });
+    const answers = {};
+    const questions = this.getApplicationQuestions(role);
+    for (const [fieldId, label, style, required] of questions) {
+      const value = interaction.fields.getTextInputValue(fieldId).trim();
+      if (required && !value) {
+        return interaction.editReply({ content: "Please complete the required field: " + label + "." });
+      }
+      answers[fieldId] = value;
     }
     const duplicate = await this.pool.query(
       "SELECT id FROM coopft_applications WHERE guild_id=$1 AND applicant_id=$2 AND role_key=$3 AND status='pending' LIMIT 1",
@@ -1518,25 +1525,31 @@ class CoopFTCommunityService {
     const reviewChannelId = await this.getResource(interaction.guildId, "channel:application_review");
     const reviewChannel = reviewChannelId ? await interaction.guild.channels.fetch(reviewChannelId).catch(() => null) : null;
     if (!reviewChannel?.isTextBased?.()) {
-      await this.pool.query("UPDATE coopft_applications SET status='withdrawn',review_note='Review channel unavailable' WHERE id=$1", [inserted.rows[0].id]);
-      return interaction.editReply({ content: "Your application could not be delivered to the private review team. Please contact a server owner." });
+      await this.pool.query(
+        "UPDATE coopft_applications SET status='withdrawn',review_note='Review channel unavailable' WHERE id=$1",
+        [inserted.rows[0].id]
+      );
+      return interaction.editReply({ content: "Your application could not reach the private Owner Rank review team. Please contact a server owner." });
     }
     const application = inserted.rows[0];
+    const fields = [
+      { name: "Applicant", value: "<@" + interaction.user.id + ">  •  " + interaction.user.tag, inline: false },
+      { name: "Position requested", value: role.name, inline: true },
+      { name: "Submitted", value: "<t:" + Math.floor(new Date(application.created_at).getTime() / 1000) + ":R>", inline: true }
+    ];
+    for (const [fieldId, label] of questions) {
+      fields.push({
+        name: label,
+        value: (answers[fieldId] || "Not provided").slice(0, 1024),
+        inline: false
+      });
+    }
     const reviewEmbed = new EmbedBuilder()
-      .setColor(0x28384F)
-      .setTitle("NEW STAFF APPLICATION  |  " + role.name.toUpperCase())
-      .setDescription("A new CoopFT staff application has been submitted and is awaiting leadership review.")
-      .addFields(
-        { name: "Applicant", value: "<@" + interaction.user.id + ">  •  " + interaction.user.tag, inline: false },
-        { name: "Position requested", value: role.name, inline: true },
-        { name: "Submitted", value: "<t:" + Math.floor(new Date(application.created_at).getTime() / 1000) + ":R>", inline: true },
-        { name: "Relevant experience", value: answers.experience.slice(0, 1024), inline: false },
-        { name: "Motivation", value: answers.motivation.slice(0, 1024), inline: false },
-        { name: "Scenario response", value: answers.scenario.slice(0, 1024), inline: false },
-        { name: "Availability", value: answers.availability.slice(0, 1024), inline: false },
-        { name: "Additional notes", value: answers.extra ? answers.extra.slice(0, 1024) : "Not provided", inline: false }
-      )
-      .setFooter({ text: "Application reference  •  " + application.id });
+      .setColor(role.category === "developer" ? 0x397C94 : 0x28384F)
+      .setTitle("NEW APPLICATION  |  " + role.name.toUpperCase())
+      .setDescription("A CoopFT application has been submitted and is awaiting an Owner Rank decision.")
+      .addFields(fields.slice(0, 25))
+      .setFooter({ text: "Private application reference  •  " + application.id });
     let reviewMessage;
     try {
       reviewMessage = await reviewChannel.send({
@@ -1549,11 +1562,13 @@ class CoopFTCommunityService {
         "UPDATE coopft_applications SET status='withdrawn',review_note=$2 WHERE id=$1 AND status='pending'",
         [application.id, ("Review delivery failed: " + error.message).slice(0, 500)]
       );
-      console.error("[coopft] Could not publish a staff application to the private review channel:", error.message);
-      return interaction.editReply({ content: "Your application was saved, but the private review team could not receive it. Please contact a server owner." });
+      console.error("[coopft] Could not publish an application to the private Owner Rank review channel:", error.message);
+      return interaction.editReply({ content: "Your application was saved, but the Owner Rank review team could not receive it. Please contact a server owner." });
     }
     await this.pool.query("UPDATE coopft_applications SET review_message_id=$2 WHERE id=$1", [application.id, reviewMessage.id]);
-    await interaction.editReply({ content: "Your application for **" + role.name + "** has been submitted privately. The review team will contact you with its decision." });
+    await interaction.editReply({
+      content: "Your **" + role.name + "** application has been submitted privately to the Owner Rank review team. You will receive the decision by DM."
+    });
     return true;
   }
 
@@ -1564,8 +1579,8 @@ class CoopFTCommunityService {
       await interaction.reply({ content: "This application decision is invalid.", flags: MessageFlags.Ephemeral });
       return true;
     }
-    if (!this.canManageStaff(interaction.member, interaction.guild)) {
-      await interaction.reply({ content: "Only designated CoopFT leadership can review staff applications.", flags: MessageFlags.Ephemeral });
+    if (!this.canManageApplications(interaction.member, interaction.guild)) {
+      await interaction.reply({ content: "Only Owner, Co-Owner or Monarch can review CoopFT applications.", flags: MessageFlags.Ephemeral });
       return true;
     }
     const reason = interaction.fields.getTextInputValue("reason").trim();
@@ -1583,7 +1598,10 @@ class CoopFTCommunityService {
   }
 
   async resolveApplication(interaction, applicationId, decision, reason = null) {
-    this.assertCoopFTGuild(interaction.guild, "review a CoopFT staff application");
+    this.assertCoopFTGuild(interaction.guild, "review a CoopFT application");
+    if (!this.canManageApplications(interaction.member, interaction.guild)) {
+      throw new Error("Only Owner, Co-Owner or Monarch can make application decisions.");
+    }
     if (!["accept", "deny"].includes(decision)) throw new Error("Unknown application decision.");
     const selected = await this.pool.query(
       "SELECT * FROM coopft_applications WHERE guild_id=$1 AND id=$2 AND status='pending' LIMIT 1",
@@ -1592,16 +1610,19 @@ class CoopFTCommunityService {
     const application = selected.rows[0];
     if (!application) throw new Error("This application has already been reviewed or no longer exists.");
     const roleSpec = APPLICATION_RANKS.find((item) => item.key === application.role_key);
-    if (!roleSpec) throw new Error("This application is for a retired position and cannot be accepted.");
+    if (!roleSpec) throw new Error("This application track is no longer available.");
+    const assignedRoleKey = roleSpec.roleKey || roleSpec.key;
     const member = await interaction.guild.members.fetch(application.applicant_id).catch(() => null);
     if (decision === "accept" && !member) throw new Error("The applicant is no longer in CoopFT. The application was left pending.");
 
     let role = null;
     if (decision === "accept") {
-      role = this.roles.get(roleSpec.key) || null;
+      role = this.roles.get(assignedRoleKey) || null;
       if (!role) {
-        role = (await this.ensureRole(interaction.guild, roleSpec)).role;
-        this.roles.set(roleSpec.key, role);
+        const roleSource = [...STAFF_RANKS, ...MEMBER_ROLES].find((item) => item.key === assignedRoleKey);
+        if (!roleSource) throw new Error("The role for this application track is not configured.");
+        role = (await this.ensureRole(interaction.guild, roleSource)).role;
+        this.roles.set(assignedRoleKey, role);
       }
     }
     const newStatus = decision === "accept" ? "approved" : "declined";
@@ -1612,26 +1633,32 @@ class CoopFTCommunityService {
     if (!claimed.rowCount) throw new Error("Another reviewer has already processed this application.");
 
     if (decision === "accept") {
-      const previousRank = this.getStaffRankKey(member);
       const addedRole = !member.roles.cache.has(role.id);
       const removedPreviousRoles = [];
+      const previousRank = roleSpec.category === "staff" ? this.getStaffRankKey(member) : null;
       try {
-        if (addedRole) await member.roles.add(role, "CoopFT application accepted by " + interaction.user.tag);
-        for (const rank of STAFF_RANKS) {
-          if (rank.key === roleSpec.key) continue;
-          const oldRole = this.roles.get(rank.key);
-          if (!oldRole || !member.roles.cache.has(oldRole.id)) continue;
-          await member.roles.remove(oldRole, "CoopFT application accepted; replace previous staff rank");
-          removedPreviousRoles.push(oldRole);
+        if (addedRole) await member.roles.add(role, "CoopFT " + roleSpec.name + " application accepted by " + interaction.user.tag);
+        if (roleSpec.category === "staff") {
+          for (const rank of STAFF_RANKS) {
+            if (rank.key === assignedRoleKey) continue;
+            const oldRole = this.roles.get(rank.key);
+            if (!oldRole || !member.roles.cache.has(oldRole.id)) continue;
+            await member.roles.remove(oldRole, "CoopFT application accepted; replace previous staff rank");
+            removedPreviousRoles.push(oldRole);
+          }
+          await this.pool.query(
+            "INSERT INTO coopft_staff_members (guild_id,member_id,rank_key,active,updated_by) VALUES ($1,$2,$3,TRUE,$4) " +
+            "ON CONFLICT (guild_id,member_id) DO UPDATE SET rank_key=EXCLUDED.rank_key,active=TRUE,updated_at=NOW(),updated_by=EXCLUDED.updated_by",
+            [interaction.guildId, member.id, assignedRoleKey, interaction.user.id]
+          );
+          await this.recordStaffAudit(interaction.guildId, interaction.user.id, member.id, "application_accepted", {
+            applicationId, from: previousRank, to: assignedRoleKey, reason
+          });
+        } else {
+          await this.recordStaffAudit(interaction.guildId, interaction.user.id, member.id, "developer_application_accepted", {
+            applicationId, role: assignedRoleKey, reason
+          });
         }
-        await this.pool.query(
-          "INSERT INTO coopft_staff_members (guild_id,member_id,rank_key,active,updated_by) VALUES ($1,$2,$3,TRUE,$4) " +
-          "ON CONFLICT (guild_id,member_id) DO UPDATE SET rank_key=EXCLUDED.rank_key,active=TRUE,updated_at=NOW(),updated_by=EXCLUDED.updated_by",
-          [interaction.guildId, member.id, roleSpec.key, interaction.user.id]
-        );
-        await this.recordStaffAudit(interaction.guildId, interaction.user.id, member.id, "application_accepted", {
-          applicationId, from: previousRank, to: roleSpec.key, reason
-        });
         await this.updateStaffDirectory(interaction.guild);
       } catch (error) {
         await this.pool.query(
@@ -1654,30 +1681,33 @@ class CoopFTCommunityService {
     }
     if (reviewMessage) {
       const original = reviewMessage.embeds?.[0];
-      const finalEmbed = original ? EmbedBuilder.from(original) : new EmbedBuilder().setTitle("COOPFT STAFF APPLICATION");
+      const finalEmbed = original ? EmbedBuilder.from(original) : new EmbedBuilder().setTitle("COOPFT APPLICATION");
       const decisionText = decision === "accept" ? "ACCEPTED" : "DENIED";
       const summaryLines = [
         "**Decision:** " + decisionText,
         "**Reviewed by:** <@" + interaction.user.id + ">",
-        decision === "accept" ? "**Assigned rank:** " + roleSpec.name : "**No staff rank was assigned.**",
+        decision === "accept"
+          ? (roleSpec.category === "developer" ? "**Assigned role:** Developer" : "**Assigned rank:** " + roleSpec.name)
+          : "**No role was assigned.**",
         reason ? "**Review note:** " + reason : "**Review note:** No additional feedback was provided."
       ];
-      finalEmbed
-        .setColor(decision === "accept" ? 0x267A58 : 0x963A48)
+      finalEmbed.setColor(decision === "accept" ? 0x267A58 : 0x963A48)
         .setDescription([original?.description, "", summaryLines.join("\n")].filter(Boolean).join("\n"))
         .setFooter({ text: "Application reference  •  " + applicationId + "  •  " + decisionText });
       await reviewMessage.edit({ embeds: [finalEmbed], components: [], allowedMentions: { parse: [] } }).catch((error) => {
         console.warn("[coopft] Could not update the reviewed application message:", error.message);
       });
     }
-
     const applicant = await interaction.client.users.fetch(application.applicant_id).catch(() => null);
     if (applicant) {
       const resultText = decision === "accept" ? "ACCEPTED" : "DENIED";
+      const assignedText = roleSpec.category === "developer"
+        ? "Your Developer role has been assigned. The team can now coordinate custom bot requests with you."
+        : "Your " + roleSpec.name + " staff rank has been assigned. Welcome to the team.";
       const dm = [
         "**COOPFT  |  APPLICATION RESULT**",
         "Your application for **" + roleSpec.name + "** has been **" + resultText + "**.",
-        decision === "accept" ? "Your staff rank has been assigned. Welcome to the team." : "No staff rank was assigned.",
+        decision === "accept" ? assignedText : "No CoopFT role was assigned.",
         "**Reviewed by:** " + interaction.user.tag,
         reason ? "**Review note:** " + reason : "**Review note:** No additional feedback was provided."
       ].join("\n\n");
