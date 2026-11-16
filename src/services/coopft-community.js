@@ -2904,8 +2904,12 @@ class CoopFTCommunityService {
     const grouped = new Map(STAFF_RANKS.map((rank) => [rank.key, []]));
     const developerMembers = [];
     for (const member of members) {
-      const rankKey = this.getStaffRankKey(member);
-      if (rankKey && grouped.has(rankKey)) grouped.get(rankKey).push(member);
+      // Read every rank role independently. If a member currently holds more
+      // than one rank role, the directory reflects every actual assignment.
+      for (const rank of STAFF_RANKS) {
+        const role = this.roles.get(rank.key);
+        if (role && member.roles.cache.has(role.id)) grouped.get(rank.key).push(member);
+      }
       const developerRole = this.roles.get("developer_member");
       if (developerRole && member.roles.cache.has(developerRole.id)) developerMembers.push(member);
     }
@@ -2976,8 +2980,9 @@ class CoopFTCommunityService {
       let removed = 0;
       for (const [memberId, rankKey] of current) {
         const previous = byMember.get(memberId);
+        if (previous?.active && previous.rank_key === rankKey) continue;
         if (!previous || !previous.active) added += 1;
-        else if (previous.rank_key !== rankKey) changed += 1;
+        else changed += 1;
         await this.pool.query(
           "INSERT INTO coopft_staff_members (guild_id,member_id,rank_key,active,updated_by) VALUES ($1,$2,$3,TRUE,'guild-members-sync') " +
           "ON CONFLICT (guild_id,member_id) DO UPDATE SET rank_key=EXCLUDED.rank_key,active=TRUE,updated_at=NOW(),updated_by=EXCLUDED.updated_by " +
