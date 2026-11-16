@@ -1,23 +1,33 @@
 "use strict";
 const {SlashCommandBuilder,EmbedBuilder,PermissionFlagsBits:P,MessageFlags}=require("discord.js");
-const names="ping help serverinfo botinfo memberinfo avatar roleinfo channelinfo rules announce poll event-create event-list event-cancel slowmode lock unlock purge timeout untimeout kick ban unban warn warnings clear-warnings case note notes member-note-remove role-add role-remove nickname reset-nickname channel-topic channel-rename channel-clone ticket-claim ticket-close ticket-add ticket-remove ticket-rename ticket-priority ticket-info ticket-list application-status application-withdraw application-queue suggestion suggestion-review".split(" ");
-const desc="Check latency|Show command directory|Server statistics|Assistant status|Member profile|User avatar|Role details|Channel details|Rules channel|Publish announcement|Create poll|Schedule event|List events|Cancel event|Set slowmode|Lock channel|Unlock channel|Purge messages|Timeout member|Remove timeout|Kick member|Ban member|Unban user|Issue warning|View warnings|Clear warnings|Moderation case|Add staff note|View staff notes|Remove staff note|Assign role|Remove role|Set nickname|Reset nickname|Edit channel topic|Rename channel|Clone channel|Claim ticket|Close ticket|Add ticket member|Remove ticket member|Rename ticket|Set ticket priority|Ticket details|List tickets|Application status|Withdraw application|Application queue|Submit suggestion|Review suggestion".split("|");
+const names="coopft-setup coopft-roles-sync coopft-channels-sync coopft-panel announce poll event-create event-list event-cancel slowmode lock unlock purge timeout untimeout kick ban unban warn warnings clear-warnings case note notes member-note-remove role-add role-remove nickname reset-nickname channel-topic channel-rename ticket-claim ticket-close ticket-add ticket-remove ticket-rename ticket-priority ticket-info ticket-list suggestion suggestion-review".split(" ");
+const desc="Create missing CoopFT resources without overwriting custom settings|Explicitly apply configured CoopFT role names, colors, permissions and order|Explicitly apply configured CoopFT channel names, categories and permissions|Publish or move a CoopFT panel|Publish announcement|Create poll|Schedule event|List events|Cancel event|Set slowmode|Lock channel|Unlock channel|Purge messages|Timeout member|Remove timeout|Kick member|Ban member|Unban user|Issue warning|View warnings|Clear warnings|Moderation case|Add staff note|View staff notes|Remove staff note|Assign role|Remove role|Set nickname|Reset nickname|Edit channel topic|Rename channel|Claim ticket|Close ticket|Add ticket member|Remove ticket member|Rename ticket|Set ticket priority|Ticket details|List tickets|Submit suggestion|Review suggestion".split("|");
 const staff=(i,s)=>{if(!s.coopft.isStaff(i.member))throw Error("CoopFT staff only.");};
+const ownerConfig=(i,s)=>{if(!s.coopft.canManageApplications(i.member,i.guild))throw Error("Only the server owner or Owner Rank can configure CoopFT.");};
 const lead=(i,s)=>{if(!s.coopft.canManageStaff(i.member,i.guild))throw Error("CoopFT leadership only.");};
 const say=(i,c,e=[])=>i.reply({content:c,embeds:e,flags:MessageFlags.Ephemeral,allowedMentions:{parse:[]}});
 async function run(n,i,s){
 const g=i.guild,id=i.guildId,u=i.user,c=i.channel,reason=i.options.getString("reason")||"CoopFT staff action";
 const getMember=async()=>{const x=i.options.getUser("member");if(!x)throw Error("Select a member.");const m=await g.members.fetch(x.id).catch(()=>null);if(!m)throw Error("Member not found.");return m;};
 const getTicket=async()=>{const r=await s.pool.query("SELECT * FROM coopft_tickets WHERE guild_id=$1 AND channel_id=$2 AND status='open'",[id,c.id]);if(!r.rows[0])throw Error("Use this inside an open ticket.");return r.rows[0];};
+if(n==="coopft-setup"||n==="coopft-roles-sync"||n==="coopft-channels-sync"){
+ ownerConfig(i,s);
+ await i.deferReply({flags:MessageFlags.Ephemeral});
+ const options={manual:true,actorId:u.id};
+ if(n==="coopft-roles-sync")options.syncRoles=true;
+ if(n==="coopft-channels-sync")options.syncChannels=true;
+ const result=await s.coopft.bootstrap(g,options);
+ const label=n==="coopft-roles-sync"?"Configured role properties and order applied.":n==="coopft-channels-sync"?"Configured channel names, categories and permissions applied.":"Missing CoopFT resources created; existing role and channel customizations preserved.";
+ return i.editReply(label+" Created "+result.createdRoles+" roles and "+result.createdChannels+" channels. Existing settings were not reset unless you ran an explicit sync command.");
+}
+if(n==="coopft-panel"){
+ ownerConfig(i,s);
+ const panel=i.options.getString("panel");
+ const target=i.options.getChannel("channel")||c;
+ const result=await s.coopft.configurePanel(g,panel,target);
+ return say(i,"Published **"+result.panel+"** panel in <#"+result.channelId+">.");
+}
 if(n==="ping")return say(i,"Pong • "+Math.round(i.client.ws.ping)+" ms.");
-if(n==="help")return say(i,null,[new EmbedBuilder().setColor(0x8C1D32).setTitle("COOPFT | OPERATIONS DIRECTORY").setDescription("50 CoopFT-only commands. Economy and Fukishōkai gameplay commands are disabled here.").addFields({name:"Information",value:"/ping /help /serverinfo /botinfo /memberinfo /avatar /roleinfo /channelinfo /rules"},{name:"Community",value:"/announce /poll /event-create /event-list /event-cancel /suggestion /suggestion-review"},{name:"Moderation",value:"/slowmode /lock /unlock /purge /timeout /untimeout /kick /ban /unban /warn /warnings /clear-warnings /case"},{name:"Staff records",value:"/note /notes /member-note-remove /role-add /role-remove /nickname /reset-nickname"},{name:"Channels",value:"/channel-topic /channel-rename /channel-clone"},{name:"Tickets",value:"/ticket-claim /ticket-close /ticket-add /ticket-remove /ticket-rename /ticket-priority /ticket-info /ticket-list"},{name:"Applications",value:"/application-status /application-withdraw /application-queue"})]);
-if(n==="serverinfo")return say(i,null,[new EmbedBuilder().setTitle(g.name).addFields({name:"Owner",value:"<@"+g.ownerId+">"},{name:"Members",value:String(g.memberCount)},{name:"Roles",value:String(g.roles.cache.size)},{name:"Channels",value:String(g.channels.cache.size)})]);
-if(n==="botinfo")return say(i,null,[new EmbedBuilder().setTitle("COOPFT ASSISTANT").addFields({name:"Persona",value:"CoopFT"},{name:"Account",value:i.client.user.tag},{name:"Economy",value:"Disabled"},{name:"Uptime",value:Math.floor(i.client.uptime/1000)+" seconds"})]);
-if(n==="memberinfo"){const m=await getMember();return say(i,null,[new EmbedBuilder().setTitle(m.user.tag).setThumbnail(m.displayAvatarURL()).addFields({name:"ID",value:m.id},{name:"Joined",value:m.joinedTimestamp?"<t:"+Math.floor(m.joinedTimestamp/1000)+":R>":"Unknown"},{name:"Roles",value:m.roles.cache.map(x=>x.name).slice(0,20).join(", ")||"None"})]);}
-if(n==="avatar"){const x=i.options.getUser("member")||u;return say(i,x.displayAvatarURL({size:1024}),[new EmbedBuilder().setTitle(x.tag).setImage(x.displayAvatarURL({size:1024}))]);}
-if(n==="roleinfo"){const r=i.options.getRole("role");if(!r)throw Error("Select role.");return say(i,null,[new EmbedBuilder().setTitle(r.name).addFields({name:"ID",value:r.id},{name:"Members",value:String(r.members.size)},{name:"Colour",value:r.hexColor},{name:"Permissions",value:r.permissions.toArray().slice(0,20).join(", ")||"None"})]);}
-if(n==="channelinfo")return say(i,null,[new EmbedBuilder().setTitle(c.name).addFields({name:"ID",value:c.id},{name:"Type",value:String(c.type)},{name:"Category",value:c.parent?.name||"None"},{name:"Topic",value:c.topic||"Not set"})]);
-if(n==="rules"){const x=await s.coopft.getResource(id,"channel:rules");return say(i,x?"Rules: <#"+x+">":"Rules channel not configured.");}
 if(n==="announce"){staff(i,s);if(!i.memberPermissions.has(P.ManageGuild))throw Error("Manage Server required.");const dest=i.options.getChannel("channel"),title=i.options.getString("title"),msg=i.options.getString("message");if(!dest||!title||!msg)throw Error("Set channel, title and message.");const m=await dest.send({embeds:[new EmbedBuilder().setColor(0x8C1D32).setTitle(title).setDescription(msg).setFooter({text:"CoopFT • Official announcement"})],allowedMentions:{parse:[]}});return say(i,"Announcement: "+m.url);}
 if(n==="poll"){staff(i,s);if(!i.memberPermissions.has(P.ManageMessages))throw Error("Manage Messages required.");const q=i.options.getString("question"),raw=i.options.getString("options");if(!q||!raw)throw Error("Set question and choices separated by |.");const a=raw.split("|").map(x=>x.trim()).filter(Boolean),em=["1️⃣","2️⃣","3️⃣","4️⃣","5️⃣"];if(a.length<2||a.length>5)throw Error("Provide 2-5 choices.");const m=await c.send({embeds:[new EmbedBuilder().setTitle("COMMUNITY POLL").setDescription("**"+q+"**\n"+a.map((x,k)=>em[k]+" "+x).join("\n"))]});for(let k=0;k<a.length;k++)await m.react(em[k]);return say(i,"Poll: "+m.url);}
 if(n==="event-list"){staff(i,s);const a=await g.scheduledEvents.fetch();return say(i,[...a.values()].filter(x=>x.scheduledStartTimestamp>Date.now()).map(x=>x.name+" • <t:"+Math.floor(x.scheduledStartTimestamp/1000)+":F>").join("\n")||"No upcoming events.");}
@@ -90,7 +100,6 @@ throw Error("No handler for "+n);
 function loadCoopFTCommands(){
  const map=new Map();
  const schema={
-  memberinfo:["member"],avatar:["member"],roleinfo:["role"],channelinfo:["channel"],
   announce:["channel","title","message"],poll:["question","options"],
   "event-create":["title","start","end"],"event-cancel":["event_id"],
   slowmode:["amount"],purge:["amount"],
@@ -110,6 +119,17 @@ function loadCoopFTCommands(){
  };
  for(let k=0;k<names.length;k++){
   const n=names[k];let b=new SlashCommandBuilder().setName(n).setDescription(desc[k]);
+  if(n==="coopft-panel"){
+   b.addStringOption(o=>o.setName("panel").setDescription("Panel to publish or move").setRequired(true)
+    .addChoices(
+     {name:"Ticket intake",value:"tickets"},
+     {name:"Staff applications",value:"applications"},
+     {name:"Member role selection",value:"roles"},
+     {name:"Custom bot commissions",value:"custom-bot"},
+     {name:"Staff directory",value:"directory"}
+    ));
+   b.addChannelOption(o=>o.setName("channel").setDescription("Destination text channel (defaults to the saved channel)").setRequired(false));
+  }
   for(const key of (schema[n]||[])){
    const [kind,label]=optionDefinitions[key];
    if(kind==="user")b.addUserOption(o=>o.setName(key).setDescription(label).setRequired(true));
@@ -120,7 +140,7 @@ function loadCoopFTCommands(){
   }
   map.set(n,{data:b,execute:(i,s)=>run(n,i,s)});
  }
- if(map.size!==50||map.has("staff"))throw Error("Expected 50 commands and no /staff.");
+ if(map.size!==names.length)throw Error("CoopFT slash-command registry contains a duplicate.");
  return map;
 }
 module.exports={loadCoopFTCommands};
