@@ -294,16 +294,13 @@ async function start() {
 
   client.on(Events.GuildMemberAdd, (member) => {
     if (![fukishokaiGuildId, coopftGuildId].filter(Boolean).includes(member.guild.id)) return;
-    memberLifecycle.handleJoin(member).catch((error) =>
+    memberLifecycle.handleJoin(member).then(async () => {
+      if (member.guild.id === coopftGuildId) {
+        await coopftCommunity.refreshStaffDirectory(member.guild);
+      }
+    }).catch((error) =>
       console.error("[member-lifecycle] Could not process member join:", error.message)
     );
-    if (member.guild.id === coopftGuildId) {
-      coopftCommunity.assignCommunityMemberRole(member).then(() =>
-        coopftCommunity.refreshStaffDirectory(member.guild)
-      ).catch((error) =>
-        console.warn("[coopft] Could not assign the Community Member role or refresh the staff directory:", error.message)
-      );
-    }
     if (member.guild.id === fukishokaiGuildId) {
       raidMonitor.handleMemberJoin(member, client).catch((error) =>
         console.error("[raid-monitor] Could not process member join:", error.message)
