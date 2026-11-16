@@ -178,6 +178,15 @@ test("onboarding setup enables Discord onboarding and preserves existing prompts
       roles: new Map([[role.id, role]])
     }]])
   };
+  const extraExistingPrompts = ["Region preference", "Member level"].map((title, index) => ({
+    id: "existing-prompt-" + (index + 2),
+    type: 0,
+    title,
+    singleSelect: true,
+    required: false,
+    inOnboarding: true,
+    options: new Map()
+  }));
   let saved;
   const bot = {
     permissions: { has: () => true },
@@ -191,7 +200,10 @@ test("onboarding setup enables Discord onboarding and preserves existing prompts
     members: { me: bot },
     channels: { fetch: async () => new Map([...channels.map(channel => [channel.id, channel]), ["unavailable-channel", null]]) },
     fetch: async function () { return this; },
-    fetchOnboarding: async () => ({ prompts: new Map([[existingPrompt.id, existingPrompt]]) }),
+    fetchOnboarding: async () => ({ prompts: new Map([
+      [existingPrompt.id, existingPrompt],
+      ...extraExistingPrompts.map(prompt => [prompt.id, prompt])
+    ]) }),
     editOnboarding: async payload => { saved = payload; }
   };
   const interaction = {
@@ -224,10 +236,13 @@ test("onboarding setup enables Discord onboarding and preserves existing prompts
   assert.equal(saved.prompts[0].singleSelect, true);
   assert.equal(saved.prompts[0].options[0].channels[0], existingChannel.id);
   assert.equal(saved.prompts[0].options[0].roles[0], role.id);
-  assert.equal(saved.prompts.length, 3, "one existing prompt plus two generated prompts must stay within Discord's five-prompt limit");
-  assert.equal(saved.prompts[1].title, "What are you interested in and what updates do you want?");
-  assert.equal(saved.prompts[2].title, "Which spaces should we add to your channel list?");
-  for (const prompt of saved.prompts.slice(1)) {
+  assert.equal(saved.prompts.length, 5, "three existing custom prompts plus two generated prompts must fit Discord's five-prompt limit");
+  assert.deepEqual(saved.prompts.slice(0, 3).map(prompt => prompt.title), [
+    "Existing question", "Region preference", "Member level"
+  ]);
+  assert.equal(saved.prompts[3].title, "What are you interested in and what updates do you want?");
+  assert.equal(saved.prompts[4].title, "Which spaces should we add to your channel list?");
+  for (const prompt of saved.prompts.slice(3)) {
     assert.equal(prompt.singleSelect, false, prompt.title + " should allow multiple selections");
     assert.equal(prompt.required, false);
     assert.equal(prompt.inOnboarding, true);
@@ -240,12 +255,12 @@ test("onboarding setup enables Discord onboarding and preserves existing prompts
       assert.ok(option.channels.every(id => typeof id === "string"));
     }
   }
-  assert.equal(saved.prompts[1].options.length, INTEREST_ROLES.length + PING_ROLES.length);
-  assert.equal(saved.prompts[1].options[0].roles.length, 1);
-  assert.equal(saved.prompts[1].options[INTEREST_ROLES.length].roles.length, 1);
-  assert.equal(saved.prompts[2].options.length, 3);
-  assert.equal(saved.prompts[2].options[0].channels.length, 1);
-  assert.deepEqual(saved.prompts[2].options[0].roles, []);
+  assert.equal(saved.prompts[3].options.length, INTEREST_ROLES.length + PING_ROLES.length);
+  assert.equal(saved.prompts[3].options[0].roles.length, 1);
+  assert.equal(saved.prompts[3].options[INTEREST_ROLES.length].roles.length, 1);
+  assert.equal(saved.prompts[4].options.length, 3);
+  assert.equal(saved.prompts[4].options[0].channels.length, 1);
+  assert.deepEqual(saved.prompts[4].options[0].roles, []);
   assert.doesNotThrow(() => JSON.stringify(saved), "onboarding payload must not contain BigInt values");
 });
 
