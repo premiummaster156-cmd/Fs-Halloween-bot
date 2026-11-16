@@ -6,7 +6,6 @@ const { PermissionFlagsBits, PermissionsBitField, ChannelType } = require("disco
 const { loadCoopFTCommands } = require("../src/commands/coopft");
 const {
   STAFF_RANKS, APPLICATION_RANKS, EMOJI_SPRITE, CATEGORY_NAMES, PUBLIC_CHANNELS, PRIVATE_CHANNELS,
-  PING_ROLES,
   OWNER_PERMISSIONS, HIGH_RANK_SUPERVISOR_PERMISSIONS, ALL_PERMISSION_BITS
 } = require("../src/config/coopft-design");
 const {
@@ -135,75 +134,36 @@ test("autorole and onboarding configuration commands reject non-owners", async (
   await assert.rejects(commands.get("welcome-config").execute(interaction, {}), /Only the actual server owner/);
 });
 
-test("onboarding setup enables Discord onboarding and preserves existing prompts", async () => {
+test("onboarding setup removes only the interests prompt and preserves all other prompts", async () => {
   const commands = loadCoopFTCommands();
-  const everyone = { id: "guild-1" };
-  const channels = Array.from({ length: 10 }, (_, index) => {
-    const name = ["rules", "announcements", "general", "introductions", "help", "media", "showcase", "your-creation", "events", "gaming"][index];
-    const sendable = new Set(["general", "introductions"]);
-    const overwrites = [];
-    return {
-      id: "channel-" + index,
-      guildId: "guild-1",
-      name,
-      type: ChannelType.GuildText,
-      nsfw: false,
-      rawPosition: index,
-      permissionOverwrites: {
-        edit: async (id, permissions) => {
-          overwrites.push({ id, permissions });
-          if (permissions.SendMessages === true) sendable.add(name);
-        }
-      },
-      permissionsFor: () => ({ has: permission => permission === PermissionFlagsBits.ViewChannel || (permission === PermissionFlagsBits.SendMessages && sendable.has(name)) }),
-      _sendable: sendable,
-      _overwrites: overwrites
-    };
-  });
-  const role = { id: "role-1", name: "Existing role" };
-  const existingChannel = channels[0];
-  const existingPrompt = {
-    id: "existing-prompt",
-    type: 0,
-    title: "Existing question",
-    singleSelect: true,
-    required: true,
-    inOnboarding: true,
-    options: new Map([["existing-option", {
-      id: "existing-option",
-      title: "Existing option",
-      description: "Keep this",
-      emoji: null,
-      channels: new Map([[existingChannel.id, existingChannel]]),
-      roles: new Map([[role.id, role]])
-    }]])
-  };
-  const extraExistingPrompts = ["Region preference", "Member level", "What are ur interests?"].map((title, index) => ({
-    id: "existing-prompt-" + (index + 2),
+  const makePrompt = (id, title, optionTitle) => ({
+    id,
     type: 0,
     title,
     singleSelect: true,
     required: false,
     inOnboarding: true,
-    options: new Map()
-  }));
+    options: new Map([[id + "-option", {
+      id: id + "-option",
+      title: optionTitle,
+      description: "Keep this option",
+      emoji: null,
+      channels: new Map(),
+      roles: new Map()
+    }]])
+  });
+  const prompts = [
+    makePrompt("region", "Which region are you in?", "Europe"),
+    makePrompt("interests", "What are ur interests?", "Gaming"),
+    makePrompt("level", "What is your member level?", "Regular"),
+    makePrompt("notifications", "Which updates would you like to receive?", "Events")
+  ];
   let saved;
-  const bot = {
-    permissions: { has: () => true },
-    roles: { highest: { position: 20 } }
-  };
   const guild = {
     id: "guild-1",
     ownerId: "owner-1",
-    features: ["COMMUNITY"],
-    roles: { everyone },
-    members: { me: bot },
-    channels: { fetch: async () => new Map([...channels.map(channel => [channel.id, channel]), ["unavailable-channel", null]]) },
-    fetch: async function () { return this; },
-    fetchOnboarding: async () => ({ prompts: new Map([
-      [existingPrompt.id, existingPrompt],
-      ...extraExistingPrompts.map(prompt => [prompt.id, prompt])
-    ]) }),
+    members: { me: { permissions: { has: () => true } } },
+    fetchOnboarding: async () => ({ prompts: new Map(prompts.map(prompt => [prompt.id, prompt])) }),
     editOnboarding: async payload => { saved = payload; }
   };
   const interaction = {
@@ -213,56 +173,21 @@ test("onboarding setup enables Discord onboarding and preserves existing prompts
     options: { getString: () => undefined },
     reply: async payload => payload
   };
-
-  const configuredRoles = new Map(PING_ROLES.map((spec, index) => [
-    spec.key, { id: "configured-role-" + index, name: spec.name }
-  ]));
-  const coopft = { roles: configuredRoles, getResource: async () => null };
-  await commands.get("onboarding-setup").execute(interaction, { coopft });
-  assert.equal(saved.enabled, true);
-  assert.equal(saved.mode, 0);
-  assert.equal(saved.defaultChannels.length, 7);
-  const everyoneSendable = channels.filter(channel => channel.permissionsFor(everyone).has(PermissionFlagsBits.SendMessages));
-  assert.ok(everyoneSendable.length >= 5);
-  for (const name of ["general", "introductions", "media", "showcase", "your-creation"]) {
-    const channel = channels.find(item => item.name === name);
-    assert.ok(channel.permissionsFor(everyone).has(PermissionFlagsBits.SendMessages), name + " should be sendable for onboarding");
-  }
-  for (const name of ["rules", "announcements"]) {
-    const channel = channels.find(item => item.name === name);
-    assert.ok(!channel.permissionsFor(everyone).has(PermissionFlagsBits.SendMessages), name + " must remain read-only");
-  }
-  assert.equal(saved.prompts[0].title, "Existing question");
-  assert.equal(saved.prompts[0].singleSelect, true);
-  assert.equal(saved.prompts[0].options[0].channels[0], existingChannel.id);
-  assert.equal(saved.prompts[0].options[0].roles[0], role.id);
-  assert.equal(saved.prompts.length, 5, "three existing custom prompts plus two generated prompts must fit Discord's five-prompt limit");
-  assert.equal(saved.prompts.some(prompt => /interest|topic/i.test(prompt.title)), false, "legacy interests prompts with alternate wording must be removed");
-  assert.deepEqual(saved.prompts.slice(0, 3).map(prompt => prompt.title), [
-    "Existing question", "Region preference", "Member level"
+  await commands.get("onboarding-setup").execute(interaction, {});
+  assert.deepEqual(saved.prompts.map(prompt => prompt.title), [
+    "Which region are you in?",
+    "What is your member level?",
+    "Which updates would you like to receive?"
   ]);
-  assert.equal(saved.prompts[3].title, "Which updates would you like to receive?");
-  assert.equal(saved.prompts[4].title, "Which spaces should we add to your channel list?");
-  assert.equal(saved.prompts.some(prompt => /interest|topic/i.test(prompt.title)), false, "the interests question must not be present");
-  for (const prompt of saved.prompts.slice(3)) {
-    assert.equal(prompt.singleSelect, false, prompt.title + " should allow multiple selections");
-    assert.equal(prompt.required, false);
-    assert.equal(prompt.inOnboarding, true);
-    assert.equal(typeof prompt.id, "string", "generated onboarding prompt IDs must be JSON-safe strings");
-    assert.ok(prompt.options.length >= 2);
-    for (const option of prompt.options) {
-      assert.equal(typeof option.id, "string", "generated onboarding option IDs must be JSON-safe strings");
-      assert.ok(option.emoji, "onboarding choices should have a visual emoji");
-      assert.ok(option.roles.every(id => typeof id === "string"));
-      assert.ok(option.channels.every(id => typeof id === "string"));
-    }
-  }
-  assert.equal(saved.prompts[3].options.length, PING_ROLES.length);
-  assert.equal(saved.prompts[3].options[0].roles.length, 1);
-  assert.equal(saved.prompts[4].options.length, 3);
-  assert.equal(saved.prompts[4].options[0].channels.length, 1);
-  assert.deepEqual(saved.prompts[4].options[0].roles, []);
-  assert.doesNotThrow(() => JSON.stringify(saved), "onboarding payload must not contain BigInt values");
+  assert.equal(saved.prompts.length, 3);
+  assert.ok(saved.prompts.every(prompt => prompt.options.length === 1));
+  assert.equal(saved.prompts[0].options[0].title, "Europe");
+  assert.equal(saved.prompts[1].options[0].title, "Regular");
+  assert.equal(saved.prompts[2].options[0].title, "Events");
+  assert.equal(Object.hasOwn(saved, "enabled"), false);
+  assert.equal(Object.hasOwn(saved, "mode"), false);
+  assert.equal(Object.hasOwn(saved, "defaultChannels"), false);
+  assert.doesNotThrow(() => JSON.stringify(saved));
 });
 
 test("CoopFT applications contain two moderation tracks and one specialist Developer track", () => {
