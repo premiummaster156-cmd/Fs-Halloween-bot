@@ -20,7 +20,7 @@ After deploying a release that changes the slash-command set, run:
 npm run deploy-commands
 ```
 
-This refreshes both persona-specific slash-command registrations. It does not create channels or roles. CoopFT exposes only `/staff`; the previous HR, manual hiring, application-admin, standalone ticket and in-server setup commands have been removed. Public applications, private review buttons and the ticket panel are operated through their messages.
+This refreshes both persona-specific slash-command registrations. It does not create channels or roles. CoopFT exposes 50 server-operations slash commands covering information, announcements, polls, events, moderation, staff notes, roles, channels, tickets, applications and suggestions. The Fukishōkai economy and gameplay command set is never registered in CoopFT. The obsolete `/staff` directory command has been removed; the maintained staff directory is published in the staff channels.
 
 ## Staff hierarchy and applications
 
@@ -28,9 +28,9 @@ CoopFT has one official 17-rank hierarchy, displayed in four groups:
 
 **Owner Rank:** Owner, Co-Owner, Monarch.
 
-**High Rank:** High Rank Supervisor, Apex, Right Wing, Left Wing, Halo, Overseer.
+**Senior Operations:** High Rank Supervisor, Apex, Right Wing, Left Wing, Halo, Overseer.
 
-**Low Rank:** Staff Supervisor, Supreme Council, Senate, Head Moderator.
+**Department Leadership:** Staff Supervisor, Supreme Council, Senate, Head Moderator.
 
 **Mod Rank:** Council, Senior Moderator, Moderator, Junior Moderator.
 
@@ -51,17 +51,17 @@ Only the server owner and designated senior staff ranks (Owner, Co-Owner, Monarc
 
 ## Staff directory and rules
 
-The `staff-team` and `staff-directory` messages use one maintained directory embed with four clearly separated rank groups and a custom CoopFT banner. The same directory is available through the `/staff` command. It refreshes when staff roles change through the bot's approved audit flow or when a staff member leaves.
+The `staff-team` and `staff-directory` messages use one maintained directory embed with four clearly separated rank groups. The custom CoopFT banner is attached to the same embed as its thumbnail, positioned at the top of that embed rather than sent as a separate embed. The directory refreshes when staff roles change through the bot's approved audit flow or when a staff member leaves. Role names are concise and do not carry a repeated `CF •` prefix.
 
 The public `rules` channel receives the CoopFT community code embed. Setup first attempts to publish the branded version with its generated artwork; if the artwork attachment fails, it retries with a text-only rules embed. If the rules embed itself cannot be published, setup fails rather than reporting a completed setup.
 
-The `role-explanations` channel contains the 17-rank staff permission guide. Welcome, introductions, announcements, suggestions and bot-updates also receive maintained information embeds.
+The redundant `role-explanations` channel is retired and removed during CoopFT setup. Permission descriptions are not duplicated into a separate public channel. Welcome, introductions, announcements, suggestions and bot-updates receive maintained information embeds.
 
 ## Channels and tickets
 
 The layout includes START HERE, COMMUNITY, MEMBER SERVICES, STAFF OPERATIONS and SUPPORT DESK categories. Category names and text-channel names use restrained Unicode typography; channel names do not use emoji decorations.
 
-Members open tickets from the buttons in `open-a-ticket`. Ticket types are General Support, Bug Report, Custom Bot Request and Suggestion. The system prevents duplicate open tickets, creates a private channel, supports claiming and closing, and archives a transcript to `ticket-transcripts`.
+Members open tickets from the service selector in `open-a-ticket`. They first choose **Fukishōkai Economy Bot** or **CoopFT Server**, then choose a relevant request type such as bot bug, gameplay issue, account support, exploit report, server bug, server suggestion, member report, staff concern or partnership. A guided form asks the relevant questions before creating the ticket. The bot posts every submitted answer in the private ticket, prevents duplicate open tickets, supports claiming and closing, and archives a transcript to `ticket-transcripts`.
 
 Staff-only channels include `staff-team`, `staff-chat`, `staff-announcements`, `staff-bot-updates`, `application-review`, `ticket-transcripts`, `member-logs` and `server-logs`.
 
