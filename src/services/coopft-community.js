@@ -962,7 +962,27 @@ class CoopFTCommunityService {
       .map((key, index) => ({ role: this.roles.get(key), position: topManagedPosition - index }))
       .filter((item) => item.role && item.position > 0);
     if (positions.length) {
-      await guild.roles.setPositions(positions, "Arrange CoopFT bracket roles and their grouped roles");
+      // Role position bulk updates can be rejected by Discord when one role in
+      // the batch is not editable (for example, an integration-managed role
+      // that was matched by name). Move each verified, editable role separately
+      // so one hierarchy/permission edge case cannot abort the entire setup.
+      for (const item of positions) {
+        if (!item.role || item.role.managed || item.role.id === guild.id) continue;
+        if (item.role.position >= me.roles.highest.position) {
+          console.warn("[coopft] Skipping role above the bot's highest role:", item.role.name);
+          continue;
+        }
+        try {
+          await item.role.setPosition(item.position, {
+            reason: "Arrange CoopFT bracket roles and their grouped roles"
+          });
+        } catch (error) {
+          console.warn(
+            "[coopft] Could not reposition role " + item.role.name + "; continuing setup:",
+            error.message
+          );
+        }
+      }
     }
     const assistantRole = this.roles.get("bot_coopft_assistant");
     if (assistantRole && !me.roles.cache.has(assistantRole.id) && assistantRole.position < me.roles.highest.position) {
