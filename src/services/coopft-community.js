@@ -1011,17 +1011,27 @@ class CoopFTCommunityService {
       "Restrict recruitment controls to Owner, Co-Owner and Monarch"
     );
 
-    const staffGuideOverwrites = await this.staffPermissionOverwrites(guild);
-    const developerRole = this.roles.get("developer_member");
-    if (developerRole) {
-      staffGuideOverwrites.push({
-        id: developerRole.id,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory]
-      });
-    }
+    const staffGuideOverwrites = [
+      { id: guild.id, deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+      {
+        id: me.id,
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks]
+      },
+      ...STAFF_RANKS.map((spec) => this.roles.get(spec.key)).filter(Boolean).map((role) => ({
+        id: role.id,
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+        deny: [PermissionFlagsBits.SendMessages]
+      }))
+    ];
+    const guideDeveloperRole = this.roles.get("developer_member");
+    if (guideDeveloperRole) staffGuideOverwrites.push({
+      id: guideDeveloperRole.id,
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+      deny: [PermissionFlagsBits.SendMessages]
+    });
     await privateByKey.staff_guide.permissionOverwrites.set(
       staffGuideOverwrites,
-      "Allow staff and approved Developers to read the private CoopFT staff guide"
+      "Make the private CoopFT staff guide read-only for staff and approved Developers"
     );
 
     const ticketOverwrites = [
@@ -1716,6 +1726,213 @@ class CoopFTCommunityService {
       });
     }
     return { applicantId: application.applicant_id, roleName: roleSpec.name, status: newStatus, reason };
+  }
+
+  async ensureStaffGuide(guild, channel) {
+    this.assertCoopFTGuild(guild, "publish the CoopFT staff and Developer guide");
+    if (!channel?.isTextBased?.()) throw new Error("The staff-guide channel is unavailable.");
+    const colour = 0x344F73;
+    const pages = [
+      new EmbedBuilder().setColor(0x8C2635)
+        .setTitle("COOPFT  |  STAFF & DEVELOPER HANDBOOK")
+        .setDescription([
+          "**Purpose**",
+          "This guide explains how CoopFT staff should protect the community, handle reports, apply moderation consistently and work professionally. It also contains a separate operational guide for the Developer role.",
+          "",
+          "**The standard**",
+          "Use common sense. Be fair, calm, evidence-led and consistent. Apply the same rules regardless of friendship, rank, popularity or personal disagreements.",
+          "",
+          "**Every staff member is expected to**",
+          "• Be active and approachable while on duty; help members find the right channel or support route",
+          "• Read the current rules and staff updates before taking action",
+          "• Check context, message history and available evidence before warning or timing out someone",
+          "• Explain decisions respectfully and record accurate reasons",
+          "• Escalate serious, unclear or high-impact cases rather than guessing",
+          "• Protect member privacy, staff discussions, application answers and evidence",
+          "",
+          "**Never**",
+          "• Threaten, bully, bait, shame or argue with members using staff authority",
+          "• Moderate someone because of a personal dispute or because another member asked you to",
+          "• Invent rules, issue punishment without evidence, or exaggerate a case",
+          "• Leak staff discussions, private logs, applications, guides or moderation announcements",
+          "• Promise an outcome that is reserved for Owner Rank",
+          "",
+          "**Authority is responsibility.** A staff role is not permission to control conversations or win arguments."
+        ].join("\n"))
+        .setFooter({ text: "1 / 7  •  Introduction and staff standards" }),
+      new EmbedBuilder().setColor(colour)
+        .setTitle("01  |  MODERATION WORKFLOW")
+        .setDescription([
+          "**Before taking action**",
+          "1. Read the whole relevant conversation; do not rely on cropped screenshots or one-sided claims.",
+          "2. Identify the exact rule or behaviour. Separate a genuine violation from disagreement, humour, typos or context.",
+          "3. Preserve message links, timestamps and evidence in the appropriate private staff channel or ticket.",
+          "4. Choose the lowest effective action that protects the community, unless the severity requires immediate escalation.",
+          "5. Record a factual reason. Include the category, the behaviour and the relevant evidence.",
+          "",
+          "**Verbal warnings**",
+          "A verbal warning is a clear instruction that the behaviour must stop. State what needs to change and give the member a reasonable opportunity to comply. Keep a record when the case or staff procedure requires it.",
+          "",
+          "**Warnings and timeouts**",
+          "Use /warn for a formal warning and /timeout for a temporary restriction. Use /untimeout only when the restriction should be lifted. Do not use a timeout as retaliation or as a way to silence criticism.",
+          "",
+          "**Escalate immediately**",
+          "Credible threats, doxxing, sexual exploitation, grooming, child-safety concerns, coordinated raids, account compromise, serious slurs or threats against server infrastructure must be sent privately to Owner Rank. Preserve evidence; do not repost harmful material publicly.",
+          "",
+          "**When unsure**",
+          "Pause. Ask a Senior Moderator, Head Moderator or Owner Rank in a private staff channel. A delayed decision is better than an unjustified punishment."
+        ].join("\n"))
+        .setFooter({ text: "2 / 7  •  How to handle a report" }),
+      new EmbedBuilder().setColor(colour)
+        .setTitle("02  |  WARNING GUIDELINES")
+        .setDescription([
+          "These examples are guidance, not an automatic punishment script. Consider intent, repetition, impact, context and prior warnings. A more serious incident may skip the verbal-warning stage.",
+          "",
+          "**MINOR — reminder, then formal warning if repeated**",
+          "• Laddering, low-level spam or disruptive repeated messages: verbal reminder; repeated behaviour may become a warning",
+          "• Begging for roles, perks or benefits: one clear verbal reminder, then a warning if it continues",
+          "• Arguments that disrupt chat: one verbal instruction to stop; warn if the disruption continues",
+          "• Excessive rage-bait: repeated behaviour after two clear reminders may receive a warning and a short timeout",
+          "• Reaction or mention spam: warn when repeated after instruction; use a short timeout where the disruption continues",
+          "",
+          "**MODERATE — formal warning and proportionate timeout where needed**",
+          "• Ignoring a reasonable staff instruction after being informed",
+          "• Minimodding or falsely claiming authority to punish other members",
+          "• Encouraging rule-breaking or repeatedly targeting a member",
+          "• Inappropriate sexual remarks, soft NSFW or disturbing jokes; remove the content and consider a timeout",
+          "• Publicly exposing another person's private information or reports; move evidence to a private channel",
+          "• Harassment that is persistent, targeted or continues after a clear instruction",
+          "",
+          "**SEVERE — warn, restrict access where appropriate and escalate**",
+          "• Hate speech, discriminatory insults, targeted slurs or repeated abusive language",
+          "• Sexual harassment, grooming references, rape or molestation threats/jokes directed at people",
+          "• Severe harassment, credible death threats or encouragement of self-harm",
+          "• Serious Discord Terms violations, scams, malicious links or attempts to compromise accounts",
+          "• Threats to raid, destroy or compromise CoopFT; immediately notify Owner Rank",
+          "",
+          "**CRITICAL — Owner Rank review is mandatory**",
+          "• Doxxing or credible doxx threats, severe defamation, coordinated raids or deliberate server compromise",
+          "• Child-safety exploitation, sexual exploitation, credible violence or severe targeted threats",
+          "• Repeated severe violations, ban evasion or serious abuse of platform rules",
+          "Do not decide permanent exclusion alone. Preserve evidence and refer the case privately to Owner Rank."
+        ].join("\n"))
+        .setFooter({ text: "3 / 7  •  Warning severity and escalation" }),
+      new EmbedBuilder().setColor(colour)
+        .setTitle("03  |  LANGUAGE, CONTEXT & EVIDENCE")
+        .setDescription([
+          "**Context matters**",
+          "Do not punish a member solely for an ambiguous typo, quotation, educational discussion or a word fragment without checking how it was used. A direct targeted insult, discriminatory slur or repeated harassment is different and can be actionable.",
+          "",
+          "**Language notes from the supplied moderation reference**",
+          "• The string “nga” alone is not an automatic violation; an additional letter may be an ordinary typo. Judge whether it is being used as a direct insult or slur in context.",
+          "• A bypass of the B-word alone is not automatically a violation. Warn when it is used as a direct targeted insult or harassment.",
+          "• Do not enforce an English-only rule in CoopFT unless Owner Rank has explicitly published that rule for this server.",
+          "",
+          "**Sensitive conversations**",
+          "Keep discussions of politics, religion, conflicts and other sensitive topics respectful and in the appropriate place. Do not warn someone merely for mentioning a topic; intervene when the conversation becomes targeted harassment, threats, hate speech or deliberate disruption.",
+          "",
+          "**Evidence handling**",
+          "Use message links, dates, channel names and concise factual descriptions. Keep private information in private staff channels. Never share explicit or exploitative material in staff chat; preserve only the minimum evidence needed and escalate child-safety material immediately.",
+          "",
+          "**Do not**",
+          "• Edit screenshots, remove context or ask others to pile onto a report",
+          "• Publicly accuse someone of a private offence",
+          "• Promise that someone will be banned before leadership reviews the evidence",
+          "• Delete evidence before it has been safely recorded"
+        ].join("\n"))
+        .setFooter({ text: "4 / 7  •  Context, language and evidence" }),
+      new EmbedBuilder().setColor(colour)
+        .setTitle("04  |  BLACKLISTS, BANS & APPEALS")
+        .setDescription([
+          "**CoopFT procedure**",
+          "CoopFT currently uses Discord moderation actions and Owner Rank review; it does not expose the Fukishōkai bl-request, criticalwarn or changebantype commands. Do not run Fukishōkai-only commands in CoopFT or invent a private blacklist record.",
+          "",
+          "**Refer to Owner Rank before permanent exclusion**",
+          "Send the member ID, message links, dates, case history and a neutral summary in the private staff area. Only Owner Rank decides permanent exclusion, whether an appeal is available and whether an existing restriction should change.",
+          "",
+          "**Cases that require leadership review**",
+          "• Compromised or hacked accounts, suspected under-age accounts and relevant Discord Terms concerns",
+          "• Scamming, malicious links, coordinated raids, ban evasion or repeated serious warnings",
+          "• Discrimination, severe defamation, doxxing or credible threats",
+          "• Sexual exploitation, grooming, child-safety violations or severe violence",
+          "• Deliberate nuking or attempts to compromise CoopFT or another server",
+          "",
+          "**Appeals**",
+          "Treat appeals respectfully. Ask for new evidence or a clear explanation; do not argue with the appellant. Staff who issued the original action should not pressure reviewers to uphold it. Owner Rank records the final decision.",
+          "",
+          "**Important**",
+          "A warning count is not the only factor. Severity, repetition, evidence, risk and prior decisions matter. Never promise that a particular number of warnings automatically guarantees a ban or an appeal."
+        ].join("\n"))
+        .setFooter({ text: "5 / 7  •  Leadership-controlled sanctions and appeals" }),
+      new EmbedBuilder().setColor(colour)
+        .setTitle("05  |  STAFF ACCOUNTABILITY & PROMOTION")
+        .setDescription([
+          "**Strikeable conduct**",
+          "• Unprofessional behaviour or disrespect toward members or staff",
+          "• Ignoring assigned duties or agreed activity expectations without notice",
+          "• Favouritism, bias or inconsistent enforcement",
+          "• Abusing warnings, timeouts or other moderation permissions",
+          "• False or careless warnings/timeouts",
+          "• Leaking moderation announcements or private staff material",
+          "",
+          "**Demotion or removal may follow**",
+          "• Reaching three active strikes under the staff review process",
+          "• Ignoring higher-ranked staff instructions",
+          "• Misusing authority for personal benefit, serious disloyalty or repeated poor decisions",
+          "• Severe inactivity without communication",
+          "• Leaking the staff guide, private applications, member records or important staff information",
+          "• Disrespecting Owner Rank or seriously damaging community trust",
+          "",
+          "**Promotion timing — starting guideline**",
+          "• Junior Moderator → Moderator: 1 month",
+          "• Moderator → Senior Moderator: 1 month",
+          "• Senior Moderator → Head Moderator: 1 month",
+          "• Head Moderator → Low Rank bracket: 2 months",
+          "• Smaller promotions within the same bracket: normally 1 month",
+          "• Major promotion into a higher bracket/tier: normally 2 months",
+          "",
+          "Time served is not an entitlement. Consistent judgement, activity, communication, teamwork, reliable records and leadership approval are all required. Owner Rank makes final appointment decisions.",
+          "",
+          "**Staff notes**",
+          "Keep notes factual, relevant and respectful. Never use staff notes to store gossip, passwords, private credentials or unrelated personal information."
+        ].join("\n"))
+        .setFooter({ text: "6 / 7  •  Professional standards and progression" }),
+      new EmbedBuilder().setColor(0x397C94)
+        .setTitle("06  |  DEVELOPER ROLE — CUSTOM BOT DELIVERY")
+        .setDescription([
+          "**Purpose of Developer**",
+          "The Developer role is responsible for building custom Discord bots requested by CoopFT members. It is a technical service role, not a moderation rank. It does not grant permission to moderate members or view the Owner Rank application queue.",
+          "",
+          "**Request workflow**",
+          "1. Receive a request through the Custom Bot Development ticket section.",
+          "2. Clarify the problem, target users, required commands, buttons, automations, integrations, hosting and database needs.",
+          "3. Write a short scope: what is included, what is not included, expected milestones and how changes will be approved.",
+          "4. Confirm requirements before building. Ask questions rather than guessing or promising impossible features.",
+          "5. Build with least-privilege Discord permissions, modular code, input validation, logging and safe failure handling.",
+          "6. Test commands, permissions, edge cases, rate limits, data storage and recovery before delivery.",
+          "7. Provide setup instructions, configuration notes, feature documentation and a clear handover.",
+          "8. Agree on maintenance, bug-fix expectations and future changes with the requester.",
+          "",
+          "**Security and privacy**",
+          "• Never ask a requester to post a bot token, password, API secret or database credential in Discord.",
+          "• Never paste secrets into source code, commits, screenshots or public logs. Use protected environment variables or another approved secret manager.",
+          "• Request only the permissions and data the bot actually needs.",
+          "• Do not copy private code, data or credentials into another project without permission.",
+          "• Do not deploy, invite or modify a bot in a server without the owner's authorization.",
+          "",
+          "**Professional delivery**",
+          "Give honest progress updates, document known limitations, report blockers early and never claim a feature is finished before it has been tested. Escalate payment, scope disputes or access concerns to Owner Rank."
+        ].join("\n"))
+        .setFooter({ text: "7 / 7  •  Developer responsibilities and custom bot commissions" })
+    ];
+    const savedId = await this.getResource(guild.id, "message:staff_guide");
+    let message = savedId ? await channel.messages.fetch(savedId).catch(() => null) : null;
+    const payload = { embeds: pages, components: [], allowedMentions: { parse: [] } };
+    if (message) await message.edit(payload);
+    else {
+      message = await channel.send(payload);
+      await this.saveResource(guild.id, "message:staff_guide", message.id);
+    }
   }
 
   async ensureTicketPanel(guild, channel) {
