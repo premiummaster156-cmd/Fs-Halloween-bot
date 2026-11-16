@@ -49,7 +49,7 @@ function timestampText(value) {
 function rolesText(roles) {
   if (!Array.isArray(roles) || !roles.length) return "No assigned roles (excluding @everyone), or no role snapshot was available.";
   const lines = roles.map((role) =>
-    "• **" + safeDisplay(role.name) + "** (" + String(role.id || "unknown") + ")"
+    "• **" + safeDisplay(role.name) + "**"
   );
   let output = lines.join("\n");
   if (output.length > 1000) output = output.slice(0, 970) + "\n…and " + Math.max(0, lines.length - 1) + " more.";
@@ -65,13 +65,111 @@ function auditValue(value) {
   return safeDisplay(rendered || "empty").slice(0, 180);
 }
 
+const AUDIT_FIELD_LABELS = Object.freeze({
+  name: "Name",
+  topic: "Channel topic",
+  nsfw: "Age restriction",
+  bitrate: "Voice bitrate",
+  user_limit: "Voice user limit",
+  rate_limit_per_user: "Slowmode",
+  permission_overwrites: "Channel access rules",
+  permissions: "Role permissions",
+  color: "Role colour",
+  hoist: "Displayed separately in the member list",
+  mentionable: "Role mentions",
+  position: "Role or channel order",
+  parent_id: "Channel category",
+  icon: "Role icon",
+  unicode_emoji: "Role icon",
+  available_tags: "Available thread tags",
+  default_auto_archive_duration: "Thread archive time",
+  default_thread_rate_limit_per_user: "Thread slowmode",
+  flags: "Channel settings",
+  archived: "Archived status",
+  locked: "Locked status"
+});
+
+function friendlyAuditValue(key, value) {
+  if (value === undefined) return "Not set";
+  if (value === null) return "None";
+  if (typeof value === "boolean") return value ? "Enabled" : "Disabled";
+  if (key === "rate_limit_per_user" || key === "default_thread_rate_limit_per_user") return Number(value) + " seconds";
+  if (key === "bitrate") return Math.round(Number(value) / 1000) + " kbps";
+  if (key === "color" && Number.isFinite(Number(value))) return "#" + Number(value).toString(16).padStart(6, "0").toUpperCase();
+  if (Array.isArray(value)) {
+    const names = value.map((item) => {
+      if (typeof item === "string") return item;
+      return item?.name || item?.role?.name || item?.tag || null;
+    }).filter(Boolean);
+    return names.length ? names.slice(0, 8).map((name) => safeDisplay(name)).join(", ") : "Updated";
+  }
+  if (typeof value === "object") {
+    if (value.name) return safeDisplay(value.name);
+    if (value.username) return safeDisplay(value.username);
+    return "Updated";
+  }
+  return safeDisplay(value).slice(0, 180);
+}
+
 function auditChangesText(entry) {
   const changes = Array.isArray(entry?.changes) ? entry.changes : [];
-  if (!changes.length) return "No field-level changes were provided.";
-  return changes.slice(0, 8).map((change) =>
-    "• **" + safeDisplay(change.key || "Change") + "**: " +
-    auditValue(change.old) + " → " + auditValue(change.new)
-  ).join("\n").slice(0, 1000);
+  if (!changes.length) return "";
+  const lines = [];
+  for (const change of changes.slice(0, 10)) {
+    const key = String(change.key || "change");
+    if (key === "$add" || key === "$remove") {
+      const value = change.new ?? change.old;
+      const names = Array.isArray(value)
+        ? value.map((item) => item?.name || item?.role?.name).filter(Boolean)
+        : [];
+      lines.push("• **" + (key === "$add" ? "Roles added" : "Roles removed") + "**: " +
+        (names.length ? names.map((name) => safeDisplay(name)).join(", ") : "Role assignment changed"));
+      continue;
+    }
+    const label = AUDIT_FIELD_LABELS[key] ||
+      key.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+    const oldValue = friendlyAuditValue(key, change.old);
+    const newValue = friendlyAuditValue(key, change.new);
+    lines.push("• **" + safeDisplay(label) + "**: " + oldValue + " → " + newValue);
+  }
+  return lines.join("\n").slice(0, 1000);
+}
+
+function readableChannelType(value) {
+  const types = {
+    0: "Text channel", 2: "Voice channel", 4: "Category",
+    5: "Announcement channel", 13: "Stage channel", 15: "Forum channel", 16: "Media channel"
+  };
+  return types[Number(value)] || "Channel";
+}
+
+function auditSummary(actionKey, entry) {
+  const summaries = {
+    channel_created: "A new channel was added to the server.",
+    channel_updated: "The channel's settings or permissions were changed.",
+    channel_deleted: "A channel was deleted from the server.",
+    server_settings_updated: "A server-wide setting was changed.",
+    role_created: "A new server role was created.",
+    role_updated: "A role's name, colour, display settings or permissions were changed.",
+    role_deleted: "A server role was deleted. Members no longer have permissions from that role.",
+    member_kicked: "A member was removed from the server by staff.",
+    member_pruned: "Inactive members were removed from the server.",
+    member_updated: "A member's server profile or settings were updated.",
+    member_banned: "A member was banned from the server.",
+    member_unbanned: "A previous server ban was removed.",
+    invite_created: "A new server invite was created.",
+    invite_deleted: "A server invite was deleted.",
+    webhook_created: "A new webhook was added to the server.",
+    webhook_updated: "A webhook's settings were changed.",
+    webhook_deleted: "A webhook was deleted from the server.",
+    message_deleted_by_moderator: "A moderator deleted a member's message.",
+    messages_bulk_deleted: "A moderator removed a batch of messages."
+  };
+  const summary = summaries[actionKey] || "A server action was recorded.";
+  if (actionKey === "channel_deleted" && entry?.target?.type !== undefined) {
+    return summary + " Type: " + readableChannelType(entry.target.type) + ".";
+  }
+  return summary;
 }
 
 const SERVER_AUDIT_ACTIONS = new Map([
@@ -292,23 +390,38 @@ class MemberLifecycleService {
     if (!guild || !this.supportsGuild(guild.id) || !memberId) return false;
     const member = await guild.members.fetch(memberId).catch(() => null);
     if (!member) return false;
-    const snapshot = await this.recordRoleSnapshot(member, actorId || "unknown", "audit_role_update");
+    const previous = await this.latestRoleSnapshot(guild.id, memberId);
+    const currentRoles = serializeRoles(member);
+    const previousRoles = Array.isArray(previous?.roles) ? previous.roles : [];
+    const previousIds = new Set(previousRoles.map((role) => String(role.id)));
+    const currentIds = new Set(currentRoles.map((role) => String(role.id)));
+    const added = currentRoles.filter((role) => !previousIds.has(String(role.id)));
+    const removed = previousRoles.filter((role) => !currentIds.has(String(role.id)));
+    const snapshot = {
+      source: "audit_role_update",
+      roles: currentRoles,
+      joinedAt: previous?.joinedAt || asDate(member.joinedAt)?.toISOString() || null,
+      accountCreatedAt: previous?.accountCreatedAt ||
+        asDate(member.user?.createdAt || member.user?.createdTimestamp)?.toISOString() || null,
+      capturedAt: new Date().toISOString()
+    };
+    await this.writeAudit(guild.id, actorId || "unknown", "member_roles_snapshot", memberId, snapshot);
     if (actorId && actorId !== botUserId) {
-      const changes = auditChangesText(entry);
-      await this.writeAudit(guild.id, actorId, "member_roles_changed", memberId, {
-        roles: snapshot?.roles || [],
-        changes
-      });
+      const addedText = added.length ? added.map((role) => "**" + safeDisplay(role.name) + "**").join(", ") : "None";
+      const removedText = removed.length ? removed.map((role) => "**" + safeDisplay(role.name) + "**").join(", ") : "None";
+      const details = { added: added.map((role) => role.name), removed: removed.map((role) => role.name), roles: currentRoles.map((role) => role.name) };
+      await this.writeAudit(guild.id, actorId, "member_roles_changed", memberId, details);
       const embed = new EmbedBuilder()
         .setColor(0xC18A37)
         .setTitle("MEMBER ROLES UPDATED")
-        .setDescription("<@" + memberId + "> • changed by <@" + actorId + ">")
+        .setDescription("The role assignments for <@" + memberId + "> were changed.")
         .addFields(
-          { name: "Member ID", value: memberId, inline: true },
-          { name: "Changed by", value: actorId, inline: true },
-          { name: "Changes", value: changes, inline: false }
+          { name: "Member", value: "<@" + memberId + ">", inline: true },
+          { name: "Changed by", value: "<@" + actorId + ">", inline: true },
+          { name: "Roles added", value: addedText, inline: false },
+          { name: "Roles removed", value: removedText, inline: false }
         )
-        .setFooter({ text: "The new role state has been saved for future leave logs." })
+        .setFooter({ text: "The updated role list is saved for future leave logs." })
         .setTimestamp();
       await this.sendServerLog(guild, embed);
     }
@@ -323,29 +436,38 @@ class MemberLifecycleService {
     if (actorId && actorId === botUserId) return false;
     const targetId = entry.targetId || entry.target?.id || null;
     const targetName = entry.target?.name || entry.target?.username || targetId || "Unknown";
-    const reason = String(entry.reason || "No reason supplied").slice(0, 900);
+    const reason = String(entry.reason || "").trim().slice(0, 800);
     const changes = auditChangesText(entry);
-    const extra = entry.extra ? auditValue(entry.extra) : null;
+    const targetKind = action.key.startsWith("channel") ? "Channel" :
+      action.key.startsWith("role") ? "Role" :
+      action.key.startsWith("webhook") ? "Webhook" :
+      action.key.startsWith("invite") ? "Invite" : "Member";
+    const targetLabel = targetKind === "Channel" ? "#" + safeDisplay(targetName) :
+      targetKind === "Role" ? "@" + safeDisplay(targetName) : safeDisplay(targetName);
+    const summary = auditSummary(action.key, entry);
+    const actorLabel = actorId
+      ? "<@" + actorId + ">" + (entry.executor?.tag || entry.executor?.username ? " • " + safeDisplay(entry.executor.tag || entry.executor.username) : "")
+      : "Discord did not provide an executor for this entry.";
     const auditDetails = {
       action: action.key,
+      targetKind,
       targetName: String(targetName).slice(0, 180),
       actorId,
-      reason,
-      changes,
-      extra
+      reason: reason || null,
+      summary,
+      changes: changes || null
     };
     await this.writeAudit(guild.id, actorId || "unknown", "server_audit_" + action.key, targetId, auditDetails);
     const embed = new EmbedBuilder()
       .setColor(action.color)
       .setTitle(action.label)
-      .setDescription("**Target:** " + safeDisplay(targetName) + (targetId ? " (" + targetId + ")" : ""))
+      .setDescription(summary + "\n\n**" + targetKind + ":** " + targetLabel)
       .addFields(
-        { name: "Executor", value: actorId ? "<@" + actorId + "> (" + actorId + ")" : "Unknown", inline: false },
-        { name: "Reason", value: reason || "No reason supplied", inline: false },
-        { name: "Changes", value: changes, inline: false },
-        ...(extra ? [{ name: "Additional details", value: extra.slice(0, 1024), inline: false }] : [])
+        { name: "Performed by", value: actorLabel, inline: false },
+        ...(changes ? [{ name: "What changed", value: changes, inline: false }] : []),
+        { name: "Reason", value: reason || "No reason was recorded in the Discord audit entry.", inline: false }
       )
-      .setFooter({ text: "Server audit • Informational only; no automatic moderation action" })
+      .setFooter({ text: "COOPFT • SERVER AUDIT • Human-readable activity record" })
       .setTimestamp(asDate(entry.createdAt) || new Date());
     if (action.destination === "member") await this.sendMemberLog(guild, embed);
     else await this.sendServerLog(guild, embed);
