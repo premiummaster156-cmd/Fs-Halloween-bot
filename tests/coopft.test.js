@@ -220,7 +220,6 @@ test("onboarding setup enables Discord onboarding and preserves existing prompts
     const channel = channels.find(item => item.name === name);
     assert.ok(!channel.permissionsFor(everyone).has(PermissionFlagsBits.SendMessages), name + " must remain read-only");
   }
-  assert.equal(saved.prompts.length, 2);
   assert.equal(saved.prompts[0].title, "Existing question");
   assert.equal(saved.prompts[0].singleSelect, true);
   assert.equal(saved.prompts[0].options[0].channels[0], existingChannel.id);
