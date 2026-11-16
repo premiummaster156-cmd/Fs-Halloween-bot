@@ -63,7 +63,7 @@ test("configured autoroles assign only valid roles below the bot hierarchy", asy
       return { rows: [{ role_ids: roles.map(role => role.id) }] };
     }
   };
-  const service = new MemberLifecycleService(pool, { fukishokaiGuildId: "guild-1", coopftGuildId: "" });
+  const service = new MemberLifecycleService(pool, { coopftGuildId: "guild-1" });
   const result = await service.assignAutoroles(member);
   assert.deepEqual(result.map(role => role.id), ["role-public", "role-news"]);
   assert.equal(assigned.length, 1);
@@ -73,7 +73,7 @@ test("configured autoroles assign only valid roles below the bot hierarchy", asy
 test("join stores a role snapshot in the existing audit log table without a new migration", async () => {
   const calls = [];
   const pool = { query: async (sql, params) => { calls.push({ sql, params }); return { rows: [] }; } };
-  const service = new MemberLifecycleService(pool, { fukishokaiGuildId: "guild-1", coopftGuildId: "" });
+  const service = new MemberLifecycleService(pool, { coopftGuildId: "guild-1" });
   const member = {
     id: "user-1",
     guild: { id: "guild-1" },
@@ -119,8 +119,7 @@ test("leave logs use the latest saved role snapshot and calculate server tenure"
     channels: { fetch: async () => channel }
   };
   const service = new MemberLifecycleService(pool, {
-    fukishokaiGuildId: "guild-1",
-    coopftGuildId: "",
+    coopftGuildId: "guild-1",
     guildSettings: { get: async () => "member-log-channel" }
   });
   const member = {
@@ -144,6 +143,28 @@ test("leave logs use the latest saved role snapshot and calculate server tenure"
   const details = JSON.parse(inserted[0].params[4]);
   assert.equal(details.roles[0].id, "role-7");
   assert.equal(details.joinedAt, snapshot.joinedAt);
+});
+
+test("Fukishokai is rejected by CoopFT welcome, autorole and lifecycle service", async () => {
+  const calls = [];
+  const pool = { query: async sql => { calls.push(sql); return { rows: [] }; } };
+  const service = new MemberLifecycleService(pool, { coopftGuildId: "coopft-guild" });
+  const fsGuild = {
+    id: "fukishokai-guild",
+    systemChannel: { id: "fs-system-channel", guildId: "fukishokai-guild" },
+    channels: { fetch: async () => { throw new Error("must not fetch a welcome channel"); } }
+  };
+  const member = {
+    id: "member-1",
+    guild: fsGuild,
+    roles: { cache: new Map(), add: async () => { throw new Error("must not assign FS autoroles"); } }
+  };
+  assert.equal(service.supportsGuild(fsGuild.id), false);
+  assert.equal(await service.resolveWelcomeChannel(fsGuild), null);
+  assert.deepEqual(await service.assignAutoroles(member), []);
+  assert.equal(await service.handleJoin(member), false);
+  assert.equal(await service.handleLeave(member), false);
+  assert.deepEqual(calls, [], "Fukishokai must not read CoopFT lifecycle settings or write lifecycle logs");
 });
 
 
