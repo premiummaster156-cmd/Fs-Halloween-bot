@@ -1593,19 +1593,19 @@ class CoopFTCommunityService {
   getApplicationQuestions(role) {
     if (role.category === "developer") {
       return [
-        ["experience", "What bots have you built before?", TextInputStyle.Paragraph, true, 900],
-        ["portfolio", "Share portfolio, GitHub or demo links", TextInputStyle.Paragraph, true, 900],
-        ["workflow", "How do you scope and build a custom bot request?", TextInputStyle.Paragraph, true, 900],
-        ["security", "How do you protect bot tokens and user data?", TextInputStyle.Paragraph, true, 900],
-        ["support", "What is your availability for updates and support?", TextInputStyle.Paragraph, true, 900]
+        ["experience", "Bots you have built", TextInputStyle.Paragraph, true, 900],
+        ["portfolio", "Portfolio, GitHub or demo links", TextInputStyle.Paragraph, true, 900],
+        ["workflow", "How do you scope a bot project?", TextInputStyle.Paragraph, true, 900],
+        ["security", "How do you protect tokens and user data?", TextInputStyle.Paragraph, true, 900],
+        ["support", "Availability for updates and support", TextInputStyle.Paragraph, true, 900]
       ];
     }
     return [
-      ["experience", "What relevant moderation experience do you have?", TextInputStyle.Paragraph, true, 900],
-      ["motivation", "Why do you want this position?", TextInputStyle.Paragraph, true, 900],
-      ["scenario", "How would you handle a difficult situation?", TextInputStyle.Paragraph, true, 900],
-      ["availability", "What is your usual weekly availability?", TextInputStyle.Short, true, 250],
-      ["extra", "Anything else we should know? (optional)", TextInputStyle.Paragraph, false, 700]
+      ["experience", "Relevant moderation experience", TextInputStyle.Paragraph, true, 900],
+      ["motivation", "Why do you want this role?", TextInputStyle.Paragraph, true, 900],
+      ["scenario", "How would you handle a difficult case?", TextInputStyle.Paragraph, true, 900],
+      ["availability", "Usual weekly availability", TextInputStyle.Short, true, 250],
+      ["extra", "Anything else to add? (optional)", TextInputStyle.Paragraph, false, 700]
     ];
   }
 
