@@ -478,33 +478,53 @@ class CoopFTCommunityService {
   }
 
   async getRoleIconBuffer(roleKey) {
-    const spec = ROLE_IMAGE_ICONS.find((item) => item.roleKey === roleKey);
+    const spec = [...PING_ROLES, ...INTEREST_ROLES].find((item) => item.key === roleKey);
     if (!spec) return null;
-    if (!this.roleIconSheet) {
-      this.roleIconCanvas = require("@napi-rs/canvas");
-      const encoded = fs.readFileSync(
-        path.resolve(__dirname, "../../assets/coopft-role-icons-sprite.png.b64"),
-        "utf8"
-      ).trim();
-      if (!encoded) throw new Error("The generated CoopFT role-icon sprite is empty.");
-      this.roleIconSheet = await this.roleIconCanvas.loadImage(Buffer.from(encoded, "base64"));
-      if (this.roleIconSheet.width !== 256 || this.roleIconSheet.height !== 256) {
-        throw new Error("Expected the 256×256 CoopFT role-icon sprite, received " +
-          this.roleIconSheet.width + "×" + this.roleIconSheet.height + ".");
-      }
-    }
-    const canvas = this.roleIconCanvas.createCanvas(128, 128);
+    const canvasApi = require("@napi-rs/canvas");
+    const canvas = canvasApi.createCanvas(128, 128);
     const context = canvas.getContext("2d");
-    const sourceX = (spec.slot % 4) * 64;
-    const sourceY = Math.floor(spec.slot / 4) * 64;
-    context.drawImage(this.roleIconSheet, sourceX, sourceY, 64, 64, 0, 0, 128, 128);
+    const primary = "#" + Number(spec.primary).toString(16).padStart(6, "0");
+    const secondary = "#" + Number(spec.secondary).toString(16).padStart(6, "0");
+    const gradient = context.createLinearGradient(12, 12, 116, 116);
+    gradient.addColorStop(0, primary);
+    gradient.addColorStop(1, secondary);
+    context.fillStyle = gradient;
+    context.beginPath();
+    context.roundRect(7, 7, 114, 114, 30);
+    context.fill();
+    context.strokeStyle = "rgba(255,255,255,0.92)";
+    context.lineWidth = 4;
+    context.stroke();
+    context.strokeStyle = "rgba(255,255,255,0.30)";
+    context.lineWidth = 2;
+    context.beginPath();
+    context.roundRect(15, 15, 98, 98, 23);
+    context.stroke();
+    const glow = context.createRadialGradient(64, 46, 2, 64, 54, 58);
+    glow.addColorStop(0, "rgba(255,255,255,0.36)");
+    glow.addColorStop(1, "rgba(255,255,255,0)");
+    context.fillStyle = glow;
+    context.beginPath();
+    context.roundRect(9, 9, 110, 110, 28);
+    context.fill();
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.font = "68px \"Apple Color Emoji\", \"Segoe UI Emoji\", sans-serif";
+    context.shadowColor = "rgba(0,0,0,0.24)";
+    context.shadowBlur = 8;
+    context.shadowOffsetY = 3;
+    context.fillStyle = "#ffffff";
+    context.fillText(spec.icon, 64, 65, 88);
+    context.shadowColor = "transparent";
+    context.shadowBlur = 0;
+    context.shadowOffsetY = 0;
     return canvas.toBuffer("image/png");
   }
 
   async ensureRoleImageEmojis(guild) {
     this.assertCoopFTGuild(guild, "create the generated CoopFT role-icon emojis");
     const result = { created: 0, available: 0, failed: [] };
-    const existing = new Map(guild.emojis.cache.map((emoji) => [emoji.name, emoji]));
+    const existing = new Map(Array.from(guild.emojis.cache.values()).map((emoji) => [emoji.name, emoji]));
     const botMember = guild.members.me || await guild.members.fetchMe().catch(() => null);
     const canCreate = Boolean(botMember?.permissions?.has(PermissionFlagsBits.CreateGuildExpressions));
     for (const spec of ROLE_IMAGE_ICONS) {
