@@ -15,6 +15,7 @@ const {
   MEMBER_ROLES,
   INTEREST_ROLES,
   PING_ROLES,
+  ROLE_IMAGE_ICONS,
   PUBLIC_CHANNELS,
   PRIVATE_CHANNELS
 } = require("../src/config/coopft-design");
@@ -70,6 +71,34 @@ test("role brackets follow the hierarchy and only the Bots divider has Administr
   assert.deepEqual(adminBrackets.map((role) => role.key), ["bots"]);
   assert.equal(ROLE_LAYOUT.find((group) => group.bracket === "mod_roles").roles.includes("developer"), false);
   assert.ok(ROLE_LAYOUT.find((group) => group.bracket === "member_roles").roles.includes("developer_member"));
+});
+
+test("only the High Rank and Low Rank staff section names change; Mod Roles remains unchanged", () => {
+  assert.equal(ROLE_BRACKETS.find(role => role.key === "high_rank").name, "━━━━━━〔 MANAGEMENT 〕━━━━━━");
+  assert.equal(ROLE_BRACKETS.find(role => role.key === "low_rank").name, "━━━━━━〔 SUPPORT TEAM 〕━━━━━━");
+  assert.equal(ROLE_BRACKETS.find(role => role.key === "mod_roles").name, "━━━━━━〔 MOD ROLES 〕━━━━━━");
+  assert.deepEqual(ROLE_BRACKETS.find(role => role.key === "high_rank").legacyNames, ["━━━━━━〔 HIGH RANK 〕━━━━━━"]);
+  assert.deepEqual(ROLE_BRACKETS.find(role => role.key === "low_rank").legacyNames, ["━━━━━━〔 LOW RANK 〕━━━━━━"]);
+});
+
+test("the manually generated PNG icon sheet covers every interest and notification role", () => {
+  assert.equal(ROLE_IMAGE_ICONS.length, 16);
+  assert.deepEqual(ROLE_IMAGE_ICONS.map(item => item.roleKey), [
+    ...PING_ROLES.map(role => role.key),
+    ...INTEREST_ROLES.map(role => role.key)
+  ]);
+  assert.equal(new Set(ROLE_IMAGE_ICONS.map(item => item.emoji)).size, 16);
+  assert.deepEqual(ROLE_IMAGE_ICONS.map(item => item.slot), Array.from({ length: 16 }, (_, index) => index));
+  for (const item of ROLE_IMAGE_ICONS) {
+    const role = [...PING_ROLES, ...INTEREST_ROLES].find(candidate => candidate.key === item.roleKey);
+    assert.equal(role.emoji, item.emoji);
+    assert.ok(item.emoji.length <= 32);
+  }
+  const assetPath = path.join(__dirname, "../assets/coopft-role-icons-sprite.png.b64");
+  const png = Buffer.from(fs.readFileSync(assetPath, "utf8").trim(), "base64");
+  assert.equal(png.toString("hex", 0, 8), "89504e470d0a1a0a");
+  assert.equal(png.readUInt32BE(16), 256);
+  assert.equal(png.readUInt32BE(20), 256);
 });
 
 test("members can self-select interests and non-mentionable notification roles only", () => {
