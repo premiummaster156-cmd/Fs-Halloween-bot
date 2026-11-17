@@ -153,7 +153,7 @@ if(n==="onboarding-setup"){
   pingOptions.push({
    title:spec.name.replace(/\s+Ping$/i,""),
    description:pingDescriptions[spec.key]||"Choose whether you want these notifications",
-   emoji:spec.icon,
+   emoji:roleOptionEmoji(spec),
    roles:[String(role.id)]
   });
  }
