@@ -117,6 +117,10 @@ if(n==="onboarding-setup"){
   if(!role)throw Error("The configured role **"+spec.name+"** is missing. Run the CoopFT setup command first.");
   return role;
  };
+ const roleOptionEmoji=spec=>{
+  const emojiId=s.coopft.emojis?.get(spec.emoji);
+  return emojiId?"<:"+spec.emoji+":"+emojiId+">":spec.icon;
+ };
  const makePrompt=(title,options)=>({
   id:SnowflakeUtil.generate().toString(),
   type:0,
@@ -139,7 +143,7 @@ if(n==="onboarding-setup"){
   interestOptions.push({
    title:spec.name,
    description:interestDescriptions[spec.key]||"Choose this topic to personalize your community experience",
-   emoji:spec.icon,
+   emoji:roleOptionEmoji(spec),
    roles:[String(role.id)]
   });
  }
