@@ -6,7 +6,7 @@ const { PermissionFlagsBits, PermissionsBitField, ChannelType } = require("disco
 const { loadCoopFTCommands } = require("../src/commands/coopft");
 const {
   STAFF_RANKS, APPLICATION_RANKS, EMOJI_SPRITE, CATEGORY_NAMES, PUBLIC_CHANNELS, PRIVATE_CHANNELS,
-  INTEREST_ROLES, PING_ROLES, ROLE_IMAGE_ICONS,
+  INTEREST_ROLES, PING_ROLES, ROLE_IMAGE_ICONS, ROLE_IMAGE_ICONS,
   OWNER_PERMISSIONS, HIGH_RANK_SUPERVISOR_PERMISSIONS, ALL_PERMISSION_BITS
 } = require("../src/config/coopft-design");
 const {
@@ -271,7 +271,8 @@ test("onboarding setup replaces only the legacy interests question with three Co
   const configuredRoles = new Map(roleSpecs.map((spec, index) => [
     spec.key, { id: "configured-role-" + index, name: spec.name }
   ]));
-  const coopft = { roles: configuredRoles, getResource: async () => null };
+  const generatedEmojis = new Map(ROLE_IMAGE_ICONS.map(spec => [spec.emoji, "generated-emoji-" + spec.roleKey]));
+  const coopft = { roles: configuredRoles, emojis: generatedEmojis, getResource: async () => null };
 
   await commands.get("onboarding-setup").execute(interaction, { coopft });
 
@@ -291,6 +292,8 @@ test("onboarding setup replaces only the legacy interests question with three Co
   assert.equal(saved.prompts[1].options[0].title, "Regular");
   assert.equal(saved.prompts[2].options.length, INTEREST_ROLES.length);
   assert.equal(saved.prompts[3].options.length, PING_ROLES.length);
+  assert.match(saved.prompts[2].options[0].emoji, /^<:cf3d_roleimg_gaming:generated-emoji-interest_gaming>$/);
+  assert.match(saved.prompts[3].options[0].emoji, /^<:cf3d_roleimg_announcements:generated-emoji-ping_announcements>$/);
   assert.equal(saved.prompts[4].options.length, 3);
   for (const prompt of saved.prompts.slice(2)) {
     assert.equal(prompt.singleSelect, false);
