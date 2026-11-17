@@ -10,7 +10,7 @@ const {
 } = require("discord.js");
 const {
   STAFF_RANKS, APPLICATION_RANKS, OWNER_RANK_KEYS, EMOJI_SPRITE, ROLE_BRACKETS, BOT_ROLES, MEMBER_ROLES,
-  INTEREST_ROLES, PING_ROLES, ROLE_LAYOUT, CATEGORY_NAMES, PUBLIC_CHANNELS, PRIVATE_CHANNELS
+  INTEREST_ROLES, PING_ROLES, ROLE_IMAGE_ICONS, ROLE_LAYOUT, CATEGORY_NAMES, PUBLIC_CHANNELS, PRIVATE_CHANNELS
 } = require("../config/coopft-design");
 const { COOPFT_DEFAULT_GUILD_ID, coopftGuildId } = require("../config/server-personas");
 
@@ -426,6 +426,8 @@ class CoopFTCommunityService {
     this.memberRosterLoaded = false;
     this.directoryRefreshRunning = false;
     this.directoryRefreshTimer = null;
+    this.roleIconSheet = null;
+    this.roleIconCanvas = null;
   }
 
   assertCoopFTGuildId(guildId, action = "access CoopFT data") {
@@ -473,6 +475,87 @@ class CoopFTCommunityService {
   emoji(guildId, name, fallback = "✦") {
     const id = this.emojis.get(name);
     return id ? "<:" + name + ":" + id + ">" : fallback;
+  }
+
+  async getRoleIconBuffer(roleKey) {
+    const spec = ROLE_IMAGE_ICONS.find((item) => item.roleKey === roleKey);
+    if (!spec) return null;
+    if (!this.roleIconSheet) {
+      this.roleIconCanvas = require("@napi-rs/canvas");
+      const encoded = fs.readFileSync(
+        path.resolve(__dirname, "../../assets/coopft-role-icons-sprite.png.b64"),
+        "utf8"
+      ).trim();
+      if (!encoded) throw new Error("The generated CoopFT role-icon sprite is empty.");
+      this.roleIconSheet = await this.roleIconCanvas.loadImage(Buffer.from(encoded, "base64"));
+      if (this.roleIconSheet.width !== 256 || this.roleIconSheet.height !== 256) {
+        throw new Error("Expected the 256×256 CoopFT role-icon sprite, received " +
+          this.roleIconSheet.width + "×" + this.roleIconSheet.height + ".");
+      }
+    }
+    const canvas = this.roleIconCanvas.createCanvas(128, 128);
+    const context = canvas.getContext("2d");
+    const sourceX = (spec.slot % 4) * 64;
+    const sourceY = Math.floor(spec.slot / 4) * 64;
+    context.drawImage(this.roleIconSheet, sourceX, sourceY, 64, 64, 0, 0, 128, 128);
+    return canvas.toBuffer("image/png");
+  }
+
+  async ensureRoleImageEmojis(guild) {
+    this.assertCoopFTGuild(guild, "create the generated CoopFT role-icon emojis");
+    const result = { created: 0, available: 0, failed: [] };
+    const existing = new Map(guild.emojis.cache.map((emoji) => [emoji.name, emoji]));
+    const botMember = guild.members.me || await guild.members.fetchMe().catch(() => null);
+    const canCreate = Boolean(botMember?.permissions?.has(PermissionFlagsBits.CreateGuildExpressions));
+    for (const spec of ROLE_IMAGE_ICONS) {
+      const current = existing.get(spec.emoji);
+      if (current) {
+        this.emojis.set(spec.emoji, current.id);
+        result.available += 1;
+        continue;
+      }
+      if (!canCreate) {
+        result.failed.push(spec.emoji + ": missing Create Expressions permission");
+        continue;
+      }
+      try {
+        const attachment = await this.getRoleIconBuffer(spec.roleKey);
+        if (!attachment) throw new Error("No generated image exists for " + spec.roleKey + ".");
+        const created = await guild.emojis.create({
+          attachment,
+          name: spec.emoji,
+          reason: "CoopFT generated PNG role and onboarding icons"
+        });
+        this.emojis.set(spec.emoji, created.id);
+        result.created += 1;
+      } catch (error) {
+        result.failed.push(spec.emoji + ": " + error.message);
+      }
+    }
+    return result;
+  }
+
+  async applyManagedRoleIcon(guild, role, spec) {
+    this.assertCoopFTGuild(guild, "apply a CoopFT role icon");
+    if (!guild.features?.includes?.("ROLE_ICONS") || role.editable === false) return false;
+    let body;
+    const image = await this.getRoleIconBuffer(spec.key).catch((error) => {
+      console.warn("[coopft] Generated role image unavailable for " + spec.name + "; using Unicode fallback:", error.message);
+      return null;
+    });
+    body = image
+      ? { icon: "data:image/png;base64," + image.toString("base64") }
+      : { unicode_emoji: spec.icon };
+    try {
+      await guild.client.rest.patch(Routes.guildRole(guild.id, role.id), {
+        body,
+        reason: image ? "CoopFT custom generated PNG role icon" : "CoopFT Unicode role icon fallback"
+      });
+      return true;
+    } catch (error) {
+      console.warn("[coopft] Native role icon unavailable for " + spec.name + "; embed icon fallback retained:", error.message);
+      return false;
+    }
   }
 
   async ensureEmojis(guild) {
@@ -531,6 +614,11 @@ class CoopFTCommunityService {
         result.failed.push(name + ": " + error.message);
       }
     }
+    const roleImages = await this.ensureRoleImageEmojis(guild);
+    result.created += roleImages.created;
+    result.available += roleImages.available;
+    result.failed.push(...roleImages.failed);
+
     // Reuse useful existing community emojis as well as the dedicated CoopFT pack.
     for (const name of EXISTING_SERVER_EMOJIS) {
       const existing = found.get(name);
@@ -645,8 +733,15 @@ class CoopFTCommunityService {
     await this.saveResource(guild.id, resourceKey, role.id);
 
     // Existing Discord customization is authoritative during ordinary setup.
-    // Explicit /coopft-roles-sync is required to reapply the repository design.
-    if (!created && options.force !== true) return { role, created };
+    // Generated image icons are the exception: apply them once they are available so
+    // manually-created PNG assets replace the old Unicode role icons without resetting
+    // members' custom role names, colours, permissions or positions.
+    if (!created && options.force !== true) {
+      if (ROLE_IMAGE_ICONS.some((item) => item.roleKey === spec.key)) {
+        await this.applyManagedRoleIcon(guild, role, spec);
+      }
+      return { role, created };
+    }
 
     // Apply code-defined properties only on creation or an explicit sync. This also gives
     // servers without enhanced role colours a predictable solid-colour fallback.
@@ -702,18 +797,9 @@ class CoopFTCommunityService {
       }
     }
 
-    // Discord role icons are feature-gated. Staff directory embeds always keep
-    // their own Unicode/custom-emoji icon when native role icons are unavailable.
-    if (guild.features?.includes?.("ROLE_ICONS") && role.editable !== false) {
-      try {
-        await guild.client.rest.patch(Routes.guildRole(guild.id, role.id), {
-          body: { unicode_emoji: spec.icon },
-          reason: "CoopFT staff role icon"
-        });
-      } catch (error) {
-        console.warn("[coopft] Native role icon unavailable for " + spec.name + "; embed icon fallback retained:", error.message);
-      }
-    }
+    // Discord accepts uploaded role icon images only on servers with ROLE_ICONS.
+    // The fallback remains a Unicode emoji on servers without that feature.
+    await this.applyManagedRoleIcon(guild, role, spec);
     return { role, created };
   }
 
