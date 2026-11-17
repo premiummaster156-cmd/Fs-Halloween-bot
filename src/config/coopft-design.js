@@ -82,7 +82,7 @@ const ROLE_BRACKETS = Object.freeze([
   { key: "low_rank", name: "━━━━━━〔 SUPPORT TEAM 〕━━━━━━", legacyNames: ["━━━━━━〔 LOW RANK 〕━━━━━━"], emoji: "cf3d_low_rank", icon: "⚖️", primary: 0x287E8C, secondary: 0x62C8D2, permissions: 0n, hoist: false },
   { key: "mod_roles", name: "━━━━━━〔 MOD ROLES 〕━━━━━━", emoji: "cf3d_mod_rank", icon: "⚔️", primary: 0x693E9C, secondary: 0xA786D8, permissions: 0n, hoist: false },
   // This divider is intentionally never assigned. Only the empty bracket itself has Administrator.
-  { key: "bots", name: "━━━━━━〔 BOTS 〕━━━━━━", emoji: "cf3d_roleimg_bot_updates", icon: "🤖", primary: 0x596575, secondary: 0x9BA8BA, permissions: PermissionFlagsBits.Administrator, hoist: false },
+  { key: "bots", name: "━━━━━━〔 BOTS 〕━━━━━━", emoji: "cf3d_bots", icon: "🤖", primary: 0x596575, secondary: 0x9BA8BA, permissions: PermissionFlagsBits.Administrator, hoist: false },
   { key: "member_roles", name: "━━━━━━〔 MEMBER ROLES 〕━━━━━━", emoji: "cf3d_member", icon: "👥", primary: 0x487B91, secondary: 0x83B6C9, permissions: 0n, hoist: false },
   { key: "interest_roles", name: "━━━━━━〔 INTERESTS 〕━━━━━━", emoji: "cf3d_role_select", icon: "🎯", primary: 0x5676A7, secondary: 0x8DADE0, permissions: 0n, hoist: false },
   { key: "ping_roles", name: "━━━━━━〔 PING ROLES 〕━━━━━━", emoji: "cf3d_announcement_ping", icon: "📣", primary: 0xA16B36, secondary: 0xE5B36E, permissions: 0n, hoist: false }
@@ -114,7 +114,7 @@ const PING_ROLES = Object.freeze([
   { key: "ping_giveaways", name: "Giveaways Ping", emoji: "cf3d_roleimg_giveaways", icon: "🎁", primary: 0x94713B, secondary: 0xD7B56C, permissions: 0n, mentionable: false, hoist: false },
   { key: "ping_community", name: "Community Updates Ping", emoji: "cf3d_roleimg_community", icon: "🔔", primary: 0x477C82, secondary: 0x81C8C0, permissions: 0n, mentionable: false, hoist: false },
   { key: "ping_game_nights", name: "Game Nights Ping", emoji: "cf3d_roleimg_game_nights", icon: "🎮", primary: 0x4F62A3, secondary: 0x909DE7, permissions: 0n, mentionable: false, hoist: false },
-  { key: "ping_bot_updates", name: "Bot Updates Ping", emoji: "cf3d_bots", icon: "🤖", primary: 0x596575, secondary: 0xA3B1C5, permissions: 0n, mentionable: false, hoist: false },
+  { key: "ping_bot_updates", name: "Bot Updates Ping", emoji: "cf3d_roleimg_bot_updates", icon: "🤖", primary: 0x596575, secondary: 0xA3B1C5, permissions: 0n, mentionable: false, hoist: false },
   { key: "ping_lfg", name: "Looking for Group Ping", emoji: "cf3d_roleimg_lfg", icon: "⚔️", primary: 0x526E99, secondary: 0x90B2E0, permissions: 0n, mentionable: false, hoist: false },
   { key: "ping_voice", name: "Voice Activities Ping", emoji: "cf3d_roleimg_voice", icon: "🎙️", primary: 0x39868C, secondary: 0x7FD1CE, permissions: 0n, mentionable: false, hoist: false }
 ]);
