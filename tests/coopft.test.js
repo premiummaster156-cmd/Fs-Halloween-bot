@@ -6,7 +6,7 @@ const { PermissionFlagsBits, PermissionsBitField, ChannelType } = require("disco
 const { loadCoopFTCommands } = require("../src/commands/coopft");
 const {
   STAFF_RANKS, APPLICATION_RANKS, EMOJI_SPRITE, CATEGORY_NAMES, PUBLIC_CHANNELS, PRIVATE_CHANNELS,
-  INTEREST_ROLES, PING_ROLES,
+  INTEREST_ROLES, PING_ROLES, ROLE_IMAGE_ICONS,
   OWNER_PERMISSIONS, HIGH_RANK_SUPERVISOR_PERMISSIONS, ALL_PERMISSION_BITS
 } = require("../src/config/coopft-design");
 const {
@@ -17,6 +17,62 @@ const {
   CLEANUP_CONFIRMATION, CoopFTCommunityService, drawCoopFTEmoji
 } = require("../src/services/coopft-community");
 const { createCanvas } = require("@napi-rs/canvas");
+
+test("generated role icon sprite crops all 16 image assets into 128px PNGs", async () => {
+  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) });
+  for (const spec of ROLE_IMAGE_ICONS) {
+    const buffer = await service.getRoleIconBuffer(spec.roleKey);
+    assert.ok(Buffer.isBuffer(buffer), spec.roleKey + " must return an image buffer");
+    const image = await require("@napi-rs/canvas").loadImage(buffer);
+    assert.equal(image.width, 128, spec.roleKey);
+    assert.equal(image.height, 128, spec.roleKey);
+    assert.equal(buffer.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+  }
+});
+
+test("generated role icon assets become CoopFT custom onboarding emojis", async () => {
+  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) });
+  const created = [];
+  service.getRoleIconBuffer = async key => Buffer.from("PNG:" + key);
+  const guild = {
+    id: coopftGuildId,
+    members: { me: { permissions: { has: permission => permission === PermissionFlagsBits.CreateGuildExpressions } } },
+    emojis: {
+      cache: new Map(),
+      create: async payload => {
+        created.push(payload);
+        return { id: "emoji-" + payload.name, name: payload.name };
+      }
+    }
+  };
+  const result = await service.ensureRoleImageEmojis(guild);
+  assert.equal(result.created, 16);
+  assert.equal(result.failed.length, 0);
+  assert.equal(created.length, 16);
+  for (const spec of ROLE_IMAGE_ICONS) {
+    assert.equal(service.emojis.get(spec.emoji), "emoji-" + spec.emoji);
+  }
+});
+
+test("role icon uploader uses generated PNG data when the guild supports ROLE_ICONS", async () => {
+  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) });
+  service.getRoleIconBuffer = async () => Buffer.from("generated-png");
+  const requests = [];
+  const guild = {
+    id: coopftGuildId,
+    features: ["ROLE_ICONS"],
+    client: { rest: { patch: async (route, payload) => requests.push({ route, payload }) } }
+  };
+  const result = await service.applyManagedRoleIcon(
+    guild,
+    { id: "role-id", editable: true },
+    { key: "interest_gaming", name: "Gaming", icon: "🎮" }
+  );
+  assert.equal(result, true);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].payload.body.icon, "data:image/png;base64," + Buffer.from("generated-png").toString("base64"));
+  assert.equal(requests[0].payload.body.unicode_emoji, undefined);
+});
 
 test("server personas are isolated and CoopFT uses the configured server ID", () => {
   assert.equal(coopftGuildId, "1498271944456540210");
