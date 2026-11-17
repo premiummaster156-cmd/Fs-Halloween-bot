@@ -704,7 +704,7 @@ class CoopFTCommunityService {
     const savedId = await this.getResource(guild.id, resourceKey);
     let role = savedId ? await guild.roles.fetch(savedId).catch(() => null) : null;
     if (!role) role = guild.roles.cache.find((item) =>
-      !item.managed && [spec.name, "CF • " + spec.name].includes(item.name)
+      !item.managed && [spec.name, "CF • " + spec.name, ...(spec.legacyNames || [])].includes(item.name)
     ) || null;
     let created = false;
     if (!role) {
@@ -737,6 +737,16 @@ class CoopFTCommunityService {
     // manually-created PNG assets replace the old Unicode role icons without resetting
     // members' custom role names, colours, permissions or positions.
     if (!created && options.force !== true) {
+      if (["high_rank", "low_rank"].includes(spec.key) && role.name !== spec.name) {
+        try {
+          role = await role.edit({
+            name: spec.name,
+            reason: "Owner-requested CoopFT staff bracket rename"
+          });
+        } catch (error) {
+          console.warn("[coopft] Could not rename the " + spec.key + " bracket:", error.message);
+        }
+      }
       if (ROLE_IMAGE_ICONS.some((item) => item.roleKey === spec.key)) {
         await this.applyManagedRoleIcon(guild, role, spec);
       }
