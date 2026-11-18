@@ -206,7 +206,7 @@ test("server Owner submissions publish directly instead of DMing themselves for 
   assert.equal(result.channelId, channel.id);
   assert.equal(published.length, 1);
   assert.equal(published[0].embeds, undefined);
-  assert.match(published[0].files[0].name, /^coopft-promo-\\d+\\.png$/);
+  assert.match(published[0].files[0].name, /^coopft-promo-\d+\.png$/);
   assert.equal(published[0].files[1].name, "owners-bot.zip");
 });
 
