@@ -39,7 +39,7 @@ function connectionHost(connectionString, label) {
   } catch {
     throw new Error(label + " must be a valid PostgreSQL connection URL.");
   }
-  return parsed.hostname.toLowerCase();
+  return parsed.hostname.toLowerCase().replace(/^([^.]+)-pooler\\./, "$1.");
 }
 
 async function listGuildTables(client) {
