@@ -30,6 +30,65 @@ test("generated role icon sprite crops all 16 image assets into 128px PNGs", asy
   }
 });
 
+test("server-owner free-bot channel configuration creates the opt-in ping role", async () => {
+  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) });
+  const role = { id: "free-bot-ping-role" };
+  const channel = {
+    id: "free-bot-channel",
+    guildId: coopftGuildId,
+    isTextBased: () => true,
+    send: async () => ({ id: "panel-message" })
+  };
+  const saved = [];
+  let ensuredSpec;
+  service.ensureRole = async (_guild, spec) => {
+    ensuredSpec = spec;
+    return { role, created: true };
+  };
+  service.saveResource = async (_guildId, key, value) => saved.push([key, value]);
+  service.getResource = async () => null;
+  const result = await service.configureFreeBotReleaseChannel(
+    { id: coopftGuildId, channels: { fetch: async () => null } },
+    channel
+  );
+  assert.equal(result.channel, channel);
+  assert.equal(result.role, role);
+  assert.equal(ensuredSpec.key, "ping_free_bot_releases");
+  assert.deepEqual(saved, [["channel:free_bot_releases", channel.id]]);
+});
+
+test("approved free-bot promotions publish the image and ping only the opt-in role", async () => {
+  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) });
+  const role = { id: "release-role" };
+  const sent = [];
+  const channel = {
+    id: "release-channel",
+    guildId: coopftGuildId,
+    isTextBased: () => true,
+    send: async payload => {
+      sent.push(payload);
+      return { id: "published-message", url: "https://discord.com/channels/" + coopftGuildId + "/release-channel/published-message" };
+    }
+  };
+  service.getResource = async (_guildId, key) => key === "channel:free_bot_releases" ? channel.id : null;
+  service.ensureFreeBotReleaseRole = async () => role;
+  const buffer = Buffer.from("PNG-test-image");
+  const result = await service.publishFreeBotPromotion(
+    { id: coopftGuildId, channels: { fetch: async () => channel } },
+    { title: "Free Utility Bot", description: "A useful bot for community servers.", buffer, fileName: "promo.png", submitterId: "123456789012345678" }
+  );
+  assert.equal(result.channel, channel);
+  assert.equal(result.role, role);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].content, "<@&release-role> **New free bot release**");
+  assert.deepEqual(sent[0].allowedMentions, { roles: [role.id] });
+  assert.equal(sent[0].embeds[0].data.title, "Free Utility Bot");
+  assert.equal(sent[0].embeds[0].data.description, "A useful bot for community servers.");
+  assert.equal(sent[0].embeds[0].data.image.url, "attachment://promo.png");
+  assert.equal(sent[0].files[0].name, "promo.png");
+  assert.equal(Buffer.compare(sent[0].files[0].attachment, buffer), 0);
+});
+
 test("owner free-bot releases attach the source ZIP to the fixed CoopFT release channel", async () => {
   const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) });
   const sent = [];
