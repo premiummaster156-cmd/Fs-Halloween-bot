@@ -78,8 +78,8 @@ const EMOJI_SPRITE = Object.freeze([
 ]);
 const ROLE_BRACKETS = Object.freeze([
   { key: "owner_rank", name: "━━━━━━〔 OWNER RANK 〕━━━━━━", emoji: "cf3d_owner_crest", icon: "👑", primary: 0x8C2635, secondary: 0xD84A57, permissions: 0n, hoist: false },
-  { key: "high_rank", name: "━━━━━━〔 MANAGEMENT 〕━━━━━━", legacyNames: ["━━━━━━〔 HIGH RANK 〕━━━━━━", "━━━━━━〔 LEADERSHIP 〕━━━━━━"], emoji: "cf3d_high_rank", icon: "🐉", primary: 0x2769A6, secondary: 0x65B4E5, permissions: 0n, hoist: false },
-  { key: "low_rank", name: "━━━━━━〔 SUPPORT TEAM 〕━━━━━━", legacyNames: ["━━━━━━〔 LOW RANK 〕━━━━━━", "━━━━━━〔 OPERATIONS 〕━━━━━━"], emoji: "cf3d_low_rank", icon: "⚖️", primary: 0x287E8C, secondary: 0x62C8D2, permissions: 0n, hoist: false },
+  { key: "high_rank", name: "━━━━━━〔 LEADERSHIP 〕━━━━━━", legacyNames: ["━━━━━━〔 HIGH RANK 〕━━━━━━", "━━━━━━〔 MANAGEMENT 〕━━━━━━"], emoji: "cf3d_high_rank", icon: "🐉", primary: 0x2769A6, secondary: 0x65B4E5, permissions: 0n, hoist: false },
+  { key: "low_rank", name: "━━━━━━〔 OPERATIONS 〕━━━━━━", legacyNames: ["━━━━━━〔 LOW RANK 〕━━━━━━", "━━━━━━〔 SUPPORT TEAM 〕━━━━━━"], emoji: "cf3d_low_rank", icon: "⚖️", primary: 0x287E8C, secondary: 0x62C8D2, permissions: 0n, hoist: false },
   { key: "mod_roles", name: "━━━━━━〔 MOD ROLES 〕━━━━━━", emoji: "cf3d_mod_rank", icon: "⚔️", primary: 0x693E9C, secondary: 0xA786D8, permissions: 0n, hoist: false },
   // This divider is intentionally never assigned. Only the empty bracket itself has Administrator.
   { key: "bots", name: "━━━━━━〔 BOTS 〕━━━━━━", emoji: "cf3d_bots", icon: "🤖", primary: 0x596575, secondary: 0x9BA8BA, permissions: PermissionFlagsBits.Administrator, hoist: false },
