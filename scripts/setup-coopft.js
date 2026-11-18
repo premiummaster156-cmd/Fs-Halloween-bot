@@ -4,8 +4,9 @@ require("dotenv").config();
 
 const { Client, Events, GatewayIntentBits } = require("discord.js");
 const settings = require("../src/config/settings");
-const { pool } = require("../src/database/pool");
+const { pool, coopftPool } = require("../src/database/pool");
 const { migrateCoopFT } = require("../src/database/migrate");
+const { moveCoopFTGuildData } = require("../src/database/move-coopft-guild-data");
 const { CoopFTCommunityService } = require("../src/services/coopft-community");
 const { COOPFT_DEFAULT_GUILD_ID, coopftGuildId } = require("../src/config/server-personas");
 
@@ -31,8 +32,12 @@ function waitForClientReady(client) {
 async function runCoopFTSetup(options = {}) {
   const token = options.token ?? settings.discordToken;
   const guildId = String(options.guildId ?? coopftGuildId).trim();
-  const databasePool = options.databasePool || pool;
-  const migrateDatabase = options.migrateDatabase || migrateCoopFT;
+  const databasePool = options.databasePool || coopftPool;
+  const sourcePool = options.sourcePool || (options.databasePool ? null : pool);
+  const migrateDatabase = options.migrateDatabase || (() => migrateCoopFT({ pool: databasePool }));
+  const transferDatabase = options.transferDatabase || (sourcePool
+    ? () => moveCoopFTGuildData({ sourcePool, destinationPool: databasePool, guildId, sourceUrl: settings.databaseUrl, destinationUrl: settings.coopftDatabaseUrl })
+    : null);
   const createClient = options.clientFactory || (() => new Client({
     // The approved GuildMembers intent is required to build the live staff directory
     // from actual member role assignments during setup.
@@ -43,6 +48,7 @@ async function runCoopFTSetup(options = {}) {
   const logger = options.logger || console;
   const closePool = options.closePool !== false;
 
+  if (!databasePool) throw new Error("COOPFT_DATABASE_URL is missing. Create a separate CoopFT Neon project and configure its connection string first.");
   if (!token) throw new Error("DISCORD_TOKEN is missing.");
   if (!/^[0-9]{17,20}$/.test(guildId)) {
     throw new Error("COOPFT_GUILD_ID must be a valid Discord server ID.");
@@ -63,6 +69,10 @@ async function runCoopFTSetup(options = {}) {
   try {
     logger.info("[coopft-setup] Applying database schema and migrations...");
     await migrateDatabase();
+    if (transferDatabase) {
+      const transfer = await transferDatabase();
+      logger.info("[coopft-setup] Dedicated CoopFT database transfer:", transfer);
+    }
 
     client = createClient();
     const readyPromise = waitForClientReady(client);
