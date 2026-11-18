@@ -270,7 +270,9 @@ if(n==="free-bot-channel"){
  return say(i,"Free-bot promotions will be published in <#"+configured.channel.id+">. The opt-in <@&"+configured.role.id+"> role is ready.");
 }
 if(n==="free-bot-submit"){
- if(!s.coopft.isDeveloper(i.member))throw Error("The Developer role is required to submit free-bot promotions.");
+ const isDeveloper=s.coopft.isDeveloper(i.member);
+ const isOwner=typeof s.coopft.canManageApplications==="function"&&s.coopft.canManageApplications(i.member,g);
+ if(!isDeveloper&&!isOwner)throw Error("Only CoopFT Developers or Owner Rank members can submit free-bot releases.");
  if(!settings.ownerId)throw Error("OWNER_ID is not configured. Please contact the server owner.");
  const title=i.options.getString("title");
  const description=i.options.getString("description");
@@ -281,7 +283,8 @@ if(n==="free-bot-submit"){
  if(Boolean(source)===Boolean(repositoryUrl&&repositoryUrl.trim()))throw Error("Attach a source ZIP or paste a public GitHub repository URL — choose exactly one.");
  await i.deferReply({flags:MessageFlags.Ephemeral});
  try{
-  await s.coopft.submitFreeBotPromotion(g,i.member,{title,description,source,repositoryUrl,image,ownerId:settings.ownerId});
+  const result=await s.coopft.submitFreeBotPromotion(g,i.member,{title,description,source,repositoryUrl,image,ownerId:settings.ownerId});
+  if(result?.published)return i.editReply("Your Owner Rank submission was published directly in <#"+result.channelId+">.");
   return i.editReply("Your source and promotional image were sent to the owner for review. You will be notified after a decision.");
  }catch(error){
   return i.editReply(error.message||"The promotion could not be submitted. Please try again.");
