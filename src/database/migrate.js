@@ -143,11 +143,11 @@ async function migrateCoopFT(options = {}) {
     pool: databasePool,
     databaseUrl,
     transactionFn,
-    // CoopFT uses only its dedicated migrations; Fukishokai's global player/game schema is not installed here.
-    includeLegacySchema: false,
+    // Install the same table structure as the shared application, without copying Fukishokai rows.
+    // This lets the guild-scoped transfer verify all source tables safely. Player/game tables stay empty.
+    includeLegacySchema: true,
     includePlayerConstraints: false,
-    migrationFilter: (migration) =>
-      /^[0-9]{4}_coopft_[a-z0-9_-]+\.sql$/.test(migration.name) && existingFilter(migration)
+    migrationFilter: existingFilter
   });
 }
 
