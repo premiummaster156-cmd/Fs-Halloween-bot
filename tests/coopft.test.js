@@ -422,21 +422,25 @@ test("approved free-bot promotions publish the source ZIP and promo image with t
       sourceFileName: "utility-bot.zip",
       imageBuffer,
       imageFileName: "promo.png",
+      sourceRepositoryUrl: "https://github.com/example/utility-bot",
       submitterId: "123456789012345678"
     }
   );
   assert.equal(result.channel, channel);
   assert.equal(result.role, role);
   assert.equal(sent.length, 1);
-  assert.equal(sent[0].content, "<@&release-role> **New free bot release**");
-  assert.deepEqual(sent[0].allowedMentions, { roles: [role.id] });
-  assert.equal(sent[0].embeds[0].data.title, "Free Utility Bot");
-  assert.equal(sent[0].embeds[0].data.description, "A useful bot for community servers.");
-  assert.equal(sent[0].embeds[0].data.image.url, "attachment://promo.png");
-  assert.equal(sent[0].files[0].name, "utility-bot.zip");
-  assert.equal(Buffer.compare(sent[0].files[0].attachment, sourceBuffer), 0);
-  assert.equal(sent[0].files[1].name, "promo.png");
-  assert.equal(Buffer.compare(sent[0].files[1].attachment, imageBuffer), 0);
+  assert.match(sent[0].content, /^<@&release-role> \*\*FREE BOT RELEASE: Free Utility Bot\*\*/);
+  assert.ok(sent[0].content.includes("A useful bot for community servers."));
+  assert.ok(sent[0].content.includes("Source ZIP: **utility-bot.zip**"));
+  assert.ok(sent[0].content.includes("GitHub: <https://github.com/example/utility-bot>"));
+  assert.ok(sent[0].content.includes("Shared by: <@123456789012345678>"));
+  assert.deepEqual(sent[0].allowedMentions, { roles: [role.id], users: ["123456789012345678"] });
+  assert.equal(sent[0].embeds, undefined, "public source announcements must not use embeds");
+  assert.equal(sent[0].flags, MessageFlags.SuppressEmbeds);
+  assert.equal(sent[0].files[0].name, "promo.png", "promotional image is attached first for a native preview");
+  assert.equal(Buffer.compare(sent[0].files[0].attachment, imageBuffer), 0);
+  assert.equal(sent[0].files[1].name, "utility-bot.zip");
+  assert.equal(Buffer.compare(sent[0].files[1].attachment, sourceBuffer), 0);
 });
 
 test("owner free-bot releases attach the source ZIP to the fixed CoopFT release channel", async () => {
@@ -1029,7 +1033,7 @@ test("the generated 3D emoji artwork sprite contains the original 28 transparent
 });
 
 test("manual setup uploads all 50 CoopFT emblems as separate Discord-sized PNGs", async () => {
-  const { PermissionFlagsBits } = require("discord.js");
+  const { PermissionFlagsBits, MessageFlags } = require("discord.js");
   const { loadImage } = require("@napi-rs/canvas");
   const uploads = [];
   const pool = { query: async () => ({ rows: [] }) };
