@@ -812,6 +812,27 @@ class CoopFTCommunityService {
       return { spec, role: id ? await guild.roles.fetch(id).catch(() => null) : null };
     }));
     const counts = { staff: 0, member: 0, interest: 0, ping: 0, brackets: 0, emojis: 0 };
+    // The two staff rank names and their directory brackets are centrally managed.
+    // Reconcile only these four labels on every CoopFT startup; keep IDs, permissions,
+    // member assignments, colours and role positions untouched.
+    const managedNameKeys = new Set([
+      "high_rank_supervisor", "staff_supervisor", "high_rank", "low_rank"
+    ]);
+    for (const item of loadedRoles) {
+      if (!item.role || !managedNameKeys.has(item.spec.key) || item.role.name === item.spec.name) continue;
+      if (item.role.editable === false) {
+        console.warn("[coopft] Cannot rename managed role " + item.role.name + "; move the bot role above it.");
+        continue;
+      }
+      try {
+        item.role = await item.role.edit({
+          name: item.spec.name,
+          reason: "Synchronize CoopFT leadership and operations role names on startup"
+        });
+      } catch (error) {
+        console.warn("[coopft] Could not rename managed role " + item.role.name + ":", error.message);
+      }
+    }
     for (const item of loadedRoles) {
       if (!item.role) continue;
       this.roles.set(item.spec.key, item.role);
