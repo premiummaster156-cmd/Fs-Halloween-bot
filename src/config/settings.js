@@ -15,7 +15,6 @@ module.exports = {
   idePublicUrl: process.env.IDE_PUBLIC_URL || "",
   ideGuildId: process.env.IDE_GUILD_ID || process.env.GUILD_ID || "",
   idePort: Math.max(1, Math.floor(numberOr(process.env.IDE_PORT || process.env.PORT, 3000))),
-  adminWorkspaceApiKey: process.env.ADMIN_WORKSPACE_API_KEY || "",
   guildId: process.env.GUILD_ID || "",
   coopftGuildId: process.env.COOPFT_GUILD_ID || "1498271944456540210",
   fukishokaiGuildId: process.env.FUKISHOKAI_GUILD_ID || (process.env.GUILD_ID && process.env.GUILD_ID !== (process.env.COOPFT_GUILD_ID || "1498271944456540210") ? process.env.GUILD_ID : ""),
