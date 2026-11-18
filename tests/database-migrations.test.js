@@ -100,7 +100,7 @@ test("versioned migrations run in numeric filename order under the advisory lock
   }
 });
 
-test("CoopFT setup migrations apply only CoopFT tables and skip the global player schema", async () => {
+test("CoopFT database gets the compatible application schema and every numbered migration", async () => {
   const fixture = createFixture({
     files: {
       "0001_coopft_community.sql": "CREATE TABLE coopft_community_settings (guild_id TEXT);",
@@ -112,28 +112,51 @@ test("CoopFT setup migrations apply only CoopFT tables and skip the global playe
   });
   try {
     await migrateCoopFT({
-      databaseUrl: "postgresql://test.invalid/db",
-      // This file deliberately does not exist: the isolated path must not load schema.sql.
-      schemaPath: path.join(fixture.directory, "must-not-read-schema.sql"),
+      databaseUrl: "postgresql://coopft-test.invalid/db",
+      pool: {},
+      schemaPath: fixture.schemaPath,
       migrationDirectory: fixture.migrationDirectory,
       transactionFn: fixture.transactionFn
     });
     assert.deepEqual(fixture.statements, [
+      fixture.schemaSql,
       "CREATE TABLE coopft_community_settings (guild_id TEXT);",
       "CREATE TABLE coopft_applications (id UUID);",
       "CREATE TABLE coopft_application_subscriptions (guild_id TEXT);",
-      "ALTER TABLE coopft_applications DROP CONSTRAINT IF EXISTS coopft_applications_role_key_check; DROP TABLE IF EXISTS coopft_application_subscriptions;"
+      "ALTER TABLE coopft_applications DROP CONSTRAINT IF EXISTS coopft_applications_role_key_check; DROP TABLE IF EXISTS coopft_application_subscriptions;",
+      "ALTER TABLE players ADD COLUMN should_not_run BOOLEAN;"
     ]);
-    assert.equal(fixture.checksums.has("schema.sql"), false);
-    assert.equal(fixture.checksums.has("0005_add_player_economy_column.sql"), false);
+    assert.equal(fixture.checksums.get("schema.sql"), checksum(fixture.schemaSql));
+    assert.equal(fixture.checksums.has("0005_add_player_economy_column.sql"), true);
     assert.equal(
-      fixture.queries.some((query) => /players|player_economy/.test(query.sql)),
+      fixture.queries.some((query) => /players_level_600_check/.test(query.sql)),
       false,
-      "CoopFT-only migration mode must not query or alter Fukishokai player tables"
+      "CoopFT schema must not add Fukishokai-specific player constraints"
     );
   } finally {
     fixture.cleanup();
   }
+});
+
+test("CoopFT migrations refuse to run without a dedicated database URL and pool", async () => {
+  let transactionStarted = false;
+  await assert.rejects(
+    migrateCoopFT({
+      databaseUrl: "",
+      pool: {},
+      transactionFn: async () => { transactionStarted = true; }
+    }),
+    /COOPFT_DATABASE_URL is missing/
+  );
+  await assert.rejects(
+    migrateCoopFT({
+      databaseUrl: "postgresql://coopft-test.invalid/db",
+      pool: null,
+      transactionFn: undefined
+    }),
+    /COOPFT_DATABASE_URL is missing/
+  );
+  assert.equal(transactionStarted, false);
 });
 
 test("an already-applied migration with the same checksum is skipped", async () => {
