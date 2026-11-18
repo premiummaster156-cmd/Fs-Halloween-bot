@@ -31,10 +31,9 @@ function databaseHost(connectionString, variableName) {
 }
 
 function createDatabasePool(connectionString, label, options = {}) {
-  if (!connectionString) return null;
   const verified = withVerifiedSslMode(connectionString);
   const pool = new Pool({
-    connectionString: verified,
+    ...(verified ? { connectionString: verified } : {}),
     max: Math.max(2, Math.min(20, Number(process.env.DB_POOL_MAX || 10))),
     idleTimeoutMillis: 5000,
     connectionTimeoutMillis: 10000,
