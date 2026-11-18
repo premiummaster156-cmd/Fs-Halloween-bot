@@ -7,13 +7,11 @@ const { promisify } = require("node:util");
 const execFileAsync = promisify(execFile);
 const settings = require("../config/settings");
 const { fukishokaiGuildId } = require("../config/server-personas");
-const workspace = require("../services/admin-workspace");
 const { inspectCommandSource } = require("../services/custom-commands");
 const { audit, sendLog } = require("../utils/logging");
 
 const sessions = new Map();
 const oauthStates = new Map();
-const workspaceApiAttempts = new Map();
 const oauthStartAttempts = new Map();
 const WINDOW_MS = 60_000;
 const SESSION_MS = 8 * 60 * 60 * 1000;
@@ -34,7 +32,6 @@ function pruneExpiredEntries(map, getExpiresAt, now = Date.now()) {
 function pruneAuthState(now = Date.now()) {
   pruneExpiredEntries(oauthStates, (state) => Number(state?.createdAt) + 10 * 60 * 1000, now);
   pruneExpiredEntries(sessions, (session) => session?.expiresAt, now);
-  pruneExpiredEntries(workspaceApiAttempts, (stamps) => Number(stamps?.[stamps.length - 1]) + WINDOW_MS, now);
   pruneExpiredEntries(oauthStartAttempts, (stamps) => Number(stamps?.[stamps.length - 1]) + OAUTH_RATE_WINDOW_MS, now);
 }
 
@@ -199,20 +196,6 @@ function verifyMutation(req, session) {
   if (origin && origin !== baseUrl()) return false;
   return Boolean(req.headers["x-csrf-token"] && req.headers["x-csrf-token"] === session.csrf);
 }
-function rateLimitWorkspaceApi(req) {
-  const now = Date.now();
-  const key = req.socket?.remoteAddress || "unknown";
-  const recent = (workspaceApiAttempts.get(key) || []).filter((stamp) => now - stamp < WINDOW_MS);
-  if (recent.length >= 60) return false;
-  recent.push(now);
-  workspaceApiAttempts.set(key, recent);
-  if (workspaceApiAttempts.size > 5000) {
-    for (const [address, stamps] of workspaceApiAttempts) {
-      if (!stamps.length || now - stamps[stamps.length - 1] >= WINDOW_MS) workspaceApiAttempts.delete(address);
-    }
-  }
-  return true;
-}
 function safeCommandRecord(record, guildId = settings.ideGuildId) {
   return {
     id: record.id,
@@ -238,7 +221,7 @@ function isBrowserIdeEnabled(config = settings) {
 
 function isIdeServerEnabled(config = settings) {
   const workspaceGuildMatches = Boolean(fukishokaiGuildId && String(config.ideGuildId || '') === fukishokaiGuildId);
-  return Boolean(workspaceGuildMatches && ((config.adminWorkspaceApiKey && config.ideGuildId) || isBrowserIdeEnabled(config)));
+  return Boolean(workspaceGuildMatches && isBrowserIdeEnabled(config));
 }
 
 function createIdeServer(client, services) {
@@ -248,7 +231,7 @@ function createIdeServer(client, services) {
     try {
       if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/ide")) {
         if (!isBrowserIdeEnabled()) {
-          return json(res, 503, { error: "Browser Code Studio requires Discord OAuth configuration. The AI workspace API can still run independently." });
+          return json(res, 503, { error: "Browser Code Studio requires Discord OAuth configuration." });
         }
         res.writeHead(200, {
           "Content-Type": "text/html; charset=utf-8",
@@ -343,88 +326,6 @@ function createIdeServer(client, services) {
         if (session) sessions.delete(session.sessionId);
         res.setHeader("Set-Cookie", clearSessionCookie());
         return json(res, 200, { ok: true });
-      }
-
-      if (url.pathname.startsWith("/api/ai/workspace/")) {
-        if (!settings.adminWorkspaceApiKey) {
-          return json(res, 404, { error: "The AI workspace integration is not enabled." });
-        }
-        const authorization = String(req.headers.authorization || "");
-        const suppliedKey = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
-        const expectedKey = Buffer.from(settings.adminWorkspaceApiKey);
-        const actualKey = Buffer.from(suppliedKey);
-        const authorized = actualKey.length === expectedKey.length &&
-          crypto.timingSafeEqual(actualKey, expectedKey);
-        if (!authorized) return json(res, 401, { error: "Workspace API key is missing or invalid." });
-        if (!rateLimitWorkspaceApi(req)) return json(res, 429, { error: "Workspace API rate limit reached. Wait a minute and try again." });
-
-        // The bearer-key integration is server-scoped; it does not use a browser OAuth session.
-        const guildId = String(settings.ideGuildId || "");
-        if (!/^[0-9]{1,25}$/.test(guildId) || !fukishokaiGuildId || guildId !== fukishokaiGuildId) {
-          return json(res, 503, { error: "Configure IDE_GUILD_ID to match FUKISHOKAI_GUILD_ID. The AI workspace API is not available in CoopFT." });
-        }
-        const filesPath = "/api/ai/workspace/files";
-        const fileRoute = url.pathname.match(/^\/api\/ai\/workspace\/files\/([a-z0-9_-]{1,32}\.js)$/i);
-        const actorId = "ai_workspace_agent";
-
-        if (req.method === "GET" && url.pathname === filesPath) {
-          const records = await services.customCommands.list(guildId);
-          const files = [];
-          for (const record of records) {
-            if (!record.source_code) continue;
-            const sourceCode = await workspace.readCommandFile(guildId, record.name) || record.source_code;
-            files.push({
-              name: record.name + ".js",
-              path: "admin-workspace/" + guildId + "/" + record.name + ".js",
-              sourceCode,
-              isActive: Boolean(record.is_active),
-              deployed: Boolean(record.deployed_at)
-            });
-          }
-          return json(res, 200, { files });
-        }
-
-        if (req.method === "POST" && url.pathname === filesPath) {
-          const body = await readBody(req);
-          if (body.publish === true) {
-            return json(res, 403, { error: "The AI workspace API can save drafts only. An authorized owner or configured Admin Role member must publish through Code Studio." });
-          }
-          const fileName = String(body.fileName || "").trim();
-          const match = fileName.match(/^([a-z0-9_-]{1,32})\.js$/);
-          if (!match) return json(res, 400, { error: "fileName must be a simple command name ending in .js." });
-          const inspected = await inspectCommandSource(body.sourceCode);
-          if (inspected.name !== match[1]) {
-            return json(res, 400, { error: "The JavaScript export name must match the .js file name." });
-          }
-          const existing = await services.customCommands.getByName(guildId, inspected.name);
-          const input = { id: existing?.id || null, sourceCode: body.sourceCode };
-          const saved = await services.customCommands.saveSource(guildId, actorId, input);
-          await audit(services.pool, guildId, actorId, "ai_workspace_file_saved", saved.id, {
-            name: saved.name, file: "admin-workspace/" + guildId + "/" + saved.name + ".js"
-          });
-          await sendLog(client, guildId, "JavaScript command file " + saved.name + ".js was saved as a draft by the authorized AI workspace agent.");
-          return json(res, 200, {
-            ok: true,
-            file: { name: saved.name + ".js", path: "admin-workspace/" + guildId + "/" + saved.name + ".js" },
-            command: { id: saved.id, name: saved.name, description: saved.description, isActive: Boolean(saved.is_active) },
-            deployment: saved.deployment || null
-          });
-        }
-
-        if (req.method === "GET" && fileRoute) {
-          const name = fileRoute[1].slice(0, -3);
-          const record = await services.customCommands.getByName(guildId, name);
-          const sourceCode = await workspace.readCommandFile(guildId, name);
-          if (!record || sourceCode === null) return json(res, 404, { error: "That JavaScript command file does not exist." });
-          return json(res, 200, {
-            file: { name: name + ".js", path: "admin-workspace/" + guildId + "/" + name + ".js", sourceCode }
-          });
-        }
-
-        if (req.method === "DELETE" && fileRoute) {
-          return json(res, 403, { error: "The AI workspace API cannot delete command files. Use authorized Code Studio to review and delete commands." });
-        }
-        return json(res, 404, { error: "AI workspace route not found." });
       }
 
       const session = await requireSession(req, client, services);
@@ -535,7 +436,7 @@ function createIdeServer(client, services) {
 
 async function startIdeServer(client, services) {
   if (!isIdeServerEnabled(settings)) {
-    console.log("[code-studio] Disabled until IDE_PUBLIC_URL + Discord OAuth are configured for browser Code Studio, or IDE_GUILD_ID + ADMIN_WORKSPACE_API_KEY are configured for the AI workspace API.");
+    console.log("[code-studio] Disabled until IDE_PUBLIC_URL and Discord OAuth settings are configured for browser Code Studio.");
     return null;
   }
   const server = createIdeServer(client, services);
