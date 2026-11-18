@@ -27,7 +27,8 @@ const connectionString = withVerifiedSslMode(settings.databaseUrl);
 const pool = new Pool({
   ...(connectionString ? { connectionString } : {}),
   max: Math.max(2, Math.min(20, Number(process.env.DB_POOL_MAX || 10))),
-  idleTimeoutMillis: 30000,
+  // Release unused PostgreSQL clients quickly so Neon can autosuspend when the bot is idle.
+  idleTimeoutMillis: 5000,
   connectionTimeoutMillis: 10000
 });
 pool.on("error", (error) => console.error("[database] Idle client error:", error.message));
