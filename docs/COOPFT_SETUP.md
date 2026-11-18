@@ -124,3 +124,14 @@ The CoopFT-only migration sequence is:
 - `0008_coopft_custom_bot_commission_ticket.sql` — permits the `custom_bot_request` ticket type while preserving older ticket values.
 
 The migrations use the shared schema-migration ledger but never load the main Fukishōkai schema or modify player-economy tables.
+
+
+## Database separation
+
+CoopFT must use its own Neon project. Keep the existing Fukishōkai connection in `DATABASE_URL` and set `COOPFT_DATABASE_URL` to the connection string from the new CoopFT Neon project. The hostnames must differ.
+
+The main bot startup and `npm run coopft:setup` apply the required schema to the CoopFT database. They then copy rows scoped to `COOPFT_GUILD_ID` from all `guild_id` tables, compare row counts and SHA-256 hashes, and only then delete those matching rows from the Fukishōkai database. Other guild data in Fukishōkai is retained. If the destination is unavailable, points to the same endpoint, has incompatible schema, or fails verification, the transfer stops without deleting the source data.
+
+Once the first transfer is complete, CoopFT community commands, staff directory data, applications, tickets, moderation history, welcome configuration, autoroles and audit history use the CoopFT database. Fukishōkai economy/game services continue using `DATABASE_URL`.
+
+If `COOPFT_DATABASE_URL` is not configured, CoopFT database-backed features stay paused rather than falling back to Fukishōkai's database.
