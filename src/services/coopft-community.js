@@ -3440,8 +3440,10 @@ class CoopFTCommunityService {
     if (!options.ownerId || !/^\d{17,20}$/.test(String(options.ownerId))) {
       throw new Error("OWNER_ID is not configured with a valid Discord user ID.");
     }
+
     const title = String(options.title || "").trim();
     const description = String(options.description || "").trim();
+    const source = options.source;
     const image = options.image;
     if (title.length < 3 || title.length > 120) {
       throw new Error("The promotion title must be between 3 and 120 characters.");
@@ -3449,44 +3451,78 @@ class CoopFTCommunityService {
     if (description.length < 40 || description.length > 1500) {
       throw new Error("Write a useful promotional description of 40–1,500 characters. Explain what the bot does and why members should try it.");
     }
-    if (!image || !Number.isFinite(Number(image.size)) || Number(image.size) <= 0 || Number(image.size) > 8 * 1024 * 1024) {
-      throw new Error("Attach one image up to 8 MB.");
+    if (!source || !/\.zip$/i.test(String(source.name || "")) ||
+        !Number.isFinite(Number(source.size)) || Number(source.size) <= 0 ||
+        Number(source.size) > 20 * 1024 * 1024) {
+      throw new Error("Attach one valid .zip source archive up to 20 MB.");
     }
+    if (!image || !Number.isFinite(Number(image.size)) || Number(image.size) <= 0 ||
+        Number(image.size) > 8 * 1024 * 1024) {
+      throw new Error("Attach one promotional image up to 8 MB.");
+    }
+
+    const allowedHosts = new Set(["cdn.discordapp.com", "media.discordapp.net"]);
+    const sourceUrl = new URL(String(source.url || ""));
     const imageUrl = new URL(String(image.url || ""));
-    if (imageUrl.protocol !== "https:" ||
-        !["cdn.discordapp.com", "media.discordapp.net"].includes(imageUrl.hostname)) {
-      throw new Error("The image must be uploaded directly to Discord.");
+    for (const attachmentUrl of [sourceUrl, imageUrl]) {
+      if (attachmentUrl.protocol !== "https:" || !allowedHosts.has(attachmentUrl.hostname)) {
+        throw new Error("Both files must be uploaded directly to Discord.");
+      }
     }
-    const response = await fetch(imageUrl, { signal: AbortSignal.timeout(30000) });
-    if (!response.ok) throw new Error("The uploaded image could not be downloaded from Discord.");
-    const bytes = Buffer.from(await response.arrayBuffer());
-    if (!bytes.length || bytes.length > 8 * 1024 * 1024) {
-      throw new Error("The image is empty or exceeds 8 MB.");
+
+    const [sourceResponse, imageResponse] = await Promise.all([
+      fetch(sourceUrl, { signal: AbortSignal.timeout(30000) }),
+      fetch(imageUrl, { signal: AbortSignal.timeout(30000) })
+    ]);
+    if (!sourceResponse.ok) throw new Error("The source ZIP could not be downloaded from Discord.");
+    if (!imageResponse.ok) throw new Error("The promotional image could not be downloaded from Discord.");
+    const [sourceBytes, imageBytes] = await Promise.all([
+      sourceResponse.arrayBuffer().then((buffer) => Buffer.from(buffer)),
+      imageResponse.arrayBuffer().then((buffer) => Buffer.from(buffer))
+    ]);
+    if (!isZipBuffer(sourceBytes) || sourceBytes.length > 20 * 1024 * 1024) {
+      throw new Error("The uploaded source file is not a valid ZIP archive or exceeds 20 MB.");
     }
-    const contentType = String(image.contentType || response.headers.get("content-type") || "").split(";")[0].toLowerCase();
+    if (!imageBytes.length || imageBytes.length > 8 * 1024 * 1024) {
+      throw new Error("The promotional image is empty or exceeds 8 MB.");
+    }
+    if (sourceBytes.length + imageBytes.length > 25 * 1024 * 1024) {
+      throw new Error("The source ZIP and image must total no more than 25 MB so they fit in the review message.");
+    }
+
+    const contentType = String(image.contentType || imageResponse.headers.get("content-type") || "")
+      .split(";")[0].toLowerCase();
     const imageTypes = new Map([
       ["image/png", ".png"], ["image/jpeg", ".jpg"],
       ["image/webp", ".webp"], ["image/gif", ".gif"]
     ]);
     const extension = imageTypes.get(contentType);
-    if (!extension) throw new Error("Use a PNG, JPG, WEBP or GIF image.");
+    if (!extension) throw new Error("Use a PNG, JPG, WEBP or GIF promotional image.");
     const validSignature =
-      (extension === ".png" && bytes.subarray(0, 8).toString("hex") === "89504e470d0a1a0a") ||
-      (extension === ".jpg" && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) ||
-      (extension === ".gif" && ["GIF87a", "GIF89a"].includes(bytes.subarray(0, 6).toString("ascii"))) ||
-      (extension === ".webp" && bytes.subarray(0, 4).toString("ascii") === "RIFF" && bytes.subarray(8, 12).toString("ascii") === "WEBP");
-    if (!validSignature) throw new Error("The uploaded file does not match its image type.");
+      (extension === ".png" && imageBytes.subarray(0, 8).toString("hex") === "89504e470d0a1a0a") ||
+      (extension === ".jpg" && imageBytes[0] === 0xff && imageBytes[1] === 0xd8 && imageBytes[2] === 0xff) ||
+      (extension === ".gif" && ["GIF87a", "GIF89a"].includes(imageBytes.subarray(0, 6).toString("ascii"))) ||
+      (extension === ".webp" && imageBytes.subarray(0, 4).toString("ascii") === "RIFF" &&
+        imageBytes.subarray(8, 12).toString("ascii") === "WEBP");
+    if (!validSignature) throw new Error("The uploaded promotional file does not match its image type.");
+
     const releaseChannelId = await this.getResource(guild.id, "channel:free_bot_releases");
-    if (!releaseChannelId) throw new Error("The server owner must configure the destination with /free-bot-channel first.");
-    const fileName = "coopft-promo-" + Date.now() + extension;
+    if (!releaseChannelId) {
+      throw new Error("The server owner must configure the destination with /free-bot-channel first.");
+    }
+    const safeName = (value, fallback) =>
+      String(value || fallback).replace(/[^\p{L}\p{N}._ -]/gu, "_").slice(0, 100);
+    const sourceFileName = safeName(source.name, "coopft-source.zip");
+    const imageFileName = "coopft-promo-" + Date.now() + extension;
     const owner = await guild.client.users.fetch(String(options.ownerId));
     const embed = new EmbedBuilder()
       .setColor(0x397C94)
       .setTitle(title)
       .setDescription(description)
-      .setImage("attachment://" + fileName)
+      .setImage("attachment://" + imageFileName)
       .addFields(
         { name: "Submitted by", value: "<@" + submitter.id + "> (" + submitter.id + ")", inline: true },
+        { name: "Source ZIP", value: sourceFileName, inline: true },
         { name: "Destination", value: "<#" + releaseChannelId + ">", inline: true }
       )
       .setTimestamp();
@@ -3495,13 +3531,16 @@ class CoopFTCommunityService {
       new ButtonBuilder().setCustomId("cf-freebot:reject").setLabel("Reject").setStyle(ButtonStyle.Danger)
     );
     await owner.send({
-      content: "A CoopFT Developer submitted a free-bot promotion. Review the text and image, then approve or reject it.",
+      content: "A CoopFT Developer submitted a free-bot release. Review the source ZIP, promotional image and description, then approve or reject it.",
       embeds: [embed],
       components: [controls],
-      files: [{ attachment: bytes, name: fileName }],
+      files: [
+        { attachment: sourceBytes, name: sourceFileName },
+        { attachment: imageBytes, name: imageFileName }
+      ],
       allowedMentions: { parse: [] }
     });
-    return { title, ownerId: String(options.ownerId) };
+    return { title, ownerId: String(options.ownerId), sourceFileName, imageFileName };
   }
 
   async handleFreeBotReviewButton(interaction, ownerId, client) {
