@@ -206,7 +206,7 @@ test("server Owner submissions publish directly instead of DMing themselves for 
   assert.equal(result.channelId, channel.id);
   assert.equal(published.length, 1);
   assert.equal(published[0].embeds, undefined);
-  assert.equal(published[0].files[0].name, "coopft-promo-" + published[0].files[0].name.split(".").pop());
+  assert.match(published[0].files[0].name, /^coopft-promo-\\d+\\.png$/);
   assert.equal(published[0].files[1].name, "owners-bot.zip");
 });
 
@@ -270,7 +270,7 @@ test("Developer free-bot submissions send the source ZIP and promo image to the 
   assert.ok(reviewPayload);
   assert.equal(reviewPayload.files.length, 2);
   assert.equal(reviewPayload.embeds, undefined, "owner review must be plain message text");
-  assert.match(reviewPayload.content, /^\\[CFB1\\]\\nT=Useful Utility Bot/m);
+  assert.ok(reviewPayload.content.startsWith("[CFB1]\nT=Useful Utility Bot"));
   assert.ok(reviewPayload.content.includes("U=223456789012345678"));
   assert.ok(reviewPayload.content.includes("Useful community bot with moderation, automation and everyday server utilities."));
   assert.equal(reviewPayload.files[0].name.endsWith(".png"), true, "promotional image is attached first");
@@ -418,7 +418,7 @@ test("owner approval republishes the reviewed ZIP and image together", async () 
       "D>>",
       "A useful community bot with moderation, automation and everyday server utilities.",
       "<<D"
-    ].join("\\n"),
+    ].join("\n"),
     embeds: [],
     attachments: new Map([
       ["source", { name: "utility-bot.zip", url: "https://cdn.discordapp.com/review/source.zip" }],
