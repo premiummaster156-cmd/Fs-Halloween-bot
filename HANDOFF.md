@@ -178,7 +178,6 @@ The user approved a full reliability, security, database, gameplay, dashboard an
 - Regenerated and committed `package-lock.json` with all declared dependencies (`@napi-rs/canvas` 1.1.1 and `isolated-vm` 6.0.2). CI now uses `npm ci` on Node.js 22 and 24; both matrix jobs install from the committed lockfile before syntax, slash-command and test validation.
 - `schema.sql` remains the idempotent legacy bootstrap for existing installations. A numbered, immutable SQL migration runner now applies new migrations in lexical order under the existing transaction-scoped advisory lock, records SHA-256 checksums, and fails closed if an applied migration is edited. Unit tests use a transaction mock; disposable Neon/PostgreSQL integration tests and the gradual conversion of legacy bootstrap DDL remain outstanding.
 - The interaction flow performs some database/access checks before acknowledgement. Refactor in small steps so potentially slow interactions defer/reply before long operations while preserving ephemeral/public response behavior and avoiding duplicate replies.
-- The bearer-key AI workspace API needs explicit draft-by-default/publish authorization and rate limits before being considered production-hardened.
 
 ### Upgrade workflow and guardrails
 
@@ -190,11 +189,10 @@ The user approved a full reliability, security, database, gameplay, dashboard an
 6. Modularize dashboard/UI gradually; do not rewrite the 156 KB dashboard in one step.
 7. Complete regression, security and release checks. Never claim live Discord/Neon validation from CI alone.
 
-Keep Neon PostgreSQL; request the now-approved `GuildMembers` intent only for actual member-join raid detection; keep `GuildPresences` disabled and `MessageContent` off unless it receives separate approval and is deliberately enabled;
+Keep Neon PostgreSQL; request the now-approved GuildMembers intent only for actual member-join raid detection; keep GuildPresences and MessageContent disabled because no message-body feature requires them;
 
 ### Additional fixes in progress — November 9, 2026
 
-- `src/web/ide-server.js`: added an in-memory per-source-address rolling rate limit to the bearer-key AI workspace API (60 requests per 60 seconds). The API now saves valid command source as an inactive draft by default, rejects `publish: true` with HTTP 403, and blocks command-file deletion through the bearer-key API. Publishing/activation/deletion remains in the OAuth-authenticated Code Studio for the server owner, bot owner or configured Admin Role. This intentionally narrows the agent API's permissions.
 - `tests/ide-server.test.js`: added regression coverage for blocked bearer-key publish/delete operations and saving JavaScript as an inactive draft by default.
 - CI runs triggered by these changes are tracked at [run 42615623367](https://github.com/premiummaster156-cmd/Fs-Halloween-bot/actions/runs/42615623367); confirm the latest run result before claiming all changes passed. The previous commit-specific CI runs for the trade expiry fix and initial API hardening completed successfully.
 - The Bot Protect V3 repository has no declared license in its GitHub repository metadata. Do not copy or transplant its source code; use only independently implemented feature ideas. Its `Intents.all()`, global JSON persistence and destructive anti-join/mass-role behavior remain reasons not to merge it.
