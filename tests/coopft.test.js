@@ -1056,7 +1056,7 @@ test("CoopFT staff directory is text-only with section headings and timestamp", 
   assert.ok(data.timestamp);
   assert.match(data.description, /Current CoopFT staff by assigned role/);
   const headingText = data.fields.map((field) => field.name).join("\n");
-  for (const section of ["OWNER RANK", "HIGH RANK", "LOW RANK", "MOD ROLES", "Developers"]) {
+  for (const section of ["OWNER RANK", "LEADERSHIP", "OPERATIONS", "MOD ROLES", "Developers"]) {
     assert.ok(headingText.includes(section), section + " section must be present");
   }
   assert.ok(data.fields.every((field) => field.value.includes("VACANT")));
