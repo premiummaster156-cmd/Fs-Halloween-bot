@@ -121,11 +121,18 @@ test("the hosting-console setup closes the client and pool when bootstrap fails"
   assert.deepEqual(order, ["migrate", "destroy", "pool-end"]);
 });
 
-test("normal bot startup does not bootstrap or reconfigure CoopFT resources", () => {
+test("normal bot startup refreshes CoopFT roles and the staff directory without running full setup", () => {
   const indexPath = path.join(__dirname, "..", "src", "index.js");
+  const servicePath = path.join(__dirname, "..", "src", "services", "coopft-community.js");
   const source = fs.readFileSync(indexPath, "utf8");
+  const community = fs.readFileSync(servicePath, "utf8");
   assert.doesNotMatch(source, /coopftCommunity\.bootstrap\(/);
   assert.doesNotMatch(source, /coopftSetupPromise|coopftSetupError/);
+  assert.match(source, /coopGuild\.roles\.fetch\(\)/);
+  assert.match(source, /coopftCommunity\.loadManagedRoles\(coopGuild\)/);
+  assert.match(source, /startStaffDirectoryRefresh\(coopGuild\)/);
+  assert.match(community, /acceptedNames\.has\(candidate\.name\)/);
+  assert.match(community, /role\.name === rank\.name/);
   assert.match(source, /memberLifecycle\.handleJoin\(member\)/);
   assert.match(source, /memberLifecycle\.handleLeave\(member\)/);
 });
