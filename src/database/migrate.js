@@ -4,7 +4,7 @@ require("dotenv").config();
 const fs = require("node:fs");
 const crypto = require("node:crypto");
 const path = require("node:path");
-const { pool, transaction } = require("./pool");
+const { pool, coopftPool, transaction, createTransaction } = require("./pool");
 const settings = require("../config/settings");
 
 const ADVISORY_LOCK_ID = 734921604;
@@ -77,7 +77,7 @@ async function migrate(options = {}) {
 
   const schemaPath = options.schemaPath || path.join(__dirname, "schema.sql");
   const migrationDirectory = options.migrationDirectory || path.join(__dirname, "migrations");
-  const transactionFn = options.transactionFn || transaction;
+  const transactionFn = options.transactionFn || (options.pool ? createTransaction(options.pool) : transaction);
   const includeLegacySchema = options.includeLegacySchema !== false;
   const includePlayerConstraints = options.includePlayerConstraints !== false;
   const migrationFilter = typeof options.migrationFilter === "function" ? options.migrationFilter : () => true;
@@ -132,8 +132,16 @@ async function migrate(options = {}) {
 
 async function migrateCoopFT(options = {}) {
   const existingFilter = typeof options.migrationFilter === "function" ? options.migrationFilter : () => true;
+  const databasePool = options.pool || coopftPool;
+  const databaseUrl = options.databaseUrl === undefined ? settings.coopftDatabaseUrl : options.databaseUrl;
+  if (!databaseUrl || !databasePool) {
+    throw new Error("COOPFT_DATABASE_URL is missing. Configure a dedicated CoopFT Neon project before starting CoopFT services.");
+  }
   return migrate({
     ...options,
+    pool: databasePool,
+    databaseUrl,
+    transactionFn: options.transactionFn || createTransaction(databasePool),
     includeLegacySchema: false,
     includePlayerConstraints: false,
     migrationFilter: (migration) =>
