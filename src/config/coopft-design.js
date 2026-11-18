@@ -176,7 +176,7 @@ const PUBLIC_CHANNELS = Object.freeze([
   { key: "suggestions", name: "⌁・suggestions" },
   { key: "bug_reports", name: "⌬・bug-reports" },
   { key: "custom_bot_requests", name: "⌘・custom-bot-requests" },
-  { key: "free_bot_releases", name: "free-bot-releases" }
+  { key: "free_bot_releases", name: "▣・free-bot-releases" }
 ]);
 
 const PRIVATE_CHANNELS = Object.freeze([
