@@ -572,15 +572,23 @@ test("CoopFT exposes focused setup, sync, panel and operational commands", () =>
   assert.deepEqual(freeBotChannel.options.map(option => option.name), ["channel"]);
   assert.deepEqual(freeBotChannel.options[0].channel_types, [0, 5]);
   const freeBotSubmit = commands.get("free-bot-submit").data.toJSON();
-  assert.deepEqual(freeBotSubmit.options.map(option => option.name), ["title", "description", "source", "repository", "image"]);
+  assert.deepEqual(freeBotSubmit.options.map(option => option.name), ["title", "description", "image", "source", "repository"]);
   assert.equal(freeBotSubmit.options[0].required, true);
   assert.equal(freeBotSubmit.options[1].required, true);
-  assert.equal(freeBotSubmit.options[2].required, false);
+  assert.equal(freeBotSubmit.options[2].required, true);
   assert.equal(freeBotSubmit.options[2].type, 11);
   assert.equal(freeBotSubmit.options[3].required, false);
-  assert.equal(freeBotSubmit.options[3].type, 3);
-  assert.equal(freeBotSubmit.options[4].required, true);
-  assert.equal(freeBotSubmit.options[4].type, 11);
+  assert.equal(freeBotSubmit.options[3].type, 11);
+  assert.equal(freeBotSubmit.options[4].required, false);
+  assert.equal(freeBotSubmit.options[4].type, 3);
+  for (const command of commands.values()) {
+    const options = command.data.toJSON().options || [];
+    let sawOptional = false;
+    for (const option of options) {
+      if (option.required === false) sawOptional = true;
+      else if (sawOptional) assert.fail(command.data.name + " places a required option after an optional option: " + option.name);
+    }
+  }
   const cooldown = commands.get("ticket-cooldown").data.toJSON();
   assert.deepEqual(cooldown.options.map((option) => option.name), ["member", "ticket_type", "reason"]);
   assert.deepEqual(cooldown.options[1].choices.map((choice) => choice.value), [
