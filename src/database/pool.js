@@ -74,7 +74,9 @@ if (sourceHost && coopftHost && sourceHost === coopftHost) {
     "COOPFT_DATABASE_URL must point to a separate Neon project/endpoint from DATABASE_URL."
   );
 }
-const coopftPool = createDatabasePool(settings.coopftDatabaseUrl, "coopft-database");
+const coopftPool = settings.coopftDatabaseUrl
+  ? createDatabasePool(settings.coopftDatabaseUrl, "coopft-database")
+  : null;
 
 const transaction = createTransaction(pool);
 
