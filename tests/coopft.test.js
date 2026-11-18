@@ -106,6 +106,148 @@ test("free-bot-submit forwards the guild member, source ZIP and promo image", as
   }
 });
 
+test("Developer free-bot submissions send the source ZIP and promo image to the owner for review", async () => {
+  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) });
+  service.roles.set("developer_member", { id: "developer-role" });
+  service.getResource = async (_guildId, key) => {
+    assert.equal(key, "channel:free_bot_releases");
+    return "release-channel";
+  };
+
+  const zipBytes = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x00]);
+  const imageBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const uploads = new Map([
+    ["https://cdn.discordapp.com/attachments/source.zip", zipBytes],
+    ["https://cdn.discordapp.com/attachments/promo.png", imageBytes]
+  ]);
+  const originalFetch = global.fetch;
+  let reviewPayload = null;
+  const owner = { send: async (payload) => { reviewPayload = payload; } };
+  const guild = {
+    id: coopftGuildId,
+    client: { users: { fetch: async (id) => {
+      assert.equal(id, "123456789012345678");
+      return owner;
+    } } }
+  };
+  const developer = {
+    id: "223456789012345678",
+    roles: { cache: new Map([["developer-role", { id: "developer-role" }]]) }
+  };
+
+  global.fetch = async (url) => {
+    const bytes = uploads.get(String(url));
+    assert.ok(bytes, "only the supplied Discord attachments should be downloaded");
+    return new Response(bytes, {
+      headers: { "content-type": String(url).endsWith(".png") ? "image/png" : "application/zip" }
+    });
+  };
+  try {
+    await service.submitFreeBotPromotion(guild, developer, {
+      title: "Useful Utility Bot",
+      description: "A useful community bot with moderation, automation and everyday server utilities.",
+      ownerId: "123456789012345678",
+      source: {
+        name: "utility-bot.zip",
+        size: zipBytes.length,
+        url: "https://cdn.discordapp.com/attachments/source.zip"
+      },
+      image: {
+        name: "promo.png",
+        size: imageBytes.length,
+        url: "https://cdn.discordapp.com/attachments/promo.png",
+        contentType: "image/png"
+      }
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+
+  assert.ok(reviewPayload);
+  assert.equal(reviewPayload.files.length, 2);
+  assert.equal(reviewPayload.files[0].name, "utility-bot.zip");
+  assert.equal(Buffer.compare(reviewPayload.files[0].attachment, zipBytes), 0);
+  assert.equal(reviewPayload.files[1].name.endsWith(".png"), true);
+  assert.equal(Buffer.compare(reviewPayload.files[1].attachment, imageBytes), 0);
+  assert.equal(reviewPayload.embeds[0].data.title, "Useful Utility Bot");
+  assert.equal(reviewPayload.embeds[0].data.image.url, "attachment://" + reviewPayload.files[1].name);
+  assert.equal(reviewPayload.components.length, 1);
+  assert.equal(reviewPayload.components[0].components.length, 2);
+});
+
+test("owner approval republishes the reviewed ZIP and image together", async () => {
+  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) });
+  const zipBytes = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x00]);
+  const imageBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const urls = new Map([
+    ["https://cdn.discordapp.com/review/source.zip", zipBytes],
+    ["https://cdn.discordapp.com/review/promo.png", imageBytes]
+  ]);
+  const originalFetch = global.fetch;
+  const published = [];
+  let reviewEdited = null;
+  const channel = {
+    id: "release-channel",
+    guildId: coopftGuildId,
+    isTextBased: () => true,
+    send: async (payload) => {
+      published.push(payload);
+      return { id: "published-message", url: "https://discord.com/channels/" + coopftGuildId + "/release-channel/published-message" };
+    }
+  };
+  const guild = { id: coopftGuildId, channels: { fetch: async () => channel } };
+  service.getResource = async () => channel.id;
+  service.ensureFreeBotReleaseRole = async () => ({ id: "release-role" });
+  const message = {
+    id: "review-message",
+    embeds: [{
+      title: "Reviewed Utility Bot",
+      description: "A useful community bot with moderation, automation and everyday server utilities.",
+      fields: [{ name: "Submitted by", value: "<@223456789012345678> (223456789012345678)" }]
+    }],
+    attachments: new Map([
+      ["source", { name: "utility-bot.zip", url: "https://cdn.discordapp.com/review/source.zip" }],
+      ["image", { name: "promo.png", url: "https://cdn.discordapp.com/review/promo.png" }]
+    ]),
+    edit: async (payload) => { reviewEdited = payload; }
+  };
+  const notified = [];
+  const client = {
+    guilds: { cache: { get: () => guild } },
+    users: { fetch: async (id) => ({ send: async (content) => notified.push([id, content]) }) }
+  };
+  const interaction = {
+    customId: "cf-freebot:approve",
+    user: { id: "123456789012345678" },
+    message,
+    deferUpdate: async () => undefined,
+    followUp: async (payload) => { throw new Error(payload.content); }
+  };
+
+  global.fetch = async (url) => {
+    const bytes = urls.get(String(url));
+    assert.ok(bytes, "only the reviewed Discord files should be downloaded");
+    return new Response(bytes, {
+      headers: { "content-type": String(url).endsWith(".png") ? "image/png" : "application/zip" }
+    });
+  };
+  try {
+    await service.handleFreeBotReviewButton(interaction, "123456789012345678", client);
+  } finally {
+    global.fetch = originalFetch;
+  }
+
+  assert.equal(published.length, 1);
+  assert.equal(published[0].files.length, 2);
+  assert.equal(published[0].files[0].name, "utility-bot.zip");
+  assert.equal(Buffer.compare(published[0].files[0].attachment, zipBytes), 0);
+  assert.equal(published[0].files[1].name, "promo.png");
+  assert.equal(Buffer.compare(published[0].files[1].attachment, imageBytes), 0);
+  assert.deepEqual(published[0].allowedMentions, { roles: ["release-role"] });
+  assert.match(reviewEdited.content, /Approved and published/);
+  assert.equal(notified.length, 1);
+});
+
 test("approved free-bot promotions publish the source ZIP and promo image with the opt-in ping", async () => {
   const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) });
   const role = { id: "release-role" };
