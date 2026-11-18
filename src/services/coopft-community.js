@@ -113,6 +113,14 @@ function rolePermissionArray(spec) {
   );
 }
 
+function isZipBuffer(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 4) return false;
+  return buffer[0] === 0x50 && buffer[1] === 0x4b &&
+    ((buffer[2] === 0x03 && buffer[3] === 0x04) ||
+     (buffer[2] === 0x05 && buffer[3] === 0x06) ||
+     (buffer[2] === 0x07 && buffer[3] === 0x08));
+}
+
 function safeChannelName(value) {
   return String(value || "member").toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 75) || "member";
 }
@@ -3512,18 +3520,20 @@ class CoopFTCommunityService {
       await interaction.reply({ content: "This promotion has already been reviewed.", flags: MessageFlags.Ephemeral });
       return true;
     }
+    const embed = interaction.message.embeds?.[0];
+    const submitterField = embed?.fields?.find((field) => field.name === "Submitted by");
+    const submitterId = submitterField?.value?.match(/\((\d{17,20})\)/)?.[1];
+
     if (action === "reject") {
-      this.processedFreeBotReviews?.add(messageKey);
+      if (messageKey) this.processedFreeBotReviews?.add(messageKey);
       await interaction.update({
-        content: "Rejected by the server owner. This promotion was not published.",
+        content: "Rejected by the server owner. The source ZIP was not published.",
         components: [],
         allowedMentions: { parse: [] }
       });
-      const submitterField = interaction.message.embeds?.[0]?.fields?.find((field) => field.name === "Submitted by");
-      const submitterId = submitterField?.value?.match(/\((\d{17,20})\)/)?.[1];
       if (submitterId) {
         const user = await client.users.fetch(submitterId).catch(() => null);
-        await user?.send("Your CoopFT free-bot promotion was reviewed and was not approved.").catch(() => null);
+        await user?.send("Your CoopFT free-bot submission was reviewed and was not approved.").catch(() => null);
       }
       return true;
     }
@@ -3531,43 +3541,65 @@ class CoopFTCommunityService {
     if (messageKey) this.processedFreeBotReviews?.add(messageKey);
     await interaction.deferUpdate();
     try {
-      const embed = interaction.message.embeds?.[0];
       const title = String(embed?.title || "").trim();
       const description = String(embed?.description || "").trim();
-      const submitterField = embed?.fields?.find((field) => field.name === "Submitted by");
-      const submitterId = submitterField?.value?.match(/\((\d{17,20})\)/)?.[1];
-      const attachment = interaction.message.attachments?.first?.();
-      if (!title || !description || !attachment) throw new Error("The review message is missing its title, description or image.");
-      const imageUrl = new URL(String(attachment.url || ""));
-      if (imageUrl.protocol !== "https:" ||
-          !["cdn.discordapp.com", "media.discordapp.net"].includes(imageUrl.hostname)) {
-        throw new Error("The review image could not be verified.");
+      const attachments = [...(interaction.message.attachments?.values?.() || [])];
+      const sourceAttachment = attachments.find((attachment) => /\.zip$/i.test(String(attachment.name || "")));
+      const imageAttachment = attachments.find((attachment) =>
+        /\.(?:png|jpe?g|webp|gif)$/i.test(String(attachment.name || ""))
+      );
+      if (!title || !description || !submitterId || !sourceAttachment || !imageAttachment) {
+        throw new Error("The review request is missing its title, description, submitter, source ZIP or promotional image.");
       }
-      const response = await fetch(imageUrl, { signal: AbortSignal.timeout(30000) });
-      if (!response.ok) throw new Error("The review image download failed.");
-      const buffer = Buffer.from(await response.arrayBuffer());
-      if (!buffer.length || buffer.length > 8 * 1024 * 1024) throw new Error("The review image is empty or too large.");
+
+      const allowedHosts = new Set(["cdn.discordapp.com", "media.discordapp.net"]);
+      const sourceUrl = new URL(String(sourceAttachment.url || ""));
+      const imageUrl = new URL(String(imageAttachment.url || ""));
+      for (const attachmentUrl of [sourceUrl, imageUrl]) {
+        if (attachmentUrl.protocol !== "https:" || !allowedHosts.has(attachmentUrl.hostname)) {
+          throw new Error("A review attachment could not be verified as a Discord upload.");
+        }
+      }
+      const [sourceResponse, imageResponse] = await Promise.all([
+        fetch(sourceUrl, { signal: AbortSignal.timeout(30000) }),
+        fetch(imageUrl, { signal: AbortSignal.timeout(30000) })
+      ]);
+      if (!sourceResponse.ok) throw new Error("The source ZIP download failed.");
+      if (!imageResponse.ok) throw new Error("The promotional image download failed.");
+      const [sourceBuffer, imageBuffer] = await Promise.all([
+        sourceResponse.arrayBuffer().then((buffer) => Buffer.from(buffer)),
+        imageResponse.arrayBuffer().then((buffer) => Buffer.from(buffer))
+      ]);
+      if (!isZipBuffer(sourceBuffer) || sourceBuffer.length > 20 * 1024 * 1024) {
+        throw new Error("The reviewed source attachment is not a valid ZIP archive or exceeds 20 MB.");
+      }
+      if (!imageBuffer.length || imageBuffer.length > 8 * 1024 * 1024 ||
+          sourceBuffer.length + imageBuffer.length > 25 * 1024 * 1024) {
+        throw new Error("The reviewed source and promotional image exceed the upload limits.");
+      }
+
       const guild = client.guilds.cache.get(this.guildId) || await client.guilds.fetch(this.guildId);
       const published = await this.publishFreeBotPromotion(guild, {
-        title, description, buffer,
-        fileName: String(attachment.name || "coopft-promotion.png"),
+        title,
+        description,
+        sourceBuffer,
+        sourceFileName: sourceAttachment.name,
+        imageBuffer,
+        imageFileName: imageAttachment.name,
         submitterId
       });
-      this.processedFreeBotReviews?.add(messageKey);
       await interaction.message.edit({
         content: "Approved and published in <#" + published.channel.id + ">: " + published.message.url,
         components: [],
         allowedMentions: { parse: [] }
       });
-      if (submitterId) {
-        const user = await client.users.fetch(submitterId).catch(() => null);
-        await user?.send("Your CoopFT free-bot promotion was approved and published: " + published.message.url).catch(() => null);
-      }
+      const user = await client.users.fetch(submitterId).catch(() => null);
+      await user?.send("Your CoopFT free-bot submission was approved and published: " + published.message.url).catch(() => null);
     } catch (error) {
       if (messageKey) this.processedFreeBotReviews?.delete(messageKey);
       console.warn("[coopft] Free-bot promotion approval failed:", error.message);
       await interaction.followUp({
-        content: "The promotion was not published: " + String(error.message || "unknown error").slice(0, 500),
+        content: "The submission was not published: " + String(error.message || "unknown error").slice(0, 500),
         flags: MessageFlags.Ephemeral
       }).catch(() => null);
     }
@@ -3576,8 +3608,14 @@ class CoopFTCommunityService {
 
   async publishFreeBotPromotion(guild, options = {}) {
     this.assertCoopFTGuild(guild, "publish an approved free-bot promotion");
-    if (!Buffer.isBuffer(options.buffer) || !options.buffer.length || options.buffer.length > 8 * 1024 * 1024) {
-      throw new Error("The approved promotional image is empty or larger than 8 MB.");
+    const sourceBuffer = options.sourceBuffer;
+    const imageBuffer = options.imageBuffer;
+    if (!isZipBuffer(sourceBuffer) || sourceBuffer.length > 20 * 1024 * 1024) {
+      throw new Error("The approved source file is not a valid ZIP archive or exceeds 20 MB.");
+    }
+    if (!Buffer.isBuffer(imageBuffer) || !imageBuffer.length || imageBuffer.length > 8 * 1024 * 1024 ||
+        sourceBuffer.length + imageBuffer.length > 25 * 1024 * 1024) {
+      throw new Error("The approved promotional image is empty, too large, or exceeds the combined upload limit.");
     }
     const channelId = await this.getResource(guild.id, "channel:free_bot_releases");
     const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
@@ -3587,18 +3625,30 @@ class CoopFTCommunityService {
     const role = await this.ensureFreeBotReleaseRole(guild);
     const title = String(options.title || "Free bot release").trim().slice(0, 120);
     const description = String(options.description || "").trim().slice(0, 1500);
-    const fileName = String(options.fileName || "coopft-promotion.png").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 100);
+    const safeFileName = (value, fallback) =>
+      String(value || fallback).replace(/[^\p{L}\p{N}._ -]/gu, "_").slice(0, 100);
+    const sourceFileName = safeFileName(options.sourceFileName, "coopft-source.zip");
+    const imageFileName = safeFileName(options.imageFileName, "coopft-promotion.png");
+    if (!/\.zip$/i.test(sourceFileName) || !/\.(?:png|jpe?g|webp|gif)$/i.test(imageFileName)) {
+      throw new Error("The approved files must be a ZIP source archive and a supported promotional image.");
+    }
     const embed = new EmbedBuilder()
       .setColor(0x397C94)
       .setTitle(title)
       .setDescription(description)
-      .setImage("attachment://" + fileName)
-      .addFields({ name: "Shared by", value: options.submitterId ? "<@" + options.submitterId + ">" : "CoopFT Developers", inline: true })
+      .setImage("attachment://" + imageFileName)
+      .addFields(
+        { name: "Source code", value: sourceFileName, inline: true },
+        { name: "Shared by", value: options.submitterId ? "<@" + options.submitterId + ">" : "CoopFT Developers", inline: true }
+      )
       .setTimestamp();
     const message = await channel.send({
-      content: "<@&" + role.id + "> **New free bot release**",
+      content: "<@" + role.id + "> **New free bot release**",
       embeds: [embed],
-      files: [{ attachment: options.buffer, name: fileName }],
+      files: [
+        { attachment: sourceBuffer, name: sourceFileName },
+        { attachment: imageBuffer, name: imageFileName }
+      ],
       allowedMentions: { roles: [role.id] }
     });
     return { channel, message, role };
@@ -3606,11 +3656,9 @@ class CoopFTCommunityService {
 
   async publishFreeBotRelease(guild, options = {}) {
     this.assertCoopFTGuild(guild, "publish a free bot source release");
-    if (!Buffer.isBuffer(options.buffer) || !options.buffer.length) {
-      throw new Error("A non-empty source ZIP buffer is required.");
-    }
-    if (options.buffer.length > 20 * 1024 * 1024 || !/\.zip$/i.test(String(options.fileName || ""))) {
-      throw new Error("Source releases must be ZIP files no larger than 20 MB.");
+    if (!isZipBuffer(options.buffer) || options.buffer.length > 20 * 1024 * 1024 ||
+        !/\.zip$/i.test(String(options.fileName || ""))) {
+      throw new Error("Source releases must be valid ZIP files no larger than 20 MB.");
     }
     const channelId = await this.getResource(guild.id, "channel:free_bot_releases");
     const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
@@ -3618,23 +3666,23 @@ class CoopFTCommunityService {
         typeof channel.send !== "function") {
       throw new Error("The CoopFT free-bot release channel is not configured.");
     }
+    const role = await this.ensureFreeBotReleaseRole(guild);
     const title = String(options.title || "Free bot source release").trim().slice(0, 120);
     const description = String(options.description || "").trim().slice(0, 1000);
-    const fileName = String(options.fileName).slice(0, 100);
+    const fileName = String(options.fileName).replace(/[^\p{L}\p{N}._ -]/gu, "_").slice(0, 100);
     const sizeMb = (options.buffer.length / (1024 * 1024)).toFixed(2);
     const content = [
+      "<@" + role.id + "> **New free bot source release**",
       "**" + title + "**",
       description,
-      "",
-      "Source ZIP: " + fileName + " · " + sizeMb + " MB",
-      "Free source release from CoopFT."
+      "Source ZIP: " + fileName + " · " + sizeMb + " MB"
     ].filter(Boolean).join("\n").slice(0, 1900);
     const message = await channel.send({
       content,
       files: [{ attachment: options.buffer, name: fileName }],
-      allowedMentions: { parse: [] }
+      allowedMentions: { roles: [role.id] }
     });
-    return { channel, message };
+    return { channel, message, role };
   }
 
   async postStaffUpdate(guild, description) {
