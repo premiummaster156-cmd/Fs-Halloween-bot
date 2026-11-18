@@ -3287,14 +3287,14 @@ class CoopFTCommunityService {
 
     const sectionFor = (key) => {
       if (["owner", "co_owner", "monarch"].includes(key)) return "OWNER RANK";
-      if (["high_rank_supervisor", "apex", "right_wing", "left_wing", "halo", "overseer"].includes(key)) return "LEADERSHIP";
-      if (["staff_supervisor", "supreme_council", "senate", "council"].includes(key)) return "OPERATIONS";
+      if (["high_rank_supervisor", "apex", "right_wing", "left_wing", "halo", "overseer"].includes(key)) return "MANAGEMENT";
+      if (["staff_supervisor", "supreme_council", "senate", "head_moderator"].includes(key)) return "SUPPORT TEAM";
       return "MOD ROLES";
     };
     const sections = [
       { name: "OWNER RANK", title: "OWNER RANK", emoji: "cf3d_owner_crest", fallback: "👑" },
-      { name: "LEADERSHIP", title: "LEADERSHIP", emoji: "cf3d_high_rank", fallback: "🐉" },
-      { name: "OPERATIONS", title: "OPERATIONS", emoji: "cf3d_low_rank", fallback: "⚖️" },
+      { name: "MANAGEMENT", title: "MANAGEMENT", emoji: "cf3d_high_rank", fallback: "🐉" },
+      { name: "SUPPORT TEAM", title: "SUPPORT TEAM", emoji: "cf3d_low_rank", fallback: "⚖️" },
       { name: "MOD ROLES", title: "MOD ROLES", emoji: "cf3d_mod_rank", fallback: "⚔️" }
     ];
 
