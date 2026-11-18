@@ -3640,22 +3640,14 @@ class CoopFTCommunityService {
       throw new Error("The server owner must configure the destination with /free-bot-channel first.");
     }
     const imageFileName = "coopft-promo-" + Date.now() + extension;
-    const sourceRepositoryField = sourceRepositoryUrl
-      ? "GITHUB_URL: " + sourceRepositoryUrl
-      : "GITHUB_URL:";
     const content = [
-      "[COOPFT_FREE_BOT_REVIEW_V1]",
-      "TITLE: " + title,
-      "SUBMITTER_ID: " + submitter.id,
-      "SUBMITTER: <@" + submitter.id + ">",
-      "SOURCE_ZIP: " + sourceFileName,
-      "DESTINATION_ID: " + releaseChannelId,
-      sourceRepositoryField,
-      "DESCRIPTION_START",
+      "[CFB1]",
+      "T=" + title,
+      "U=" + submitter.id,
+      "G=" + (sourceRepositoryUrl || ""),
+      "D>>",
       description,
-      "DESCRIPTION_END",
-      "",
-      "Review the source ZIP and promotional image above. Approve or reject this submission below."
+      "<<D"
     ].join("\n");
     if (content.length > 2000) {
       throw new Error("The review summary is too long for a Discord message. Shorten the description and try again.");
@@ -3733,10 +3725,13 @@ class CoopFTCommunityService {
 
     const body = String(message?.content || "");
     const embed = message?.embeds?.[0] || null;
-    const readLine = (key) => body.match(new RegExp("^" + key + ":\\\\s*(.*)$", "m"))?.[1]?.trim() || "";
-    const plainTitle = readLine("TITLE");
-    const plainSubmitterId = readLine("SUBMITTER_ID").match(/^\\d{17,20}$/)?.[0] || "";
-    const plainDescription = body.match(/(?:^|\\n)DESCRIPTION_START\\r?\\n([\\s\\S]*?)\\r?\\nDESCRIPTION_END(?:\\r?\\n|$)/)?.[1]?.trim() || "";
+    const plainFormat = body.startsWith("[CFB1]");
+    const readLine = (key) => body.match(new RegExp("^" + key + "=(.*)$", "m"))?.[1]?.trim() || "";
+    const plainTitle = plainFormat ? readLine("T") : "";
+    const plainSubmitterId = (plainFormat ? readLine("U") : "").match(/^\\d{17,20}$/)?.[0] || "";
+    const plainDescription = plainFormat
+      ? body.match(/(?:^|\\n)D>>\\r?\\n([\\s\\S]*?)\\r?\\n<<D(?:\\r?\\n|$)/)?.[1]?.trim() || ""
+      : "";
     const title = plainTitle || String(embed?.title || "").trim();
     const description = plainDescription || String(embed?.description || "").trim();
     const legacySubmitterField = embed?.fields?.find((field) => field.name === "Submitted by");
@@ -3765,7 +3760,7 @@ class CoopFTCommunityService {
       }
     }
 
-    const githubLine = readLine("GITHUB_URL");
+    const githubLine = plainFormat ? readLine("G") : "";
     const legacyGithubField = embed?.fields?.find((field) => field.name === "GitHub repository");
     const sourceRepositoryUrl = (githubLine || legacyGithubField?.value || "")
       .match(/https:\\/\\/github\\.com\\/[A-Za-z0-9._-]+\\/[A-Za-z0-9._-]+/)?.[0] || null;
