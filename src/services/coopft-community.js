@@ -3548,8 +3548,9 @@ class CoopFTCommunityService {
 
   async submitFreeBotPromotion(guild, submitter, options = {}) {
     this.assertCoopFTGuild(guild, "submit a free-bot promotion for review");
-    if (!this.isDeveloper(submitter)) {
-      throw new Error("Only members with the CoopFT Developer role can submit promotions.");
+    const canSubmitAsOwner = this.canManageApplications(submitter, guild);
+    if (!this.isDeveloper(submitter) && !canSubmitAsOwner) {
+      throw new Error("Only CoopFT Developers or Owner Rank members can submit free-bot releases.");
     }
     if (!options.ownerId || !/^\d{17,20}$/.test(String(options.ownerId))) {
       throw new Error("OWNER_ID is not configured with a valid Discord user ID.");
@@ -3639,34 +3640,76 @@ class CoopFTCommunityService {
       throw new Error("The server owner must configure the destination with /free-bot-channel first.");
     }
     const imageFileName = "coopft-promo-" + Date.now() + extension;
+    const sourceRepositoryField = sourceRepositoryUrl
+      ? "GITHUB_URL: " + sourceRepositoryUrl
+      : "GITHUB_URL:";
+    const content = [
+      "[COOPFT_FREE_BOT_REVIEW_V1]",
+      "TITLE: " + title,
+      "SUBMITTER_ID: " + submitter.id,
+      "SUBMITTER: <@" + submitter.id + ">",
+      "SOURCE_ZIP: " + sourceFileName,
+      "DESTINATION_ID: " + releaseChannelId,
+      sourceRepositoryField,
+      "DESCRIPTION_START",
+      description,
+      "DESCRIPTION_END",
+      "",
+      "Review the source ZIP and promotional image above. Approve or reject this submission below."
+    ].join("\n");
+    if (content.length > 2000) {
+      throw new Error("The review summary is too long for a Discord message. Shorten the description and try again.");
+    }
+
+    // The server owner and Owner Rank are already authorized to approve releases.
+    // Do not send them an approval request addressed to themselves.
+    if (canSubmitAsOwner) {
+      const guildChannel = await guild.channels.fetch(releaseChannelId).catch(() => null);
+      if (!guildChannel) throw new Error("The configured free-bot release channel is unavailable.");
+      const published = await this.publishFreeBotPromotion(guild, {
+        title,
+        description,
+        sourceBuffer: sourceBytes,
+        sourceFileName,
+        imageBuffer: imageBytes,
+        imageFileName,
+        sourceRepositoryUrl,
+        submitterId: submitter.id
+      });
+      return {
+        title,
+        ownerId: String(options.ownerId),
+        sourceFileName,
+        imageFileName,
+        sourceRepositoryUrl,
+        published: true,
+        publishedMessageUrl: published.message.url || null
+      };
+    }
+
     const owner = await guild.client.users.fetch(String(options.ownerId));
-    const embed = new EmbedBuilder()
-      .setColor(0x397C94)
-      .setTitle(title)
-      .setDescription(description)
-      .setImage("attachment://" + imageFileName)
-      .addFields(
-        { name: "Submitted by", value: "<@" + submitter.id + "> (" + submitter.id + ")", inline: true },
-        { name: "Source ZIP", value: sourceFileName, inline: true },
-        { name: "Destination", value: "<#" + releaseChannelId + ">", inline: true },
-        ...(sourceRepositoryUrl ? [{ name: "GitHub repository", value: "<" + sourceRepositoryUrl + ">", inline: false }] : [])
-      )
-      .setTimestamp();
     const controls = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("cf-freebot:approve").setLabel("Approve").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId("cf-freebot:reject").setLabel("Reject").setStyle(ButtonStyle.Danger)
     );
     await owner.send({
-      content: "A CoopFT Developer submitted a free-bot release. Review the source ZIP, promotional image and description, then approve or reject it.",
-      embeds: [embed],
+      content,
       components: [controls],
+      // Native image preview first; the ZIP remains a separate downloadable file.
       files: [
-        { attachment: sourceBytes, name: sourceFileName },
-        { attachment: imageBytes, name: imageFileName }
+        { attachment: imageBytes, name: imageFileName },
+        { attachment: sourceBytes, name: sourceFileName }
       ],
       allowedMentions: { parse: [] }
     });
-    return { title, ownerId: String(options.ownerId), sourceFileName, imageFileName, sourceRepositoryUrl };
+    return {
+      title,
+      ownerId: String(options.ownerId),
+      sourceFileName,
+      imageFileName,
+      sourceRepositoryUrl,
+      published: false
+    };
   }
 
   async handleFreeBotReviewButton(interaction, ownerId, client) {
@@ -3680,19 +3723,58 @@ class CoopFTCommunityService {
       await interaction.reply({ content: "That review action is invalid.", flags: MessageFlags.Ephemeral });
       return true;
     }
-    const messageKey = interaction.message?.id;
+
+    const message = interaction.message;
+    const messageKey = message?.id;
     if (messageKey && this.processedFreeBotReviews?.has(messageKey)) {
       await interaction.reply({ content: "This promotion has already been reviewed.", flags: MessageFlags.Ephemeral });
       return true;
     }
-    const embed = interaction.message.embeds?.[0];
-    const submitterField = embed?.fields?.find((field) => field.name === "Submitted by");
-    const submitterId = submitterField?.value?.match(/\((\d{17,20})\)/)?.[1];
+
+    const body = String(message?.content || "");
+    const embed = message?.embeds?.[0] || null;
+    const readLine = (key) => body.match(new RegExp("^" + key + ":\\\\s*(.*)$", "m"))?.[1]?.trim() || "";
+    const plainTitle = readLine("TITLE");
+    const plainSubmitterId = readLine("SUBMITTER_ID").match(/^\\d{17,20}$/)?.[0] || "";
+    const plainDescription = body.match(/(?:^|\\n)DESCRIPTION_START\\r?\\n([\\s\\S]*?)\\r?\\nDESCRIPTION_END(?:\\r?\\n|$)/)?.[1]?.trim() || "";
+    const title = plainTitle || String(embed?.title || "").trim();
+    const description = plainDescription || String(embed?.description || "").trim();
+    const legacySubmitterField = embed?.fields?.find((field) => field.name === "Submitted by");
+    const submitterId = plainSubmitterId ||
+      legacySubmitterField?.value?.match(/\\((\\d{17,20})\\)/)?.[1] ||
+      legacySubmitterField?.value?.match(/<@!?(\\d{17,20})>/)?.[1] || "";
+    const attachments = [...(message?.attachments?.values?.() || [])];
+    const sourceAttachment = attachments.find((attachment) => /\\.zip$/i.test(String(attachment.name || "")));
+    let imageAttachment = attachments.find((attachment) =>
+      /\\.(?:png|jpe?g|webp|gif)$/i.test(String(attachment.name || ""))
+    );
+
+    // Older review DMs put the image inside an embed. Recover its CDN URL when the
+    // attachment collection does not expose it as a separate file.
+    if (!imageAttachment && embed?.image?.url) {
+      try {
+        const legacyImageUrl = new URL(embed.image.url);
+        if (legacyImageUrl.protocol === "https:" &&
+            ["cdn.discordapp.com", "media.discordapp.net"].includes(legacyImageUrl.hostname)) {
+          const tail = decodeURIComponent(legacyImageUrl.pathname.split("/").pop() || "");
+          const imageName = /\\.(?:png|jpe?g|webp|gif)$/i.test(tail) ? tail : "legacy-promotion.png";
+          imageAttachment = { name: imageName, url: legacyImageUrl.toString() };
+        }
+      } catch {
+        // An invalid legacy embed image is reported as a missing image below.
+      }
+    }
+
+    const githubLine = readLine("GITHUB_URL");
+    const legacyGithubField = embed?.fields?.find((field) => field.name === "GitHub repository");
+    const sourceRepositoryUrl = (githubLine || legacyGithubField?.value || "")
+      .match(/https:\\/\\/github\\.com\\/[A-Za-z0-9._-]+\\/[A-Za-z0-9._-]+/)?.[0] || null;
 
     if (action === "reject") {
       if (messageKey) this.processedFreeBotReviews?.add(messageKey);
       await interaction.update({
         content: "Rejected by the server owner. The source ZIP was not published.",
+        embeds: [],
         components: [],
         allowedMentions: { parse: [] }
       });
@@ -3703,20 +3785,24 @@ class CoopFTCommunityService {
       return true;
     }
 
+    const missing = [];
+    if (!title) missing.push("title");
+    if (!description) missing.push("description");
+    if (!submitterId) missing.push("submitter ID");
+    if (!sourceAttachment) missing.push("source ZIP attachment");
+    if (!imageAttachment) missing.push("promotional image attachment");
+    if (missing.length) {
+      await interaction.reply({
+        content: "This review request is incomplete: " + missing.join(", ") +
+          ". Attachments found: " + attachments.map((item) => item.name || "unnamed").join(", "),
+        flags: MessageFlags.Ephemeral
+      });
+      return true;
+    }
+
     if (messageKey) this.processedFreeBotReviews?.add(messageKey);
     await interaction.deferUpdate();
     try {
-      const title = String(embed?.title || "").trim();
-      const description = String(embed?.description || "").trim();
-      const attachments = [...(interaction.message.attachments?.values?.() || [])];
-      const sourceAttachment = attachments.find((attachment) => /\.zip$/i.test(String(attachment.name || "")));
-      const imageAttachment = attachments.find((attachment) =>
-        /\.(?:png|jpe?g|webp|gif)$/i.test(String(attachment.name || ""))
-      );
-      if (!title || !description || !submitterId || !sourceAttachment || !imageAttachment) {
-        throw new Error("The review request is missing its title, description, submitter, source ZIP or promotional image.");
-      }
-
       const allowedHosts = new Set(["cdn.discordapp.com", "media.discordapp.net"]);
       const sourceUrl = new URL(String(sourceAttachment.url || ""));
       const imageUrl = new URL(String(imageAttachment.url || ""));
@@ -3744,8 +3830,6 @@ class CoopFTCommunityService {
       }
 
       const guild = client.guilds.cache.get(this.guildId) || await client.guilds.fetch(this.guildId);
-      const sourceRepositoryField = embed?.fields?.find((field) => field.name === "GitHub repository");
-      const sourceRepositoryUrl = sourceRepositoryField?.value?.match(/<https:\/\/github\.com\/[^>]+>/)?.[0]?.slice(1, -1) || null;
       const published = await this.publishFreeBotPromotion(guild, {
         title,
         description,
@@ -3756,8 +3840,9 @@ class CoopFTCommunityService {
         sourceRepositoryUrl,
         submitterId
       });
-      await interaction.message.edit({
+      await message.edit({
         content: "Approved and published in <#" + published.channel.id + ">: " + published.message.url,
+        embeds: [],
         components: [],
         allowedMentions: { parse: [] }
       });
