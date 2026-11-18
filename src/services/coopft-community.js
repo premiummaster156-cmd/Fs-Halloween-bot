@@ -3641,13 +3641,12 @@ class CoopFTCommunityService {
     }
     const imageFileName = "coopft-promo-" + Date.now() + extension;
     const content = [
-      "[CFB1]",
-      "T=" + title,
-      "U=" + submitter.id,
-      "G=" + (sourceRepositoryUrl || ""),
-      "D>>",
-      description,
-      "<<D"
+      "**FREE BOT SUBMISSION**",
+      "**Title:** " + title,
+      "**Submitted by:** <@" + submitter.id + "> (`" + submitter.id + "`)",
+      ...(sourceRepositoryUrl ? ["**GitHub repository:** " + sourceRepositoryUrl] : []),
+      "**Description:**",
+      description
     ].join("\n");
     if (content.length > 2000) {
       throw new Error("The review summary is too long for a Discord message. Shorten the description and try again.");
@@ -3726,12 +3725,15 @@ class CoopFTCommunityService {
 
     const body = String(message?.content || "");
     const embed = message?.embeds?.[0] || null;
-    const plainFormat = body.startsWith("[CFB1]");
-    const readLine = (key) => body.match(new RegExp("^" + key + "=(.*)$", "m"))?.[1]?.trim() || "";
-    const plainTitle = plainFormat ? readLine("T") : "";
-    const plainSubmitterId = (plainFormat ? readLine("U") : "").match(/^\\d{17,20}$/)?.[0] || "";
+    const plainFormat = body.startsWith("**FREE BOT SUBMISSION**");
+    const plainTitle = plainFormat
+      ? body.match(/^\\*\\*Title:\\*\\*\\s*(.*)$/m)?.[1]?.trim() || ""
+      : "";
+    const plainSubmitterId = plainFormat
+      ? body.match(/^\\*\\*Submitted by:\\*\\*\\s*<@!?(\\d{17,20})>/m)?.[1] || ""
+      : "";
     const plainDescription = plainFormat
-      ? body.match(/(?:^|\\n)D>>\\r?\\n([\\s\\S]*?)\\r?\\n<<D(?:\\r?\\n|$)/)?.[1]?.trim() || ""
+      ? body.match(/(?:^|\\n)\\*\\*Description:\\*\\*\\r?\\n([\\s\\S]*)$/)?.[1]?.trim() || ""
       : "";
     const title = plainTitle || String(embed?.title || "").trim();
     const description = plainDescription || String(embed?.description || "").trim();
@@ -3761,7 +3763,9 @@ class CoopFTCommunityService {
       }
     }
 
-    const githubLine = plainFormat ? readLine("G") : "";
+    const githubLine = plainFormat
+      ? body.match(/^\\*\\*GitHub repository:\\*\\*\\s*(.*)$/m)?.[1]?.trim() || ""
+      : "";
     const legacyGithubField = embed?.fields?.find((field) => field.name === "GitHub repository");
     const sourceRepositoryUrl = (githubLine || legacyGithubField?.value || "")
       .match(/https:\/\/github\.com\/[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+/)?.[0] || null;
