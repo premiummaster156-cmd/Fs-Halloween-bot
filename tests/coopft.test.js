@@ -497,7 +497,7 @@ test("approved free-bot promotions publish the source ZIP and promo image with t
   assert.ok(sent[0].content.includes("A useful bot for community servers."));
   assert.ok(sent[0].content.includes("**Source ZIP:** **utility-bot.zip**"));
   assert.ok(sent[0].content.includes("**GitHub:** <https://github.com/example/utility-bot>"));
-  assert.ok(sent[0].content.includes("Shared by: <@123456789012345678>"));
+  assert.ok(sent[0].content.includes("**Shared by:** <@123456789012345678>"));
   assert.deepEqual(sent[0].allowedMentions, { roles: [role.id], users: ["123456789012345678"] });
   assert.equal(sent[0].embeds, undefined, "public source announcements must not use embeds");
   assert.equal(sent[0].flags, MessageFlags.SuppressEmbeds);
