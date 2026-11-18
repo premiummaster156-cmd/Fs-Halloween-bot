@@ -6,7 +6,7 @@ const { PermissionFlagsBits, PermissionsBitField, ChannelType, MessageFlags } = 
 const { loadCoopFTCommands } = require("../src/commands/coopft");
 const {
   STAFF_RANKS, APPLICATION_RANKS, EMOJI_SPRITE, CATEGORY_NAMES, PUBLIC_CHANNELS, PRIVATE_CHANNELS,
-  INTEREST_ROLES, PING_ROLES, ROLE_IMAGE_ICONS,
+  INTEREST_ROLES, PING_ROLES, ROLE_IMAGE_ICONS, ROLE_LAYOUT,
   OWNER_PERMISSIONS, HIGH_RANK_SUPERVISOR_PERMISSIONS, ALL_PERMISSION_BITS
 } = require("../src/config/coopft-design");
 const {
@@ -1128,11 +1128,15 @@ test("manual setup uploads all 50 CoopFT emblems as separate Discord-sized PNGs"
   };
 
   const result = await service.ensureEmojis(guild);
-  assert.equal(result.created, 50);
+  assert.equal(result.created, EMOJI_SPRITE.length + ROLE_IMAGE_ICONS.length);
   assert.equal(result.available, 0);
   assert.deepEqual(result.failed, []);
-  assert.equal(uploads.length, 50);
-  assert.deepEqual(uploads.map((item) => item.name), EMOJI_SPRITE);
+  assert.equal(uploads.length, EMOJI_SPRITE.length + ROLE_IMAGE_ICONS.length);
+  assert.deepEqual(uploads.slice(0, EMOJI_SPRITE.length).map((item) => item.name), EMOJI_SPRITE);
+  assert.deepEqual(
+    uploads.slice(EMOJI_SPRITE.length).map((item) => item.name),
+    ROLE_IMAGE_ICONS.map((item) => item.emoji)
+  );
 
   const uniqueImages = new Set();
   for (const upload of uploads) {
@@ -1145,8 +1149,8 @@ test("manual setup uploads all 50 CoopFT emblems as separate Discord-sized PNGs"
     uniqueImages.add(upload.attachment.toString("base64"));
   }
   assert.equal(uniqueImages.size, 50);
-  for (const name of EMOJI_SPRITE) {
-    assert.equal(service.emojis.get(name), "emoji-" + name);
+  for (const upload of uploads) {
+    assert.equal(service.emojis.get(upload.name), "emoji-" + upload.name);
   }
 });
 
