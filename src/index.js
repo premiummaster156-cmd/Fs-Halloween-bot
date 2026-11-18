@@ -325,6 +325,18 @@ async function start() {
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
+    if (interaction.isButton?.() && interaction.customId?.startsWith("cf-freebot:")) {
+      try {
+        await coopftCommunity.handleFreeBotReviewButton(interaction, settings.ownerId, client);
+      } catch (error) {
+        console.error("[coopft] Free-bot review interaction failed:", error);
+        if (interaction.isRepliable?.() && !interaction.replied && !interaction.deferred) {
+          await interaction.reply({ content: "The review action could not be completed.", flags: MessageFlags.Ephemeral }).catch(() => null);
+        }
+      }
+      return;
+    }
+
     // The same Discord application has two isolated server personas. CoopFT
     // receives only its staff/ticket commands; Fukishōkai receives the game bot.
     // DM trade buttons remain bound to their encoded Fukishōkai guild only.
