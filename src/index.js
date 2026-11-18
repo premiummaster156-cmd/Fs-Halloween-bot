@@ -14,8 +14,9 @@ const { getGatewayIntents } = require("./config/gateway-intents");
 const { DomainError } = require("./utils/core");
 const settings = require("./config/settings");
 const balancing = require("./config/game-balancing");
-const { pool } = require("./database/pool");
-const { migrate } = require("./database/migrate");
+const { pool, coopftPool } = require("./database/pool");
+const { migrate, migrateCoopFT } = require("./database/migrate");
+const { moveCoopFTGuildData } = require("./database/move-coopft-guild-data");
 const { loadCommands } = require("./commands");
 const { loadCoopFTCommands } = require("./commands/coopft");
 const { CoopFTCommunityService } = require("./services/coopft-community");
@@ -137,6 +138,19 @@ async function start() {
   if (!settings.discordToken) throw new Error("DISCORD_TOKEN is missing.");
   if (!settings.clientId) throw new Error("CLIENT_ID is missing.");
   await migrate();
+  if (coopftPool) {
+    await migrateCoopFT();
+    const transfer = await moveCoopFTGuildData({
+      sourcePool: pool,
+      destinationPool: coopftPool,
+      guildId: coopftGuildId,
+      sourceUrl: settings.databaseUrl,
+      destinationUrl: settings.coopftDatabaseUrl
+    });
+    console.info("[coopft] Dedicated Neon database verified:", transfer);
+  } else {
+    console.warn("[coopft] COOPFT_DATABASE_URL is not configured. CoopFT database features are paused; no CoopFT data will be written to Fukishokai's DATABASE_URL.");
+  }
   // Discord Support approved GuildMembers under request 69920914 for actual-join
   // raid detection. GuildMessages and GuildModeration are non-privileged intents
   // required by existing message-activity/boost and audit-log event handlers.
@@ -185,8 +199,11 @@ async function start() {
   economy.client = client;
   const serverBoosters = new ServerBoosterService(pool);
   const customCommands = new CustomCommandService(pool);
-  const coopftCommunity = new CoopFTCommunityService(pool);
-  const memberLifecycle = new MemberLifecycleService(pool, { guildSettings, coopftCommunity });
+  const coopftGuildSettings = coopftPool ? new GuildSettingsService(coopftPool) : null;
+  const coopftCommunity = coopftPool ? new CoopFTCommunityService(coopftPool) : null;
+  const memberLifecycle = coopftPool
+    ? new MemberLifecycleService(coopftPool, { guildSettings: coopftGuildSettings, coopftCommunity })
+    : null;
   const coopftCommands = loadCoopFTCommands();
   const restoredCommandFiles = await customCommands.restoreWorkspaceFiles();
   console.log("[workspace] Restored " + restoredCommandFiles + " JavaScript command file(s).");
@@ -213,7 +230,7 @@ async function start() {
   client.once(Events.ClientReady, async (ready) => {
     console.log("[bot] Logged in as " + ready.user.tag + " with " + client.commands.size + " Fukishōkai commands and " + client.coopftCommands.size + " CoopFT commands.");
 
-    if (coopftGuildId) {
+    if (coopftPool && coopftCommunity && coopftGuildId) {
       const coopGuild = ready.guilds.cache.get(coopftGuildId) || await ready.guilds.fetch(coopftGuildId).catch(() => null);
       if (coopGuild) {
         const coopMember = coopGuild.members.me || await coopGuild.members.fetchMe().catch(() => null);
@@ -289,6 +306,7 @@ async function start() {
     // Member lifecycle, welcome embeds and autoroles belong exclusively to CoopFT.
     // Fukishōkai only runs its own anti-raid join monitor here.
     if (member.guild.id === coopftGuildId) {
+      if (!memberLifecycle || !coopftCommunity) return;
       memberLifecycle.handleJoin(member).then(() =>
         coopftCommunity.refreshStaffDirectory(member.guild)
       ).catch((error) =>
@@ -304,7 +322,7 @@ async function start() {
   });
 
   client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
-    if (newMember.guild.id !== coopftGuildId) return;
+    if (!coopftPool || !coopftCommunity || newMember.guild.id !== coopftGuildId) return;
     const before = [...oldMember.roles.cache.keys()].sort().join(",");
     const after = [...newMember.roles.cache.keys()].sort().join(",");
     if (before === after) return;
@@ -315,7 +333,7 @@ async function start() {
 
   client.on(Events.GuildMemberRemove, (member) => {
     // Leave logs and directory updates are CoopFT-only; never emit them in Fukishōkai.
-    if (member.guild.id !== coopftGuildId) return;
+    if (!memberLifecycle || !coopftCommunity || member.guild.id !== coopftGuildId) return;
     memberLifecycle.handleLeave(member).catch((error) =>
       console.error("[coopft] Could not process CoopFT member departure:", error.message)
     );
@@ -327,6 +345,7 @@ async function start() {
   client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isButton?.() && interaction.customId?.startsWith("cf-freebot:")) {
       try {
+        if (!coopftCommunity) throw new Error("COOPFT_DATABASE_URL is not configured.");
         await coopftCommunity.handleFreeBotReviewButton(interaction, settings.ownerId, client);
       } catch (error) {
         console.error("[coopft] Free-bot review interaction failed:", error);
@@ -348,6 +367,12 @@ async function start() {
     if (!dmFukishokaiTrade) {
       const persona = personaForGuild(interaction.guildId);
       if (persona === "coopft") {
+        if (!coopftPool || !coopftCommunity) {
+          if (interaction.isRepliable?.() && !interaction.isAutocomplete?.()) {
+            await interaction.reply({ content: "CoopFT is temporarily unavailable because its dedicated Neon database has not been configured.", flags: MessageFlags.Ephemeral }).catch(() => null);
+          }
+          return;
+        }
         try {
           if (interaction.isButton() && interaction.customId?.startsWith("cf-ticket:")) {
             await coopftCommunity.handleButton(interaction);
@@ -394,7 +419,7 @@ async function start() {
               });
               return;
             }
-            await command.execute(interaction, { ...client.services, coopft: coopftCommunity });
+            await command.execute(interaction, { ...client.services, pool: coopftPool, guildSettings: coopftGuildSettings, coopft: coopftCommunity });
             return;
           }
           if (interaction.isRepliable() && !interaction.isAutocomplete()) {
@@ -731,7 +756,7 @@ async function start() {
       [fukishokaiGuildId, coopftGuildId].filter(Boolean).includes(guild.id)
     ) {
       // Store role history with exact member fetches; no member-roster enumeration.
-      memberLifecycle.handleRoleUpdate(guild, targetId, executorId, entry, client.user.id).catch((error) =>
+      if (memberLifecycle) memberLifecycle.handleRoleUpdate(guild, targetId, executorId, entry, client.user.id).catch((error) =>
         console.warn("[member-lifecycle] Could not store updated role snapshot:", error.message)
       );
 
@@ -745,7 +770,7 @@ async function start() {
       }
       return;
     }
-    if ([fukishokaiGuildId, coopftGuildId].filter(Boolean).includes(guild.id)) {
+    if (memberLifecycle && [fukishokaiGuildId, coopftGuildId].filter(Boolean).includes(guild.id)) {
       memberLifecycle.handleServerAuditEntry(guild, entry, client.user.id).catch((error) =>
         console.warn("[member-lifecycle] Could not publish server audit entry:", error.message)
       );
@@ -866,8 +891,14 @@ async function start() {
       console.warn("[shutdown] Discord client close reported:", error);
     }
     try { await pool.end(); } catch (error) {
-      console.error("[shutdown] Database pool close failed:", error);
+      console.error("[shutdown] Fukishokai database pool close failed:", error);
       process.exitCode = 1;
+    }
+    if (coopftPool) {
+      try { await coopftPool.end(); } catch (error) {
+        console.error("[shutdown] CoopFT database pool close failed:", error);
+        process.exitCode = 1;
+      }
     }
     runtimeClient = null;
     console.info("[bot] Shutdown cleanup complete.");
@@ -889,7 +920,12 @@ start().catch(async (error) => {
     runtimeLogger.error("[startup] Discord cleanup failed:", cleanupError);
   }
   try { await pool.end(); } catch (cleanupError) {
-    runtimeLogger.error("[startup] Database cleanup failed:", cleanupError);
+    runtimeLogger.error("[startup] Fukishokai database cleanup failed:", cleanupError);
+  }
+  if (coopftPool) {
+    try { await coopftPool.end(); } catch (cleanupError) {
+      runtimeLogger.error("[startup] CoopFT database cleanup failed:", cleanupError);
+    }
   }
   process.exitCode = 1;
 });
