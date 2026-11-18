@@ -3214,18 +3214,15 @@ class CoopFTCommunityService {
     }
   }
 
-  async startStaffDirectoryRefresh(guild, intervalMs = 15000) {
-    this.assertCoopFTGuild(guild, "start automatic staff directory refresh");
-    if (this.directoryRefreshTimer) clearInterval(this.directoryRefreshTimer);
-    await this.refreshStaffDirectory(guild, { fetchMembers: true });
-    this.directoryRefreshTimer = setInterval(() => {
-      this.refreshStaffDirectory(guild).catch((error) =>
-        console.warn("[coopft] Live staff directory refresh failed:", error.message)
-      );
-    }, intervalMs);
-    this.directoryRefreshTimer.unref?.();
-    console.info("[coopft] Live staff directory refresh started at " + intervalMs + " ms using GuildMembers data.");
-    return true;
+  async startStaffDirectoryRefresh(guild) {
+    this.assertCoopFTGuild(guild, "initialize the CoopFT staff directory");
+    if (this.directoryRefreshTimer) {
+      clearInterval(this.directoryRefreshTimer);
+      this.directoryRefreshTimer = null;
+    }
+    const result = await this.refreshStaffDirectory(guild, { fetchMembers: true });
+    console.info("[coopft] Staff directory initialized with one startup sync; later changes are event-driven.");
+    return result;
   }
 
   async buildStaffDirectoryPayload(guild) {
