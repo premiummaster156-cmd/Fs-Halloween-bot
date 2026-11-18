@@ -30,6 +30,55 @@ test("generated role icon sprite crops all 16 image assets into 128px PNGs", asy
   }
 });
 
+test("owner free-bot releases attach the source ZIP to the fixed CoopFT release channel", async () => {
+  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) });
+  const sent = [];
+  const channel = {
+    id: "release-channel",
+    guildId: coopftGuildId,
+    isTextBased: () => true,
+    send: async payload => {
+      sent.push(payload);
+      return { id: "release-message", channelId: "release-channel" };
+    }
+  };
+  service.getResource = async (guildId, key) => {
+    assert.equal(guildId, coopftGuildId);
+    assert.equal(key, "channel:free_bot_releases");
+    return channel.id;
+  };
+  const buffer = Buffer.from("PK\\x03\\x04sample");
+  const result = await service.publishFreeBotRelease(
+    { id: coopftGuildId, channels: { fetch: async id => id === channel.id ? channel : null } },
+    { buffer, fileName: "example-bot.zip", title: "Example Bot", description: "Ready to customise." }
+  );
+  assert.equal(result.channel, channel);
+  assert.equal(result.message.id, "release-message");
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].content.includes("**Example Bot**"), true);
+  assert.equal(sent[0].content.includes("Ready to customise."), true);
+  assert.equal(sent[0].files[0].name, "example-bot.zip");
+  assert.equal(Buffer.compare(sent[0].files[0].attachment, buffer), 0);
+  assert.deepEqual(sent[0].allowedMentions, { parse: [] });
+});
+
+test("free-bot releases reject non-ZIP or oversized archives before sending", async () => {
+  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) });
+  let fetched = false;
+  service.getResource = async () => "release-channel";
+  const channel = { id: "release-channel", guildId: coopftGuildId, isTextBased: () => true, send: async () => { fetched = true; } };
+  const guild = { id: coopftGuildId, channels: { fetch: async () => channel } };
+  await assert.rejects(
+    service.publishFreeBotRelease(guild, { buffer: Buffer.from("not zip"), fileName: "source.tar.gz" }),
+    /ZIP files/
+  );
+  await assert.rejects(
+    service.publishFreeBotRelease(guild, { buffer: Buffer.alloc(20 * 1024 * 1024 + 1), fileName: "large.zip" }),
+    /ZIP files/
+  );
+  assert.equal(fetched, false);
+});
+
 test("generated role icon assets become CoopFT custom onboarding emojis", async () => {
   const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) });
   const created = [];
