@@ -428,6 +428,7 @@ class CoopFTCommunityService {
     this.directoryRefreshTimer = null;
     this.roleIconSheet = null;
     this.roleIconCanvas = null;
+    this.processedFreeBotReviews = new Set();
   }
 
   assertCoopFTGuildId(guildId, action = "access CoopFT data") {
@@ -3389,6 +3390,216 @@ class CoopFTCommunityService {
     }
 
     return { panel: panelKey, channelId: channel.id, channelName: channel.name };
+  }
+
+  async ensureFreeBotReleaseRole(guild) {
+    this.assertCoopFTGuild(guild, "ensure the CoopFT free-bot release ping role");
+    const spec = PING_ROLES.find((item) => item.key === "ping_free_bot_releases");
+    if (!spec) throw new Error("The free-bot release ping role is missing from the CoopFT role configuration.");
+    let role = this.roles.get(spec.key);
+    if (!role) {
+      const ensured = await this.ensureRole(guild, spec);
+      role = ensured.role;
+      this.roles.set(spec.key, role);
+    }
+    if (!role) throw new Error("The Free Bot Releases ping role could not be created.");
+    return role;
+  }
+
+  async configureFreeBotReleaseChannel(guild, channel) {
+    this.assertCoopFTGuild(guild, "configure the CoopFT free-bot release channel");
+    if (!channel || channel.guildId !== guild.id || !channel.isTextBased?.() ||
+        typeof channel.send !== "function" || channel.isThread?.()) {
+      throw new Error("Choose a text or announcement channel in CoopFT.");
+    }
+    const role = await this.ensureFreeBotReleaseRole(guild);
+    await this.saveResource(guild.id, "channel:free_bot_releases", channel.id);
+    const roleSelectionId = await this.getResource(guild.id, "channel:role_selection");
+    const roleSelectionChannel = roleSelectionId
+      ? await guild.channels.fetch(roleSelectionId).catch(() => null)
+      : null;
+    if (roleSelectionChannel?.isTextBased?.()) {
+      await this.ensureRoleSelectionPanel(guild, roleSelectionChannel);
+    }
+    return { channel, role };
+  }
+
+  async submitFreeBotPromotion(guild, submitter, options = {}) {
+    this.assertCoopFTGuild(guild, "submit a free-bot promotion for review");
+    if (!this.isDeveloper(submitter)) {
+      throw new Error("Only members with the CoopFT Developer role can submit promotions.");
+    }
+    if (!options.ownerId || !/^\\d{17,20}$/.test(String(options.ownerId))) {
+      throw new Error("OWNER_ID is not configured with a valid Discord user ID.");
+    }
+    const title = String(options.title || "").trim();
+    const description = String(options.description || "").trim();
+    const image = options.image;
+    if (title.length < 3 || title.length > 120) {
+      throw new Error("The promotion title must be between 3 and 120 characters.");
+    }
+    if (description.length < 40 || description.length > 1500) {
+      throw new Error("Write a useful promotional description of 40–1,500 characters. Explain what the bot does and why members should try it.");
+    }
+    if (!image || !Number.isFinite(Number(image.size)) || Number(image.size) <= 0 || Number(image.size) > 8 * 1024 * 1024) {
+      throw new Error("Attach one image up to 8 MB.");
+    }
+    const imageUrl = new URL(String(image.url || ""));
+    if (imageUrl.protocol !== "https:" ||
+        !["cdn.discordapp.com", "media.discordapp.net"].includes(imageUrl.hostname)) {
+      throw new Error("The image must be uploaded directly to Discord.");
+    }
+    const response = await fetch(imageUrl, { signal: AbortSignal.timeout(30000) });
+    if (!response.ok) throw new Error("The uploaded image could not be downloaded from Discord.");
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (!bytes.length || bytes.length > 8 * 1024 * 1024) {
+      throw new Error("The image is empty or exceeds 8 MB.");
+    }
+    const contentType = String(image.contentType || response.headers.get("content-type") || "").split(";")[0].toLowerCase();
+    const imageTypes = new Map([
+      ["image/png", ".png"], ["image/jpeg", ".jpg"],
+      ["image/webp", ".webp"], ["image/gif", ".gif"]
+    ]);
+    const extension = imageTypes.get(contentType);
+    if (!extension) throw new Error("Use a PNG, JPG, WEBP or GIF image.");
+    const validSignature =
+      (extension === ".png" && bytes.subarray(0, 8).toString("hex") === "89504e470d0a1a0a") ||
+      (extension === ".jpg" && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) ||
+      (extension === ".gif" && ["GIF87a", "GIF89a"].includes(bytes.subarray(0, 6).toString("ascii"))) ||
+      (extension === ".webp" && bytes.subarray(0, 4).toString("ascii") === "RIFF" && bytes.subarray(8, 12).toString("ascii") === "WEBP");
+    if (!validSignature) throw new Error("The uploaded file does not match its image type.");
+    const releaseChannelId = await this.getResource(guild.id, "channel:free_bot_releases");
+    if (!releaseChannelId) throw new Error("The server owner must configure the destination with /free-bot-channel first.");
+    const fileName = "coopft-promo-" + Date.now() + extension;
+    const owner = await guild.client.users.fetch(String(options.ownerId));
+    const embed = new EmbedBuilder()
+      .setColor(0x397C94)
+      .setTitle(title)
+      .setDescription(description)
+      .setImage("attachment://" + fileName)
+      .addFields(
+        { name: "Submitted by", value: "<@" + submitter.id + "> (" + submitter.id + ")", inline: true },
+        { name: "Destination", value: "<#" + releaseChannelId + ">", inline: true }
+      )
+      .setTimestamp();
+    const controls = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("cf-freebot:approve").setLabel("Approve").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId("cf-freebot:reject").setLabel("Reject").setStyle(ButtonStyle.Danger)
+    );
+    await owner.send({
+      content: "A CoopFT Developer submitted a free-bot promotion. Review the text and image, then approve or reject it.",
+      embeds: [embed],
+      components: [controls],
+      files: [{ attachment: bytes, name: fileName }],
+      allowedMentions: { parse: [] }
+    });
+    return { title, ownerId: String(options.ownerId) };
+  }
+
+  async handleFreeBotReviewButton(interaction, ownerId, client) {
+    if (!interaction.customId?.startsWith("cf-freebot:")) return false;
+    if (!ownerId || interaction.user.id !== String(ownerId)) {
+      await interaction.reply({ content: "Only the configured bot owner can review CoopFT free-bot promotions.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    const action = interaction.customId.split(":")[1];
+    if (!["approve", "reject"].includes(action)) {
+      await interaction.reply({ content: "That review action is invalid.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    const messageKey = interaction.message?.id;
+    if (messageKey && this.processedFreeBotReviews?.has(messageKey)) {
+      await interaction.reply({ content: "This promotion has already been reviewed.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    if (action === "reject") {
+      this.processedFreeBotReviews?.add(messageKey);
+      await interaction.update({
+        content: "Rejected by the server owner. This promotion was not published.",
+        components: [],
+        allowedMentions: { parse: [] }
+      });
+      const submitterField = interaction.message.embeds?.[0]?.fields?.find((field) => field.name === "Submitted by");
+      const submitterId = submitterField?.value?.match(/\\((\\d{17,20})\\)/)?.[1];
+      if (submitterId) {
+        const user = await client.users.fetch(submitterId).catch(() => null);
+        await user?.send("Your CoopFT free-bot promotion was reviewed and was not approved.").catch(() => null);
+      }
+      return true;
+    }
+
+    await interaction.deferUpdate();
+    try {
+      const embed = interaction.message.embeds?.[0];
+      const title = String(embed?.title || "").trim();
+      const description = String(embed?.description || "").trim();
+      const submitterField = embed?.fields?.find((field) => field.name === "Submitted by");
+      const submitterId = submitterField?.value?.match(/\\((\\d{17,20})\\)/)?.[1];
+      const attachment = interaction.message.attachments?.first?.();
+      if (!title || !description || !attachment) throw new Error("The review message is missing its title, description or image.");
+      const imageUrl = new URL(String(attachment.url || ""));
+      if (imageUrl.protocol !== "https:" ||
+          !["cdn.discordapp.com", "media.discordapp.net"].includes(imageUrl.hostname)) {
+        throw new Error("The review image could not be verified.");
+      }
+      const response = await fetch(imageUrl, { signal: AbortSignal.timeout(30000) });
+      if (!response.ok) throw new Error("The review image download failed.");
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (!buffer.length || buffer.length > 8 * 1024 * 1024) throw new Error("The review image is empty or too large.");
+      const guild = client.guilds.cache.get(this.guildId) || await client.guilds.fetch(this.guildId);
+      const published = await this.publishFreeBotPromotion(guild, {
+        title, description, buffer,
+        fileName: String(attachment.name || "coopft-promotion.png"),
+        submitterId
+      });
+      this.processedFreeBotReviews?.add(messageKey);
+      await interaction.message.edit({
+        content: "Approved and published in <#" + published.channel.id + ">: " + published.message.url,
+        components: [],
+        allowedMentions: { parse: [] }
+      });
+      if (submitterId) {
+        const user = await client.users.fetch(submitterId).catch(() => null);
+        await user?.send("Your CoopFT free-bot promotion was approved and published: " + published.message.url).catch(() => null);
+      }
+    } catch (error) {
+      console.warn("[coopft] Free-bot promotion approval failed:", error.message);
+      await interaction.followUp({
+        content: "The promotion was not published: " + String(error.message || "unknown error").slice(0, 500),
+        flags: MessageFlags.Ephemeral
+      }).catch(() => null);
+    }
+    return true;
+  }
+
+  async publishFreeBotPromotion(guild, options = {}) {
+    this.assertCoopFTGuild(guild, "publish an approved free-bot promotion");
+    if (!Buffer.isBuffer(options.buffer) || !options.buffer.length || options.buffer.length > 8 * 1024 * 1024) {
+      throw new Error("The approved promotional image is empty or larger than 8 MB.");
+    }
+    const channelId = await this.getResource(guild.id, "channel:free_bot_releases");
+    const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
+    if (!channel || channel.guildId !== guild.id || !channel.isTextBased?.() || typeof channel.send !== "function") {
+      throw new Error("The server owner has not configured a valid CoopFT release channel. Use /free-bot-channel.");
+    }
+    const role = await this.ensureFreeBotReleaseRole(guild);
+    const title = String(options.title || "Free bot release").trim().slice(0, 120);
+    const description = String(options.description || "").trim().slice(0, 1500);
+    const fileName = String(options.fileName || "coopft-promotion.png").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 100);
+    const embed = new EmbedBuilder()
+      .setColor(0x397C94)
+      .setTitle(title)
+      .setDescription(description)
+      .setImage("attachment://" + fileName)
+      .addFields({ name: "Shared by", value: options.submitterId ? "<@" + options.submitterId + ">" : "CoopFT Developers", inline: true })
+      .setTimestamp();
+    const message = await channel.send({
+      content: "<@&" + role.id + "> **New free bot release**",
+      embeds: [embed],
+      files: [{ attachment: options.buffer, name: fileName }],
+      allowedMentions: { roles: [role.id] }
+    });
+    return { channel, message, role };
   }
 
   async publishFreeBotRelease(guild, options = {}) {
