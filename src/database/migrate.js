@@ -134,14 +134,15 @@ async function migrateCoopFT(options = {}) {
   const existingFilter = typeof options.migrationFilter === "function" ? options.migrationFilter : () => true;
   const databasePool = options.pool || coopftPool;
   const databaseUrl = options.databaseUrl === undefined ? settings.coopftDatabaseUrl : options.databaseUrl;
-  if (!databaseUrl || !databasePool) {
+  const transactionFn = options.transactionFn || (databasePool ? createTransaction(databasePool) : null);
+  if (!databaseUrl || !transactionFn) {
     throw new Error("COOPFT_DATABASE_URL is missing. Configure a dedicated CoopFT Neon project before starting CoopFT services.");
   }
   return migrate({
     ...options,
     pool: databasePool,
     databaseUrl,
-    transactionFn: options.transactionFn || createTransaction(databasePool),
+    transactionFn,
     // CoopFT uses only its dedicated migrations; Fukishokai's global player/game schema is not installed here.
     includeLegacySchema: false,
     includePlayerConstraints: false,
