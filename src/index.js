@@ -236,10 +236,11 @@ async function start() {
         // Refresh Discord's role and bot-member state before comparing configured names.
         // This makes the owner-approved role-name changes reliable across process restarts.
         try {
-          await Promise.all([
-            coopGuild.roles.fetch(),
-            coopGuild.members.fetchMe()
-          ]);
+          await coopGuild.roles.fetch();
+          await coopGuild.members.fetchMe().catch((error) => {
+            console.warn("[coopft] Could not refresh the bot member before role synchronization:", error.message);
+            return null;
+          });
           const coopMember = coopGuild.members.me;
           coopMember?.setNickname("CoopFT • Assistant", "Per-server CoopFT identity").catch((error) =>
             console.warn("[coopft] Could not set server nickname:", error.message)
