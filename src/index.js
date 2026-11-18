@@ -44,7 +44,6 @@ const { TradeService } = require("./services/trade-interactions");
 const { EconomyEventService } = require("./services/economy-events");
 const { AdminMessagingService } = require("./services/admin-messaging");
 const { AdminAbuseService } = require("./services/admin-abuse");
-const { AIMessageMonitor } = require("./services/ai-message-monitor");
 const { respond, respondPrivately } = require("./ui");
 const { isPrivateCommandReply } = require("./utils/interaction-visibility");
 const { isModalLaunchInteraction, acknowledgeDashboardInteraction } = require("./utils/dashboard-interactions");
@@ -141,13 +140,8 @@ async function start() {
   // Discord Support approved GuildMembers under request 69920914 for actual-join
   // raid detection. GuildMessages and GuildModeration are non-privileged intents
   // required by existing message-activity/boost and audit-log event handlers.
-  // Do not request GuildPresences or MessageContent without separate approval.
+  // Keep GuildPresences and MessageContent disabled; message-content monitoring is not implemented.
   const gatewayIntents = getGatewayIntents();
-  // AI Watch remains hard-disabled until Message Content access is separately approved.
-  const aiMessageMonitorConfigured = false;
-  if (settings.aiMessageMonitorEnabled) {
-    console.warn("[discord] AI Watch is paused: Message Content Intent has not been approved.");
-  }
   console.info("[discord] Gateway intents: Guilds, GuildMessages, GuildModeration, GuildMembers (approved; used for join events and CoopFT role-based directory sync).");
   const client = new Client({ intents: gatewayIntents });
   runtimeClient = client;
@@ -177,9 +171,6 @@ async function start() {
     }
   });
   guardEmitter(client.rest, { logger: runtimeLogger });
-  if (settings.aiMessageMonitorEnabled && !aiMessageMonitorConfigured) {
-    console.warn("[ai-monitor] Disabled: set OLLAMA_API_KEY, OWNER_ID and AI_MESSAGE_MONITOR_GUILD_IDS (or GUILD_ID) before enabling AI_MESSAGE_MONITOR_ENABLED.");
-  }
   const economy = new EconomyService(pool);
   const economyEvents = new EconomyEventService(pool);
   const adminAbuse = new AdminAbuseService(pool, economy);
@@ -190,23 +181,6 @@ async function start() {
   const guildSettings = new GuildSettingsService(pool);
   const security = new SecurityService(pool, guildSettings);
   const raidMonitor = new RaidMonitor({ security });
-  const aiMessageMonitor = aiMessageMonitorConfigured
-    ? new AIMessageMonitor({
-        apiKey: settings.ollamaApiKey,
-        model: settings.ollamaModel,
-        ownerId: settings.ownerId,
-        guildIds: settings.aiMessageMonitorGuildIds,
-        pool,
-        dailyLimit: settings.aiMessageMonitorDailyLimit
-      })
-    : null;
-  if (aiMessageMonitor) {
-    client.on(Events.MessageCreate, (message) => {
-      aiMessageMonitor.inspect(message, client).catch((error) =>
-        console.warn("[ai-monitor] Message analysis failed:", error.message)
-      );
-    });
-  }
   economy.security = security;
   economy.client = client;
   const serverBoosters = new ServerBoosterService(pool);
@@ -222,7 +196,6 @@ async function start() {
     trades: new TradeService(pool),
     economyEvents,
     adminAbuse,
-    aiMessageMonitor,
     adminMessaging: new AdminMessagingService(),
     jobs: new JobsGame(pool, economy, inventory),
     crime: new CrimeGame(pool, economy, inventory),
