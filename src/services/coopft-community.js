@@ -812,25 +812,30 @@ class CoopFTCommunityService {
       return { spec, role: id ? await guild.roles.fetch(id).catch(() => null) : null };
     }));
     const counts = { staff: 0, member: 0, interest: 0, ping: 0, brackets: 0, emojis: 0 };
-    // The two staff rank names and their directory brackets are centrally managed.
-    // Reconcile only these four labels on every CoopFT startup; keep IDs, permissions,
-    // member assignments, colours and role positions untouched.
-    const managedNameKeys = new Set([
-      "high_rank_supervisor", "staff_supervisor", "high_rank", "low_rank"
+    // Apply the explicit staff-directory refresh requested by the server owner.
+    // Only non-owner leadership positions are renamed/recoloured. Owner ranks,
+    // Left/Right Wing, Overseer, and every Moderator rank retain their styling.
+    const managedStaffStyleKeys = new Set([
+      "high_rank_supervisor", "apex", "halo", "staff_supervisor",
+      "supreme_council", "senate", "council", "high_rank", "low_rank"
     ]);
     for (const item of loadedRoles) {
-      if (!item.role || !managedNameKeys.has(item.spec.key) || item.role.name === item.spec.name) continue;
+      if (!item.role || !managedStaffStyleKeys.has(item.spec.key)) continue;
+      const changes = {};
+      if (item.role.name !== item.spec.name) changes.name = item.spec.name;
+      if (item.role.color !== item.spec.primary) changes.color = item.spec.primary;
+      if (!Object.keys(changes).length) continue;
       if (item.role.editable === false) {
-        console.warn("[coopft] Cannot rename managed role " + item.role.name + "; move the bot role above it.");
+        console.warn("[coopft] Cannot rename/recolour managed role " + item.role.name + "; move the bot role above it.");
         continue;
       }
       try {
         item.role = await item.role.edit({
-          name: item.spec.name,
-          reason: "Synchronize CoopFT leadership and operations role names on startup"
+          ...changes,
+          reason: "Synchronize the owner-approved CoopFT staff names and colours on startup"
         });
       } catch (error) {
-        console.warn("[coopft] Could not rename managed role " + item.role.name + ":", error.message);
+        console.warn("[coopft] Could not update managed role " + item.role.name + ":", error.message);
       }
     }
     for (const item of loadedRoles) {
@@ -842,6 +847,33 @@ class CoopFTCommunityService {
       else if (PING_ROLES.some((spec) => spec.key === item.spec.key)) counts.ping += 1;
       else counts.brackets += 1;
     }
+
+    // Council now occupies the former Head Moderator slot in Operations;
+    // Head Moderator moves into Council's former place under Mod Roles.
+    const councilRole = this.roles.get("council");
+    const headModeratorRole = this.roles.get("head_moderator");
+    if (
+      councilRole && headModeratorRole &&
+      councilRole.position !== headModeratorRole.position &&
+      councilRole.editable !== false && headModeratorRole.editable !== false &&
+      typeof guild.roles.setPositions === "function"
+    ) {
+      try {
+        await guild.roles.setPositions([
+          { role: councilRole.id, position: headModeratorRole.position },
+          { role: headModeratorRole.id, position: councilRole.position }
+        ], "Swap Council and Head Moderator into their owner-requested hierarchy positions");
+        const [updatedCouncil, updatedHeadModerator] = await Promise.all([
+          guild.roles.fetch(councilRole.id),
+          guild.roles.fetch(headModeratorRole.id)
+        ]);
+        if (updatedCouncil) this.roles.set("council", updatedCouncil);
+        if (updatedHeadModerator) this.roles.set("head_moderator", updatedHeadModerator);
+      } catch (error) {
+        console.warn("[coopft] Could not swap Council and Head Moderator positions:", error.message);
+      }
+    }
+
     const savedEmojiMap = settings.get("emoji_map");
     this.emojis.clear();
     if (savedEmojiMap && typeof savedEmojiMap === "object") {
@@ -3255,13 +3287,13 @@ class CoopFTCommunityService {
 
     const sectionFor = (key) => {
       if (["owner", "co_owner", "monarch"].includes(key)) return "OWNER RANK";
-      if (["high_rank_supervisor", "apex", "right_wing", "left_wing", "halo", "overseer"].includes(key)) return "HIGH COMMAND";
-      if (["staff_supervisor", "supreme_council", "senate", "head_moderator"].includes(key)) return "OPERATIONS";
+      if (["high_rank_supervisor", "apex", "right_wing", "left_wing", "halo", "overseer"].includes(key)) return "LEADERSHIP";
+      if (["staff_supervisor", "supreme_council", "senate", "council"].includes(key)) return "OPERATIONS";
       return "MOD ROLES";
     };
     const sections = [
       { name: "OWNER RANK", title: "OWNER RANK", emoji: "cf3d_owner_crest", fallback: "👑" },
-      { name: "HIGH COMMAND", title: "HIGH COMMAND", emoji: "cf3d_high_rank", fallback: "🐉" },
+      { name: "LEADERSHIP", title: "LEADERSHIP", emoji: "cf3d_high_rank", fallback: "🐉" },
       { name: "OPERATIONS", title: "OPERATIONS", emoji: "cf3d_low_rank", fallback: "⚖️" },
       { name: "MOD ROLES", title: "MOD ROLES", emoji: "cf3d_mod_rank", fallback: "⚔️" }
     ];
