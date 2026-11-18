@@ -150,7 +150,6 @@ test("free-bot-submit accepts a GitHub repository instead of a ZIP attachment", 
 
 test("server Owner submissions publish directly instead of DMing themselves for review", async () => {
   const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) });
-  service.roles.set("developer_member", { id: "developer-role" });
   const ownerId = "1178306799674327136";
   const zipBytes = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x00]);
   const imageBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -169,7 +168,7 @@ test("server Owner submissions publish directly instead of DMing themselves for 
   service.ensureFreeBotReleaseRole = async () => ({ id: "release-role" });
   const owner = {
     id: ownerId,
-    roles: { cache: new Map([["developer-role", { id: "developer-role" }]]) }
+    roles: { cache: new Map() }
   };
   const guild = {
     id: coopftGuildId,
