@@ -269,8 +269,8 @@ test("Developer free-bot submissions send the source ZIP and promo image to the 
   assert.ok(reviewPayload);
   assert.equal(reviewPayload.files.length, 2);
   assert.equal(reviewPayload.embeds, undefined, "owner review must be plain message text");
-  assert.ok(reviewPayload.content.startsWith("[CFB1]\nT=Useful Utility Bot"));
-  assert.ok(reviewPayload.content.includes("U=223456789012345678"));
+  assert.ok(reviewPayload.content.startsWith("**FREE BOT SUBMISSION**\n**Title:** Useful Utility Bot"));
+  assert.ok(reviewPayload.content.includes("**Submitted by:** <@223456789012345678> (`223456789012345678`)"));
   assert.ok(reviewPayload.content.includes("Useful community bot with moderation, automation and everyday server utilities."));
   assert.equal(reviewPayload.files[0].name.endsWith(".png"), true, "promotional image is attached first");
   assert.equal(Buffer.compare(reviewPayload.files[0].attachment, imageBytes), 0);
@@ -355,7 +355,7 @@ test("Developer GitHub repository submissions download a public repo ZIP for Own
   assert.equal(reviewPayload.files[1].name.endsWith(".png"), true);
   assert.equal(Buffer.compare(reviewPayload.files[1].attachment, imageBytes), 0);
   assert.equal(reviewPayload.embeds, undefined);
-  assert.ok(reviewPayload.content.includes("G=https://github.com/example/utility-bot"));
+  assert.ok(reviewPayload.content.includes("**GitHub repository:** https://github.com/example/utility-bot"));
 });
 
 test("GitHub source submissions reject non-root, non-HTTPS and non-GitHub URLs", async () => {
@@ -410,13 +410,11 @@ test("owner approval republishes the reviewed ZIP and image together", async () 
   const message = {
     id: "review-message",
     content: [
-      "[CFB1]",
-      "T=Reviewed Utility Bot",
-      "U=223456789012345678",
-      "G=",
-      "D>>",
-      "A useful community bot with moderation, automation and everyday server utilities.",
-      "<<D"
+      "**FREE BOT SUBMISSION**",
+      "**Title:** Reviewed Utility Bot",
+      "**Submitted by:** <@223456789012345678> (`223456789012345678`)",
+      "**Description:**",
+      "A useful community bot with moderation, automation and everyday server utilities."
     ].join("\n"),
     embeds: [],
     attachments: new Map([
