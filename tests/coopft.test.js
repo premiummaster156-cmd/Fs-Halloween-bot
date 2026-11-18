@@ -148,6 +148,68 @@ test("free-bot-submit accepts a GitHub repository instead of a ZIP attachment", 
   }
 });
 
+test("server Owner submissions publish directly instead of DMing themselves for review", async () => {
+  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) });
+  service.roles.set("developer_member", { id: "developer-role" });
+  const ownerId = "1178306799674327136";
+  const zipBytes = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x00]);
+  const imageBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const originalFetch = global.fetch;
+  const published = [];
+  const channel = {
+    id: "release-channel",
+    guildId: coopftGuildId,
+    isTextBased: () => true,
+    send: async (payload) => {
+      published.push(payload);
+      return { id: "owner-published-message", url: "https://discord.com/channels/" + coopftGuildId + "/release-channel/owner-published-message" };
+    }
+  };
+  service.getResource = async () => channel.id;
+  service.ensureFreeBotReleaseRole = async () => ({ id: "release-role" });
+  const owner = {
+    id: ownerId,
+    roles: { cache: new Map([["developer-role", { id: "developer-role" }]]) }
+  };
+  const guild = {
+    id: coopftGuildId,
+    ownerId,
+    channels: { fetch: async () => channel },
+    client: { users: { fetch: async () => { throw new Error("Owner must not receive a self-review DM"); } } }
+  };
+  global.fetch = async (url) => new Response(
+    String(url).endsWith(".png") ? imageBytes : zipBytes,
+    { headers: { "content-type": String(url).endsWith(".png") ? "image/png" : "application/zip" } }
+  );
+  let result;
+  try {
+    result = await service.submitFreeBotPromotion(guild, owner, {
+      title: "Owner's Free Bot",
+      description: "A useful community bot with moderation, automation and everyday server utilities.",
+      ownerId,
+      source: {
+        name: "owners-bot.zip",
+        size: zipBytes.length,
+        url: "https://cdn.discordapp.com/owners-bot.zip"
+      },
+      image: {
+        name: "promo.png",
+        size: imageBytes.length,
+        url: "https://cdn.discordapp.com/promo.png",
+        contentType: "image/png"
+      }
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+  assert.equal(result.published, true);
+  assert.equal(result.channelId, channel.id);
+  assert.equal(published.length, 1);
+  assert.equal(published[0].embeds, undefined);
+  assert.equal(published[0].files[0].name, "coopft-promo-" + published[0].files[0].name.split(".").pop());
+  assert.equal(published[0].files[1].name, "owners-bot.zip");
+});
+
 test("Developer free-bot submissions send the source ZIP and promo image to the owner for review", async () => {
   const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) });
   service.roles.set("developer_member", { id: "developer-role" });
@@ -207,12 +269,14 @@ test("Developer free-bot submissions send the source ZIP and promo image to the 
 
   assert.ok(reviewPayload);
   assert.equal(reviewPayload.files.length, 2);
-  assert.equal(reviewPayload.files[0].name, "utility-bot.zip");
-  assert.equal(Buffer.compare(reviewPayload.files[0].attachment, zipBytes), 0);
-  assert.equal(reviewPayload.files[1].name.endsWith(".png"), true);
-  assert.equal(Buffer.compare(reviewPayload.files[1].attachment, imageBytes), 0);
-  assert.equal(reviewPayload.embeds[0].data.title, "Useful Utility Bot");
-  assert.equal(reviewPayload.embeds[0].data.image.url, "attachment://" + reviewPayload.files[1].name);
+  assert.equal(reviewPayload.embeds, undefined, "owner review must be plain message text");
+  assert.match(reviewPayload.content, /^\\[CFB1\\]\\nT=Useful Utility Bot/m);
+  assert.ok(reviewPayload.content.includes("U=223456789012345678"));
+  assert.ok(reviewPayload.content.includes("Useful community bot with moderation, automation and everyday server utilities."));
+  assert.equal(reviewPayload.files[0].name.endsWith(".png"), true, "promotional image is attached first");
+  assert.equal(Buffer.compare(reviewPayload.files[0].attachment, imageBytes), 0);
+  assert.equal(reviewPayload.files[1].name, "utility-bot.zip");
+  assert.equal(Buffer.compare(reviewPayload.files[1].attachment, zipBytes), 0);
   assert.equal(reviewPayload.components.length, 1);
   assert.equal(reviewPayload.components[0].components.length, 2);
 });
@@ -291,10 +355,8 @@ test("Developer GitHub repository submissions download a public repo ZIP for Own
   assert.equal(Buffer.compare(reviewPayload.files[0].attachment, zipBytes), 0);
   assert.equal(reviewPayload.files[1].name.endsWith(".png"), true);
   assert.equal(Buffer.compare(reviewPayload.files[1].attachment, imageBytes), 0);
-  assert.equal(
-    reviewPayload.embeds[0].data.fields.find((field) => field.name === "GitHub repository").value,
-    "<https://github.com/example/utility-bot>"
-  );
+  assert.equal(reviewPayload.embeds, undefined);
+  assert.ok(reviewPayload.content.includes("G=https://github.com/example/utility-bot"));
 });
 
 test("GitHub source submissions reject non-root, non-HTTPS and non-GitHub URLs", async () => {
@@ -348,11 +410,16 @@ test("owner approval republishes the reviewed ZIP and image together", async () 
   service.ensureFreeBotReleaseRole = async () => ({ id: "release-role" });
   const message = {
     id: "review-message",
-    embeds: [{
-      title: "Reviewed Utility Bot",
-      description: "A useful community bot with moderation, automation and everyday server utilities.",
-      fields: [{ name: "Submitted by", value: "<@223456789012345678> (223456789012345678)" }]
-    }],
+    content: [
+      "[CFB1]",
+      "T=Reviewed Utility Bot",
+      "U=223456789012345678",
+      "G=",
+      "D>>",
+      "A useful community bot with moderation, automation and everyday server utilities.",
+      "<<D"
+    ].join("\\n"),
+    embeds: [],
     attachments: new Map([
       ["source", { name: "utility-bot.zip", url: "https://cdn.discordapp.com/review/source.zip" }],
       ["image", { name: "promo.png", url: "https://cdn.discordapp.com/review/promo.png" }]
