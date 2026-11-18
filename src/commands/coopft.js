@@ -278,7 +278,7 @@ if(n==="free-bot-submit"){
  if(!title||!description||!image)throw Error("A title, promotional description and image are required.");
  await i.deferReply({flags:MessageFlags.Ephemeral});
  try{
-  await s.coopft.submitFreeBotPromotion(g,u,{title,description,image,ownerId:settings.ownerId});
+  await s.coopft.submitFreeBotPromotion(g,i.member,{title,description,image,ownerId:settings.ownerId});
   return i.editReply("Your promotion was sent to the server owner for review. You will be notified after a decision.");
  }catch(error){
   return i.editReply(error.message||"The promotion could not be submitted. Please try again.");
