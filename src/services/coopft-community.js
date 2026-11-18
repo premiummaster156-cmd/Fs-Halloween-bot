@@ -3675,6 +3675,7 @@ class CoopFTCommunityService {
         imageFileName,
         sourceRepositoryUrl,
         published: true,
+        channelId: published.channel.id,
         publishedMessageUrl: published.message.url || null
       };
     }
