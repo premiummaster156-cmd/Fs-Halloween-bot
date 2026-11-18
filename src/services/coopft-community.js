@@ -3429,7 +3429,7 @@ class CoopFTCommunityService {
     if (!this.isDeveloper(submitter)) {
       throw new Error("Only members with the CoopFT Developer role can submit promotions.");
     }
-    if (!options.ownerId || !/^\\d{17,20}$/.test(String(options.ownerId))) {
+    if (!options.ownerId || !/^\d{17,20}$/.test(String(options.ownerId))) {
       throw new Error("OWNER_ID is not configured with a valid Discord user ID.");
     }
     const title = String(options.title || "").trim();
@@ -3520,7 +3520,7 @@ class CoopFTCommunityService {
         allowedMentions: { parse: [] }
       });
       const submitterField = interaction.message.embeds?.[0]?.fields?.find((field) => field.name === "Submitted by");
-      const submitterId = submitterField?.value?.match(/\\((\\d{17,20})\\)/)?.[1];
+      const submitterId = submitterField?.value?.match(/\((\d{17,20})\)/)?.[1];
       if (submitterId) {
         const user = await client.users.fetch(submitterId).catch(() => null);
         await user?.send("Your CoopFT free-bot promotion was reviewed and was not approved.").catch(() => null);
@@ -3528,13 +3528,14 @@ class CoopFTCommunityService {
       return true;
     }
 
+    if (messageKey) this.processedFreeBotReviews?.add(messageKey);
     await interaction.deferUpdate();
     try {
       const embed = interaction.message.embeds?.[0];
       const title = String(embed?.title || "").trim();
       const description = String(embed?.description || "").trim();
       const submitterField = embed?.fields?.find((field) => field.name === "Submitted by");
-      const submitterId = submitterField?.value?.match(/\\((\\d{17,20})\\)/)?.[1];
+      const submitterId = submitterField?.value?.match(/\((\d{17,20})\)/)?.[1];
       const attachment = interaction.message.attachments?.first?.();
       if (!title || !description || !attachment) throw new Error("The review message is missing its title, description or image.");
       const imageUrl = new URL(String(attachment.url || ""));
@@ -3563,6 +3564,7 @@ class CoopFTCommunityService {
         await user?.send("Your CoopFT free-bot promotion was approved and published: " + published.message.url).catch(() => null);
       }
     } catch (error) {
+      if (messageKey) this.processedFreeBotReviews?.delete(messageKey);
       console.warn("[coopft] Free-bot promotion approval failed:", error.message);
       await interaction.followUp({
         content: "The promotion was not published: " + String(error.message || "unknown error").slice(0, 500),
