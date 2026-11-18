@@ -259,8 +259,8 @@ async function start() {
           } catch (error) {
             console.warn("[coopft] Could not repair public member channel access:", error.message);
           }
-          const directory = await coopftCommunity.startStaffDirectoryRefresh(coopGuild, 15000);
-          console.info("[coopft] Initial live staff directory sync completed:", directory);
+          const directory = await coopftCommunity.startStaffDirectoryRefresh(coopGuild);
+          console.info("[coopft] Initial event-driven staff directory sync completed:", directory);
         }).catch((error) => {
           console.warn("[coopft] Could not initialize CoopFT roles or live staff directory:", error.message);
         });
