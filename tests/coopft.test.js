@@ -271,7 +271,7 @@ test("Developer free-bot submissions send the source ZIP and promo image to the 
   assert.equal(reviewPayload.embeds, undefined, "owner review must be plain message text");
   assert.ok(reviewPayload.content.startsWith("**FREE BOT SUBMISSION**\n**Title:** Useful Utility Bot"));
   assert.ok(reviewPayload.content.includes("**Submitted by:** <@223456789012345678> (`223456789012345678`)"));
-  assert.ok(reviewPayload.content.includes("Useful community bot with moderation, automation and everyday server utilities."));
+  assert.ok(reviewPayload.content.includes("A useful community bot with moderation, automation and everyday server utilities."));
   assert.equal(reviewPayload.files[0].name.endsWith(".png"), true, "promotional image is attached first");
   assert.equal(Buffer.compare(reviewPayload.files[0].attachment, imageBytes), 0);
   assert.equal(reviewPayload.files[1].name, "utility-bot.zip");
@@ -350,10 +350,10 @@ test("Developer GitHub repository submissions download a public repo ZIP for Own
   ]);
   assert.ok(reviewPayload);
   assert.equal(reviewPayload.files.length, 2);
-  assert.equal(reviewPayload.files[0].name, "example-utility-bot.zip");
-  assert.equal(Buffer.compare(reviewPayload.files[0].attachment, zipBytes), 0);
-  assert.equal(reviewPayload.files[1].name.endsWith(".png"), true);
-  assert.equal(Buffer.compare(reviewPayload.files[1].attachment, imageBytes), 0);
+  assert.equal(reviewPayload.files[0].name.endsWith(".png"), true);
+  assert.equal(Buffer.compare(reviewPayload.files[0].attachment, imageBytes), 0);
+  assert.equal(reviewPayload.files[1].name, "example-utility-bot.zip");
+  assert.equal(Buffer.compare(reviewPayload.files[1].attachment, zipBytes), 0);
   assert.equal(reviewPayload.embeds, undefined);
   assert.ok(reviewPayload.content.includes("**GitHub repository:** https://github.com/example/utility-bot"));
 });
@@ -451,10 +451,10 @@ test("owner approval republishes the reviewed ZIP and image together", async () 
 
   assert.equal(published.length, 1);
   assert.equal(published[0].files.length, 2);
-  assert.equal(published[0].files[0].name, "utility-bot.zip");
-  assert.equal(Buffer.compare(published[0].files[0].attachment, zipBytes), 0);
-  assert.equal(published[0].files[1].name, "promo.png");
-  assert.equal(Buffer.compare(published[0].files[1].attachment, imageBytes), 0);
+  assert.equal(published[0].files[0].name, "promo.png");
+  assert.equal(Buffer.compare(published[0].files[0].attachment, imageBytes), 0);
+  assert.equal(published[0].files[1].name, "utility-bot.zip");
+  assert.equal(Buffer.compare(published[0].files[1].attachment, zipBytes), 0);
   assert.deepEqual(published[0].allowedMentions, { roles: ["release-role"] });
   assert.match(reviewEdited.content, /Approved and published/);
   assert.equal(notified.length, 1);
@@ -495,7 +495,7 @@ test("approved free-bot promotions publish the source ZIP and promo image with t
   assert.equal(sent.length, 1);
   assert.match(sent[0].content, /^<@&release-role> \*\*FREE BOT RELEASE: Free Utility Bot\*\*/);
   assert.ok(sent[0].content.includes("A useful bot for community servers."));
-  assert.ok(sent[0].content.includes("Source ZIP: **utility-bot.zip**"));
+  assert.ok(sent[0].content.includes("**Source ZIP:** **utility-bot.zip**"));
   assert.ok(sent[0].content.includes("GitHub: <https://github.com/example/utility-bot>"));
   assert.ok(sent[0].content.includes("Shared by: <@123456789012345678>"));
   assert.deepEqual(sent[0].allowedMentions, { roles: [role.id], users: ["123456789012345678"] });
