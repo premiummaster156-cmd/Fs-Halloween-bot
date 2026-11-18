@@ -826,7 +826,26 @@ class CoopFTCommunityService {
     this.roles.clear();
     const loadedRoles = await Promise.all(roleSpecs.map(async (spec) => {
       const id = settings.get("resource:role:" + spec.key);
-      return { spec, role: id ? await guild.roles.fetch(id).catch(() => null) : null };
+      let role = id ? await guild.roles.fetch(id).catch(() => null) : null;
+
+      // Recover existing roles when a previous setup stored a missing/stale ID.
+      // Match only this managed role's current name or explicitly supported legacy names;
+      // never create a replacement during startup role loading.
+      if (!role) {
+        const acceptedNames = new Set([
+          spec.name,
+          "CF • " + spec.name,
+          ...(spec.legacyNames || [])
+        ]);
+        role = guild.roles.cache.find((candidate) =>
+          !candidate.managed && acceptedNames.has(candidate.name)
+        ) || null;
+        if (role) {
+          await this.saveResource(guild.id, "role:" + spec.key, role.id);
+          console.info("[coopft] Recovered managed role reference:", spec.key, "→", role.name);
+        }
+      }
+      return { spec, role };
     }));
     const counts = { staff: 0, member: 0, interest: 0, ping: 0, brackets: 0, emojis: 0 };
     // Apply the explicit staff-directory refresh requested by the server owner.
@@ -3325,9 +3344,12 @@ class CoopFTCommunityService {
             ? people.map((member) => "<@" + member.id + ">").join(", ")
             : "*VACANT*";
           const role = this.roles.get(rank.key);
-          // A role mention inherits its configured Discord role colour.
-          // allowedMentions below suppresses notifications from these labels.
-          const roleLabel = role ? "<@&" + role.id + ">" : "**" + rank.name + "**";
+          // Use the live role mention only after Discord has the configured name.
+          // If role editing is blocked by hierarchy, keep the directory current with the
+          // owner-approved configured label instead of exposing the outdated role name.
+          const roleLabel = role && role.name === rank.name
+            ? "<@&" + role.id + ">"
+            : "**" + rank.name + "**";
           return this.emoji(guild.id, rank.emoji, rank.icon) + "  " + roleLabel + "  ➜  " + names;
         });
 
