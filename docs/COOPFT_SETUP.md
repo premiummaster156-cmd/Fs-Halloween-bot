@@ -80,15 +80,21 @@ The private recruitment-control panel is operated by Owner, Co-Owner or Monarch 
 
 ## Channels and tickets
 
-The layout includes START HERE, COMMUNITY, MEMBER SERVICES, STAFF OPERATIONS and SUPPORT DESK categories. `choose-roles` is the public role-selection channel. Category names and text-channel names use restrained Unicode typography.
+The layout includes START HERE, COMMUNITY, MEMBER SERVICES, STAFF OPERATIONS and SUPPORT DESK categories. `choose-roles` is the public role-selection channel. Category names and text-channel names use restrained Unicode typography. The public `free-bot-releases` channel is where the bot publishes owner-submitted free bot source ZIPs.
 
 Members open tickets from the service selector in `open-a-ticket`. They choose **Fukishōkai Economy Bot**, **CoopFT Server** or **Custom Bot Development**, then choose a relevant request type. A guided form asks the relevant questions before creating the ticket. The bot posts every submitted answer in the private ticket, prevents duplicate open tickets, supports claiming and closing, and archives a transcript to `ticket-transcripts`. Custom Bot Commission tickets are visible only to the ticket owner, the Developer role, Owner Rank and the bot; ordinary moderators do not receive access to paid project details. Developers do not receive general staff permissions or access to other ticket categories.
 
 Private staff channels include `staff-directory`, `staff-chat`, `staff-announcements`, `staff-bot-updates`, `staff-guide`, `application-review`, `application-control`, `ticket-transcripts`, `member-logs` and `server-logs`. The application channels are Owner-Rank-only. The staff guide is read-only and is also visible to approved Developers.
 
+### Free bot source releases
+
+The bot owner can send a single `.zip` archive to the bot's direct messages. Put the release title on the first line of the message and optional release notes on the following lines. The bot forwards the ZIP unchanged to `#free-bot-releases`, with a short text announcement and a download attachment. Only the configured `OWNER_ID` can publish; archives must be 20 MB or smaller. The bot does not extract, execute or modify source files.
+
+This public release workflow is separate from paid Custom Bot Development tickets in `#custom-bot-requests`. It does not create a ticket or send files to a customer. Fukishōkai has no access to the CoopFT release channel or this publishing route.
+
 ## Member roles and notifications
 
-The server receives 50 named custom emojis. The original 28 names remain stable for existing embeds; 22 new purpose-specific icons cover rank brackets, member badges, interests and notifications. Custom emojis are used in role groups, the staff directory, panels and system messages. If Discord's emoji quota or permissions prevent an upload, setup records the failure and retains a readable Unicode fallback.
+The server receives 50 named custom emojis. The original 28 names remain stable for existing embeds; 22 new purpose-specific icons cover rank brackets, member badges, interests and notifications. Interest and notification role artwork uses the glossy 3D PNG emblem set from `assets/coopft-role-icons-sprite.png.b64`; the 16 existing role-image emoji names are updated in place during setup so current panels keep their emoji IDs. If Discord's emoji quota or permissions prevent an upload, setup records the failure and retains a readable Unicode fallback.
 
 The **Member Roles** bracket contains leadership-managed badges such as Community Member, Verified, VIP, Contributor, Event Winner, Content Creator, Developer and Artist. New members are automatically given Community Member. VIP, verification and other status badges are not self-assignable. The Developer badge is assigned only after an Owner-Rank-approved Developer application.
 
