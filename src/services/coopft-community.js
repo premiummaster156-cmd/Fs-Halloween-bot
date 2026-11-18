@@ -611,9 +611,15 @@ class CoopFTCommunityService {
       ).trim();
       if (!encoded) throw new Error("The CoopFT 3D role-icon sprite is empty.");
       const sheet = await canvasApi.loadImage(Buffer.from(encoded, "base64"));
-      if (sheet.width !== 256 || sheet.height !== 256) {
-        throw new Error("Expected the 256×256 CoopFT 3D role-icon sprite, received " +
-          sheet.width + "×" + sheet.height + ".");
+      if (
+        sheet.width !== sheet.height ||
+        sheet.width % 4 !== 0 ||
+        sheet.width < 192
+      ) {
+        throw new Error(
+          "Expected a square 4×4 CoopFT 3D role-icon sprite at least 192px wide, received " +
+          sheet.width + "×" + sheet.height + "."
+        );
       }
       this.roleIconSheet = sheet;
     }
@@ -621,16 +627,27 @@ class CoopFTCommunityService {
     const context = canvas.getContext("2d");
     context.imageSmoothingEnabled = true;
     context.imageSmoothingQuality = "high";
-    const sourceX = (spec.slot % 4) * 64;
-    const sourceY = Math.floor(spec.slot / 4) * 64;
-    context.drawImage(this.roleIconSheet, sourceX, sourceY, 64, 64, 0, 0, 128, 128);
+    const sourceCellSize = this.roleIconSheet.width / 4;
+    const sourceX = (spec.slot % 4) * sourceCellSize;
+    const sourceY = Math.floor(spec.slot / 4) * sourceCellSize;
+    context.drawImage(
+      this.roleIconSheet,
+      sourceX, sourceY, sourceCellSize, sourceCellSize,
+      0, 0, 128, 128
+    );
     return canvas.toBuffer("image/png");
   }
 
   async ensureRoleImageEmojis(guild) {
     this.assertCoopFTGuild(guild, "create the generated CoopFT role-icon emojis");
     const result = { created: 0, updated: 0, available: 0, failed: [] };
-    const existing = new Map(Array.from(guild.emojis.cache.values()).map((emoji) => [emoji.name, emoji]));
+    const emojiCache = guild.emojis?.cache;
+    const cachedEmojis = typeof emojiCache?.values === "function"
+      ? Array.from(emojiCache.values())
+      : typeof emojiCache?.map === "function"
+        ? Array.from(emojiCache.map())
+        : Array.isArray(emojiCache) ? emojiCache : [];
+    const existing = new Map(cachedEmojis.map((emoji) => [emoji.name, emoji]));
     const botMember = guild.members.me || await guild.members.fetchMe().catch(() => null);
     const canCreate = Boolean(botMember?.permissions?.has(PermissionFlagsBits.CreateGuildExpressions));
     for (const spec of ROLE_IMAGE_ICONS) {
@@ -928,16 +945,9 @@ class CoopFTCommunityService {
     // manually-created PNG assets replace the old Unicode role icons without resetting
     // members' custom role names, colours, permissions or positions.
     if (!created && options.force !== true) {
-      if (["high_rank", "low_rank", "high_rank_supervisor", "staff_supervisor"].includes(spec.key) && role.name !== spec.name) {
-        try {
-          role = await role.edit({
-            name: spec.name,
-            reason: "Owner-requested CoopFT staff bracket rename"
-          });
-        } catch (error) {
-          console.warn("[coopft] Could not rename the " + spec.key + " bracket:", error.message);
-        }
-      }
+      // Preserve existing role customizations during ordinary setup.
+      // The owner-approved staff names and colours are reconciled centrally by
+      // loadManagedRoles() at bot startup; explicit sync may still reset all style.
       if (ROLE_IMAGE_ICONS.some((item) => item.roleKey === spec.key)) {
         await this.applyManagedRoleIcon(guild, role, spec);
       }
