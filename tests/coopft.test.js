@@ -1103,7 +1103,7 @@ test("the generated 3D emoji artwork sprite contains the original 28 transparent
   }
 });
 
-test("manual setup uploads all 50 CoopFT emblems as separate Discord-sized PNGs", async () => {
+test("manual setup uploads every configured CoopFT emblem as a separate Discord-sized PNG", async () => {
   const { PermissionFlagsBits, MessageFlags } = require("discord.js");
   const { loadImage } = require("@napi-rs/canvas");
   const uploads = [];
@@ -1148,7 +1148,7 @@ test("manual setup uploads all 50 CoopFT emblems as separate Discord-sized PNGs"
     assert.equal(image.height, 128);
     uniqueImages.add(upload.attachment.toString("base64"));
   }
-  assert.equal(uniqueImages.size, 50);
+  assert.equal(uniqueImages.size, uploads.length);
   for (const upload of uploads) {
     assert.equal(service.emojis.get(upload.name), "emoji-" + upload.name);
   }
