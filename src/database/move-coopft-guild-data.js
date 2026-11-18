@@ -192,11 +192,12 @@ async function moveCoopFTGuildData(options = {}) {
   }
 
   const sourceClient = await sourcePool.connect();
-  const destinationClient = await destinationPool.connect();
+  let destinationClient = null;
   let sourceLocked = false;
   let destinationLocked = false;
 
   try {
+    destinationClient = await destinationPool.connect();
     await sourceClient.query("SELECT pg_advisory_lock($1)", [TRANSFER_LOCK_ID]);
     sourceLocked = true;
     await destinationClient.query("SELECT pg_advisory_lock($1)", [TRANSFER_LOCK_ID]);
@@ -313,13 +314,13 @@ async function moveCoopFTGuildData(options = {}) {
       destinationHost
     };
   } finally {
-    if (destinationLocked) {
+    if (destinationLocked && destinationClient) {
       await destinationClient.query("SELECT pg_advisory_unlock($1)", [TRANSFER_LOCK_ID]).catch(() => {});
     }
     if (sourceLocked) {
       await sourceClient.query("SELECT pg_advisory_unlock($1)", [TRANSFER_LOCK_ID]).catch(() => {});
     }
-    destinationClient.release();
+    if (destinationClient) destinationClient.release();
     sourceClient.release();
   }
 }
