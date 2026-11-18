@@ -95,8 +95,21 @@ test("only the non-owner leadership roles are renamed and recoloured; protected 
       .map((key) => byKey.get(key).primary),
     [0x2563EB, 0x7C3AED, 0x0891B2, 0xEA580C, 0xBE185D, 0x0F766E, 0xB45309]
   );
-  for (const key of ["owner", "co_owner", "monarch", "right_wing", "left_wing", "overseer", "head_moderator", "senior_moderator", "moderator", "junior_moderator"]) {
-    assert.ok(byKey.has(key), "protected role " + key + " remains");
+  const protectedRoles = {
+    owner: ["Owner", 0x7A101C],
+    co_owner: ["Co-Owner", 0x7E2732],
+    monarch: ["Monarch", 0x55515B],
+    right_wing: ["Right Wing", 0xA67821],
+    left_wing: ["Left Wing", 0x813E9B],
+    overseer: ["Overseer", 0x302E91],
+    head_moderator: ["Head Moderator", 0xA32B48],
+    senior_moderator: ["Senior Moderator", 0xD3A33B],
+    moderator: ["Moderator", 0xA52A20],
+    junior_moderator: ["Junior Moderator", 0x269B69]
+  };
+  for (const [key, [name, color]] of Object.entries(protectedRoles)) {
+    assert.equal(byKey.get(key).name, name, key + " name must remain unchanged");
+    assert.equal(byKey.get(key).primary, color, key + " colour must remain unchanged");
   }
 });
 
