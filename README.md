@@ -1,3 +1,16 @@
+## Separate Fukishōkai and CoopFT databases
+
+Fukishōkai and CoopFT use separate Neon projects:
+
+- `DATABASE_URL` remains the Fukishōkai database.
+- `COOPFT_DATABASE_URL` points to the new, separate CoopFT Neon project. It must use a different Neon endpoint from `DATABASE_URL`.
+
+On startup, the bot applies the schema to both databases, copies every row belonging to the CoopFT guild from guild-scoped tables, and verifies the destination with row counts and SHA-256 content hashes. Only after verification succeeds does it delete those CoopFT-guild rows from the Fukishōkai database. Fukishōkai rows for other guilds are not selected or deleted. A transfer marker makes the move restart-safe.
+
+If `COOPFT_DATABASE_URL` is absent, Fukishōkai continues running but CoopFT database-backed commands, panels and directory sync are paused. CoopFT data is never written back to `DATABASE_URL`.
+
+Configure both URLs in the hosting provider's environment variables, then restart the bot. The first restart with a valid, empty CoopFT database performs the one-time verified transfer automatically. Do not point `COOPFT_DATABASE_URL` at the existing Fukishōkai project.
+
 # Fukishokai Halloween Bot
 
 A Fukishokai-branded Discord economy game and Halloween event bot. It shares one economy, player profile, progression system, ledger, cooldown system, quest tracker, and embed renderer across games.
