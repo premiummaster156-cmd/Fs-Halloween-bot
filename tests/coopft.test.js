@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { PermissionFlagsBits, PermissionsBitField, ChannelType } = require("discord.js");
+const { PermissionFlagsBits, PermissionsBitField, ChannelType, MessageFlags } = require("discord.js");
 const { loadCoopFTCommands } = require("../src/commands/coopft");
 const {
   STAFF_RANKS, APPLICATION_RANKS, EMOJI_SPRITE, CATEGORY_NAMES, PUBLIC_CHANNELS, PRIVATE_CHANNELS,
