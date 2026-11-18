@@ -98,7 +98,16 @@ async function claimCooldownTx(client, guildId, userId, key, durationMs, now = n
   const next = new Date(current.getTime() + Math.max(0, durationMs));
   const currentMs = current.getTime();
   if (currentMs - lastCooldownCleanupAt >= COOLDOWN_CLEANUP_INTERVAL_MS) {
+    // Remove only expired operational records. Keep completed trades, claims,
+    // player progression, audit/security history and all inventory/economy data.
     await client.query("DELETE FROM cooldowns WHERE next_at <= $1", [current]);
+    await client.query(
+      "DELETE FROM player_trades WHERE status IN ('pending','open','expired') AND expires_at < $1::timestamptz - INTERVAL '24 hours'",
+      [current]
+    );
+    await client.query("DELETE FROM coopft_ticket_cooldowns WHERE expires_at <= $1", [current]);
+    await client.query("DELETE FROM ai_message_monitor_usage WHERE usage_date < $1::date - INTERVAL '30 days'", [current]);
+    await client.query("DELETE FROM daily_chat_rewards WHERE reward_day < $1::date - INTERVAL '30 days'", [current]);
     lastCooldownCleanupAt = currentMs;
   }
   await client.query(
