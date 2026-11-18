@@ -5,6 +5,22 @@ const crypto = require("node:crypto");
 const TRANSFER_LOCK_ID = 734921605;
 const STATE_TABLE = '"public"."coopft_data_transfer_state"';
 
+// Only CoopFT-owned community records move. Fukishokai game/economy tables are excluded.
+const COOPFT_DATA_TABLES = Object.freeze([
+  "coopft_community_settings",
+  "coopft_staff_members",
+  "coopft_staff_audit",
+  "coopft_tickets",
+  "coopft_applications",
+  "coopft_mod_cases",
+  "coopft_staff_notes",
+  "coopft_suggestions",
+  "coopft_ticket_cooldowns",
+  "guild_autoroles",
+  "guild_welcome_settings",
+  "guild_settings",
+  "audit_logs"
+]);
 function quoteIdentifier(value) {
   if (!/^[a-z_][a-z0-9_]*$/i.test(String(value))) {
     throw new Error("Unsafe PostgreSQL identifier in CoopFT transfer: " + value);
@@ -33,7 +49,8 @@ async function listGuildTables(client) {
     "JOIN information_schema.tables t " +
     "ON t.table_schema=c.table_schema AND t.table_name=c.table_name " +
     "WHERE c.table_schema='public' AND c.column_name='guild_id' " +
-    "AND t.table_type='BASE TABLE' ORDER BY c.table_name"
+    "AND t.table_type='BASE TABLE' AND c.table_name = ANY($1::text[])",
+    [COOPFT_DATA_TABLES]
   );
   return result.rows.map((row) => row.table_name);
 }
@@ -204,16 +221,18 @@ async function moveCoopFTGuildData(options = {}) {
     destinationLocked = true;
     await ensureTransferStateTable(destinationClient);
 
-    const sourceTables = await listGuildTables(sourceClient);
+    const sourceTables = new Set(await listGuildTables(sourceClient));
     const destinationTables = new Set(await listGuildTables(destinationClient));
-    const tables = sourceTables.filter((tableName) => destinationTables.has(tableName));
-    const missingDestinationTables = sourceTables.filter((tableName) => !destinationTables.has(tableName));
-    if (missingDestinationTables.length) {
+    const missingSourceTables = COOPFT_DATA_TABLES.filter((tableName) => !sourceTables.has(tableName));
+    const missingDestinationTables = COOPFT_DATA_TABLES.filter((tableName) => !destinationTables.has(tableName));
+    if (missingSourceTables.length || missingDestinationTables.length) {
       throw new Error(
-        "CoopFT database is missing source tables: " + missingDestinationTables.join(", ") +
-        ". The destination schema must be migrated before the transfer."
+        "CoopFT schema is not ready. Missing in Fukishokai: " + (missingSourceTables.join(", ") || "none") +
+        ". Missing in CoopFT: " + (missingDestinationTables.join(", ") || "none") +
+        ". Apply database migrations before moving data."
       );
     }
+    const tables = [...COOPFT_DATA_TABLES];
 
     const state = await readState(destinationClient, guildId);
     if (state?.status === "complete") {
