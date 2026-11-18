@@ -34,7 +34,6 @@ test("workspace server stays disabled without a guild and a supported feature", 
   }), false);
   assert.equal(isIdeServerEnabled({
     ideGuildId: "123456789012345678",
-    adminWorkspaceApiKey: "",
     discordClientSecret: "",
     idePublicUrl: ""
   }), false);
