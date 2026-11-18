@@ -113,6 +113,120 @@ function rolePermissionArray(spec) {
   );
 }
 
+function parsePublicGitHubRepositoryUrl(value) {
+  let parsed;
+  try {
+    parsed = new URL(String(value || "").trim());
+  } catch {
+    throw new Error("Enter a valid public GitHub repository URL, such as https://github.com/owner/repository.");
+  }
+  if (parsed.protocol !== "https:" || parsed.hostname.toLowerCase() !== "github.com" ||
+      parsed.port || parsed.username || parsed.password || parsed.search || parsed.hash) {
+    throw new Error("Only HTTPS links to github.com repositories are accepted.");
+  }
+  const segments = parsed.pathname.split("/").filter(Boolean);
+  if (segments.length !== 2) {
+    throw new Error("Paste the repository's main GitHub page URL, not a file, folder or branch page.");
+  }
+
+  let owner;
+  let repository;
+  try {
+    owner = decodeURIComponent(segments[0]);
+    repository = decodeURIComponent(segments[1]).replace(/\.git$/i, "");
+  } catch {
+    throw new Error("The GitHub repository URL contains invalid characters.");
+  }
+  const ownerPattern = /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/;
+  const repositoryPattern = /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/;
+  if (!ownerPattern.test(owner) || !repositoryPattern.test(repository) ||
+      owner.length > 39 || repository.length > 100) {
+    throw new Error("The GitHub repository URL is not in a supported owner/repository format.");
+  }
+  return {
+    owner,
+    repository,
+    url: "https://github.com/" + owner + "/" + repository
+  };
+}
+
+async function readResponseBuffer(response, maxBytes, label) {
+  const declaredLength = Number(response.headers?.get?.("content-length") || 0);
+  if (declaredLength > maxBytes) {
+    throw new Error(label + " exceeds the " + Math.floor(maxBytes / (1024 * 1024)) + " MB limit.");
+  }
+  if (!response.body) throw new Error(label + " download returned an empty response.");
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of response.body) {
+    const bytes = Buffer.from(chunk);
+    total += bytes.length;
+    if (total > maxBytes) {
+      throw new Error(label + " exceeds the " + Math.floor(maxBytes / (1024 * 1024)) + " MB limit.");
+    }
+    chunks.push(bytes);
+  }
+  return Buffer.concat(chunks, total);
+}
+
+async function downloadPublicGitHubRepository(value) {
+  const repository = parsePublicGitHubRepositoryUrl(value);
+  const apiBase = "https://api.github.com/repos/" +
+    encodeURIComponent(repository.owner) + "/" + encodeURIComponent(repository.repository);
+  const headers = {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": "CoopFT-Free-Bot-Releases"
+  };
+  const metadataResponse = await fetch(apiBase, {
+    headers,
+    signal: AbortSignal.timeout(30000)
+  });
+  if (metadataResponse.status === 404) {
+    throw new Error("That GitHub repository was not found or is private. Only public repositories can be submitted.");
+  }
+  if (metadataResponse.status === 403 || metadataResponse.status === 429) {
+    throw new Error("GitHub is temporarily rate-limiting repository downloads. Please try again later.");
+  }
+  if (!metadataResponse.ok) {
+    throw new Error("GitHub could not verify that repository (HTTP " + metadataResponse.status + ").");
+  }
+  const metadata = await metadataResponse.json();
+  if (!metadata || metadata.private !== false || metadata.disabled === true) {
+    throw new Error("Only active public GitHub repositories can be submitted.");
+  }
+  const defaultBranch = String(metadata.default_branch || "").trim();
+  if (!defaultBranch || defaultBranch.length > 255) {
+    throw new Error("GitHub did not provide a valid default branch for this repository.");
+  }
+
+  const archiveUrl = apiBase + "/zipball/" + encodeURIComponent(defaultBranch);
+  const archiveResponse = await fetch(archiveUrl, {
+    headers: { Accept: "application/vnd.github+json", "User-Agent": "CoopFT-Free-Bot-Releases" },
+    signal: AbortSignal.timeout(60000)
+  });
+  if (!archiveResponse.ok) {
+    throw new Error("GitHub could not download the repository source archive (HTTP " + archiveResponse.status + ").");
+  }
+  const resolvedUrl = archiveResponse.url ? new URL(archiveResponse.url) : new URL(archiveUrl);
+  if (resolvedUrl.protocol !== "https:" ||
+      !["api.github.com", "codeload.github.com"].includes(resolvedUrl.hostname)) {
+    throw new Error("GitHub returned an unexpected source archive location.");
+  }
+  const buffer = await readResponseBuffer(archiveResponse, 20 * 1024 * 1024, "GitHub source archive");
+  if (!isZipBuffer(buffer)) {
+    throw new Error("GitHub did not return a valid ZIP source archive.");
+  }
+  const fullName = String(metadata.full_name || repository.owner + "/" + repository.repository);
+  const safeBase = fullName.replace(/[^A-Za-z0-9._-]/g, "-").slice(0, 75) || "github-repository";
+  return {
+    buffer,
+    fileName: safeBase + ".zip",
+    fullName,
+    url: repository.url
+  };
+}
+
 function isZipBuffer(buffer) {
   if (!Buffer.isBuffer(buffer) || buffer.length < 4) return false;
   return buffer[0] === 0x50 && buffer[1] === 0x4b &&
@@ -3443,7 +3557,8 @@ class CoopFTCommunityService {
 
     const title = String(options.title || "").trim();
     const description = String(options.description || "").trim();
-    const source = options.source;
+    const source = options.source || null;
+    const repositoryUrl = String(options.repositoryUrl || "").trim();
     const image = options.image;
     if (title.length < 3 || title.length > 120) {
       throw new Error("The promotion title must be between 3 and 120 characters.");
@@ -3451,9 +3566,12 @@ class CoopFTCommunityService {
     if (description.length < 40 || description.length > 1500) {
       throw new Error("Write a useful promotional description of 40–1,500 characters. Explain what the bot does and why members should try it.");
     }
-    if (!source || !/\.zip$/i.test(String(source.name || "")) ||
+    if (Boolean(source) === Boolean(repositoryUrl)) {
+      throw new Error("Provide exactly one source: attach a ZIP archive or paste a public GitHub repository URL.");
+    }
+    if (source && (!/\.zip$/i.test(String(source.name || "")) ||
         !Number.isFinite(Number(source.size)) || Number(source.size) <= 0 ||
-        Number(source.size) > 20 * 1024 * 1024) {
+        Number(source.size) > 20 * 1024 * 1024)) {
       throw new Error("Attach one valid .zip source archive up to 20 MB.");
     }
     if (!image || !Number.isFinite(Number(image.size)) || Number(image.size) <= 0 ||
@@ -3462,29 +3580,39 @@ class CoopFTCommunityService {
     }
 
     const allowedHosts = new Set(["cdn.discordapp.com", "media.discordapp.net"]);
-    const sourceUrl = new URL(String(source.url || ""));
     const imageUrl = new URL(String(image.url || ""));
-    for (const attachmentUrl of [sourceUrl, imageUrl]) {
-      if (attachmentUrl.protocol !== "https:" || !allowedHosts.has(attachmentUrl.hostname)) {
-        throw new Error("Both files must be uploaded directly to Discord.");
-      }
+    if (imageUrl.protocol !== "https:" || !allowedHosts.has(imageUrl.hostname)) {
+      throw new Error("The promotional image must be uploaded directly to Discord.");
     }
 
-    const [sourceResponse, imageResponse] = await Promise.all([
-      fetch(sourceUrl, { signal: AbortSignal.timeout(30000) }),
-      fetch(imageUrl, { signal: AbortSignal.timeout(30000) })
-    ]);
-    if (!sourceResponse.ok) throw new Error("The source ZIP could not be downloaded from Discord.");
-    if (!imageResponse.ok) throw new Error("The promotional image could not be downloaded from Discord.");
-    const [sourceBytes, imageBytes] = await Promise.all([
-      sourceResponse.arrayBuffer().then((buffer) => Buffer.from(buffer)),
-      imageResponse.arrayBuffer().then((buffer) => Buffer.from(buffer))
-    ]);
-    if (!isZipBuffer(sourceBytes) || sourceBytes.length > 20 * 1024 * 1024) {
-      throw new Error("The uploaded source file is not a valid ZIP archive or exceeds 20 MB.");
+    let sourceBytes;
+    let sourceFileName;
+    let sourceRepositoryUrl = null;
+    if (source) {
+      const sourceUrl = new URL(String(source.url || ""));
+      if (sourceUrl.protocol !== "https:" || !allowedHosts.has(sourceUrl.hostname)) {
+        throw new Error("The source ZIP must be uploaded directly to Discord.");
+      }
+      const sourceResponse = await fetch(sourceUrl, { signal: AbortSignal.timeout(30000) });
+      if (!sourceResponse.ok) throw new Error("The source ZIP could not be downloaded from Discord.");
+      sourceBytes = await readResponseBuffer(sourceResponse, 20 * 1024 * 1024, "Source ZIP");
+      sourceFileName = String(source.name || "coopft-source.zip")
+        .replace(/[^\p{L}\p{N}._ -]/gu, "_").slice(0, 100);
+    } else {
+      const downloaded = await downloadPublicGitHubRepository(repositoryUrl);
+      sourceBytes = downloaded.buffer;
+      sourceFileName = downloaded.fileName;
+      sourceRepositoryUrl = downloaded.url;
     }
-    if (!imageBytes.length || imageBytes.length > 8 * 1024 * 1024) {
-      throw new Error("The promotional image is empty or exceeds 8 MB.");
+
+    const imageResponse = await fetch(imageUrl, { signal: AbortSignal.timeout(30000) });
+    if (!imageResponse.ok) throw new Error("The promotional image could not be downloaded from Discord.");
+    const imageBytes = await readResponseBuffer(imageResponse, 8 * 1024 * 1024, "Promotional image");
+    if (!isZipBuffer(sourceBytes)) {
+      throw new Error("The uploaded source file is not a valid ZIP archive.");
+    }
+    if (!imageBytes.length) {
+      throw new Error("The promotional image is empty.");
     }
     if (sourceBytes.length + imageBytes.length > 25 * 1024 * 1024) {
       throw new Error("The source ZIP and image must total no more than 25 MB so they fit in the review message.");
@@ -3510,9 +3638,6 @@ class CoopFTCommunityService {
     if (!releaseChannelId) {
       throw new Error("The server owner must configure the destination with /free-bot-channel first.");
     }
-    const safeName = (value, fallback) =>
-      String(value || fallback).replace(/[^\p{L}\p{N}._ -]/gu, "_").slice(0, 100);
-    const sourceFileName = safeName(source.name, "coopft-source.zip");
     const imageFileName = "coopft-promo-" + Date.now() + extension;
     const owner = await guild.client.users.fetch(String(options.ownerId));
     const embed = new EmbedBuilder()
@@ -3523,7 +3648,8 @@ class CoopFTCommunityService {
       .addFields(
         { name: "Submitted by", value: "<@" + submitter.id + "> (" + submitter.id + ")", inline: true },
         { name: "Source ZIP", value: sourceFileName, inline: true },
-        { name: "Destination", value: "<#" + releaseChannelId + ">", inline: true }
+        { name: "Destination", value: "<#" + releaseChannelId + ">", inline: true },
+        ...(sourceRepositoryUrl ? [{ name: "GitHub repository", value: "<" + sourceRepositoryUrl + ">", inline: false }] : [])
       )
       .setTimestamp();
     const controls = new ActionRowBuilder().addComponents(
@@ -3540,7 +3666,7 @@ class CoopFTCommunityService {
       ],
       allowedMentions: { parse: [] }
     });
-    return { title, ownerId: String(options.ownerId), sourceFileName, imageFileName };
+    return { title, ownerId: String(options.ownerId), sourceFileName, imageFileName, sourceRepositoryUrl };
   }
 
   async handleFreeBotReviewButton(interaction, ownerId, client) {
@@ -3618,6 +3744,8 @@ class CoopFTCommunityService {
       }
 
       const guild = client.guilds.cache.get(this.guildId) || await client.guilds.fetch(this.guildId);
+      const sourceRepositoryField = embed?.fields?.find((field) => field.name === "GitHub repository");
+      const sourceRepositoryUrl = sourceRepositoryField?.value?.match(/<https:\/\/github\.com\/[^>]+>/)?.[0]?.slice(1, -1) || null;
       const published = await this.publishFreeBotPromotion(guild, {
         title,
         description,
@@ -3625,6 +3753,7 @@ class CoopFTCommunityService {
         sourceFileName: sourceAttachment.name,
         imageBuffer,
         imageFileName: imageAttachment.name,
+        sourceRepositoryUrl,
         submitterId
       });
       await interaction.message.edit({
@@ -3678,7 +3807,10 @@ class CoopFTCommunityService {
       .setImage("attachment://" + imageFileName)
       .addFields(
         { name: "Source code", value: sourceFileName, inline: true },
-        { name: "Shared by", value: options.submitterId ? "<@" + options.submitterId + ">" : "CoopFT Developers", inline: true }
+        { name: "Shared by", value: options.submitterId ? "<@" + options.submitterId + ">" : "CoopFT Developers", inline: true },
+        ...(options.sourceRepositoryUrl
+          ? [{ name: "GitHub repository", value: "<" + parsePublicGitHubRepositoryUrl(options.sourceRepositoryUrl).url + ">", inline: false }]
+          : [])
       )
       .setTimestamp();
     const message = await channel.send({
