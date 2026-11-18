@@ -130,7 +130,7 @@ The migrations use the shared schema-migration ledger but never load the main Fu
 
 CoopFT must use its own Neon project. Keep the existing Fukishōkai connection in `DATABASE_URL` and set `COOPFT_DATABASE_URL` to the connection string from the new CoopFT Neon project. The hostnames must differ.
 
-The main bot startup and `npm run coopft:setup` apply the required schema to the CoopFT database. They then copy rows scoped to `COOPFT_GUILD_ID` from all `guild_id` tables, compare row counts and SHA-256 hashes, and only then delete those matching rows from the Fukishōkai database. Other guild data in Fukishōkai is retained. If the destination is unavailable, points to the same endpoint, has incompatible schema, or fails verification, the transfer stops without deleting the source data.
+The main bot startup and `npm run coopft:setup` apply the CoopFT-only schema. They then copy CoopFT community settings, staff records/audit, applications, tickets, moderation cases/notes, suggestions, ticket cooldowns, welcome/autorole settings, guild settings and audit logs. Each table is compared using row counts and SHA-256 hashes before matching CoopFT rows are deleted from Fukishōkai. Fukishōkai player, economy, Halloween and game records are excluded. If the destination is unavailable, points to the same endpoint, has incompatible schema, or fails verification, the transfer stops without deleting source data.
 
 Once the first transfer is complete, CoopFT community commands, staff directory data, applications, tickets, moderation history, welcome configuration, autoroles and audit history use the CoopFT database. Fukishōkai economy/game services continue using `DATABASE_URL`.
 
