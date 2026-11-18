@@ -57,6 +57,52 @@ test("server-owner free-bot channel configuration creates the opt-in ping role",
   assert.deepEqual(saved, [["channel:free_bot_releases", channel.id]]);
 });
 
+test("free-bot-submit forwards the guild member to the Developer-role service check", async () => {
+  const settings = require("../src/config/settings");
+  const previousOwnerId = settings.ownerId;
+  settings.ownerId = "123456789012345678";
+
+  const guildMember = {
+    id: "223456789012345678",
+    roles: { cache: new Map([["developer-role", { id: "developer-role" }]]) }
+  };
+  const user = { id: guildMember.id };
+  const image = { id: "promotion-image" };
+  let forwardedSubmitter = null;
+  const commands = loadCoopFTCommands();
+  const interaction = {
+    guild: { id: coopftGuildId },
+    guildId: coopftGuildId,
+    user,
+    member: guildMember,
+    options: {
+      getString: (name) => ({
+        title: "My free bot",
+        description: "A useful Discord bot with moderation, utilities and community features."
+      })[name] || null,
+      getAttachment: () => image
+    },
+    deferReply: async () => undefined,
+    editReply: async (content) => content
+  };
+  const coopft = {
+    isDeveloper: (member) => member === guildMember,
+    submitFreeBotPromotion: async (_guild, submitter, options) => {
+      forwardedSubmitter = submitter;
+      assert.equal(options.title, "My free bot");
+      assert.equal(options.image, image);
+    }
+  };
+
+  try {
+    await commands.get("free-bot-submit").execute(interaction, { coopft });
+    assert.equal(forwardedSubmitter, guildMember);
+    assert.notEqual(forwardedSubmitter, user);
+  } finally {
+    settings.ownerId = previousOwnerId;
+  }
+});
+
 test("approved free-bot promotions publish the image and ping only the opt-in role", async () => {
   const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) });
   const role = { id: "release-role" };
