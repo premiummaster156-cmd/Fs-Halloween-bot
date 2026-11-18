@@ -3727,24 +3727,24 @@ class CoopFTCommunityService {
     const embed = message?.embeds?.[0] || null;
     const plainFormat = body.startsWith("**FREE BOT SUBMISSION**");
     const plainTitle = plainFormat
-      ? body.match(/^\\*\\*Title:\\*\\*\\s*(.*)$/m)?.[1]?.trim() || ""
+      ? body.match(/^\*\*Title:\*\*\s*(.*)$/m)?.[1]?.trim() || ""
       : "";
     const plainSubmitterId = plainFormat
-      ? body.match(/^\\*\\*Submitted by:\\*\\*\\s*<@!?(\\d{17,20})>/m)?.[1] || ""
+      ? body.match(/^\*\*Submitted by:\*\*\s*<@!?(\d{17,20})>/m)?.[1] || ""
       : "";
     const plainDescription = plainFormat
-      ? body.match(/(?:^|\\n)\\*\\*Description:\\*\\*\\r?\\n([\\s\\S]*)$/)?.[1]?.trim() || ""
+      ? body.match(/(?:^|\n)\*\*Description:\*\*\r?\n([\s\S]*)$/)?.[1]?.trim() || ""
       : "";
     const title = plainTitle || String(embed?.title || "").trim();
     const description = plainDescription || String(embed?.description || "").trim();
     const legacySubmitterField = embed?.fields?.find((field) => field.name === "Submitted by");
     const submitterId = plainSubmitterId ||
-      legacySubmitterField?.value?.match(/\\((\\d{17,20})\\)/)?.[1] ||
-      legacySubmitterField?.value?.match(/<@!?(\\d{17,20})>/)?.[1] || "";
+      legacySubmitterField?.value?.match(/\((\d{17,20})\)/)?.[1] ||
+      legacySubmitterField?.value?.match(/<@!?(\d{17,20})>/)?.[1] || "";
     const attachments = [...(message?.attachments?.values?.() || [])];
-    const sourceAttachment = attachments.find((attachment) => /\\.zip$/i.test(String(attachment.name || "")));
+    const sourceAttachment = attachments.find((attachment) => /\.zip$/i.test(String(attachment.name || "")));
     let imageAttachment = attachments.find((attachment) =>
-      /\\.(?:png|jpe?g|webp|gif)$/i.test(String(attachment.name || ""))
+      /\.(?:png|jpe?g|webp|gif)$/i.test(String(attachment.name || ""))
     );
 
     // Older review DMs put the image inside an embed. Recover its CDN URL when the
@@ -3755,7 +3755,7 @@ class CoopFTCommunityService {
         if (legacyImageUrl.protocol === "https:" &&
             ["cdn.discordapp.com", "media.discordapp.net"].includes(legacyImageUrl.hostname)) {
           const tail = decodeURIComponent(legacyImageUrl.pathname.split("/").pop() || "");
-          const imageName = /\\.(?:png|jpe?g|webp|gif)$/i.test(tail) ? tail : "legacy-promotion.png";
+          const imageName = /\.(?:png|jpe?g|webp|gif)$/i.test(tail) ? tail : "legacy-promotion.png";
           imageAttachment = { name: imageName, url: legacyImageUrl.toString() };
         }
       } catch {
@@ -3764,7 +3764,7 @@ class CoopFTCommunityService {
     }
 
     const githubLine = plainFormat
-      ? body.match(/^\\*\\*GitHub repository:\\*\\*\\s*(.*)$/m)?.[1]?.trim() || ""
+      ? body.match(/^\*\*GitHub repository:\*\*\s*(.*)$/m)?.[1]?.trim() || ""
       : "";
     const legacyGithubField = embed?.fields?.find((field) => field.name === "GitHub repository");
     const sourceRepositoryUrl = (githubLine || legacyGithubField?.value || "")
