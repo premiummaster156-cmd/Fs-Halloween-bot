@@ -2,25 +2,22 @@ process.env.FUKISHOKAI_GUILD_ID = "123456789012345678";
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { isBrowserIdeEnabled, isIdeServerEnabled, authoriseMember } = require("../src/web/ide-server");
-const settings = require("../src/config/settings");
 const { randomUUID } = require("node:crypto");
 
-test("AI workspace API can start without browser OAuth configuration", () => {
+test("Code Studio stays disabled without browser OAuth configuration", () => {
   const config = {
     ideGuildId: "123456789012345678",
-    adminWorkspaceApiKey: "a".repeat(48),
     discordClientSecret: "",
     idePublicUrl: ""
   };
 
   assert.equal(isBrowserIdeEnabled(config), false);
-  assert.equal(isIdeServerEnabled(config), true);
+  assert.equal(isIdeServerEnabled(config), false);
 });
 
 test("browser Code Studio needs OAuth settings but selects its guild from the admin-panel link", () => {
   const config = {
     ideGuildId: "123456789012345678",
-    adminWorkspaceApiKey: "",
     discordClientSecret: "discord-client-secret",
     idePublicUrl: "https://studio.example.com"
   };
@@ -32,7 +29,6 @@ test("browser Code Studio needs OAuth settings but selects its guild from the ad
 test("workspace server stays disabled without a guild and a supported feature", () => {
   assert.equal(isIdeServerEnabled({
     ideGuildId: "",
-    adminWorkspaceApiKey: "a".repeat(48),
     discordClientSecret: "",
     idePublicUrl: ""
   }), false);
@@ -100,179 +96,21 @@ test("Code Studio checks the trusted Admin Role in the exact server selected by 
 });
 
 
-test("AI workspace bearer-key API uses its configured server without requiring a browser session", async () => {
+test("the removed external workspace-agent endpoint is no longer exposed", async () => {
   const { createIdeServer } = require("../src/web/ide-server");
-  const previous = {
-    adminWorkspaceApiKey: settings.adminWorkspaceApiKey,
-    ideGuildId: settings.ideGuildId
-  };
-  settings.adminWorkspaceApiKey = "test-workspace-key-".padEnd(48, "x");
-  settings.ideGuildId = "123456789012345678";
-  const listedGuilds = [];
-  const server = createIdeServer({}, {
-    customCommands: {
-      list: async (guildId) => {
-        listedGuilds.push(guildId);
-        return [];
-      }
-    }
-  });
-
+  const server = createIdeServer({}, {});
   try {
     await new Promise((resolve, reject) => {
       server.once("error", reject);
       server.listen(0, "127.0.0.1", resolve);
     });
     const address = server.address();
-    const response = await fetch("http://127.0.0.1:" + address.port + "/api/ai/workspace/files", {
-      headers: { Authorization: "Bearer " + settings.adminWorkspaceApiKey }
-    });
-
-    assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { files: [] });
-    assert.deepEqual(listedGuilds, ["123456789012345678"]);
+    const response = await fetch("http://127.0.0.1:" + address.port + "/api/ai/workspace/files");
+    assert.equal(response.status, 401);
   } finally {
     await new Promise((resolve) => server.close(resolve));
-    settings.adminWorkspaceApiKey = previous.adminWorkspaceApiKey;
-    settings.ideGuildId = previous.ideGuildId;
   }
 });
-
-test("AI workspace bearer-key API refuses to run without a valid configured server ID", async () => {
-  const { createIdeServer } = require("../src/web/ide-server");
-  const previous = {
-    adminWorkspaceApiKey: settings.adminWorkspaceApiKey,
-    ideGuildId: settings.ideGuildId
-  };
-  settings.adminWorkspaceApiKey = "test-workspace-key-".padEnd(48, "x");
-  settings.ideGuildId = "";
-  const server = createIdeServer({}, { customCommands: { list: async () => [] } });
-
-  try {
-    await new Promise((resolve, reject) => {
-      server.once("error", reject);
-      server.listen(0, "127.0.0.1", resolve);
-    });
-    const address = server.address();
-    const response = await fetch("http://127.0.0.1:" + address.port + "/api/ai/workspace/files", {
-      headers: { Authorization: "Bearer " + settings.adminWorkspaceApiKey }
-    });
-    assert.equal(response.status, 503);
-    assert.match((await response.json()).error, /IDE_GUILD_ID/);
-  } finally {
-    await new Promise((resolve) => server.close(resolve));
-    settings.adminWorkspaceApiKey = previous.adminWorkspaceApiKey;
-    settings.ideGuildId = previous.ideGuildId;
-  }
-});
-
-
-test("AI workspace bearer-key API cannot publish or delete executable commands", async () => {
-  const { createIdeServer } = require("../src/web/ide-server");
-  const previous = {
-    adminWorkspaceApiKey: settings.adminWorkspaceApiKey,
-    ideGuildId: settings.ideGuildId
-  };
-  settings.adminWorkspaceApiKey = "test-workspace-key-".padEnd(48, "x");
-  settings.ideGuildId = "123456789012345678";
-  let published = false;
-  let deleted = false;
-  const server = createIdeServer({}, {
-    customCommands: {
-      getByName: async () => ({ id: "command-1", name: "safe_command" }),
-      publishSource: async () => { published = true; },
-      remove: async () => { deleted = true; }
-    }
-  });
-
-  try {
-    await new Promise((resolve, reject) => {
-      server.once("error", reject);
-      server.listen(0, "127.0.0.1", resolve);
-    });
-    const address = server.address();
-    const headers = {
-      Authorization: "Bearer " + settings.adminWorkspaceApiKey,
-      "Content-Type": "application/json"
-    };
-    const publish = await fetch("http://127.0.0.1:" + address.port + "/api/ai/workspace/files", {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ publish: true })
-    });
-    assert.equal(publish.status, 403);
-    assert.match((await publish.json()).error, /drafts only/i);
-
-    const remove = await fetch("http://127.0.0.1:" + address.port + "/api/ai/workspace/files/safe_command.js", {
-      method: "DELETE",
-      headers
-    });
-    assert.equal(remove.status, 403);
-    assert.match((await remove.json()).error, /cannot delete/i);
-    assert.equal(published, false);
-    assert.equal(deleted, false);
-  } finally {
-    await new Promise((resolve) => server.close(resolve));
-    settings.adminWorkspaceApiKey = previous.adminWorkspaceApiKey;
-    settings.ideGuildId = previous.ideGuildId;
-  }
-});
-
-
-test("AI workspace bearer-key API saves valid JavaScript as an inactive draft by default", async () => {
-  const { createIdeServer } = require("../src/web/ide-server");
-  const previous = {
-    adminWorkspaceApiKey: settings.adminWorkspaceApiKey,
-    ideGuildId: settings.ideGuildId
-  };
-  settings.adminWorkspaceApiKey = "test-workspace-key-".padEnd(48, "x");
-  settings.ideGuildId = "123456789012345678";
-  let savedInput = null;
-  let publishCalled = false;
-  const sourceCode = `module.exports = {
-    data: { name: "draft_hello", description: "A draft command" },
-    async execute(interaction) { await interaction.reply({ content: "Hello" }); }
-  };`;
-  const server = createIdeServer({}, {
-    pool: { query: async () => ({ rows: [], rowCount: 0 }) },
-    customCommands: {
-      getByName: async () => null,
-      saveSource: async (guildId, actorId, input) => {
-        savedInput = { guildId, actorId, input };
-        return { id: "draft-1", name: "draft_hello", description: "A draft command", is_active: false };
-      },
-      publishSource: async () => { publishCalled = true; }
-    }
-  });
-
-  try {
-    await new Promise((resolve, reject) => {
-      server.once("error", reject);
-      server.listen(0, "127.0.0.1", resolve);
-    });
-    const address = server.address();
-    const response = await fetch("http://127.0.0.1:" + address.port + "/api/ai/workspace/files", {
-      method: "POST",
-      headers: {
-        Authorization: "Bearer " + settings.adminWorkspaceApiKey,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ fileName: "draft_hello.js", sourceCode })
-    });
-    assert.equal(response.status, 200);
-    const result = await response.json();
-    assert.equal(result.ok, true);
-    assert.equal(savedInput.guildId, settings.ideGuildId);
-    assert.equal(savedInput.input.sourceCode, sourceCode);
-    assert.equal(publishCalled, false);
-    assert.equal(result.command.isActive, false);
-  } finally {
-    await new Promise((resolve) => server.close(resolve));
-    settings.adminWorkspaceApiKey = previous.adminWorkspaceApiKey;
-    settings.ideGuildId = previous.ideGuildId;
-  }
-});
-
 
 test("Code Studio prunes expired OAuth states and sessions from bounded stores", () => {
   const { pruneExpiredEntries } = require("../src/web/ide-server");
