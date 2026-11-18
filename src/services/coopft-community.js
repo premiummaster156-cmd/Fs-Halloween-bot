@@ -3764,7 +3764,7 @@ class CoopFTCommunityService {
     const githubLine = plainFormat ? readLine("G") : "";
     const legacyGithubField = embed?.fields?.find((field) => field.name === "GitHub repository");
     const sourceRepositoryUrl = (githubLine || legacyGithubField?.value || "")
-      .match(/https:\\/\\/github\\.com\\/[A-Za-z0-9._-]+\\/[A-Za-z0-9._-]+/)?.[0] || null;
+      .match(/https:\/\/github\.com\/[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+/)?.[0] || null;
 
     if (action === "reject") {
       if (messageKey) this.processedFreeBotReviews?.add(messageKey);
