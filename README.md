@@ -5,7 +5,7 @@ Fukishōkai and CoopFT use separate Neon projects:
 - `DATABASE_URL` remains the Fukishōkai database.
 - `COOPFT_DATABASE_URL` points to the new, separate CoopFT Neon project. It must use a different Neon endpoint from `DATABASE_URL`.
 
-On startup, the bot applies the schema to both databases, copies every row belonging to the CoopFT guild from guild-scoped tables, and verifies the destination with row counts and SHA-256 content hashes. Only after verification succeeds does it delete those CoopFT-guild rows from the Fukishōkai database. Fukishōkai rows for other guilds are not selected or deleted. A transfer marker makes the move restart-safe.
+On startup, the bot applies the required schema to both databases, copies CoopFT community settings, staff records/audit, applications, tickets, moderation cases/notes, suggestions, ticket cooldowns, welcome/autorole settings, guild settings and audit logs, then verifies each table with row counts and SHA-256 content hashes. Only after verification succeeds does it delete those CoopFT records from the Fukishōkai database. Fukishōkai economy, player, Halloween and game data are excluded. A transfer marker makes the move restart-safe.
 
 If `COOPFT_DATABASE_URL` is absent, Fukishōkai continues running but CoopFT database-backed commands, panels and directory sync are paused. CoopFT data is never written back to `DATABASE_URL`.
 
