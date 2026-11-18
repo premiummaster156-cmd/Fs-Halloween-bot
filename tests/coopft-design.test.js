@@ -84,7 +84,7 @@ test("only the High Rank and Low Rank staff section names change; Mod Roles rema
 test("the manually generated PNG icon sheet covers every interest and notification role", () => {
   assert.equal(ROLE_IMAGE_ICONS.length, 16);
   assert.deepEqual(ROLE_IMAGE_ICONS.map(item => item.roleKey), [
-    ...PING_ROLES.map(role => role.key),
+    ...PING_ROLES.filter(role => role.key !== "ping_free_bot_releases").map(role => role.key),
     ...INTEREST_ROLES.map(role => role.key)
   ]);
   assert.equal(new Set(ROLE_IMAGE_ICONS.map(item => item.emoji)).size, 16);
@@ -97,13 +97,13 @@ test("the manually generated PNG icon sheet covers every interest and notificati
   const assetPath = path.join(__dirname, "../assets/coopft-role-icons-sprite.png.b64");
   const png = Buffer.from(fs.readFileSync(assetPath, "utf8").trim(), "base64");
   assert.equal(png.toString("hex", 0, 8), "89504e470d0a1a0a");
-  assert.equal(png.readUInt32BE(16), 192);
-  assert.equal(png.readUInt32BE(20), 192);
+  assert.equal(png.readUInt32BE(16), 256);
+  assert.equal(png.readUInt32BE(20), 256);
 });
 
 test("members can self-select interests and non-mentionable notification roles only", () => {
   assert.equal(INTEREST_ROLES.length, 8);
-  assert.equal(PING_ROLES.length, 8);
+  assert.equal(PING_ROLES.length, 9);
   assert.ok(PING_ROLES.every((role) => role.mentionable === false));
   assert.equal(INTEREST_ROLES.some((role) => role.key === "developer_member"), false);
   assert.equal(PING_ROLES.some((role) => role.key === "developer_member"), false);
@@ -120,6 +120,7 @@ test("CoopFT creates the public panels and private Owner-Rank and staff-guide ch
   for (const key of ["application_review", "application_control", "staff_guide", "ticket_transcripts", "member_logs", "server_logs"]) {
     assert.ok(privateKeys.has(key), "missing private channel " + key);
   }
+  assert.ok(publicKeys.has("free_bot_releases"));
   assert.equal(publicKeys.has("role_guide"), false);
   assert.equal(publicKeys.has("staff_directory"), false);
 });
