@@ -146,7 +146,7 @@ test("CoopFT exposes focused setup, sync, panel and operational commands", () =>
     "ticket-remove", "ticket-rename", "timeout", "unban", "unlock", "untimeout",
     "warn", "warnings"
   ];
-  expected.push("autorole", "onboarding-setup", "welcome-config", "coopft-public-access");
+  expected.push("autorole", "onboarding-setup", "welcome-config", "coopft-public-access", "free-bot-channel", "free-bot-submit");
   assert.deepEqual([...commands.keys()].sort(), expected.sort());
   for (const command of commands.values()) assert.doesNotThrow(() => command.data.toJSON());
   const autorole = commands.get("autorole").data.toJSON();
@@ -157,6 +157,13 @@ test("CoopFT exposes focused setup, sync, panel and operational commands", () =>
   assert.equal(commands.get("onboarding-setup").data.toJSON().options.length, 0);
   const welcomeConfig = commands.get("welcome-config").data.toJSON();
   assert.deepEqual(welcomeConfig.options.map(option => option.name), ["action", "channel"]);
+  const freeBotChannel = commands.get("free-bot-channel").data.toJSON();
+  assert.deepEqual(freeBotChannel.options.map(option => option.name), ["channel"]);
+  assert.deepEqual(freeBotChannel.options[0].channel_types, [0, 5]);
+  const freeBotSubmit = commands.get("free-bot-submit").data.toJSON();
+  assert.deepEqual(freeBotSubmit.options.map(option => option.name), ["title", "description", "image"]);
+  assert.equal(freeBotSubmit.options.every(option => option.required), true);
+  assert.equal(freeBotSubmit.options[2].type, 11);
   const cooldown = commands.get("ticket-cooldown").data.toJSON();
   assert.deepEqual(cooldown.options.map((option) => option.name), ["member", "ticket_type", "reason"]);
   assert.deepEqual(cooldown.options[1].choices.map((choice) => choice.value), [
