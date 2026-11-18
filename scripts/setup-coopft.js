@@ -49,7 +49,6 @@ async function runCoopFTSetup(options = {}) {
   const closePool = options.closePool !== false;
 
   if (!token) throw new Error("DISCORD_TOKEN is missing.");
-  if (!databasePool) throw new Error("COOPFT_DATABASE_URL is missing. Create a separate CoopFT Neon project and configure its connection string first.");
   if (!/^[0-9]{17,20}$/.test(guildId)) {
     throw new Error("COOPFT_GUILD_ID must be a valid Discord server ID.");
   }
@@ -63,6 +62,8 @@ async function runCoopFTSetup(options = {}) {
   if (coopftGuildId !== COOPFT_DEFAULT_GUILD_ID && !testOnlyAllowGuildIdOverride) {
     throw new Error("Safety lock: the configured CoopFT persona does not match its verified server ID.");
   }
+
+  if (!databasePool) throw new Error("COOPFT_DATABASE_URL is missing. Create a separate CoopFT Neon project and configure its connection string first.");
 
   let client = null;
   let primaryError = null;
