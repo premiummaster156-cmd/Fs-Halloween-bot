@@ -142,10 +142,11 @@ async function migrateCoopFT(options = {}) {
     pool: databasePool,
     databaseUrl,
     transactionFn: options.transactionFn || createTransaction(databasePool),
-    includeLegacySchema: false,
+    // The isolated database receives the shared structural schema so every
+    // CoopFT-scoped table exists. Only CoopFT-guild rows are copied into it.
+    includeLegacySchema: true,
     includePlayerConstraints: false,
-    migrationFilter: (migration) =>
-      /^[0-9]{4}_coopft_[a-z0-9_-]+\.sql$/.test(migration.name) && existingFilter(migration)
+    migrationFilter: existingFilter
   });
 }
 
