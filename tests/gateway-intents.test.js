@@ -12,7 +12,8 @@ test("Gateway requests only required event intents and the approved GuildMembers
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildModeration,
-    GatewayIntentBits.GuildMembers
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.DirectMessages
   ]);
 
   assert.equal(intents.includes(GatewayIntentBits.GuildPresences), false);
