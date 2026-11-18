@@ -875,7 +875,7 @@ class CoopFTCommunityService {
     // manually-created PNG assets replace the old Unicode role icons without resetting
     // members' custom role names, colours, permissions or positions.
     if (!created && options.force !== true) {
-      if (["high_rank", "low_rank"].includes(spec.key) && role.name !== spec.name) {
+      if (["high_rank", "low_rank", "high_rank_supervisor", "staff_supervisor"].includes(spec.key) && role.name !== spec.name) {
         try {
           role = await role.edit({
             name: spec.name,
@@ -3234,14 +3234,14 @@ class CoopFTCommunityService {
 
     const sectionFor = (key) => {
       if (["owner", "co_owner", "monarch"].includes(key)) return "OWNER RANK";
-      if (["high_rank_supervisor", "apex", "right_wing", "left_wing", "halo", "overseer"].includes(key)) return "HIGH RANK";
-      if (["staff_supervisor", "supreme_council", "senate", "head_moderator"].includes(key)) return "LOW RANK";
+      if (["high_rank_supervisor", "apex", "right_wing", "left_wing", "halo", "overseer"].includes(key)) return "HIGH COMMAND";
+      if (["staff_supervisor", "supreme_council", "senate", "head_moderator"].includes(key)) return "OPERATIONS";
       return "MOD ROLES";
     };
     const sections = [
       { name: "OWNER RANK", title: "OWNER RANK", emoji: "cf3d_owner_crest", fallback: "👑" },
-      { name: "HIGH RANK", title: "HIGH RANK", emoji: "cf3d_high_rank", fallback: "🐉" },
-      { name: "LOW RANK", title: "LOW RANK", emoji: "cf3d_low_rank", fallback: "⚖️" },
+      { name: "HIGH COMMAND", title: "HIGH COMMAND", emoji: "cf3d_high_rank", fallback: "🐉" },
+      { name: "OPERATIONS", title: "OPERATIONS", emoji: "cf3d_low_rank", fallback: "⚖️" },
       { name: "MOD ROLES", title: "MOD ROLES", emoji: "cf3d_mod_rank", fallback: "⚔️" }
     ];
 
