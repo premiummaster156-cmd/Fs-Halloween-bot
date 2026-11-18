@@ -57,7 +57,7 @@ test("server-owner free-bot channel configuration creates the opt-in ping role",
   assert.deepEqual(saved, [["channel:free_bot_releases", channel.id]]);
 });
 
-test("free-bot-submit forwards the guild member to the Developer-role service check", async () => {
+test("free-bot-submit forwards the guild member, source ZIP and promo image", async () => {
   const settings = require("../src/config/settings");
   const previousOwnerId = settings.ownerId;
   settings.ownerId = "123456789012345678";
@@ -67,8 +67,10 @@ test("free-bot-submit forwards the guild member to the Developer-role service ch
     roles: { cache: new Map([["developer-role", { id: "developer-role" }]]) }
   };
   const user = { id: guildMember.id };
-  const image = { id: "promotion-image" };
+  const source = { id: "source-zip", name: "my-bot.zip" };
+  const image = { id: "promotion-image", name: "promo.png" };
   let forwardedSubmitter = null;
+  let forwardedOptions = null;
   const commands = loadCoopFTCommands();
   const interaction = {
     guild: { id: coopftGuildId },
@@ -80,7 +82,7 @@ test("free-bot-submit forwards the guild member to the Developer-role service ch
         title: "My free bot",
         description: "A useful Discord bot with moderation, utilities and community features."
       })[name] || null,
-      getAttachment: () => image
+      getAttachment: (name) => name === "source" ? source : image
     },
     deferReply: async () => undefined,
     editReply: async (content) => content
@@ -89,8 +91,7 @@ test("free-bot-submit forwards the guild member to the Developer-role service ch
     isDeveloper: (member) => member === guildMember,
     submitFreeBotPromotion: async (_guild, submitter, options) => {
       forwardedSubmitter = submitter;
-      assert.equal(options.title, "My free bot");
-      assert.equal(options.image, image);
+      forwardedOptions = options;
     }
   };
 
@@ -98,12 +99,14 @@ test("free-bot-submit forwards the guild member to the Developer-role service ch
     await commands.get("free-bot-submit").execute(interaction, { coopft });
     assert.equal(forwardedSubmitter, guildMember);
     assert.notEqual(forwardedSubmitter, user);
+    assert.equal(forwardedOptions.source, source);
+    assert.equal(forwardedOptions.image, image);
   } finally {
     settings.ownerId = previousOwnerId;
   }
 });
 
-test("approved free-bot promotions publish the image and ping only the opt-in role", async () => {
+test("approved free-bot promotions publish the source ZIP and promo image with the opt-in ping", async () => {
   const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) });
   const role = { id: "release-role" };
   const sent = [];
@@ -118,10 +121,19 @@ test("approved free-bot promotions publish the image and ping only the opt-in ro
   };
   service.getResource = async (_guildId, key) => key === "channel:free_bot_releases" ? channel.id : null;
   service.ensureFreeBotReleaseRole = async () => role;
-  const buffer = Buffer.from("PNG-test-image");
+  const sourceBuffer = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x00]);
+  const imageBuffer = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   const result = await service.publishFreeBotPromotion(
     { id: coopftGuildId, channels: { fetch: async () => channel } },
-    { title: "Free Utility Bot", description: "A useful bot for community servers.", buffer, fileName: "promo.png", submitterId: "123456789012345678" }
+    {
+      title: "Free Utility Bot",
+      description: "A useful bot for community servers.",
+      sourceBuffer,
+      sourceFileName: "utility-bot.zip",
+      imageBuffer,
+      imageFileName: "promo.png",
+      submitterId: "123456789012345678"
+    }
   );
   assert.equal(result.channel, channel);
   assert.equal(result.role, role);
@@ -131,8 +143,10 @@ test("approved free-bot promotions publish the image and ping only the opt-in ro
   assert.equal(sent[0].embeds[0].data.title, "Free Utility Bot");
   assert.equal(sent[0].embeds[0].data.description, "A useful bot for community servers.");
   assert.equal(sent[0].embeds[0].data.image.url, "attachment://promo.png");
-  assert.equal(sent[0].files[0].name, "promo.png");
-  assert.equal(Buffer.compare(sent[0].files[0].attachment, buffer), 0);
+  assert.equal(sent[0].files[0].name, "utility-bot.zip");
+  assert.equal(Buffer.compare(sent[0].files[0].attachment, sourceBuffer), 0);
+  assert.equal(sent[0].files[1].name, "promo.png");
+  assert.equal(Buffer.compare(sent[0].files[1].attachment, imageBuffer), 0);
 });
 
 test("owner free-bot releases attach the source ZIP to the fixed CoopFT release channel", async () => {
@@ -147,12 +161,13 @@ test("owner free-bot releases attach the source ZIP to the fixed CoopFT release 
       return { id: "release-message", channelId: "release-channel" };
     }
   };
+  service.ensureFreeBotReleaseRole = async () => ({ id: "release-role" });
   service.getResource = async (guildId, key) => {
     assert.equal(guildId, coopftGuildId);
     assert.equal(key, "channel:free_bot_releases");
     return channel.id;
   };
-  const buffer = Buffer.from("PK\\x03\\x04sample");
+  const buffer = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x00]);
   const result = await service.publishFreeBotRelease(
     { id: coopftGuildId, channels: { fetch: async id => id === channel.id ? channel : null } },
     { buffer, fileName: "example-bot.zip", title: "Example Bot", description: "Ready to customise." }
@@ -160,11 +175,12 @@ test("owner free-bot releases attach the source ZIP to the fixed CoopFT release 
   assert.equal(result.channel, channel);
   assert.equal(result.message.id, "release-message");
   assert.equal(sent.length, 1);
+  assert.equal(sent[0].content.includes("<@&release-role>"), true);
   assert.equal(sent[0].content.includes("**Example Bot**"), true);
   assert.equal(sent[0].content.includes("Ready to customise."), true);
   assert.equal(sent[0].files[0].name, "example-bot.zip");
   assert.equal(Buffer.compare(sent[0].files[0].attachment, buffer), 0);
-  assert.deepEqual(sent[0].allowedMentions, { parse: [] });
+  assert.deepEqual(sent[0].allowedMentions, { roles: ["release-role"] });
 });
 
 test("free-bot releases reject non-ZIP or oversized archives before sending", async () => {
@@ -175,7 +191,7 @@ test("free-bot releases reject non-ZIP or oversized archives before sending", as
   const guild = { id: coopftGuildId, channels: { fetch: async () => channel } };
   await assert.rejects(
     service.publishFreeBotRelease(guild, { buffer: Buffer.from("not zip"), fileName: "source.tar.gz" }),
-    /ZIP files/
+    /valid ZIP files/
   );
   await assert.rejects(
     service.publishFreeBotRelease(guild, { buffer: Buffer.alloc(20 * 1024 * 1024 + 1), fileName: "large.zip" }),
@@ -266,7 +282,7 @@ test("CoopFT exposes focused setup, sync, panel and operational commands", () =>
   assert.deepEqual(freeBotChannel.options.map(option => option.name), ["channel"]);
   assert.deepEqual(freeBotChannel.options[0].channel_types, [0, 5]);
   const freeBotSubmit = commands.get("free-bot-submit").data.toJSON();
-  assert.deepEqual(freeBotSubmit.options.map(option => option.name), ["title", "description", "image"]);
+  assert.deepEqual(freeBotSubmit.options.map(option => option.name), ["title", "description", "source", "image"]);
   assert.equal(freeBotSubmit.options.every(option => option.required), true);
   assert.equal(freeBotSubmit.options[2].type, 11);
   const cooldown = commands.get("ticket-cooldown").data.toJSON();
