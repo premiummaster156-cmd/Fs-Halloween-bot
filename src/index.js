@@ -9,7 +9,7 @@ const runtimeLogger = installConsoleFileLogging();
 installProcessErrorLogging(runtimeLogger);
 const memoryMonitor = startMemoryMonitor(runtimeLogger);
 
-const { Client, Events, MessageFlags, AuditLogEvent, MessageType, SystemChannelFlags, PermissionFlagsBits } = require("discord.js");
+const { Client, Events, MessageFlags, AuditLogEvent, MessageType, SystemChannelFlags, PermissionFlagsBits, Partials } = require("discord.js");
 const { getGatewayIntents } = require("./config/gateway-intents");
 const { DomainError } = require("./utils/core");
 const settings = require("./config/settings");
@@ -143,7 +143,7 @@ async function start() {
   // Keep GuildPresences and MessageContent disabled; message-content monitoring is not implemented.
   const gatewayIntents = getGatewayIntents();
   console.info("[discord] Gateway intents: Guilds, GuildMessages, GuildModeration, GuildMembers (approved; used for join events and CoopFT role-based directory sync).");
-  const client = new Client({ intents: gatewayIntents });
+  const client = new Client({ intents: gatewayIntents, partials: [Partials.Channel] });
   runtimeClient = client;
   guardEmitter(client, {
     logger: runtimeLogger,
@@ -591,7 +591,83 @@ async function start() {
   });
 
   client.on(Events.MessageCreate, async (message) => {
-    if (!message.guildId || message.guildId !== fukishokaiGuildId) return;
+    // Owner-only source publisher: a single ZIP sent to the bot in DMs is
+    // forwarded unchanged to CoopFT's dedicated public release channel.
+    if (!message.guildId) {
+      if (!message.channel?.isDMBased?.() || message.author?.bot ||
+          !settings.ownerId || message.author?.id !== settings.ownerId ||
+          !message.attachments?.size) return;
+
+      const reject = async (content) => message.reply({
+        content,
+        allowedMentions: { parse: [] }
+      }).catch(() => null);
+
+      try {
+        if (message.attachments.size !== 1) {
+          await reject("Send exactly one **.zip** source archive. Add the release title on the first line and optional notes below it.");
+          return;
+        }
+        const attachment = [...message.attachments.values()][0];
+        if (!/\.zip$/i.test(String(attachment.name || ""))) {
+          await reject("Please ZIP the source folder first, then send the single **.zip** file to me.");
+          return;
+        }
+
+        const maxBytes = 20 * 1024 * 1024;
+        if (Number(attachment.size) > maxBytes) {
+          await reject("That archive is larger than 20 MB. Please compress it and send a smaller ZIP.");
+          return;
+        }
+
+        const attachmentUrl = new URL(String(attachment.url || ""));
+        if (attachmentUrl.protocol !== "https:" ||
+            !["cdn.discordapp.com", "media.discordapp.net"].includes(attachmentUrl.hostname)) {
+          await reject("I couldn't verify that Discord attachment. Please resend the ZIP directly in this DM.");
+          return;
+        }
+
+        const response = await fetch(attachmentUrl, { signal: AbortSignal.timeout(30000) });
+        if (!response.ok) throw new Error("Discord attachment download returned HTTP " + response.status);
+        const declaredLength = Number(response.headers.get("content-length") || 0);
+        if (declaredLength > maxBytes) {
+          await reject("That archive is larger than 20 MB. Please compress it and send a smaller ZIP.");
+          return;
+        }
+        const buffer = Buffer.from(await response.arrayBuffer());
+        if (!buffer.length || buffer.length > maxBytes) {
+          await reject("The ZIP is empty or larger than 20 MB. Please check the file and resend it.");
+          return;
+        }
+
+        const fileName = String(attachment.name || "coopft-free-bot.zip")
+          .replace(/[^\p{L}\p{N}._ -]/gu, "_").slice(0, 100);
+        const lines = String(message.content || "").trim().split(/\r?\n/);
+        const title = (lines.shift() || fileName.replace(/\.zip$/i, "").replace(/[-_]+/g, " ")).trim().slice(0, 120);
+        const description = lines.join("\n").trim().slice(0, 1000);
+        const guild = client.guilds.cache.get(coopftGuildId) ||
+          await client.guilds.fetch(coopftGuildId).catch(() => null);
+        if (!guild || guild.id !== coopftGuildId) {
+          throw new Error("The verified CoopFT guild is unavailable.");
+        }
+
+        const published = await coopftCommunity.publishFreeBotRelease(guild, {
+          buffer, fileName, title, description
+        });
+        const messageUrl = "https://discord.com/channels/" + guild.id + "/" +
+          published.channel.id + "/" + published.message.id;
+        await message.reply({
+          content: "Published **" + title + "** in <#" + published.channel.id + ">.\n" + messageUrl,
+          allowedMentions: { parse: [] }
+        });
+      } catch (error) {
+        console.warn("[coopft] Owner source release failed:", error.message);
+        await reject("I couldn't publish that source ZIP. Check that #free-bot-releases exists and that the file is under 20 MB, then try again.");
+      }
+      return;
+    }
+
+    if (message.guildId !== fukishokaiGuildId) return;
 
     // Server boost notifications/reward announcements are disabled for Fukishōkai.
     // Ignore Discord's native boost system messages instead of turning them into game activity.
