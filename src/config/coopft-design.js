@@ -116,7 +116,8 @@ const PING_ROLES = Object.freeze([
   { key: "ping_game_nights", name: "Game Nights Ping", emoji: "cf3d_roleimg_game_nights", icon: "🎮", primary: 0x4F62A3, secondary: 0x909DE7, permissions: 0n, mentionable: false, hoist: false },
   { key: "ping_bot_updates", name: "Bot Updates Ping", emoji: "cf3d_roleimg_bot_updates", icon: "🤖", primary: 0x596575, secondary: 0xA3B1C5, permissions: 0n, mentionable: false, hoist: false },
   { key: "ping_lfg", name: "Looking for Group Ping", emoji: "cf3d_roleimg_lfg", icon: "⚔️", primary: 0x526E99, secondary: 0x90B2E0, permissions: 0n, mentionable: false, hoist: false },
-  { key: "ping_voice", name: "Voice Activities Ping", emoji: "cf3d_roleimg_voice", icon: "🎙️", primary: 0x39868C, secondary: 0x7FD1CE, permissions: 0n, mentionable: false, hoist: false }
+  { key: "ping_voice", name: "Voice Activities Ping", emoji: "cf3d_roleimg_voice", icon: "🎙️", primary: 0x39868C, secondary: 0x7FD1CE, permissions: 0n, mentionable: false, hoist: false },
+  { key: "ping_free_bot_releases", name: "Free Bot Releases Ping", emoji: "cf3d_bell", icon: "📦", primary: 0x397C94, secondary: 0x73C2D7, permissions: 0n, mentionable: false, hoist: false }
 ]);
 const ROLE_IMAGE_ICONS = Object.freeze([
   { roleKey: "ping_announcements", emoji: "cf3d_roleimg_announcements", slot: 0 },
