@@ -433,29 +433,13 @@ class MemberLifecycleService {
         introChannel ? "Introduce yourself in <#" + introChannel.id + ">" : null,
         startChannel && startChannel.id !== welcomeChannel.id ? "Explore <#" + startChannel.id + ">" : null
       ].filter(Boolean);
-      const welcome = new EmbedBuilder()
-        .setColor(0x32956B)
-        .setAuthor({ name: "A NEW MEMBER HAS ARRIVED" })
-        .setTitle("Welcome to " + safeDisplay(member.guild.name))
-        .setDescription("We're glad you're here, <@" + member.id + ">! Make yourself at home and meet the community.")
-        .addFields(
-          { name: "Member", value: "<@" + member.id + ">", inline: true },
-          { name: "Member number", value: "#" + String(member.guild.memberCount || "—"), inline: true },
-          { name: "Account created", value: createdAt ? "<t:" + Math.floor(createdAt.getTime() / 1000) + ":R>" : "Unknown", inline: true },
-          {
-            name: "Getting started",
-            value: nextSteps.length ? nextSteps.join("\n") : "Take a look around the public channels and check the server guidelines.",
-            inline: false
-          },
-          {
-            name: "Roles assigned",
-            value: autoRoles.length ? autoRoles.map((role) => "<@&" + role.id + ">").join(", ") : "No automatic roles were assigned.",
-            inline: false
-          }
-        )
-        .setTimestamp();
+      const welcome = [
+        "**Welcome to " + safeDisplay(member.guild.name) + ", <@" + member.id + ">!**",
+        "You're member #" + String(member.guild.memberCount || "—") + ".",
+        nextSteps.length ? nextSteps.join("  •  ") : "Take a look around the public channels and read the server guidelines."
+      ].join("\n");
       await welcomeChannel.send({
-        embeds: [welcome],
+        content: welcome,
         allowedMentions: { users: [member.id] }
       }).catch((error) => console.warn("[member-lifecycle] Welcome message failed:", error.message));
     }
