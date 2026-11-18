@@ -146,7 +146,9 @@ async function migrateCoopFT(options = {}) {
     includeLegacySchema: false,
     includePlayerConstraints: false,
     migrationFilter: (migration) =>
-      /^[0-9]{4}_coopft_[a-z0-9_-]+\.sql$/.test(migration.name) && existingFilter(migration)
+      (/^[0-9]{4}_coopft_[a-z0-9_-]+\.sql$/.test(migration.name) ||
+       migration.name === "0010_guild_onboarding_autoroles_welcome.sql") &&
+      existingFilter(migration)
   });
 }
 
