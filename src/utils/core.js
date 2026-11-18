@@ -89,9 +89,22 @@ function splitReward(total, participantIds) {
 function casinoPayout(bet, multiplierHundredths) {
   return Math.floor(Math.floor(bet) * Math.floor(multiplierHundredths) / 100);
 }
+// Opportunistically prune expired economy cooldowns when players use the economy.
+ // This avoids a background timer that would keep Neon compute awake while idle.
+let lastCooldownCleanupAt = 0;
+const COOLDOWN_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 async function claimCooldownTx(client, guildId, userId, key, durationMs, now = new Date()) {
   const current = new Date(now);
   const next = new Date(current.getTime() + Math.max(0, durationMs));
+  const currentMs = current.getTime();
+  if (currentMs - lastCooldownCleanupAt >= COOLDOWN_CLEANUP_INTERVAL_MS) {
+    await client.query("DELETE FROM cooldowns WHERE next_at <= $1", [current]);
+    lastCooldownCleanupAt = currentMs;
+  }
+  await client.query(
+    "DELETE FROM cooldowns WHERE guild_id = $1 AND user_id = $2 AND next_at <= $3",
+    [guildId, userId, current]
+  );
   await client.query(
     "INSERT INTO cooldowns (guild_id, user_id, cooldown_key, next_at) VALUES ($1, $2, $3, $4) ON CONFLICT (guild_id, user_id, cooldown_key) DO NOTHING",
     [guildId, userId, key, current]
