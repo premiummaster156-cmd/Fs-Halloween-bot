@@ -106,7 +106,6 @@ async function claimCooldownTx(client, guildId, userId, key, durationMs, now = n
       [current]
     );
     await client.query("DELETE FROM coopft_ticket_cooldowns WHERE expires_at <= $1", [current]);
-    await client.query("DELETE FROM ai_message_monitor_usage WHERE usage_date < $1::date - INTERVAL '30 days'", [current]);
     await client.query("DELETE FROM daily_chat_rewards WHERE reward_day < $1::date - INTERVAL '30 days'", [current]);
     lastCooldownCleanupAt = currentMs;
   }
