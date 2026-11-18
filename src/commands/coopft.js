@@ -388,7 +388,7 @@ function loadCoopFTCommands(){
   "ticket-add":["member"],"ticket-remove":["member"],"ticket-rename":["name"],"ticket-priority":["value"],
   "ticket-cooldown":["member","ticket_type","reason"],
   suggestion:["title","message"],"suggestion-review":["amount","value","reason"],
-  "free-bot-submit":["title","description","source","repository","image"],"free-bot-channel":["channel"]
+  "free-bot-submit":["title","description","image","source","repository"],"free-bot-channel":["channel"]
  };
  const optionDefinitions={
   member:["user","Member to target"],role:["role","Role to target"],channel:["channel","Destination channel"],
