@@ -3682,7 +3682,7 @@ class CoopFTCommunityService {
       )
       .setTimestamp();
     const message = await channel.send({
-      content: "<@" + role.id + "> **New free bot release**",
+      content: "<@&" + role.id + "> **New free bot release**",
       embeds: [embed],
       files: [
         { attachment: sourceBuffer, name: sourceFileName },
@@ -3711,7 +3711,7 @@ class CoopFTCommunityService {
     const fileName = String(options.fileName).replace(/[^\p{L}\p{N}._ -]/gu, "_").slice(0, 100);
     const sizeMb = (options.buffer.length / (1024 * 1024)).toFixed(2);
     const content = [
-      "<@" + role.id + "> **New free bot source release**",
+      "<@&" + role.id + "> **New free bot source release**",
       "**" + title + "**",
       description,
       "Source ZIP: " + fileName + " · " + sizeMb + " MB"
