@@ -3792,7 +3792,7 @@ class CoopFTCommunityService {
     }
     const role = await this.ensureFreeBotReleaseRole(guild);
     const title = String(options.title || "Free bot release").trim().slice(0, 120);
-    const description = String(options.description || "").trim().slice(0, 1500);
+    const description = String(options.description || "").trim().slice(0, 1200);
     const safeFileName = (value, fallback) =>
       String(value || fallback).replace(/[^\p{L}\p{N}._ -]/gu, "_").slice(0, 100);
     const sourceFileName = safeFileName(options.sourceFileName, "coopft-source.zip");
@@ -3800,27 +3800,32 @@ class CoopFTCommunityService {
     if (!/\.zip$/i.test(sourceFileName) || !/\.(?:png|jpe?g|webp|gif)$/i.test(imageFileName)) {
       throw new Error("The approved files must be a ZIP source archive and a supported promotional image.");
     }
-    const embed = new EmbedBuilder()
-      .setColor(0x397C94)
-      .setTitle(title)
-      .setDescription(description)
-      .setImage("attachment://" + imageFileName)
-      .addFields(
-        { name: "Source code", value: sourceFileName, inline: true },
-        { name: "Shared by", value: options.submitterId ? "<@" + options.submitterId + ">" : "CoopFT Developers", inline: true },
-        ...(options.sourceRepositoryUrl
-          ? [{ name: "GitHub repository", value: "<" + parsePublicGitHubRepositoryUrl(options.sourceRepositoryUrl).url + ">", inline: false }]
-          : [])
-      )
-      .setTimestamp();
+
+    const lines = [
+      "<@&" + role.id + "> **FREE BOT RELEASE: " + title + "**",
+      "",
+      description,
+      "",
+      "📦 **Source ZIP:** **" + sourceFileName + "**",
+      ...(options.sourceRepositoryUrl
+        ? ["🔗 **GitHub:** <" + parsePublicGitHubRepositoryUrl(options.sourceRepositoryUrl).url + ">"]
+        : []),
+      ...(options.submitterId ? ["**Shared by:** <@" + options.submitterId + ">"] : [])
+    ];
+    const content = lines.join("\n").slice(0, 1900);
     const message = await channel.send({
-      content: "<@&" + role.id + "> **New free bot release**",
-      embeds: [embed],
+      content,
+      // Keep the promotional image visible as a native attachment preview.
+      // Suppress URL-generated rich previews so the announcement stays in plain message text.
+      flags: MessageFlags.SuppressEmbeds,
       files: [
-        { attachment: sourceBuffer, name: sourceFileName },
-        { attachment: imageBuffer, name: imageFileName }
+        { attachment: imageBuffer, name: imageFileName },
+        { attachment: sourceBuffer, name: sourceFileName }
       ],
-      allowedMentions: { roles: [role.id] }
+      allowedMentions: {
+        roles: [role.id],
+        users: options.submitterId ? [options.submitterId] : []
+      }
     });
     return { channel, message, role };
   }
