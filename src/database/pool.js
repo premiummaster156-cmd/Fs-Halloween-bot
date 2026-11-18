@@ -30,6 +30,11 @@ function databaseHost(connectionString, variableName) {
   return parsed.hostname.toLowerCase();
 }
 
+function neonProjectIdentity(hostname) {
+  // Neon pooled endpoints add "-pooler" to the same project endpoint slug.
+  return String(hostname || "").toLowerCase().replace(/^([^.]+)-pooler\./, "$1.");
+}
+
 function createDatabasePool(connectionString, label, options = {}) {
   const verified = withVerifiedSslMode(connectionString);
   const pool = new Pool({
@@ -69,7 +74,7 @@ function createTransaction(databasePool) {
 const pool = createDatabasePool(settings.databaseUrl, "database");
 const sourceHost = databaseHost(settings.databaseUrl, "DATABASE_URL");
 const coopftHost = databaseHost(settings.coopftDatabaseUrl, "COOPFT_DATABASE_URL");
-if (sourceHost && coopftHost && sourceHost === coopftHost) {
+if (sourceHost && coopftHost && neonProjectIdentity(sourceHost) === neonProjectIdentity(coopftHost)) {
   throw new Error(
     "COOPFT_DATABASE_URL must point to a separate Neon project/endpoint from DATABASE_URL."
   );
@@ -86,5 +91,6 @@ module.exports = {
   coopftPool,
   createDatabasePool,
   createTransaction,
+  neonProjectIdentity,
   withVerifiedSslMode
 };
