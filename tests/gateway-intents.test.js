@@ -25,5 +25,5 @@ test("Gateway intent configuration returns a fresh array", () => {
   first.pop();
 
   assert.equal(getGatewayIntents().includes(GatewayIntentBits.GuildMembers), true);
-  assert.equal(getGatewayIntents().length, 4);
+  assert.equal(getGatewayIntents().length, 5);
 });
