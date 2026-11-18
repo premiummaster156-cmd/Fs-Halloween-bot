@@ -41,7 +41,6 @@ test("workspace server stays disabled without a guild and a supported feature", 
 test("browser Code Studio is pinned to the configured Fukishokai server persona", () => {
   const config = {
     ideGuildId: "123456789012345678",
-    adminWorkspaceApiKey: "",
     discordClientSecret: "discord-client-secret",
     idePublicUrl: "https://studio.example.com"
   };
