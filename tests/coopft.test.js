@@ -80,7 +80,8 @@ test("free-bot-submit forwards the guild member, source ZIP and promo image", as
     options: {
       getString: (name) => ({
         title: "My free bot",
-        description: "A useful Discord bot with moderation, utilities and community features."
+        description: "A useful Discord bot with moderation, utilities and community features.",
+        repository: null
       })[name] || null,
       getAttachment: (name) => name === "source" ? source : image
     },
@@ -100,6 +101,47 @@ test("free-bot-submit forwards the guild member, source ZIP and promo image", as
     assert.equal(forwardedSubmitter, guildMember);
     assert.notEqual(forwardedSubmitter, user);
     assert.equal(forwardedOptions.source, source);
+    assert.equal(forwardedOptions.image, image);
+  } finally {
+    settings.ownerId = previousOwnerId;
+  }
+});
+
+test("free-bot-submit accepts a GitHub repository instead of a ZIP attachment", async () => {
+  const settings = require("../src/config/settings");
+  const previousOwnerId = settings.ownerId;
+  settings.ownerId = "123456789012345678";
+  const guildMember = {
+    id: "223456789012345678",
+    roles: { cache: new Map([["developer-role", { id: "developer-role" }]]) }
+  };
+  const repositoryUrl = "https://github.com/example/utility-bot";
+  const image = { id: "promotion-image" };
+  let forwardedOptions = null;
+  const interaction = {
+    guild: { id: coopftGuildId },
+    guildId: coopftGuildId,
+    user: { id: guildMember.id },
+    member: guildMember,
+    options: {
+      getString: (name) => ({
+        title: "My GitHub bot",
+        description: "A useful Discord bot with moderation, utilities and community features.",
+        repository: repositoryUrl
+      })[name] || null,
+      getAttachment: (name) => name === "source" ? null : image
+    },
+    deferReply: async () => undefined,
+    editReply: async (content) => content
+  };
+  const coopft = {
+    isDeveloper: (member) => member === guildMember,
+    submitFreeBotPromotion: async (_guild, _submitter, options) => { forwardedOptions = options; }
+  };
+  try {
+    await loadCoopFTCommands().get("free-bot-submit").execute(interaction, { coopft });
+    assert.equal(forwardedOptions.source, null);
+    assert.equal(forwardedOptions.repositoryUrl, repositoryUrl);
     assert.equal(forwardedOptions.image, image);
   } finally {
     settings.ownerId = previousOwnerId;
@@ -173,6 +215,112 @@ test("Developer free-bot submissions send the source ZIP and promo image to the 
   assert.equal(reviewPayload.embeds[0].data.image.url, "attachment://" + reviewPayload.files[1].name);
   assert.equal(reviewPayload.components.length, 1);
   assert.equal(reviewPayload.components[0].components.length, 2);
+});
+
+test("Developer GitHub repository submissions download a public repo ZIP for Owner review", async () => {
+  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) });
+  service.roles.set("developer_member", { id: "developer-role" });
+  service.getResource = async (_guildId, key) => {
+    assert.equal(key, "channel:free_bot_releases");
+    return "release-channel";
+  };
+
+  const zipBytes = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x00]);
+  const imageBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const originalFetch = global.fetch;
+  const requests = [];
+  let reviewPayload = null;
+  const owner = { send: async (payload) => { reviewPayload = payload; } };
+  const guild = {
+    id: coopftGuildId,
+    client: { users: { fetch: async (id) => {
+      assert.equal(id, "123456789012345678");
+      return owner;
+    } } }
+  };
+  const developer = {
+    id: "223456789012345678",
+    roles: { cache: new Map([["developer-role", { id: "developer-role" }]]) }
+  };
+
+  global.fetch = async (url) => {
+    const target = String(url);
+    requests.push(target);
+    if (target === "https://api.github.com/repos/example/utility-bot") {
+      return new Response(JSON.stringify({
+        private: false,
+        disabled: false,
+        default_branch: "main",
+        full_name: "example/utility-bot"
+      }), { headers: { "content-type": "application/json" } });
+    }
+    if (target === "https://api.github.com/repos/example/utility-bot/zipball/main") {
+      return new Response(zipBytes, { headers: { "content-type": "application/zip" } });
+    }
+    if (target === "https://cdn.discordapp.com/attachments/promo.png") {
+      return new Response(imageBytes, { headers: { "content-type": "image/png" } });
+    }
+    throw new Error("Unexpected fetch URL: " + target);
+  };
+
+  try {
+    await service.submitFreeBotPromotion(guild, developer, {
+      title: "Useful GitHub Bot",
+      description: "A useful community bot with moderation, automation and everyday server utilities.",
+      ownerId: "123456789012345678",
+      repositoryUrl: "https://github.com/example/utility-bot",
+      image: {
+        name: "promo.png",
+        size: imageBytes.length,
+        url: "https://cdn.discordapp.com/attachments/promo.png",
+        contentType: "image/png"
+      }
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+
+  assert.deepEqual(requests, [
+    "https://api.github.com/repos/example/utility-bot",
+    "https://api.github.com/repos/example/utility-bot/zipball/main",
+    "https://cdn.discordapp.com/attachments/promo.png"
+  ]);
+  assert.ok(reviewPayload);
+  assert.equal(reviewPayload.files.length, 2);
+  assert.equal(reviewPayload.files[0].name, "example-utility-bot.zip");
+  assert.equal(Buffer.compare(reviewPayload.files[0].attachment, zipBytes), 0);
+  assert.equal(reviewPayload.files[1].name.endsWith(".png"), true);
+  assert.equal(Buffer.compare(reviewPayload.files[1].attachment, imageBytes), 0);
+  assert.equal(
+    reviewPayload.embeds[0].data.fields.find((field) => field.name === "GitHub repository").value,
+    "<https://github.com/example/utility-bot>"
+  );
+});
+
+test("GitHub source submissions reject non-root, non-HTTPS and non-GitHub URLs", async () => {
+  const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) });
+  service.roles.set("developer_member", { id: "developer-role" });
+  const developer = {
+    id: "223456789012345678",
+    roles: { cache: new Map([["developer-role", { id: "developer-role" }]]) }
+  };
+  const guild = { id: coopftGuildId };
+  for (const repositoryUrl of [
+    "http://github.com/example/utility-bot",
+    "https://evil.example/example/utility-bot",
+    "https://github.com/example/utility-bot/tree/main"
+  ]) {
+    await assert.rejects(
+      service.submitFreeBotPromotion(guild, developer, {
+        title: "Useful GitHub Bot",
+        description: "A useful community bot with moderation, automation and everyday server utilities.",
+        ownerId: "123456789012345678",
+        repositoryUrl,
+        image: { name: "promo.png", size: 10, url: "https://cdn.discordapp.com/promo.png", contentType: "image/png" }
+      }),
+      /GitHub|github\.com|repository URL/
+    );
+  }
 });
 
 test("owner approval republishes the reviewed ZIP and image together", async () => {
@@ -424,9 +572,15 @@ test("CoopFT exposes focused setup, sync, panel and operational commands", () =>
   assert.deepEqual(freeBotChannel.options.map(option => option.name), ["channel"]);
   assert.deepEqual(freeBotChannel.options[0].channel_types, [0, 5]);
   const freeBotSubmit = commands.get("free-bot-submit").data.toJSON();
-  assert.deepEqual(freeBotSubmit.options.map(option => option.name), ["title", "description", "source", "image"]);
-  assert.equal(freeBotSubmit.options.every(option => option.required), true);
+  assert.deepEqual(freeBotSubmit.options.map(option => option.name), ["title", "description", "source", "repository", "image"]);
+  assert.equal(freeBotSubmit.options[0].required, true);
+  assert.equal(freeBotSubmit.options[1].required, true);
+  assert.equal(freeBotSubmit.options[2].required, false);
   assert.equal(freeBotSubmit.options[2].type, 11);
+  assert.equal(freeBotSubmit.options[3].required, false);
+  assert.equal(freeBotSubmit.options[3].type, 3);
+  assert.equal(freeBotSubmit.options[4].required, true);
+  assert.equal(freeBotSubmit.options[4].type, 11);
   const cooldown = commands.get("ticket-cooldown").data.toJSON();
   assert.deepEqual(cooldown.options.map((option) => option.name), ["member", "ticket_type", "reason"]);
   assert.deepEqual(cooldown.options[1].choices.map((choice) => choice.value), [
