@@ -273,7 +273,7 @@ if(n==="free-bot-submit"){
  if(!s.coopft.isDeveloper(i.member))throw Error("The Developer role is required to submit free-bot promotions.");
  if(!settings.ownerId)throw Error("OWNER_ID is not configured. Please contact the server owner.");
  const title=i.options.getString("title");
- const description=i.options.getString("message");
+ const description=i.options.getString("description");
  const image=i.options.getAttachment("image");
  if(!title||!description||!image)throw Error("A title, promotional description and image are required.");
  await i.deferReply({flags:MessageFlags.Ephemeral});
@@ -385,14 +385,14 @@ function loadCoopFTCommands(){
   "ticket-add":["member"],"ticket-remove":["member"],"ticket-rename":["name"],"ticket-priority":["value"],
   "ticket-cooldown":["member","ticket_type","reason"],
   suggestion:["title","message"],"suggestion-review":["amount","value","reason"],
-  "free-bot-submit":["title","message","image"],"free-bot-channel":["channel"]
+  "free-bot-submit":["title","description","image"],"free-bot-channel":["channel"]
  };
  const optionDefinitions={
   member:["user","Member to target"],role:["role","Role to target"],channel:["channel","Destination channel"],
   title:["string","Title"],message:["string","Message or details"],question:["string","Poll question"],options:["string","Poll choices separated by |"],
   start:["string","Start time in ISO 8601"],end:["string","End time in ISO 8601"],event_id:["string","Scheduled event ID"],user_id:["string","Discord user ID"],
   reason:["string","Reason"],note:["string","Private staff note"],topic:["string","New channel topic"],name:["string","New name or nickname"],value:["string","Priority or review status"],ticket_type:["string","Request type to cool down"],
-  amount:["integer","Number, ID, seconds or minutes"],image:["attachment","Promotional image (PNG, JPG, WEBP or GIF)"]
+  amount:["integer","Number, ID, seconds or minutes"],description:["string","Promotional description (what it does and why members should try it)"],image:["attachment","Promotional image (PNG, JPG, WEBP or GIF)"]
  };
  for(let k=0;k<names.length;k++){
   const n=names[k];let b=new SlashCommandBuilder().setName(n).setDescription(desc[k]);
@@ -429,7 +429,7 @@ function loadCoopFTCommands(){
    const [kind,label]=optionDefinitions[key];
    if(kind==="user")b.addUserOption(o=>o.setName(key).setDescription(label).setRequired(true));
    else if(kind==="role")b.addRoleOption(o=>o.setName(key).setDescription(label).setRequired(true));
-   else if(kind==="channel")b.addChannelOption(o=>o.setName(key).setDescription(label).setRequired(true));
+   else if(kind==="channel")b.addChannelOption(o=>{const option=o.setName(key).setDescription(label).setRequired(true);if(n==="free-bot-channel")option.addChannelTypes(ChannelType.GuildText,ChannelType.GuildAnnouncement);return option;});
    else if(kind==="integer")b.addIntegerOption(o=>o.setName(key).setDescription(label).setMinValue(0).setMaxValue(40320).setRequired(true));
    else if(kind==="attachment")b.addAttachmentOption(o=>o.setName(key).setDescription(label).setRequired(true));
    else if(key==="ticket_type")b.addStringOption(o=>o.setName(key).setDescription(label).setRequired(true).addChoices(
@@ -439,7 +439,7 @@ function loadCoopFTCommands(){
     {name:"Staff Concern or Appeal",value:"staff_report"},
     {name:"Bot Exploit Report",value:"bot_exploit"}
    ));
-   else b.addStringOption(o=>o.setName(key).setDescription(label).setMaxLength(key==="message"||key==="note"?2500:1000).setRequired(true));
+   else b.addStringOption(o=>o.setName(key).setDescription(label).setMaxLength(key==="message"||key==="note"?2500:key==="description"?1500:1000).setRequired(true));
   }
   map.set(n,{data:b,execute:(i,s)=>run(n,i,s)});
  }
