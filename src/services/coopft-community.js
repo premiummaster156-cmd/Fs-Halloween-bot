@@ -478,73 +478,67 @@ class CoopFTCommunityService {
   }
 
   async getRoleIconBuffer(roleKey) {
-    const spec = [...PING_ROLES, ...INTEREST_ROLES].find((item) => item.key === roleKey);
+    const spec = ROLE_IMAGE_ICONS.find((item) => item.roleKey === roleKey);
     if (!spec) return null;
     const canvasApi = require("@napi-rs/canvas");
+    if (!this.roleIconSheet) {
+      const encoded = fs.readFileSync(
+        path.resolve(__dirname, "../../assets/coopft-role-icons-sprite.png.b64"),
+        "utf8"
+      ).trim();
+      if (!encoded) throw new Error("The CoopFT 3D role-icon sprite is empty.");
+      const sheet = await canvasApi.loadImage(Buffer.from(encoded, "base64"));
+      if (sheet.width !== 256 || sheet.height !== 256) {
+        throw new Error("Expected the 256×256 CoopFT 3D role-icon sprite, received " +
+          sheet.width + "×" + sheet.height + ".");
+      }
+      this.roleIconSheet = sheet;
+    }
     const canvas = canvasApi.createCanvas(128, 128);
     const context = canvas.getContext("2d");
-    const primary = "#" + Number(spec.primary).toString(16).padStart(6, "0");
-    const secondary = "#" + Number(spec.secondary).toString(16).padStart(6, "0");
-    const gradient = context.createLinearGradient(12, 12, 116, 116);
-    gradient.addColorStop(0, primary);
-    gradient.addColorStop(1, secondary);
-    context.fillStyle = gradient;
-    context.beginPath();
-    context.roundRect(7, 7, 114, 114, 30);
-    context.fill();
-    context.strokeStyle = "rgba(255,255,255,0.92)";
-    context.lineWidth = 4;
-    context.stroke();
-    context.strokeStyle = "rgba(255,255,255,0.30)";
-    context.lineWidth = 2;
-    context.beginPath();
-    context.roundRect(15, 15, 98, 98, 23);
-    context.stroke();
-    const glow = context.createRadialGradient(64, 46, 2, 64, 54, 58);
-    glow.addColorStop(0, "rgba(255,255,255,0.36)");
-    glow.addColorStop(1, "rgba(255,255,255,0)");
-    context.fillStyle = glow;
-    context.beginPath();
-    context.roundRect(9, 9, 110, 110, 28);
-    context.fill();
-    context.textAlign = "center";
-    context.textBaseline = "middle";
-    context.font = "68px \"Apple Color Emoji\", \"Segoe UI Emoji\", sans-serif";
-    context.shadowColor = "rgba(0,0,0,0.24)";
-    context.shadowBlur = 8;
-    context.shadowOffsetY = 3;
-    context.fillStyle = "#ffffff";
-    context.fillText(spec.icon, 64, 65, 88);
-    context.shadowColor = "transparent";
-    context.shadowBlur = 0;
-    context.shadowOffsetY = 0;
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    const sourceX = (spec.slot % 4) * 64;
+    const sourceY = Math.floor(spec.slot / 4) * 64;
+    context.drawImage(this.roleIconSheet, sourceX, sourceY, 64, 64, 0, 0, 128, 128);
     return canvas.toBuffer("image/png");
   }
 
   async ensureRoleImageEmojis(guild) {
     this.assertCoopFTGuild(guild, "create the generated CoopFT role-icon emojis");
-    const result = { created: 0, available: 0, failed: [] };
+    const result = { created: 0, updated: 0, available: 0, failed: [] };
     const existing = new Map(Array.from(guild.emojis.cache.values()).map((emoji) => [emoji.name, emoji]));
     const botMember = guild.members.me || await guild.members.fetchMe().catch(() => null);
     const canCreate = Boolean(botMember?.permissions?.has(PermissionFlagsBits.CreateGuildExpressions));
     for (const spec of ROLE_IMAGE_ICONS) {
       const current = existing.get(spec.emoji);
-      if (current) {
+      if (current && !canCreate) {
         this.emojis.set(spec.emoji, current.id);
         result.available += 1;
+        result.failed.push(spec.emoji + ": missing Create Expressions permission to replace the old artwork");
         continue;
       }
-      if (!canCreate) {
+      if (!current && !canCreate) {
         result.failed.push(spec.emoji + ": missing Create Expressions permission");
         continue;
       }
       try {
         const attachment = await this.getRoleIconBuffer(spec.roleKey);
         if (!attachment) throw new Error("No generated image exists for " + spec.roleKey + ".");
+        if (current) {
+          await guild.emojis.edit(current.id, {
+            attachment,
+            reason: "Replace legacy CoopFT role art with the approved glossy 3D icon set"
+          });
+          this.emojis.set(spec.emoji, current.id);
+          result.updated += 1;
+          result.available += 1;
+          continue;
+        }
         const created = await guild.emojis.create({
           attachment,
           name: spec.emoji,
-          reason: "CoopFT generated PNG role and onboarding icons"
+          reason: "CoopFT glossy 3D role and onboarding icons"
         });
         this.emojis.set(spec.emoji, created.id);
         result.created += 1;
@@ -636,6 +630,7 @@ class CoopFTCommunityService {
     }
     const roleImages = await this.ensureRoleImageEmojis(guild);
     result.created += roleImages.created;
+    result.updated = (result.updated || 0) + roleImages.updated;
     result.available += roleImages.available;
     result.failed.push(...roleImages.failed);
 
@@ -1156,6 +1151,12 @@ class CoopFTCommunityService {
         ? startCategory
         : communityKeys.has(spec.key) ? communityCategory : servicesCategory;
       publicByKey[spec.key] = await createChannel(spec, parent);
+    }
+
+    if (newPublicChannels.has("free_bot_releases")) {
+      await publicByKey.free_bot_releases.setTopic(
+        "Official CoopFT free Discord bot source releases. Download the ZIP packages posted by server leadership."
+      ).catch((error) => console.warn("[coopft] Could not set the free-bot release channel topic:", error.message));
     }
 
     // No role deletion or bulk cleanup is performed during setup.
@@ -3390,17 +3391,47 @@ class CoopFTCommunityService {
     return { panel: panelKey, channelId: channel.id, channelName: channel.name };
   }
 
+  async publishFreeBotRelease(guild, options = {}) {
+    this.assertCoopFTGuild(guild, "publish a free bot source release");
+    if (!Buffer.isBuffer(options.buffer) || !options.buffer.length) {
+      throw new Error("A non-empty source ZIP buffer is required.");
+    }
+    if (options.buffer.length > 20 * 1024 * 1024 || !/\.zip$/i.test(String(options.fileName || ""))) {
+      throw new Error("Source releases must be ZIP files no larger than 20 MB.");
+    }
+    const channelId = await this.getResource(guild.id, "channel:free_bot_releases");
+    const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
+    if (!channel || channel.guildId !== guild.id || !channel.isTextBased?.() ||
+        typeof channel.send !== "function") {
+      throw new Error("The CoopFT free-bot release channel is not configured.");
+    }
+    const title = String(options.title || "Free bot source release").trim().slice(0, 120);
+    const description = String(options.description || "").trim().slice(0, 1000);
+    const fileName = String(options.fileName).slice(0, 100);
+    const sizeMb = (options.buffer.length / (1024 * 1024)).toFixed(2);
+    const content = [
+      "**" + title + "**",
+      description,
+      "",
+      "Source ZIP: " + fileName + " · " + sizeMb + " MB",
+      "Free source release from CoopFT."
+    ].filter(Boolean).join("\n").slice(0, 1900);
+    const message = await channel.send({
+      content,
+      files: [{ attachment: options.buffer, name: fileName }],
+      allowedMentions: { parse: [] }
+    });
+    return { channel, message };
+  }
+
   async postStaffUpdate(guild, description) {
     this.assertCoopFTGuild(guild, "post a CoopFT staff update");
     const channelId = await this.getResource(guild.id, "channel:staff_bot_updates");
     const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
     if (!channel?.isTextBased?.()) return;
-    const embed = new EmbedBuilder()
-      .setColor(0x7B2438)
-      .setTitle(this.emoji(guild.id, "cf3d_bell", "🔔") + "  Staff system update")
-      .setDescription(String(description || "A staff system change occurred.").slice(0, 4000))
-      .setTimestamp();
-    await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
+    const content = String(description || "A staff system change occurred.").trim().slice(0, 1800);
+    if (!content) return;
+    await channel.send({ content, allowedMentions: { parse: [] } });
   }
 
   async handleButton(interaction) {
@@ -3492,9 +3523,7 @@ class CoopFTCommunityService {
     }
     await channel.permissionOverwrites.edit(ticket.opener_id, { SendMessages: false, AddReactions: false }).catch(() => {});
     await channel.send({
-      embeds: [new EmbedBuilder().setColor(0x687386).setTitle(this.emoji(guild.id, "cf3d_shield", "🔒") + "  Ticket closed")
-        .setDescription("Closed by <@" + closedBy + ">. A transcript has been archived.")
-        .setTimestamp()],
+      content: "🔒 **Ticket closed.** Closed by <@" + closedBy + ">. Transcript archived.",
       allowedMentions: { parse: [] }
     }).catch(() => {});
     await channel.setName(closedTicketChannelName(channel.name)).catch(() => {});
