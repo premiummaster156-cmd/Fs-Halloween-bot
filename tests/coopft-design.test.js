@@ -73,12 +73,39 @@ test("role brackets follow the hierarchy and only the Bots divider has Administr
   assert.ok(ROLE_LAYOUT.find((group) => group.bracket === "member_roles").roles.includes("developer_member"));
 });
 
-test("only the High Rank and Low Rank staff section names change; Mod Roles remains unchanged", () => {
-  assert.equal(ROLE_BRACKETS.find(role => role.key === "high_rank").name, "━━━━━━〔 MANAGEMENT 〕━━━━━━");
-  assert.equal(ROLE_BRACKETS.find(role => role.key === "low_rank").name, "━━━━━━〔 SUPPORT TEAM 〕━━━━━━");
+test("leadership and operations brackets keep their new names while Mod Roles remains unchanged", () => {
+  assert.equal(ROLE_BRACKETS.find(role => role.key === "high_rank").name, "━━━━━━〔 LEADERSHIP 〕━━━━━━");
+  assert.equal(ROLE_BRACKETS.find(role => role.key === "low_rank").name, "━━━━━━〔 OPERATIONS 〕━━━━━━");
   assert.equal(ROLE_BRACKETS.find(role => role.key === "mod_roles").name, "━━━━━━〔 MOD ROLES 〕━━━━━━");
-  assert.deepEqual(ROLE_BRACKETS.find(role => role.key === "high_rank").legacyNames, ["━━━━━━〔 HIGH RANK 〕━━━━━━"]);
-  assert.deepEqual(ROLE_BRACKETS.find(role => role.key === "low_rank").legacyNames, ["━━━━━━〔 LOW RANK 〕━━━━━━"]);
+  assert.ok(ROLE_BRACKETS.find(role => role.key === "high_rank").legacyNames.includes("━━━━━━〔 HIGH RANK 〕━━━━━━"));
+  assert.ok(ROLE_BRACKETS.find(role => role.key === "low_rank").legacyNames.includes("━━━━━━〔 LOW RANK 〕━━━━━━"));
+});
+
+test("only the non-owner leadership roles are renamed and recoloured; protected roles stay intact", () => {
+  const byKey = new Map(STAFF_RANKS.map((role) => [role.key, role]));
+  assert.equal(byKey.get("high_rank_supervisor").name, "High Chancellor");
+  assert.equal(byKey.get("apex").name, "Vanguard");
+  assert.equal(byKey.get("halo").name, "Sentinel");
+  assert.equal(byKey.get("staff_supervisor").name, "Operations Director");
+  assert.equal(byKey.get("supreme_council").name, "Executive Council");
+  assert.equal(byKey.get("senate").name, "Strategic Council");
+  assert.equal(byKey.get("council").name, "Grand Council");
+  assert.deepEqual(
+    ["high_rank_supervisor", "apex", "halo", "staff_supervisor", "supreme_council", "senate", "council"]
+      .map((key) => byKey.get(key).primary),
+    [0x2563EB, 0x7C3AED, 0x0891B2, 0xEA580C, 0xBE185D, 0x0F766E, 0xB45309]
+  );
+  for (const key of ["owner", "co_owner", "monarch", "right_wing", "left_wing", "overseer", "head_moderator", "senior_moderator", "moderator", "junior_moderator"]) {
+    assert.ok(byKey.has(key), "protected role " + key + " remains");
+  }
+});
+
+test("Council moves into Operations and Head Moderator moves into Mod Roles", () => {
+  const positions = new Map(ROLE_LAYOUT.map((group) => [group.bracket, group.roles]));
+  assert.ok(positions.get("low_rank").includes("council"));
+  assert.equal(positions.get("low_rank").includes("head_moderator"), false);
+  assert.deepEqual(positions.get("mod_roles"), ["head_moderator", "senior_moderator", "moderator", "junior_moderator"]);
+  assert.equal(positions.get("mod_roles").includes("council"), false);
 });
 
 test("the manually generated PNG icon sheet covers every interest and notification role", () => {
