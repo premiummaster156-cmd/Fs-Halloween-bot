@@ -233,12 +233,20 @@ async function start() {
     if (coopftPool && coopftCommunity && coopftGuildId) {
       const coopGuild = ready.guilds.cache.get(coopftGuildId) || await ready.guilds.fetch(coopftGuildId).catch(() => null);
       if (coopGuild) {
-        const coopMember = coopGuild.members.me || await coopGuild.members.fetchMe().catch(() => null);
-        coopMember?.setNickname("CoopFT • Assistant", "Per-server CoopFT identity").catch((error) =>
-          console.warn("[coopft] Could not set server nickname:", error.message)
-        );
-        coopftCommunity.loadManagedRoles(coopGuild).then(async (loaded) => {
-          console.info("[coopft] Loaded managed role references:", loaded);
+        // Refresh Discord's role and bot-member state before comparing configured names.
+        // This makes the owner-approved role-name changes reliable across process restarts.
+        try {
+          await Promise.all([
+            coopGuild.roles.fetch(),
+            coopGuild.members.fetchMe()
+          ]);
+          const coopMember = coopGuild.members.me;
+          coopMember?.setNickname("CoopFT • Assistant", "Per-server CoopFT identity").catch((error) =>
+            console.warn("[coopft] Could not set server nickname:", error.message)
+          );
+
+          const loaded = await coopftCommunity.loadManagedRoles(coopGuild);
+          console.info("[coopft] Loaded and reconciled managed role references:", loaded);
           try {
             const access = await coopftCommunity.repairPublicChannelAccess(coopGuild);
             console.info("[coopft] Public member visibility/history repair completed:", {
@@ -249,11 +257,13 @@ async function start() {
           } catch (error) {
             console.warn("[coopft] Could not repair public member channel access:", error.message);
           }
+
+          // Rebuild the existing directory message after role names and IDs are current.
           const directory = await coopftCommunity.startStaffDirectoryRefresh(coopGuild);
-          console.info("[coopft] Initial event-driven staff directory sync completed:", directory);
-        }).catch((error) => {
-          console.warn("[coopft] Could not initialize CoopFT roles or live staff directory:", error.message);
-        });
+          console.info("[coopft] Startup staff directory refresh completed:", directory);
+        } catch (error) {
+          console.warn("[coopft] Could not synchronize CoopFT roles or staff directory on startup:", error.message);
+        }
       }
     }
 
