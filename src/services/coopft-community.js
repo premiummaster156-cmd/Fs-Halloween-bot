@@ -489,8 +489,8 @@ class CoopFTCommunityService {
       ).trim();
       if (!encoded) throw new Error("The CoopFT 3D role-icon sprite is empty.");
       const sheet = await canvasApi.loadImage(Buffer.from(encoded, "base64"));
-      if (sheet.width !== 192 || sheet.height !== 192) {
-        throw new Error("Expected the 192×192 CoopFT 3D role-icon sprite, received " +
+      if (sheet.width !== 256 || sheet.height !== 256) {
+        throw new Error("Expected the 256×256 CoopFT 3D role-icon sprite, received " +
           sheet.width + "×" + sheet.height + ".");
       }
       this.roleIconSheet = sheet;
@@ -499,9 +499,9 @@ class CoopFTCommunityService {
     const context = canvas.getContext("2d");
     context.imageSmoothingEnabled = true;
     context.imageSmoothingQuality = "high";
-    const sourceX = (spec.slot % 4) * 48;
-    const sourceY = Math.floor(spec.slot / 4) * 48;
-    context.drawImage(this.roleIconSheet, sourceX, sourceY, 48, 48, 0, 0, 128, 128);
+    const sourceX = (spec.slot % 4) * 64;
+    const sourceY = Math.floor(spec.slot / 4) * 64;
+    context.drawImage(this.roleIconSheet, sourceX, sourceY, 64, 64, 0, 0, 128, 128);
     return canvas.toBuffer("image/png");
   }
 
