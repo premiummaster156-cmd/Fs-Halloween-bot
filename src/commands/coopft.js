@@ -1,8 +1,9 @@
 "use strict";
 const {SlashCommandBuilder,EmbedBuilder,PermissionFlagsBits:P,MessageFlags,ChannelType,SnowflakeUtil}=require("discord.js");
 const { INTEREST_ROLES, PING_ROLES } = require("../config/coopft-design");
-const names="coopft-setup coopft-roles-sync coopft-channels-sync coopft-channel-decorate coopft-panel coopft-ticket-config announce poll event-create event-list event-cancel slowmode lock unlock purge timeout untimeout kick ban unban warn warnings clear-warnings case note notes member-note-remove role-add role-remove nickname reset-nickname channel-topic channel-rename ticket-cooldown ticket-claim ticket-close ticket-add ticket-remove ticket-rename ticket-priority ticket-info ticket-list suggestion suggestion-review autorole welcome-config onboarding-setup coopft-public-access".split(" ");
-const desc="Create missing CoopFT resources without overwriting custom settings|Explicitly apply configured CoopFT role names, colors, permissions and order|Explicitly apply configured CoopFT channel names, categories and permissions|Apply decorative names to default CoopFT channels only|Publish or move a CoopFT panel|Configure ticket category and transcript archive|Publish announcement|Create poll|Schedule event|List events|Cancel event|Set slowmode|Lock channel|Unlock channel|Purge messages|Timeout member|Remove timeout|Kick member|Ban member|Unban user|Issue warning|View warnings|Clear warnings|Moderation case|Add staff note|View staff notes|Remove staff note|Assign role|Remove role|Set nickname|Reset nickname|Edit channel topic|Rename channel|Apply a manual seven-day cooldown to one request type|Claim ticket|Close ticket|Add ticket member|Remove ticket member|Rename ticket|Set ticket priority|Ticket details|List tickets|Submit suggestion|Review suggestion|Configure automatic join roles (server owner only)|Set the welcome channel or disable welcome messages (server owner only)|Build and enable Discord onboarding from public channels (server owner only)|Restore public channel visibility and message history for members".split("|");
+const settings = require("../config/settings");
+const names="coopft-setup coopft-roles-sync coopft-channels-sync coopft-channel-decorate coopft-panel coopft-ticket-config announce poll event-create event-list event-cancel slowmode lock unlock purge timeout untimeout kick ban unban warn warnings clear-warnings case note notes member-note-remove role-add role-remove nickname reset-nickname channel-topic channel-rename ticket-cooldown ticket-claim ticket-close ticket-add ticket-remove ticket-rename ticket-priority ticket-info ticket-list suggestion suggestion-review autorole welcome-config onboarding-setup coopft-public-access free-bot-channel free-bot-submit".split(" ");
+const desc="Create missing CoopFT resources without overwriting custom settings|Explicitly apply configured CoopFT role names, colors, permissions and order|Explicitly apply configured CoopFT channel names, categories and permissions|Apply decorative names to default CoopFT channels only|Publish or move a CoopFT panel|Configure ticket category and transcript archive|Publish announcement|Create poll|Schedule event|List events|Cancel event|Set slowmode|Lock channel|Unlock channel|Purge messages|Timeout member|Remove timeout|Kick member|Ban member|Unban user|Issue warning|View warnings|Clear warnings|Moderation case|Add staff note|View staff notes|Remove staff note|Assign role|Remove role|Set nickname|Reset nickname|Edit channel topic|Rename channel|Apply a manual seven-day cooldown to one request type|Claim ticket|Close ticket|Add ticket member|Remove ticket member|Rename ticket|Set ticket priority|Ticket details|List tickets|Submit suggestion|Review suggestion|Configure automatic join roles (server owner only)|Set the welcome channel or disable welcome messages (server owner only)|Build and enable Discord onboarding from public channels (server owner only)|Restore public channel visibility and message history for members|Configure the public free-bot release channel (server owner only)|Submit a promotional image and description for Owner approval".split("|");
 const staff=(i,s)=>{if(!s.coopft.isStaff(i.member))throw Error("CoopFT staff only.");};
 const serverOwner=(i)=>{if(!i.guild||i.user.id!==i.guild.ownerId)throw Error("Only the actual server owner can use this configuration command.");};
 const requireBotPermission=async(g,permission,label)=>{const bot=g.members.me||await g.members.fetchMe().catch(()=>null);if(!bot?.permissions?.has(permission))throw Error("The bot needs "+label+" permission.");return bot;};
@@ -261,6 +262,28 @@ if(n==="coopft-panel"){
  const result=await s.coopft.configurePanel(g,panel,target);
  return say(i,"Published **"+result.panel+"** panel in <#"+result.channelId+">.");
 }
+if(n==="free-bot-channel"){
+ serverOwner(i);
+ const channel=i.options.getChannel("channel");
+ if(!channel)throw Error("Select the public channel for approved free-bot promotions.");
+ const configured=await s.coopft.configureFreeBotReleaseChannel(g,channel);
+ return say(i,"Free-bot promotions will be published in <#"+configured.channel.id+">. The opt-in <@&"+configured.role.id+"> role is ready.");
+}
+if(n==="free-bot-submit"){
+ if(!s.coopft.isDeveloper(i.member))throw Error("The Developer role is required to submit free-bot promotions.");
+ if(!settings.ownerId)throw Error("OWNER_ID is not configured. Please contact the server owner.");
+ const title=i.options.getString("title");
+ const description=i.options.getString("message");
+ const image=i.options.getAttachment("image");
+ if(!title||!description||!image)throw Error("A title, promotional description and image are required.");
+ await i.deferReply({flags:MessageFlags.Ephemeral});
+ try{
+  await s.coopft.submitFreeBotPromotion(g,u,{title,description,image,ownerId:settings.ownerId});
+  return i.editReply("Your promotion was sent to the server owner for review. You will be notified after a decision.");
+ }catch(error){
+  return i.editReply(error.message||"The promotion could not be submitted. Please try again.");
+ }
+}
 if(n==="coopft-ticket-config"){
  ownerConfig(i,s);
  const result=await s.coopft.configureTicketing(g,{
@@ -361,14 +384,15 @@ function loadCoopFTCommands(){
   "channel-topic":["topic"],"channel-rename":["name"],
   "ticket-add":["member"],"ticket-remove":["member"],"ticket-rename":["name"],"ticket-priority":["value"],
   "ticket-cooldown":["member","ticket_type","reason"],
-  suggestion:["title","message"],"suggestion-review":["amount","value","reason"]
+  suggestion:["title","message"],"suggestion-review":["amount","value","reason"],
+  "free-bot-submit":["title","message","image"],"free-bot-channel":["channel"]
  };
  const optionDefinitions={
   member:["user","Member to target"],role:["role","Role to target"],channel:["channel","Destination channel"],
   title:["string","Title"],message:["string","Message or details"],question:["string","Poll question"],options:["string","Poll choices separated by |"],
   start:["string","Start time in ISO 8601"],end:["string","End time in ISO 8601"],event_id:["string","Scheduled event ID"],user_id:["string","Discord user ID"],
   reason:["string","Reason"],note:["string","Private staff note"],topic:["string","New channel topic"],name:["string","New name or nickname"],value:["string","Priority or review status"],ticket_type:["string","Request type to cool down"],
-  amount:["integer","Number, ID, seconds or minutes"]
+  amount:["integer","Number, ID, seconds or minutes"],image:["attachment","Promotional image (PNG, JPG, WEBP or GIF)"]
  };
  for(let k=0;k<names.length;k++){
   const n=names[k];let b=new SlashCommandBuilder().setName(n).setDescription(desc[k]);
@@ -407,6 +431,7 @@ function loadCoopFTCommands(){
    else if(kind==="role")b.addRoleOption(o=>o.setName(key).setDescription(label).setRequired(true));
    else if(kind==="channel")b.addChannelOption(o=>o.setName(key).setDescription(label).setRequired(true));
    else if(kind==="integer")b.addIntegerOption(o=>o.setName(key).setDescription(label).setMinValue(0).setMaxValue(40320).setRequired(true));
+   else if(kind==="attachment")b.addAttachmentOption(o=>o.setName(key).setDescription(label).setRequired(true));
    else if(key==="ticket_type")b.addStringOption(o=>o.setName(key).setDescription(label).setRequired(true).addChoices(
     {name:"Custom Bot Commission",value:"custom_bot_request"},
     {name:"Partnership Enquiry",value:"partnership"},
