@@ -19,6 +19,8 @@ module.exports = {
   coopftGuildId: process.env.COOPFT_GUILD_ID || "1498271944456540210",
   fukishokaiGuildId: process.env.FUKISHOKAI_GUILD_ID || (process.env.GUILD_ID && process.env.GUILD_ID !== (process.env.COOPFT_GUILD_ID || "1498271944456540210") ? process.env.GUILD_ID : ""),
   databaseUrl: process.env.DATABASE_URL || "",
+  // Dedicated Neon project for CoopFT. Never fall back to Fukishokai DATABASE_URL.
+  coopftDatabaseUrl: process.env.COOPFT_DATABASE_URL || "",
   ownerId: process.env.OWNER_ID || "",
   kingIds,
   adminRoleIds: parseList(process.env.ADMIN_ROLE_IDS),
