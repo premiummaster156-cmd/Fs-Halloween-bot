@@ -137,8 +137,8 @@ test("the manually generated PNG icon sheet covers every interest and notificati
   const assetPath = path.join(__dirname, "../assets/coopft-role-icons-sprite.png.b64");
   const png = Buffer.from(fs.readFileSync(assetPath, "utf8").trim(), "base64");
   assert.equal(png.toString("hex", 0, 8), "89504e470d0a1a0a");
-  assert.equal(png.readUInt32BE(16), 256);
-  assert.equal(png.readUInt32BE(20), 256);
+  assert.equal(png.readUInt32BE(16), 192);
+  assert.equal(png.readUInt32BE(20), 192);
 });
 
 test("members can self-select interests and non-mentionable notification roles only", () => {
