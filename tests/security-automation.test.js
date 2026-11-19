@@ -5,8 +5,7 @@ const assert = require("node:assert/strict");
 const settings = require("../src/config/settings");
 const {
   SecurityService,
-  isSevereEconomyIncident,
-  evaluateNukeBurst
+  isSevereEconomyIncident
 } = require("../src/services/security");
 
 test("only severe economy incidents qualify for owner notification and review actions", () => {
@@ -24,13 +23,6 @@ test("only severe economy incidents qualify for owner notification and review ac
   assert.equal(isSevereEconomyIncident("command_spam", { riskScore: 100 }), false);
   assert.equal(isSevereEconomyIncident("anti_nuke", { riskScore: 100 }), false);
   assert.equal(isSevereEconomyIncident("anti_raid", { riskScore: 100 }), false);
-});
-
-test("anti-nuke thresholds require a destructive or mass-creation burst", () => {
-  assert.equal(evaluateNukeBurst(["channel_delete", "channel_delete"]).triggered, false);
-  assert.equal(evaluateNukeBurst(["channel_delete", "channel_delete", "role_delete"]).reason, "mass_asset_deletion");
-  assert.equal(evaluateNukeBurst(["member_ban", "member_ban", "member_kick", "member_kick", "member_kick"]).reason, "mass_member_removal");
-  assert.equal(evaluateNukeBurst(Array(8).fill("channel_create")).reason, "mass_asset_creation");
 });
 
 function makeService() {
@@ -286,99 +278,6 @@ test("economy controls cannot target a protected King account", async () => {
   assert.equal(writes.length, 1, "no restriction or leaderboard write occurs");
 });
 
-test("anti-nuke alerts DM only Kings and bot owner, with no action controls or automatic actions", async () => {
-  const { service, client, guild, sent, restrictions } = makeService();
-  await service.createIncident(client, {
-    guild,
-    userId: "suspected-actor",
-    category: "anti_nuke",
-    summary: "A burst of channel deletions was attributed to one member.",
-    details: { detectionReason: "mass_asset_deletion", countInWindow: 3, windowSeconds: 20 }
-  });
-
-  const expectedRecipients = new Set([...settings.kingIds, settings.ownerId].filter(Boolean));
-  assert.deepEqual(new Set(sent.map((entry) => entry.recipientId)), expectedRecipients);
-  assert.equal(sent.length, expectedRecipients.size);
-  assert.equal(sent.some((entry) => entry.recipientId === guild.ownerId && !settings.kingIds.includes(guild.ownerId)), false,
-    "the server owner is not added separately unless they are one of the configured Kings");
-  assert.equal(restrictions.length, 0, "anti-nuke detection must not apply a bot-access restriction");
-  for (const entry of sent) {
-    const mail = entry.payload;
-    assert.match(mail.embeds[0].data.title, /Potential server nuke/);
-    assert.match(mail.embeds[0].data.description, /alert-only notification/i);
-    const action = mail.embeds[0].data.fields.find((field) => field.name === "Action taken").value;
-    assert.match(action, /No moderation/i);
-    assert.equal(Object.hasOwn(mail, "components"), false, "anti-nuke DMs must not contain buttons or controls");
-    assert.deepEqual(mail.allowedMentions, { parse: [] });
-  }
-});
-
-test("anti-raid alerts DM only Kings and bot owner, with no action controls or lockdown", async () => {
-  const { service, client, guild, sent, restrictions } = makeService();
-  let guildEditCalls = 0;
-  guild.edit = async () => { guildEditCalls += 1; };
-  await service.createIncident(client, {
-    guild,
-    category: "anti_raid",
-    summary: "A rapid join burst included three newly created accounts.",
-    details: {
-      joinsIn30Seconds: 5,
-      joinsIn60Seconds: 5,
-      newAccountsIn60Seconds: 3,
-      newAccountAgeDays: 7,
-      joinWindowSeconds: 30,
-      newAccountWindowSeconds: 60,
-      inviteSourceSummary: "3 joins: Invite abc123 — created by Example (ID inviter-1)",
-      recentJoiners: "new-user-1 — account age 1d — Invite abc123"
-    }
-  });
-
-  const expectedRecipients = new Set([...settings.kingIds, settings.ownerId].filter(Boolean));
-  assert.deepEqual(new Set(sent.map((entry) => entry.recipientId)), expectedRecipients);
-  assert.equal(sent.length, expectedRecipients.size);
-  assert.equal(restrictions.length, 0, "anti-raid detection must not apply a bot-access restriction");
-  assert.equal(guildEditCalls, 0, "anti-raid detection must never change the server verification level");
-  assert.match(sent[0].payload.embeds[0].data.fields.find((field) => field.name === "Incident context").value, /Invite abc123/);
-  assert.match(sent[0].payload.embeds[0].data.description, /three newly created accounts/);
-  for (const entry of sent) {
-    const mail = entry.payload;
-    assert.match(mail.embeds[0].data.description, /alert-only notification/i);
-    const action = mail.embeds[0].data.fields.find((field) => field.name === "Action taken").value;
-    assert.match(action, /No moderation/i);
-    assert.equal(Object.hasOwn(mail, "components"), false, "anti-raid DMs must not contain buttons or controls");
-  }
-});
-
-test("a high-impact role permission grant is escalated as an anti-nuke incident", async () => {
-  const service = new SecurityService({}, { async get() { return null; } });
-  service.isAboveBotRole = async () => false;
-  let recorded = null;
-  service.createIncident = async (_client, input) => { recorded = input; return "incident-1"; };
-  const entry = {
-    id: "audit-1",
-    target: { id: "role-1" },
-    executor: { id: "actor-1" },
-    createdTimestamp: Date.now(),
-    reason: "unexpected privilege grant"
-  };
-  const guild = {
-    id: "guild-1",
-    async fetchAuditLogs() { return { entries: [entry] }; }
-  };
-  const client = { user: { id: "bot-user" } };
-
-  await service.recordPrivilegeEscalation(
-    client, guild, "role-1", "role_permission_escalation",
-    require("discord.js").AuditLogEvent.RoleUpdate,
-    ["Administrator", "Manage Roles"]
-  );
-
-  assert.equal(recorded.category, "anti_nuke");
-  assert.equal(recorded.userId, "actor-1");
-  assert.equal(recorded.details.detectionReason, "privilege_escalation");
-  assert.equal(recorded.details.changedFields, "Administrator, Manage Roles");
-});
-
 test("administrator DM tools cannot target Fukishokai Kings", async () => {
   const { AdminMessagingService } = require("../src/services/admin-messaging");
   const settings = require("../src/config/settings");
@@ -401,12 +300,21 @@ test("administrator DM tools cannot target Fukishokai Kings", async () => {
   assert.equal(result.attempted, 1);
   assert.deepEqual(sent, ["regular-member"]);
 });
-test("security DMs are sent to both Fukishokai Kings", async () => {
-  const { service, client, guild, sent } = makeService();
-  await service.createIncident(client, { guild, category: "anti_nuke", userId: null, summary: "A test alert.", details: {} });
-  const ids = new Set(sent.map((entry) => entry.recipientId));
-  const settings = require("../src/config/settings");
-  for (const kingId of settings.kingIds) assert.equal(ids.has(kingId), true);
+test("Fukishokai anti-nuke and anti-raid incident creation is disabled", async () => {
+  const { service, client, guild, sent, restrictions, queryCounts } = makeService();
+  const nuke = await service.createIncident(client, {
+    guild, userId: "actor-1", category: "anti_nuke",
+    summary: "This legacy detection must not create an incident.", details: {}
+  });
+  const raid = await service.createIncident(client, {
+    guild, userId: "actor-2", category: "anti_raid",
+    summary: "This legacy detection must not create an incident.", details: {}
+  });
+  assert.equal(nuke, null);
+  assert.equal(raid, null);
+  assert.equal(queryCounts.incidents, 0, "disabled server-monitoring alerts are not persisted");
+  assert.equal(sent.length, 0, "disabled server-monitoring alerts send no DMs");
+  assert.equal(restrictions.length, 0, "disabled server-monitoring alerts apply no restrictions");
 });
 
 test("legacy anti-nuke action buttons are rejected without taking any action", async () => {
@@ -438,38 +346,9 @@ test("legacy anti-nuke action buttons are rejected without taking any action", a
     async update() { updateCalled = true; }
   };
   await security.handleAlertInteraction(interaction, { guilds: { cache: new Map() } });
-  assert.match(reply.content, /alert-only/i);
+  assert.match(reply.content, /monitoring have been removed/i);
   assert.equal(updateCalled, false);
   assert.equal(writes.length, 1, "the incident is read, with no moderation, lockdown or audit write");
-});
-
-test("priority anti-raid alerts are suppressed by a persistent database throttle", async () => {
-  let savedIncident = false;
-  const service = new SecurityService({
-    async query(sql) {
-      if (sql.includes("INSERT INTO security_incidents")) {
-        savedIncident = true;
-        return { rowCount: 1, rows: [{ id: "99" }] };
-      }
-      if (sql.includes("INSERT INTO security_priority_alert_state")) {
-        return { rowCount: 0, rows: [] };
-      }
-      return { rowCount: 1, rows: [] };
-    }
-  }, { async get() { return null; } });
-  service.isAboveBotRole = async () => false;
-  const sent = [];
-  const client = { users: { async fetch() { return { username: "Nico", async send(payload) { sent.push(payload); } }; } } };
-  const guild = { id: "guild-1", name: "Fukishōkai", ownerId: "server-owner" };
-
-  await service.createIncident(client, {
-    guild,
-    category: "anti_raid",
-    summary: "A join burst was detected.",
-    details: { joinsInWindow: 8, youngAccounts: 4 }
-  });
-  assert.equal(savedIncident, true, "the incident remains stored even when the repeat DM is suppressed");
-  assert.equal(sent.length, 0, "a recently notified server does not receive another priority DM");
 });
 
 test("legacy anti-raid lockdown buttons are rejected without changing server settings", async () => {
