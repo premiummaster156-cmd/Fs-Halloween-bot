@@ -271,17 +271,26 @@ async function start() {
     if (fukishokaiGuildId) {
       const fsGuild = ready.guilds.cache.get(fukishokaiGuildId);
       if (fsGuild) {
-        // Suppress Discord's native boost notice in Fukishōkai's system channel.
-        // This does not change CoopFT's server notification settings.
+        // Fukishōkai's system channel may be the boosts channel. Suppress native
+        // join and boost notices there so Discord cannot post member welcomes
+        // or premium-subscription announcements into that channel.
+        // CoopFT's own welcome flow remains separate and CoopFT-only.
         try {
           const flags = fsGuild.systemChannelFlags;
-          if (!flags.has(SystemChannelFlags.SuppressPremiumSubscriptions)) {
+          const nativeNoticeFlags = [
+            SystemChannelFlags.SuppressJoinNotifications,
+            SystemChannelFlags.SuppressJoinNotificationReplies,
+            SystemChannelFlags.SuppressPremiumSubscriptions
+          ].filter((flag) => flag !== undefined);
+          const missingFlags = nativeNoticeFlags.filter((flag) => !flags.has(flag));
+          if (missingFlags.length) {
             await fsGuild.edit({
-              systemChannelFlags: flags.add(SystemChannelFlags.SuppressPremiumSubscriptions)
-            }, "Disable server boost notifications in Fukishōkai");
+              systemChannelFlags: flags.add(...missingFlags)
+            }, "Suppress native member-join and boost notices in Fukishōkai");
           }
+          console.info("[fukishokai] Native member-join and boost notices are suppressed in the system channel.");
         } catch (error) {
-          console.warn("[fukishokai] Could not suppress native boost notices (Manage Server may be required):", error.message);
+          console.warn("[fukishokai] Could not suppress native member-join/boost notices (Manage Server may be required):", error.message);
         }
         const me = fsGuild.members.me;
         me?.setNickname("Fukishōkai", "Per-server Fukishōkai identity").catch((error) =>
