@@ -1147,6 +1147,16 @@ test("CoopFT staff directory is text-only with section headings and timestamp", 
     assert.ok(headingText.includes(section), section + " section must be present");
   }
   assert.ok(data.fields.every((field) => field.value.includes("VACANT")));
+
+  const operations = data.fields.find((field) => field.name.includes("OPERATIONS"));
+  const operationsOrder = ["Staff Manager", "Head Council", "Senior Council", "Council"]
+    .map((name) => operations.value.indexOf("**" + name + "**"));
+  assert.ok(operationsOrder.every((position) => position >= 0), "all four Operations roles must be listed");
+  assert.deepEqual(
+    operationsOrder,
+    [...operationsOrder].sort((a, b) => a - b),
+    "Operations directory must list roles from highest to lowest"
+  );
 });
 
 test("all 28 CoopFT vector fallbacks render to transparent PNG images", () => {
