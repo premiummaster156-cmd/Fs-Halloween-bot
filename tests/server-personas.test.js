@@ -74,3 +74,17 @@ test("Fukishokai cannot be configured to share the CoopFT server ID", () => {
     return true;
   });
 });
+
+test("Fukishokai system channel suppresses native member-join and boost notices", () => {
+  const source = fs.readFileSync(path.join(ROOT, "src/index.js"), "utf8");
+  const start = source.indexOf("if (fukishokaiGuildId) {\\n      const fsGuild");
+  const end = source.indexOf("client.on(Events.GuildCreate", start);
+  assert.notEqual(start, -1, "Fukishokai system-channel setup must exist");
+  assert.notEqual(end, -1, "Fukishokai system-channel setup must be bounded");
+  const block = source.slice(start, end);
+  assert.match(block, /SuppressJoinNotifications/);
+  assert.match(block, /SuppressJoinNotificationReplies/);
+  assert.match(block, /SuppressPremiumSubscriptions/);
+  assert.match(block, /fsGuild\\.edit\\(/);
+  assert.match(block, /Suppress native member-join and boost notices in Fukishōkai/);
+});
