@@ -852,8 +852,8 @@ class CoopFTCommunityService {
     // Only non-owner leadership positions are renamed/recoloured. Owner ranks,
     // Left/Right Wing, Overseer, and every Moderator rank retain their styling.
     const managedStaffStyleKeys = new Set([
-      "high_rank_supervisor", "apex", "halo", "staff_supervisor",
-      "supreme_council", "senate", "council", "high_rank", "low_rank"
+      "high_rank_supervisor", "apex", "halo",
+      "staff_supervisor", "supreme_council", "senate"
     ]);
     for (const item of loadedRoles) {
       if (!item.role || !managedStaffStyleKeys.has(item.spec.key)) continue;
@@ -862,7 +862,12 @@ class CoopFTCommunityService {
       if (item.role.color !== item.spec.primary) changes.color = item.spec.primary;
       if (!Object.keys(changes).length) continue;
       if (item.role.editable === false) {
-        console.warn("[coopft] Cannot rename/recolour managed role " + item.role.name + "; move the bot role above it.");
+        console.error("[coopft] ROLE SYNC BLOCKED:", {
+          role: item.role.name,
+          expectedName: item.spec.name,
+          expectedColor: "#" + item.spec.primary.toString(16).padStart(6, "0"),
+          reason: "Move the CoopFT bot's highest role above this role in Server Settings → Roles."
+        });
         continue;
       }
       try {
