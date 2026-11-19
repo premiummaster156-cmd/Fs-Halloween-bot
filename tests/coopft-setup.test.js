@@ -8,7 +8,7 @@ const path = require("node:path");
 const { Events, GatewayIntentBits } = require("discord.js");
 const { runCoopFTSetup } = require("../scripts/setup-coopft");
 
-test("the hosting-console setup migrates, connects to only CoopFT, and runs bootstrap once", async () => {
+test("the hosting-console setup migrates, bootstraps, syncs staff role names/colours and refreshes the directory", async () => {
   const order = [];
   const guildId = "123456789012345678";
   const guild = { id: guildId, name: "CoopFT" };
@@ -43,6 +43,16 @@ test("the hosting-console setup migrates, connects to only CoopFT, and runs boot
           cleanup: { awaitingConfirmation: true, candidates: [] },
           emojiResult: { failed: [] }
         };
+      },
+      loadManagedRoles: async (targetGuild) => {
+        assert.equal(targetGuild, guild);
+        order.push("sync-staff-roles");
+        return { staffRoleSync: { updated: ["High Rank Lead"] } };
+      },
+      startStaffDirectoryRefresh: async (targetGuild) => {
+        assert.equal(targetGuild, guild);
+        order.push("refresh-directory");
+        return { refreshed: true };
       }
     }),
     databasePool: { end: async () => order.push("pool-end") },
@@ -57,6 +67,8 @@ test("the hosting-console setup migrates, connects to only CoopFT, and runs boot
     "login:test-token",
     "fetch:" + guildId,
     "bootstrap",
+    "sync-staff-roles",
+    "refresh-directory",
     "destroy",
     "pool-end"
   ]);
