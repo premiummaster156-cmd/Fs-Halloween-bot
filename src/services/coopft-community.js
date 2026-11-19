@@ -3353,6 +3353,57 @@ class CoopFTCommunityService {
     await this.postStaffUpdate(member.guild, "<@" + member.id + "> left the server. Their staff directory entry has been set inactive.");
   }
 
+  async getStaffDirectoryConfig(guild) {
+    this.assertCoopFTGuild(guild, "read the CoopFT staff directory configuration");
+    const key = "staff_directory_config";
+    const stored = await this.getSetting(guild.id, key);
+    let config = stored && typeof stored === "object" && !Array.isArray(stored)
+      ? stored
+      : null;
+
+    if (!config) {
+      const managerRole = [...(guild.roles?.cache?.values?.() || [])]
+        .find((role) => role.id !== guild.id && role.name?.trim().toLowerCase() === "manager");
+      config = {
+        title: "COOPFT  |  STAFF DIRECTORY",
+        description: "Current CoopFT staff by assigned role. VACANT indicates an unfilled position.",
+        categories: managerRole ? [{
+          name: "MANAGEMENT",
+          emoji: "💼",
+          roles: [{ roleId: managerRole.id, name: managerRole.name, emoji: "👔" }]
+        }] : []
+      };
+      await this.setSetting(guild.id, key, config);
+    }
+
+    return {
+      title: String(config.title || "COOPFT  |  STAFF DIRECTORY").slice(0, 256),
+      description: String(config.description || "Current CoopFT staff by assigned role. VACANT indicates an unfilled position.").slice(0, 4000),
+      categories: (Array.isArray(config.categories) ? config.categories : [])
+        .filter((category) => category && typeof category === "object" && typeof category.name === "string")
+        .slice(0, 20)
+        .map((category) => ({
+          name: String(category.name).slice(0, 100),
+          emoji: String(category.emoji || "✦").slice(0, 64),
+          roles: (Array.isArray(category.roles) ? category.roles : [])
+            .filter((entry) => entry && /^\d{17,25}$/.test(String(entry.roleId || "")))
+            .slice(0, 25)
+            .map((entry) => ({
+              roleId: String(entry.roleId),
+              name: String(entry.name || "Staff role").slice(0, 100),
+              emoji: String(entry.emoji || "").slice(0, 64)
+            }))
+        }))
+    };
+  }
+
+  async saveStaffDirectoryConfig(guild, config) {
+    this.assertCoopFTGuild(guild, "save the CoopFT staff directory configuration");
+    await this.setSetting(guild.id, "staff_directory_config", config);
+    await this.updateStaffDirectory(guild);
+    return config;
+  }
+
   async buildStaffDirectoryEmbed(guild) {
     this.assertCoopFTGuild(guild, "build the CoopFT staff directory");
     if (!this.memberRosterLoaded) {
@@ -3388,11 +3439,11 @@ class CoopFTCommunityService {
       { name: "MOD ROLES", title: "MOD ROLES", emoji: "cf3d_mod_rank", fallback: "⚔️" }
     ];
 
-    const refreshedAt = Math.floor(Date.now() / 1000);
+    const directoryConfig = await this.getStaffDirectoryConfig(guild);
     const embed = new EmbedBuilder()
       .setColor(0x8C2635)
-      .setTitle("COOPFT  |  STAFF DIRECTORY")
-      .setDescription("Current CoopFT staff by assigned role. VACANT indicates an unfilled position.")
+      .setTitle(directoryConfig.title)
+      .setDescription(directoryConfig.description)
       .setTimestamp();
 
     for (const section of sections) {
@@ -3433,6 +3484,27 @@ class CoopFTCommunityService {
       value: developerLabel + "  ➜  " + developerNames,
       inline: false
     });
+
+    // Additional directory categories are owner-configurable and persisted in
+    // CoopFT's own settings table. They never change a member's Discord roles.
+    for (const category of directoryConfig.categories) {
+      const lines = category.roles.map((entry) => {
+        const role = guild.roles?.cache?.get?.(entry.roleId);
+        const roleLabel = role ? "<@&" + role.id + ">" : "**" + entry.name + "**";
+        const people = members
+          .filter((member) => member.roles?.cache?.has?.(entry.roleId))
+          .sort((a, b) => a.displayName.localeCompare(b.displayName));
+        const names = people.length
+          ? people.map((member) => "<@" + member.id + ">").join(", ")
+          : "*VACANT*";
+        return (entry.emoji || category.emoji || "✦") + "  " + roleLabel + "  ➜  " + names;
+      });
+      embed.addFields({
+        name: "━━━━━━━━  " + category.emoji + "  **_" + category.name + "_**  ━━━━━━━━",
+        value: lines.join("\n") || "*No roles configured.*",
+        inline: false
+      });
+    }
     return embed;
   }
 
