@@ -87,6 +87,6 @@ test("Fukishokai system channel suppresses native member-join and boost notices"
   assert.ok(block.includes("SystemChannelFlags.SuppressJoinNotifications"));
   assert.ok(block.includes("SystemChannelFlags.SuppressJoinNotificationReplies"));
   assert.ok(block.includes("SystemChannelFlags.SuppressPremiumSubscriptions"));
-  assert.ok(source.includes("fsGuild.edit("));
+  assert.ok(source.includes("currentGuild.edit("));
   assert.ok(source.includes("Suppress native member-join and boost notices in Fukishōkai"));
 });
