@@ -82,9 +82,9 @@ test("Fukishokai system channel suppresses native member-join and boost notices"
   assert.notEqual(start, -1, "Fukishokai system-channel suppression flags must exist");
   assert.notEqual(end, -1, "Fukishokai system-channel suppression log must exist");
   const block = source.slice(start, end);
-  assert.match(block, /SystemChannelFlags\\.SuppressJoinNotifications/);
-  assert.match(block, /SystemChannelFlags\\.SuppressJoinNotificationReplies/);
-  assert.match(block, /SystemChannelFlags\\.SuppressPremiumSubscriptions/);
-  assert.match(source, /fsGuild\\.edit\\(/);
-  assert.match(source, /Suppress native member-join and boost notices in Fukishōkai/);
+  assert.ok(block.includes("SystemChannelFlags.SuppressJoinNotifications"));
+  assert.ok(block.includes("SystemChannelFlags.SuppressJoinNotificationReplies"));
+  assert.ok(block.includes("SystemChannelFlags.SuppressPremiumSubscriptions"));
+  assert.ok(source.includes("fsGuild.edit("));
+  assert.ok(source.includes("Suppress native member-join and boost notices in Fukishōkai"));
 });
