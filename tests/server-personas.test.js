@@ -33,7 +33,9 @@ test("shared Fukishokai services cannot access CoopFT lifecycle or community ser
   assert.doesNotMatch(sharedServices, /memberLifecycle/);
   assert.doesNotMatch(sharedServices, /coopftCommunity/);
   assert.match(source, /if \(member\.guild\.id === coopftGuildId\)[\s\S]{0,240}memberLifecycle\.handleJoin\(member\)/);
-  assert.match(source, /if \(member\.guild\.id === fukishokaiGuildId\)[\s\S]{0,180}raidMonitor\.handleMemberJoin\(member, client\)/);
+  assert.doesNotMatch(source, /raidMonitor|recordDestructiveChange|recordPrivilegeEscalation|monitorSecurityChange/);
+  assert.match(source, /if \(guild\.id !== coopftGuildId \|\| !memberLifecycle \|\| !coopftCommunity\) return/);
+  assert.match(source, /memberLifecycle\.handleServerAuditEntry\(guild, entry, client\.user\.id\)/);
 });
 
 test("a COOPFT_GUILD_ID override to any other server fails closed", () => {
