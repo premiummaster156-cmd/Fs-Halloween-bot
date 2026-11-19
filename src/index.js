@@ -267,7 +267,7 @@ async function start() {
     }
 
     if (fukishokaiGuildId) {
-      const fsGuild = ready.guilds.cache.get(fukishokaiGuildId);
+      const fsGuild = ready.guilds.cache.get(fukishokaiGuildId) || await ready.guilds.fetch(fukishokaiGuildId).catch(() => null);
       if (fsGuild) {
         // Fukishōkai's system channel may be the boosts channel. Suppress native
         // join and boost notices there so Discord cannot post member welcomes
@@ -281,14 +281,22 @@ async function start() {
             SystemChannelFlags.SuppressPremiumSubscriptions
           ].filter((flag) => flag !== undefined);
           const missingFlags = nativeNoticeFlags.filter((flag) => !flags.has(flag));
-          if (missingFlags.length) {
-            await fsGuild.edit({
-              systemChannelFlags: flags.add(...missingFlags)
-            }, "Suppress native member-join and boost notices in Fukishōkai");
+          const updatedGuild = missingFlags.length
+            ? await fsGuild.edit({
+                systemChannelFlags: flags.add(...missingFlags)
+              }, "Suppress native member-join and boost notices in Fukishōkai")
+            : fsGuild;
+          // Verify the flags against a fresh Discord guild response instead of
+          // assuming a cached object or a successful request means they persisted.
+          const verifiedGuild = await updatedGuild.fetch().catch(() => updatedGuild);
+          const stillEnabled = nativeNoticeFlags.filter((flag) => !verifiedGuild.systemChannelFlags.has(flag));
+          if (stillEnabled.length) {
+            console.error("[fukishokai] Discord did not persist all native join/boost suppression flags:", stillEnabled);
+          } else {
+            console.info("[fukishokai] Verified: native member-join and boost notices are suppressed in the system channel.");
           }
-          console.info("[fukishokai] Native member-join and boost notices are suppressed in the system channel.");
         } catch (error) {
-          console.warn("[fukishokai] Could not suppress native member-join/boost notices (Manage Server may be required):", error.message);
+          console.warn("[fukishokai] Discord rejected the native member-join/boost notification settings update:", error.message);
         }
       }
     }
