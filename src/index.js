@@ -150,12 +150,12 @@ async function start() {
   } else {
     console.warn("[coopft] COOPFT_DATABASE_URL is not configured. CoopFT database features are paused; no CoopFT data will be written to Fukishokai's DATABASE_URL.");
   }
-  // Discord Support approved GuildMembers under request 69920914 for actual-join
-  // raid detection. GuildMessages and GuildModeration are non-privileged intents
-  // required by existing message-activity/boost and audit-log event handlers.
-  // Keep GuildPresences and MessageContent disabled; message-content monitoring is not implemented.
+  // GuildMembers is used only for CoopFT's welcome/autorole lifecycle and staff directory.
+  // GuildMessages supports Fukishōkai economy activity and boost rewards; GuildModeration
+  // supports CoopFT staff audit logs. No Fukishōkai anti-raid or anti-nuke handlers run.
+  // Keep GuildPresences and MessageContent disabled.
   const gatewayIntents = getGatewayIntents();
-  console.info("[discord] Gateway intents: Guilds, GuildMessages, GuildModeration, GuildMembers (approved; used for join events and CoopFT role-based directory sync).");
+  console.info("[discord] Gateway intents: Guilds + GuildMessages for Fukishōkai economy; GuildMembers + GuildModeration for CoopFT staff lifecycle/audit logs; DirectMessages for owner source publishing.");
   const client = new Client({ intents: gatewayIntents, partials: [Partials.Channel] });
   runtimeClient = client;
   guardEmitter(client, {
@@ -315,7 +315,7 @@ async function start() {
 
   client.on(Events.GuildMemberAdd, (member) => {
     // Member lifecycle, welcome embeds and autoroles belong exclusively to CoopFT.
-    // Fukishōkai only runs its own anti-raid join monitor here.
+    // Fukishōkai has no bot-side join or server-monitoring handler.
     if (member.guild.id === coopftGuildId) {
       if (!memberLifecycle || !coopftCommunity) return;
       memberLifecycle.handleJoin(member).then(() =>
