@@ -1159,6 +1159,38 @@ test("CoopFT staff directory is text-only with section headings and timestamp", 
   );
 });
 
+test("staff directory automatically includes the standalone Manager role", async () => {
+  const service = new CoopFTCommunityService({
+    query: async () => ({ rows: [], rowCount: 1 })
+  }, { guildId: coopftGuildId });
+  service.memberRosterLoaded = true;
+  const managerRole = { id: "123456789012345678", name: "Manager" };
+  const embed = await service.buildStaffDirectoryEmbed({
+    id: coopftGuildId,
+    roles: { cache: new Map([[managerRole.id, managerRole]]) },
+    members: { cache: new Map() }
+  });
+  const data = embed.toJSON();
+  const management = data.fields.find((field) => field.name.includes("MANAGEMENT"));
+  assert.ok(management, "the Manager category should be added");
+  assert.ok(management.value.includes("<@&" + managerRole.id + ">"));
+  assert.ok(management.value.includes("VACANT"));
+});
+
+test("staff-directory management command is registered with the configurable actions", () => {
+  const command = loadCoopFTCommands().get("staff-directory");
+  assert.ok(command, "staff-directory slash command should be registered");
+  const definition = command.data.toJSON();
+  const action = definition.options.find((option) => option.name === "action");
+  assert.deepEqual(
+    action.choices.map((choice) => choice.value),
+    ["refresh", "add_category", "remove_category", "edit_category", "add_role", "remove_role", "set_title", "set_description"]
+  );
+  for (const optionName of ["category", "role", "name", "emoji", "text"]) {
+    assert.ok(definition.options.some((option) => option.name === optionName), optionName + " option should be available");
+  }
+});
+
 test("all 28 CoopFT vector fallbacks render to transparent PNG images", () => {
   for (const [index, name] of EMOJI_SPRITE.entries()) {
     const canvas = createCanvas(128, 128);
