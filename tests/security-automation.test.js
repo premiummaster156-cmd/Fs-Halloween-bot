@@ -21,8 +21,6 @@ test("only severe economy incidents qualify for owner notification and review ac
   assert.equal(isSevereEconomyIncident("economy_xp_manipulation", { riskScore: 100 }), false);
   assert.equal(isSevereEconomyIncident("economy_xp_manipulation", { riskScore: 100, invalidAttempts: 3 }), true);
   assert.equal(isSevereEconomyIncident("command_spam", { riskScore: 100 }), false);
-  assert.equal(isSevereEconomyIncident("anti_nuke", { riskScore: 100 }), false);
-  assert.equal(isSevereEconomyIncident("anti_raid", { riskScore: 100 }), false);
 });
 
 function makeService() {
@@ -379,7 +377,7 @@ test("legacy anti-raid lockdown buttons are rejected without changing server set
   const client = { guilds: { cache: { get: () => guild }, async fetch() { return guild; } } };
   service.hasAdminAccess = async () => true;
   await service.handleAlertInteraction(interaction, client);
-  assert.match(reply.content, /alert-only/i);
+  assert.match(reply.content, /monitoring have been removed/i);
   assert.equal(updateCalled, false);
   assert.equal(writes.length, 1, "legacy lockdown buttons must not edit the server or incident status");
 });
