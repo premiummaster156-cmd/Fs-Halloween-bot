@@ -937,8 +937,8 @@ class CoopFTCommunityService {
 
     // Keep the existing bracket/divider roles untouched. Reorder only the four
     // Low Rank staff roles so their actual Discord order matches the directory:
-    // Staff Manager → Council → Senior Council → Head Council.
-    const lowRankOrder = ["staff_supervisor", "council", "supreme_council", "senate"];
+    // Highest to lowest: Staff Manager → Head Council → Senior Council → Council.
+    const lowRankOrder = ["staff_supervisor", "senate", "supreme_council", "council"];
     const lowRankRoles = lowRankOrder.map((key) => this.roles.get(key));
     if (
       lowRankRoles.every((role) => role && role.editable !== false) &&
