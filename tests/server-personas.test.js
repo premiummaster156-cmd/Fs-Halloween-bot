@@ -80,7 +80,7 @@ test("Fukishokai cannot be configured to share the CoopFT server ID", () => {
 test("Fukishokai system channel suppresses native member-join and boost notices", () => {
   const source = fs.readFileSync(path.join(ROOT, "src/index.js"), "utf8");
   const start = source.indexOf("const nativeNoticeFlags = [");
-  const end = source.indexOf("console.info(\"[fukishokai] Native member-join and boost notices", start);
+  const end = source.indexOf("console.info(\"[fukishokai] Verified: native member-join and boost notices", start);
   assert.notEqual(start, -1, "Fukishokai system-channel suppression flags must exist");
   assert.notEqual(end, -1, "Fukishokai system-channel suppression log must exist");
   const block = source.slice(start, end);
