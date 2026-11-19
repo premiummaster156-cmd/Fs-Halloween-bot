@@ -274,7 +274,8 @@ async function start() {
         // or premium-subscription announcements into that channel.
         // CoopFT's own welcome flow remains separate and CoopFT-only.
         try {
-          const flags = fsGuild.systemChannelFlags;
+          const currentGuild = await fsGuild.fetch();
+          const flags = currentGuild.systemChannelFlags;
           const nativeNoticeFlags = [
             SystemChannelFlags.SuppressJoinNotifications,
             SystemChannelFlags.SuppressJoinNotificationReplies,
@@ -282,10 +283,10 @@ async function start() {
           ].filter((flag) => flag !== undefined);
           const missingFlags = nativeNoticeFlags.filter((flag) => !flags.has(flag));
           const updatedGuild = missingFlags.length
-            ? await fsGuild.edit({
+            ? await currentGuild.edit({
                 systemChannelFlags: flags.add(...missingFlags)
               }, "Suppress native member-join and boost notices in Fukishōkai")
-            : fsGuild;
+            : currentGuild;
           // Verify the flags against a fresh Discord guild response instead of
           // assuming a cached object or a successful request means they persisted.
           const verifiedGuild = await updatedGuild.fetch().catch(() => updatedGuild);
