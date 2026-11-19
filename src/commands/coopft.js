@@ -2,8 +2,8 @@
 const {SlashCommandBuilder,EmbedBuilder,PermissionFlagsBits:P,MessageFlags,ChannelType,SnowflakeUtil}=require("discord.js");
 const { INTEREST_ROLES, PING_ROLES } = require("../config/coopft-design");
 const settings = require("../config/settings");
-const names="coopft-setup coopft-roles-sync coopft-channels-sync coopft-channel-decorate coopft-panel coopft-ticket-config announce poll event-create event-list event-cancel slowmode lock unlock purge timeout untimeout kick ban unban warn warnings clear-warnings case note notes member-note-remove role-add role-remove nickname reset-nickname channel-topic channel-rename ticket-cooldown ticket-claim ticket-close ticket-add ticket-remove ticket-rename ticket-priority ticket-info ticket-list suggestion suggestion-review autorole welcome-config onboarding-setup coopft-public-access free-bot-channel free-bot-submit".split(" ");
-const desc="Create missing CoopFT resources without overwriting custom settings|Explicitly apply configured CoopFT role names, colors, permissions and order|Explicitly apply configured CoopFT channel names, categories and permissions|Apply decorative names to default CoopFT channels only|Publish or move a CoopFT panel|Configure ticket category and transcript archive|Publish announcement|Create poll|Schedule event|List events|Cancel event|Set slowmode|Lock channel|Unlock channel|Purge messages|Timeout member|Remove timeout|Kick member|Ban member|Unban user|Issue warning|View warnings|Clear warnings|Moderation case|Add staff note|View staff notes|Remove staff note|Assign role|Remove role|Set nickname|Reset nickname|Edit channel topic|Rename channel|Apply a manual seven-day cooldown to one request type|Claim ticket|Close ticket|Add ticket member|Remove ticket member|Rename ticket|Set ticket priority|Ticket details|List tickets|Submit suggestion|Review suggestion|Configure automatic join roles (server owner only)|Set the welcome channel or disable welcome messages (server owner only)|Build and enable Discord onboarding from public channels (server owner only)|Restore public channel visibility and message history for members|Configure the public free-bot release channel (server owner only)|Submit a ZIP or public GitHub repository with a promotional image for Owner approval".split("|");
+const names="coopft-setup coopft-roles-sync coopft-channels-sync coopft-channel-decorate coopft-panel coopft-ticket-config announce poll event-create event-list event-cancel slowmode lock unlock purge timeout untimeout kick ban unban warn warnings clear-warnings case note notes member-note-remove role-add role-remove nickname reset-nickname channel-topic channel-rename ticket-cooldown ticket-claim ticket-close ticket-add ticket-remove ticket-rename ticket-priority ticket-info ticket-list suggestion suggestion-review autorole welcome-config onboarding-setup coopft-public-access free-bot-channel free-bot-submit staff-directory".split(" ");
+const desc="Create missing CoopFT resources without overwriting custom settings|Explicitly apply configured CoopFT role names, colors, permissions and order|Explicitly apply configured CoopFT channel names, categories and permissions|Apply decorative names to default CoopFT channels only|Publish or move a CoopFT panel|Configure ticket category and transcript archive|Publish announcement|Create poll|Schedule event|List events|Cancel event|Set slowmode|Lock channel|Unlock channel|Purge messages|Timeout member|Remove timeout|Kick member|Ban member|Unban user|Issue warning|View warnings|Clear warnings|Moderation case|Add staff note|View staff notes|Remove staff note|Assign role|Remove role|Set nickname|Reset nickname|Edit channel topic|Rename channel|Apply a manual seven-day cooldown to one request type|Claim ticket|Close ticket|Add ticket member|Remove ticket member|Rename ticket|Set ticket priority|Ticket details|List tickets|Submit suggestion|Review suggestion|Configure automatic join roles (server owner only)|Set the welcome channel or disable welcome messages (server owner only)|Build and enable Discord onboarding from public channels (server owner only)|Restore public channel visibility and message history for members|Configure the public free-bot release channel (server owner only)|Submit a ZIP or public GitHub repository with a promotional image for Owner approval|Manage the CoopFT staff directory roles, categories, title and emoji".split("|");
 const staff=(i,s)=>{if(!s.coopft.isStaff(i.member))throw Error("CoopFT staff only.");};
 const serverOwner=(i)=>{if(!i.guild||i.user.id!==i.guild.ownerId)throw Error("Only the actual server owner can use this configuration command.");};
 const requireBotPermission=async(g,permission,label)=>{const bot=g.members.me||await g.members.fetchMe().catch(()=>null);if(!bot?.permissions?.has(permission))throw Error("The bot needs "+label+" permission.");return bot;};
@@ -41,6 +41,66 @@ if(n==="autorole"){
  if(invalid.length)throw Error("The bot cannot assign these roles because they are managed or at/above its highest role: "+invalid.map(role=>role.name).join(", ")+". Move the bot role higher or remove those roles from the selection.");
  await s.pool.query("INSERT INTO guild_autoroles(guild_id,role_ids,enabled,updated_by) VALUES($1,$2::text[],TRUE,$3) ON CONFLICT(guild_id) DO UPDATE SET role_ids=EXCLUDED.role_ids,enabled=TRUE,updated_by=EXCLUDED.updated_by,updated_at=NOW()",[id,unique.map(role=>role.id),u.id]);
  return say(i,"Autorole enabled. New members will receive: "+unique.map(role=>"<@&"+role.id+">").join(", ")+". Existing members are unchanged.");
+}
+if(n==="staff-directory"){
+ ownerConfig(i);
+ const action=i.options.getString("action");
+ if(action==="refresh"){
+  await s.coopft.updateStaffDirectory(g);
+  return say(i,"Staff directory refreshed.");
+ }
+ const config=await s.coopft.getStaffDirectoryConfig(g);
+ const categoryName=i.options.getString("category")?.trim();
+ const newName=i.options.getString("name")?.trim();
+ const emoji=i.options.getString("emoji")?.trim();
+ const role=i.options.getRole("role");
+ const findCategory=name=>config.categories.find(item=>item.name.toLowerCase()===String(name||"").toLowerCase());
+ if(action==="add_category"){
+  if(!newName)throw Error("Set the new category name.");
+  if(config.categories.some(item=>item.name.toLowerCase()===newName.toLowerCase()))throw Error("That directory category already exists.");
+  if(config.categories.length>=20)throw Error("The directory can contain up to 20 custom categories.");
+  config.categories.push({name:newName,emoji:emoji||"✦",roles:[]});
+ }else if(action==="remove_category"){
+  const index=config.categories.findIndex(item=>item.name.toLowerCase()===String(categoryName||"").toLowerCase());
+  if(index<0)throw Error("Directory category not found.");
+  config.categories.splice(index,1);
+ }else if(action==="edit_category"){
+  const section=findCategory(categoryName);
+  if(!section)throw Error("Directory category not found.");
+  if(!newName&&!emoji)throw Error("Set a new category name, an emoji, or both.");
+  if(newName&&config.categories.some(item=>item!==section&&item.name.toLowerCase()===newName.toLowerCase()))throw Error("Another directory category already uses that name.");
+  if(newName)section.name=newName;
+  if(emoji)section.emoji=emoji;
+ }else if(action==="add_role"){
+  if(!role||role.guild.id!==id)throw Error("Select a role from this server.");
+  const section=findCategory(categoryName);
+  if(!section)throw Error("Create that category first with /staff-directory action:add_category.");
+  const builtIn=[...s.coopft.roles.values()].some(item=>item?.id===role.id);
+  if(builtIn)throw Error("Built-in CoopFT staff roles are already listed automatically.");
+  for(const item of config.categories)item.roles=item.roles.filter(entry=>entry.roleId!==role.id);
+  section.roles.push({roleId:role.id,name:role.name,emoji:emoji||""});
+ }else if(action==="remove_role"){
+  if(!role||role.guild.id!==id)throw Error("Select a role from this server.");
+  let removed=0;
+  for(const section of config.categories){
+   const before=section.roles.length;
+   section.roles=section.roles.filter(entry=>entry.roleId!==role.id);
+   removed+=before-section.roles.length;
+  }
+  if(!removed)throw Error("That role is not configured in a custom directory category.");
+ }else if(action==="set_title"){
+  const value=i.options.getString("text")?.trim();
+  if(!value)throw Error("Set the directory title.");
+  config.title=value.slice(0,256);
+ }else if(action==="set_description"){
+  const value=i.options.getString("text")?.trim();
+  if(!value)throw Error("Set the directory description.");
+  config.description=value.slice(0,4000);
+ }else{
+  throw Error("Choose a valid staff directory action.");
+ }
+ await s.coopft.saveStaffDirectoryConfig(g,config);
+ return say(i,"Staff directory updated and the published embed has been refreshed.");
 }
 if(n==="welcome-config"){
  serverOwner(i);
@@ -420,6 +480,23 @@ function loadCoopFTCommands(){
    for(let index=1;index<=20;index++){
     b.addRoleOption(o=>o.setName("role_"+String(index).padStart(2,"0")).setDescription("Automatic role "+index+" (optional)").setRequired(false));
    }
+  }
+  if(n==="staff-directory"){
+   b.addStringOption(o=>o.setName("action").setDescription("Choose what to change").setRequired(true).addChoices(
+    {name:"Refresh directory",value:"refresh"},
+    {name:"Add category",value:"add_category"},
+    {name:"Remove category",value:"remove_category"},
+    {name:"Edit category",value:"edit_category"},
+    {name:"Add or move role",value:"add_role"},
+    {name:"Remove custom role",value:"remove_role"},
+    {name:"Set title",value:"set_title"},
+    {name:"Set description",value:"set_description"}
+   ));
+   b.addStringOption(o=>o.setName("category").setDescription("Existing category name").setMaxLength(100).setRequired(false));
+   b.addRoleOption(o=>o.setName("role").setDescription("Server role to add, move or remove").setRequired(false));
+   b.addStringOption(o=>o.setName("name").setDescription("New category name").setMaxLength(100).setRequired(false));
+   b.addStringOption(o=>o.setName("emoji").setDescription("Category or role emoji").setMaxLength(64).setRequired(false));
+   b.addStringOption(o=>o.setName("text").setDescription("New directory title or description").setMaxLength(4000).setRequired(false));
   }
   if(n==="welcome-config"){
    b.addStringOption(o=>o.setName("action").setDescription("Choose how to manage welcome messages").setRequired(true).addChoices(
