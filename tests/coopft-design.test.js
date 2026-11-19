@@ -83,13 +83,13 @@ test("leadership and operations brackets keep their new names while Mod Roles re
 
 test("only the non-owner leadership roles are renamed and recoloured; protected roles stay intact", () => {
   const byKey = new Map(STAFF_RANKS.map((role) => [role.key, role]));
-  assert.equal(byKey.get("high_rank_supervisor").name, "High Chancellor");
-  assert.equal(byKey.get("apex").name, "Vanguard");
-  assert.equal(byKey.get("halo").name, "Sentinel");
-  assert.equal(byKey.get("staff_supervisor").name, "Operations Director");
-  assert.equal(byKey.get("supreme_council").name, "Executive Council");
-  assert.equal(byKey.get("senate").name, "Strategic Council");
-  assert.equal(byKey.get("council").name, "Grand Council");
+  assert.equal(byKey.get("high_rank_supervisor").name, "High Rank Lead");
+  assert.equal(byKey.get("apex").name, "Team Lead");
+  assert.equal(byKey.get("halo").name, "Support Lead");
+  assert.equal(byKey.get("staff_supervisor").name, "Staff Manager");
+  assert.equal(byKey.get("supreme_council").name, "Senior Council");
+  assert.equal(byKey.get("senate").name, "Head Council");
+  assert.equal(byKey.get("council").name, "Council");
   assert.deepEqual(
     ["high_rank_supervisor", "apex", "halo", "staff_supervisor", "supreme_council", "senate", "council"]
       .map((key) => byKey.get(key).primary),
