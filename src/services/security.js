@@ -502,7 +502,7 @@ class SecurityService {
           : "Fukishōkai access was blocked until an owner restores it.";
       }
     } else if (action !== "ignore") {
-      return interaction.reply({ content: "Unknown security action.", flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: "No action was taken. Server moderation actions are disabled; only economy and bot-access controls are available.", flags: MessageFlags.Ephemeral });
     }
 
     const status = action === "ignore" ? "acknowledged" :
