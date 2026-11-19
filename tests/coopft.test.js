@@ -1048,6 +1048,86 @@ test("private application review exposes only the four requested decisions", () 
   ]);
 });
 
+test("startup role loading renames and recolours only six approved CoopFT staff roles, recovering stale saved IDs", async () => {
+  const changes = [];
+  const oldNames = new Map([
+    ["high_rank_supervisor", "High Rank Supervisor"],
+    ["apex", "Apex"],
+    ["halo", "Halo"],
+    ["staff_supervisor", "Staff Supervisor"],
+    ["supreme_council", "Supreme Council"],
+    ["senate", "Senate"]
+  ]);
+  const roleSpecs = STAFF_RANKS.filter((spec) => oldNames.has(spec.key));
+  const roleMap = new Map();
+  for (const spec of roleSpecs) {
+    const role = {
+      id: "role-" + spec.key,
+      name: oldNames.get(spec.key),
+      color: 0,
+      managed: false,
+      editable: true,
+      position: 10,
+      edit: async (payload) => {
+        Object.assign(role, payload);
+        changes.push({ key: spec.key, payload });
+        return role;
+      }
+    };
+    roleMap.set(role.id, role);
+  }
+  const unrelated = {
+    id: "stale-role-id",
+    name: "Unrelated role",
+    color: 0,
+    managed: false,
+    editable: true,
+    edit: async () => { throw new Error("The unrelated role must never be edited"); }
+  };
+  roleMap.set(unrelated.id, unrelated);
+  const roleCache = new Map(roleMap);
+  roleCache.find = (predicate) => [...roleCache.values()].find(predicate);
+  const saved = new Map([["resource:role:apex", unrelated.id]]);
+  const writes = [];
+  const pool = {
+    async query(sql, params) {
+      if (sql.includes("SELECT setting_key,setting_value")) {
+        return {
+          rows: [...saved.entries()].map(([setting_key, setting_value]) => ({ setting_key, setting_value }))
+        };
+      }
+      if (sql.includes("INSERT INTO coopft_community_settings")) {
+        saved.set(params[1], JSON.parse(params[2]));
+        writes.push({ key: params[1], value: JSON.parse(params[2]) });
+        return { rows: [] };
+      }
+      return { rows: [] };
+    }
+  };
+  const service = new CoopFTCommunityService(pool, { guildId: coopftGuildId });
+  const guild = {
+    id: coopftGuildId,
+    roles: {
+      cache: roleCache,
+      fetch: async (id) => roleMap.get(id) || null
+    }
+  };
+
+  const result = await service.loadManagedRoles(guild);
+  assert.equal(result.staffRoleSync.updated.length, 6);
+  assert.equal(result.staffRoleSync.blocked.length, 0);
+  assert.equal(result.staffRoleSync.missing.length, 0);
+  assert.equal(result.staffRoleSync.failed.length, 0);
+  for (const spec of roleSpecs) {
+    const role = roleMap.get("role-" + spec.key);
+    assert.equal(role.name, spec.name, spec.key + " should be renamed on startup");
+    assert.equal(role.color, spec.primary, spec.key + " should receive its configured colour");
+  }
+  assert.equal(changes.length, 6);
+  assert.equal(changes.some((item) => item.key === "apex" && item.payload.name === "Unrelated role"), false);
+  assert.equal(saved.get("resource:role:apex"), "role-apex");
+});
+
 test("CoopFT staff directory is text-only with section headings and timestamp", async () => {
   const service = new CoopFTCommunityService({ query: async () => ({ rows: [] }) }, { guildId: coopftGuildId });
   service.memberRosterLoaded = true;
