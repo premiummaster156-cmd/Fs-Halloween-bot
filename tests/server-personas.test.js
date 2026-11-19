@@ -77,14 +77,14 @@ test("Fukishokai cannot be configured to share the CoopFT server ID", () => {
 
 test("Fukishokai system channel suppresses native member-join and boost notices", () => {
   const source = fs.readFileSync(path.join(ROOT, "src/index.js"), "utf8");
-  const start = source.indexOf("if (fukishokaiGuildId) {\\n      const fsGuild");
-  const end = source.indexOf("client.on(Events.GuildCreate", start);
-  assert.notEqual(start, -1, "Fukishokai system-channel setup must exist");
-  assert.notEqual(end, -1, "Fukishokai system-channel setup must be bounded");
+  const start = source.indexOf("const nativeNoticeFlags = [");
+  const end = source.indexOf("console.info(\"[fukishokai] Native member-join and boost notices", start);
+  assert.notEqual(start, -1, "Fukishokai system-channel suppression flags must exist");
+  assert.notEqual(end, -1, "Fukishokai system-channel suppression log must exist");
   const block = source.slice(start, end);
-  assert.match(block, /SuppressJoinNotifications/);
-  assert.match(block, /SuppressJoinNotificationReplies/);
-  assert.match(block, /SuppressPremiumSubscriptions/);
-  assert.match(block, /fsGuild\\.edit\\(/);
-  assert.match(block, /Suppress native member-join and boost notices in Fukishōkai/);
+  assert.match(block, /SystemChannelFlags\\.SuppressJoinNotifications/);
+  assert.match(block, /SystemChannelFlags\\.SuppressJoinNotificationReplies/);
+  assert.match(block, /SystemChannelFlags\\.SuppressPremiumSubscriptions/);
+  assert.match(source, /fsGuild\\.edit\\(/);
+  assert.match(source, /Suppress native member-join and boost notices in Fukishōkai/);
 });
