@@ -99,10 +99,21 @@ async function insertRows(client, tableName, columns, rowJson) {
   const identityAlways = writableColumns.some((column) => column.is_identity === "YES");
   const table = '"public".' + quoteIdentifier(tableName);
   const records = "[" + rowJson.join(",") + "]";
+  const selectedValues = writableColumns.map((column) => {
+    const name = quoteIdentifier(column.column_name);
+    // Older Fukishōkai copies may contain SQL NULL in this JSONB setting field,
+    // even though the dedicated CoopFT schema correctly requires NOT NULL.
+    // Preserve the legacy null as JSONB null so the destination constraint is met
+    // without inventing a setting value; the JSON row/hash remains unchanged.
+    if (tableName === "coopft_community_settings" && column.column_name === "setting_value") {
+      return "COALESCE(source_rows." + name + ", 'null'::jsonb)";
+    }
+    return "source_rows." + name;
+  });
   const sql =
     "INSERT INTO " + table + " (" + names.join(",") + ") " +
     (identityAlways ? "OVERRIDING SYSTEM VALUE " : "") +
-    "SELECT " + names.map((name) => "source_rows." + name).join(",") +
+    "SELECT " + selectedValues.join(",") +
     " FROM json_populate_recordset(NULL::" + table + ", $1::json) AS source_rows " +
     "ON CONFLICT DO NOTHING";
   await client.query(sql, [records]);
@@ -344,4 +355,4 @@ async function moveCoopFTGuildData(options = {}) {
   }
 }
 
-module.exports = { moveCoopFTGuildData, listGuildTables, hashRows };
+module.exports = { moveCoopFTGuildData, listGuildTables, hashRows, insertRows };
