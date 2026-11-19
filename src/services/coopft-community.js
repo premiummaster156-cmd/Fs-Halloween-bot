@@ -935,29 +935,33 @@ class CoopFTCommunityService {
       else counts.brackets += 1;
     }
 
-    // Council now occupies the former Head Moderator slot in Operations;
-    // Head Moderator moves into Council's former place under Mod Roles.
-    const councilRole = this.roles.get("council");
-    const headModeratorRole = this.roles.get("head_moderator");
+    // Keep the existing bracket/divider roles untouched. Reorder only the four
+    // Low Rank staff roles so their actual Discord order matches the directory:
+    // Staff Manager → Council → Senior Council → Head Council.
+    const lowRankOrder = ["staff_supervisor", "council", "supreme_council", "senate"];
+    const lowRankRoles = lowRankOrder.map((key) => this.roles.get(key));
     if (
-      councilRole && headModeratorRole &&
-      councilRole.position !== headModeratorRole.position &&
-      councilRole.editable !== false && headModeratorRole.editable !== false &&
+      lowRankRoles.every((role) => role && role.editable !== false) &&
       typeof guild.roles.setPositions === "function"
     ) {
-      try {
-        await guild.roles.setPositions([
-          { role: councilRole.id, position: headModeratorRole.position },
-          { role: headModeratorRole.id, position: councilRole.position }
-        ], "Swap Council and Head Moderator into their owner-requested hierarchy positions");
-        const [updatedCouncil, updatedHeadModerator] = await Promise.all([
-          guild.roles.fetch(councilRole.id),
-          guild.roles.fetch(headModeratorRole.id)
-        ]);
-        if (updatedCouncil) this.roles.set("council", updatedCouncil);
-        if (updatedHeadModerator) this.roles.set("head_moderator", updatedHeadModerator);
-      } catch (error) {
-        console.warn("[coopft] Could not swap Council and Head Moderator positions:", error.message);
+      const targetPositions = lowRankRoles.map((role) => role.position).sort((a, b) => b - a);
+      const needsReorder = lowRankRoles.some((role, index) => role.position !== targetPositions[index]);
+      if (needsReorder) {
+        try {
+          await guild.roles.setPositions(
+            lowRankRoles.map((role, index) => ({ role: role.id, position: targetPositions[index] })),
+            "Set the owner-approved CoopFT Low Rank order"
+          );
+          const refreshedRoles = await Promise.all(lowRankOrder.map((key) =>
+            guild.roles.fetch(this.roles.get(key).id).catch(() => null)
+          ));
+          refreshedRoles.forEach((role, index) => {
+            if (role) this.roles.set(lowRankOrder[index], role);
+          });
+          console.info("[coopft] Low Rank role order synchronized:", lowRankOrder);
+        } catch (error) {
+          console.error("[coopft] Could not synchronize Low Rank role order:", error.message);
+        }
       }
     }
 
@@ -3374,7 +3378,7 @@ class CoopFTCommunityService {
     const sectionFor = (key) => {
       if (["owner", "co_owner", "monarch"].includes(key)) return "OWNER RANK";
       if (["high_rank_supervisor", "apex", "right_wing", "left_wing", "halo", "overseer"].includes(key)) return "LEADERSHIP";
-      if (["staff_supervisor", "supreme_council", "senate", "head_moderator"].includes(key)) return "OPERATIONS";
+      if (["staff_supervisor", "council", "supreme_council", "senate"].includes(key)) return "OPERATIONS";
       return "MOD ROLES";
     };
     const sections = [
