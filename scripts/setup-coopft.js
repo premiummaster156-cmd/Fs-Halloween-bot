@@ -90,6 +90,16 @@ async function runCoopFTSetup(options = {}) {
     logger.info("[coopft-setup] Creating or repairing CoopFT channels, roles, panels and directories...");
     const result = await service.bootstrap(guild, { source: "hosting-console" });
 
+    // Full setup creates/repairs the managed roles, but ordinary ensureRole()
+    // deliberately preserves existing customizations. Explicitly run the
+    // approved staff-name/colour reconciliation here so the hosting-console
+    // setup command applies the six owner-requested changes immediately.
+    logger.info("[coopft-setup] Applying the approved staff role names, colours and Low Rank order...");
+    const staffRoleSync = await service.loadManagedRoles(guild);
+    logger.info("[coopft-setup] Staff role reconciliation result:", staffRoleSync);
+    const directory = await service.startStaffDirectoryRefresh(guild);
+    logger.info("[coopft-setup] Staff directory refreshed after role reconciliation:", directory);
+
     logger.info(
       "[coopft-setup] Complete for " + guild.name + " (" + guild.id + "). " +
       "Created " + result.createdRoles + " roles, " +
