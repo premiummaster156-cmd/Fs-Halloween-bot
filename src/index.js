@@ -9,7 +9,7 @@ const runtimeLogger = installConsoleFileLogging();
 installProcessErrorLogging(runtimeLogger);
 const memoryMonitor = startMemoryMonitor(runtimeLogger);
 
-const { Client, Events, MessageFlags, AuditLogEvent, MessageType, SystemChannelFlags, PermissionFlagsBits, Partials } = require("discord.js");
+const { Client, Events, MessageFlags, AuditLogEvent, MessageType, SystemChannelFlags, Partials } = require("discord.js");
 const { getGatewayIntents } = require("./config/gateway-intents");
 const { DomainError } = require("./utils/core");
 const settings = require("./config/settings");
@@ -38,7 +38,6 @@ const { InventoryService } = require("./services/inventory");
 const { CombatService } = require("./services/combat");
 const { GuildSettingsService } = require("./services/guild-settings");
 const { SecurityService } = require("./services/security");
-const { RaidMonitor } = require("./services/raid-monitor");
 const { ServerBoosterService } = require("./services/server-boosters");
 const { CustomCommandService } = require("./services/custom-commands");
 const { TradeService } = require("./services/trade-interactions");
@@ -194,7 +193,6 @@ async function start() {
   economy.inventory = inventory;
   const guildSettings = new GuildSettingsService(pool);
   const security = new SecurityService(pool, guildSettings);
-  const raidMonitor = new RaidMonitor({ security });
   economy.security = security;
   economy.client = client;
   const serverBoosters = new ServerBoosterService(pool);
@@ -208,7 +206,7 @@ async function start() {
   const restoredCommandFiles = await customCommands.restoreWorkspaceFiles();
   console.log("[workspace] Restored " + restoredCommandFiles + " JavaScript command file(s).");
   client.services = {
-    pool, balancing, economy, inventory, combat, guildSettings, security, raidMonitor, serverBoosters, customCommands,
+    pool, balancing, economy, inventory, combat, guildSettings, security, serverBoosters, customCommands,
     partyGames: new PartyGameService(pool, economy),
     trades: new TradeService(pool),
     economyEvents,
@@ -292,13 +290,6 @@ async function start() {
         } catch (error) {
           console.warn("[fukishokai] Could not suppress native member-join/boost notices (Manage Server may be required):", error.message);
         }
-        const me = fsGuild.members.me;
-        me?.setNickname("Fukishōkai", "Per-server Fukishōkai identity").catch((error) =>
-          console.warn("[fukishokai] Could not set server nickname:", error.message)
-        );
-        raidMonitor.initializeGuild(fsGuild).catch((error) =>
-          console.warn("[raid-monitor] Startup invite baseline failed:", error.message)
-        );
       }
     }
 
@@ -306,20 +297,11 @@ async function start() {
   });
 
   client.on(Events.GuildCreate, (guild) => {
-    if (guild.id === fukishokaiGuildId) {
-      const me = guild.members.me;
-      me?.setNickname("Fukishōkai", "Per-server Fukishōkai identity").catch((error) =>
-        console.warn("[fukishokai] Could not set server nickname:", error.message)
-      );
-      raidMonitor.initializeGuild(guild).catch((error) =>
-        console.warn("[raid-monitor] Fukishōkai invite baseline failed:", error.message)
-      );
-    } else if (guild.id === coopftGuildId) {
-      const me = guild.members.me;
-      me?.setNickname("CoopFT • Assistant", "Per-server CoopFT identity").catch((error) =>
-        console.warn("[coopft] Could not set server nickname:", error.message)
-      );
-    }
+    if (guild.id !== coopftGuildId) return;
+    const me = guild.members.me;
+    me?.setNickname("CoopFT • Assistant", "Per-server CoopFT identity").catch((error) =>
+      console.warn("[coopft] Could not set server nickname:", error.message)
+    );
   });
 
   client.on(Events.GuildMemberAdd, (member) => {
@@ -333,11 +315,6 @@ async function start() {
         console.error("[coopft] Could not process CoopFT member join:", error.message)
       );
       return;
-    }
-    if (member.guild.id === fukishokaiGuildId) {
-      raidMonitor.handleMemberJoin(member, client).catch((error) =>
-        console.error("[raid-monitor] Could not process Fukishōkai member join:", error.message)
-      );
     }
   });
 
@@ -753,34 +730,17 @@ async function start() {
     }
   });
 
-  // Anti-nuke monitoring attributes high-impact changes through Discord audit logs.
-  // This subsystem is alert-only: it never changes roles, permissions or member status.
-  const monitorSecurityChange = (guild, targetId, kind, auditType) => {
-    if (!guild || guild.id !== fukishokaiGuildId) return;
-    client.services.security.recordDestructiveChange(client, guild, targetId, kind, auditType)
-      .catch((error) => console.error("[security] " + kind + " monitor failed:", error.message));
-  };
-  client.on("channelCreate", (channel) => monitorSecurityChange(channel.guild, channel.id, "channel_create", AuditLogEvent.ChannelCreate));
-  client.on("channelDelete", (channel) => monitorSecurityChange(channel.guild, channel.id, "channel_delete", AuditLogEvent.ChannelDelete));
-  client.on("roleCreate", (role) => monitorSecurityChange(role.guild, role.id, "role_create", AuditLogEvent.RoleCreate));
-  client.on("roleDelete", (role) => monitorSecurityChange(role.guild, role.id, "role_delete", AuditLogEvent.RoleDelete));
-  client.on("guildBanAdd", (ban) => monitorSecurityChange(ban.guild, ban.user.id, "member_ban", AuditLogEvent.MemberBanAdd));
-  // Audit-log entry events are included in Guild Moderation and let us spot kicks
-  // without requesting the privileged Guild Members intent.
+  // Discord audit-log processing is exclusive to CoopFT's staff and member logs.
+  // Fukishōkai has no server monitoring or anti-nuke/anti-raid listeners.
   client.on("guildAuditLogEntryCreate", (entry, guild) => {
+    if (guild.id !== coopftGuildId || !memberLifecycle || !coopftCommunity) return;
     const targetId = entry.targetId || entry.target?.id;
     const executorId = entry.executorId || entry.executor?.id;
-    if (
-      entry.action === AuditLogEvent.MemberRoleUpdate &&
-      targetId &&
-      [fukishokaiGuildId, coopftGuildId].filter(Boolean).includes(guild.id)
-    ) {
-      // Store role history with exact member fetches; no member-roster enumeration.
-      if (memberLifecycle) memberLifecycle.handleRoleUpdate(guild, targetId, executorId, entry, client.user.id).catch((error) =>
+    if (entry.action === AuditLogEvent.MemberRoleUpdate && targetId) {
+      memberLifecycle.handleRoleUpdate(guild, targetId, executorId, entry, client.user.id).catch((error) =>
         console.warn("[member-lifecycle] Could not store updated role snapshot:", error.message)
       );
-
-      if (guild.id === coopftGuildId && executorId && executorId !== client.user.id) {
+      if (executorId && executorId !== client.user.id) {
         Promise.all([
           guild.members.fetch(targetId),
           guild.members.fetch(executorId)
@@ -790,65 +750,9 @@ async function start() {
       }
       return;
     }
-    if (memberLifecycle && [fukishokaiGuildId, coopftGuildId].filter(Boolean).includes(guild.id)) {
-      memberLifecycle.handleServerAuditEntry(guild, entry, client.user.id).catch((error) =>
-        console.warn("[member-lifecycle] Could not publish server audit entry:", error.message)
-      );
-    }
-    if (guild.id !== fukishokaiGuildId || entry.action !== AuditLogEvent.MemberKick) return;
-    if (targetId) monitorSecurityChange(guild, targetId, "member_kick", AuditLogEvent.MemberKick);
-  });
-
-  // One high-impact permission grant can be the start of a nuke, so it is
-  // escalated immediately rather than waiting for the mass-action thresholds.
-  const criticalRolePermissions = [
-    [PermissionFlagsBits.Administrator, "Administrator"],
-    [PermissionFlagsBits.ManageGuild, "Manage Server"],
-    [PermissionFlagsBits.ManageChannels, "Manage Channels"],
-    [PermissionFlagsBits.ManageRoles, "Manage Roles"],
-    [PermissionFlagsBits.BanMembers, "Ban Members"],
-    [PermissionFlagsBits.KickMembers, "Kick Members"],
-    [PermissionFlagsBits.ManageWebhooks, "Manage Webhooks"],
-    [PermissionFlagsBits.ManageMessages, "Manage Messages"],
-    [PermissionFlagsBits.ManageEvents, "Manage Events"],
-    [PermissionFlagsBits.ManageGuildExpressions, "Manage Expressions"]
-  ];
-  client.on("roleUpdate", (oldRole, newRole) => {
-    if (newRole.guild.id !== fukishokaiGuildId) return;
-    const granted = criticalRolePermissions
-      .filter(([permission]) => newRole.permissions.has(permission) && !oldRole.permissions.has(permission))
-      .map(([, label]) => label);
-    if (!granted.length) return;
-    client.services.security.recordPrivilegeEscalation(
-      client, newRole.guild, newRole.id, "role_permission_escalation", AuditLogEvent.RoleUpdate, granted
-    ).catch((error) => console.error("[security] Role permission escalation monitor failed:", error.message));
-  });
-  client.on("channelUpdate", (oldChannel, newChannel) => {
-    if (newChannel.guild.id !== fukishokaiGuildId) return;
-    const oldOverwrites = oldChannel.permissionOverwrites?.cache;
-    const newOverwrites = newChannel.permissionOverwrites?.cache;
-    if (!oldOverwrites || !newOverwrites) return;
-    const channelPermissions = [
-      [PermissionFlagsBits.ManageChannels, "Manage Channels"],
-      [PermissionFlagsBits.ManageRoles, "Manage Roles"],
-      [PermissionFlagsBits.BanMembers, "Ban Members"],
-      [PermissionFlagsBits.KickMembers, "Kick Members"],
-      [PermissionFlagsBits.ManageWebhooks, "Manage Webhooks"],
-      [PermissionFlagsBits.ManageMessages, "Manage Messages"]
-    ];
-    const granted = [];
-    for (const overwrite of newOverwrites.values()) {
-      const previous = oldOverwrites.get(overwrite.id);
-      for (const [permission, label] of channelPermissions) {
-        if (overwrite.allow.has(permission) && !previous?.allow.has(permission)) {
-          granted.push("overwrite " + overwrite.id + ": " + label);
-        }
-      }
-    }
-    if (!granted.length) return;
-    client.services.security.recordPrivilegeEscalation(
-      client, newChannel.guild, newChannel.id, "channel_permission_escalation", AuditLogEvent.ChannelUpdate, granted
-    ).catch((error) => console.error("[security] Channel permission escalation monitor failed:", error.message));
+    memberLifecycle.handleServerAuditEntry(guild, entry, client.user.id).catch((error) =>
+      console.warn("[member-lifecycle] Could not publish CoopFT server audit entry:", error.message)
+    );
   });
 
   client.on(Events.Error, (error) => console.error("[discord] Client error:", error));
