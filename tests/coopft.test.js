@@ -965,13 +965,13 @@ test("CoopFT leadership permissions match the explicitly requested hierarchy", (
 test("CoopFT staff hierarchy follows the updated four-section directory", () => {
   assert.deepEqual(STAFF_RANKS.map((role) => role.name), [
     "Owner", "Co-Owner", "Monarch",
-    "High Chancellor", "Vanguard", "Right Wing", "Left Wing", "Sentinel", "Overseer",
-    "Operations Director", "Executive Council", "Strategic Council", "Grand Council",
+    "High Rank Lead", "Team Lead", "Right Wing", "Left Wing", "Support Lead", "Overseer",
+    "Staff Manager", "Council", "Senior Council", "Head Council",
     "Head Moderator", "Senior Moderator", "Moderator", "Junior Moderator"
   ]);
   const groups = new Map(ROLE_LAYOUT.map((group) => [group.bracket, group.roles]));
   assert.deepEqual(groups.get("low_rank"), [
-    "staff_supervisor", "supreme_council", "senate", "council"
+    "staff_supervisor", "council", "supreme_council", "senate"
   ]);
   assert.deepEqual(groups.get("mod_roles"), [
     "head_moderator", "senior_moderator", "moderator", "junior_moderator"
