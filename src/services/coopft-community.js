@@ -825,18 +825,29 @@ class CoopFTCommunityService {
     const settings = new Map(result.rows.map((row) => [row.setting_key, row.setting_value]));
     this.roles.clear();
     const loadedRoles = await Promise.all(roleSpecs.map(async (spec) => {
+      const acceptedNames = new Set([
+        spec.name,
+        "CF • " + spec.name,
+        ...(spec.legacyNames || [])
+      ]);
       const id = settings.get("resource:role:" + spec.key);
       let role = id ? await guild.roles.fetch(id).catch(() => null) : null;
 
-      // Recover existing roles when a previous setup stored a missing/stale ID.
-      // Match only this managed role's current name or explicitly supported legacy names;
-      // never create a replacement during startup role loading.
+      // Never trust a saved role ID blindly: an old/stale resource mapping can
+      // point at an unrelated role. Only accept it when its name belongs to this
+      // exact role's current or known legacy names.
+      if (role && (role.managed || !acceptedNames.has(role.name))) {
+        console.warn("[coopft] Saved role reference did not match its configured role; searching by name:", {
+          roleKey: spec.key,
+          savedRoleId: id,
+          savedRoleName: role.name
+        });
+        role = null;
+      }
+
+      // This also recovers roles created before resource IDs were persisted,
+      // including the original names from the owner's role-list screenshots.
       if (!role) {
-        const acceptedNames = new Set([
-          spec.name,
-          "CF • " + spec.name,
-          ...(spec.legacyNames || [])
-        ]);
         role = guild.roles.cache.find((candidate) =>
           !candidate.managed && acceptedNames.has(candidate.name)
         ) || null;
@@ -848,35 +859,70 @@ class CoopFTCommunityService {
       return { spec, role };
     }));
     const counts = { staff: 0, member: 0, interest: 0, ping: 0, brackets: 0, emojis: 0 };
-    // Apply the explicit staff-directory refresh requested by the server owner.
-    // Only non-owner leadership positions are renamed/recoloured. Owner ranks,
-    // Left/Right Wing, Overseer, and every Moderator rank retain their styling.
+    // Sync only the six owner-approved staff roles. Divider/bracket roles,
+    // Owner Rank, Council, Left/Right Wing, Overseer and all Moderator roles
+    // are intentionally excluded.
     const managedStaffStyleKeys = new Set([
       "high_rank_supervisor", "apex", "halo",
       "staff_supervisor", "supreme_council", "senate"
     ]);
+    const staffRoleSync = { updated: [], alreadyCurrent: [], blocked: [], missing: [], failed: [] };
+    const botHighestRole = guild.members?.me?.roles?.highest || null;
+
     for (const item of loadedRoles) {
-      if (!item.role || !managedStaffStyleKeys.has(item.spec.key)) continue;
+      if (!managedStaffStyleKeys.has(item.spec.key)) continue;
+      if (!item.role) {
+        staffRoleSync.missing.push({ key: item.spec.key, expectedName: item.spec.name });
+        continue;
+      }
+
       const changes = {};
       if (item.role.name !== item.spec.name) changes.name = item.spec.name;
       if (item.role.color !== item.spec.primary) changes.color = item.spec.primary;
-      if (!Object.keys(changes).length) continue;
-      if (item.role.editable === false) {
-        console.error("[coopft] ROLE SYNC BLOCKED:", {
-          role: item.role.name,
-          expectedName: item.spec.name,
-          expectedColor: "#" + item.spec.primary.toString(16).padStart(6, "0"),
-          reason: "Move the CoopFT bot's highest role above this role in Server Settings → Roles."
-        });
+      if (!Object.keys(changes).length) {
+        staffRoleSync.alreadyCurrent.push(item.spec.name);
         continue;
       }
+
+      if (item.role.editable === false) {
+        const blocked = {
+          key: item.spec.key,
+          currentName: item.role.name,
+          expectedName: item.spec.name,
+          currentPosition: item.role.position,
+          botHighestRole: botHighestRole?.name || null,
+          botHighestPosition: botHighestRole?.position ?? null
+        };
+        staffRoleSync.blocked.push(blocked);
+        console.error("[coopft] ROLE SYNC BLOCKED — move the bot's highest role above this role and keep Manage Roles enabled:", blocked);
+        continue;
+      }
+
       try {
+        const previousName = item.role.name;
         item.role = await item.role.edit({
           ...changes,
-          reason: "Synchronize the owner-approved CoopFT staff names and colours on startup"
+          reason: "Apply the configured CoopFT staff role name and colour automatically on startup"
+        }) || item.role;
+
+        if (item.role.name !== item.spec.name || item.role.color !== item.spec.primary) {
+          throw new Error(
+            "Discord did not confirm the expected name/colour after editing. " +
+            "Received name=" + item.role.name + ", colour=" + item.role.color
+          );
+        }
+
+        staffRoleSync.updated.push({
+          key: item.spec.key,
+          from: previousName,
+          to: item.role.name,
+          color: "#" + item.spec.primary.toString(16).padStart(6, "0")
         });
+        console.info("[coopft] Staff role automatically updated:", previousName, "→", item.role.name);
       } catch (error) {
-        console.warn("[coopft] Could not update managed role " + item.role.name + ":", error.message);
+        const failure = { key: item.spec.key, role: item.role.name, expectedName: item.spec.name, error: error.message };
+        staffRoleSync.failed.push(failure);
+        console.error("[coopft] Staff role automatic sync failed:", failure);
       }
     }
     for (const item of loadedRoles) {
@@ -926,6 +972,12 @@ class CoopFTCommunityService {
         this.emojis.set(item.name, item.emoji.id);
         counts.emojis += 1;
       }
+    }
+    counts.staffRoleSync = staffRoleSync;
+    if (staffRoleSync.missing.length || staffRoleSync.blocked.length || staffRoleSync.failed.length) {
+      console.error("[coopft] STAFF ROLE SYNC INCOMPLETE:", staffRoleSync);
+    } else {
+      console.info("[coopft] STAFF ROLE SYNC COMPLETE:", staffRoleSync);
     }
     return counts;
   }
