@@ -625,7 +625,7 @@ test("CoopFT exposes focused setup, sync, panel and operational commands", () =>
     "ticket-remove", "ticket-rename", "timeout", "unban", "unlock", "untimeout",
     "warn", "warnings"
   ];
-  expected.push("autorole", "onboarding-setup", "welcome-config", "coopft-public-access", "free-bot-channel", "free-bot-submit");
+  expected.push("autorole", "onboarding-setup", "welcome-config", "coopft-public-access", "free-bot-channel", "free-bot-submit", "staff-directory");
   assert.deepEqual([...commands.keys()].sort(), expected.sort());
   for (const command of commands.values()) assert.doesNotThrow(() => command.data.toJSON());
   const autorole = commands.get("autorole").data.toJSON();
