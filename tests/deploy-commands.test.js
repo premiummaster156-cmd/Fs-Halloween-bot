@@ -66,3 +66,48 @@ test("deployment does not proceed to guild registration if global cleanup fails"
   );
   assert.equal(guildDeploymentCalled, false);
 });
+
+
+test("startup command sync updates only the CoopFT guild and includes staff-directory", async () => {
+  const { Routes, SlashCommandBuilder } = require("discord.js");
+  const { registerCoopFTGuildCommands } = require("../src/utils/coopft-command-registration");
+  const clientId = "123456789012345678";
+  const guildId = "1498271944456540210";
+  const commands = new Map([
+    ["staff-directory", {
+      data: new SlashCommandBuilder()
+        .setName("staff-directory")
+        .setDescription("Manage the CoopFT staff directory.")
+    }]
+  ]);
+  const calls = [];
+  const rest = {
+    put: async (route, payload) => {
+      calls.push({ route, payload });
+    }
+  };
+
+  const result = await registerCoopFTGuildCommands({ rest, clientId, guildId, commands });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].route, Routes.applicationGuildCommands(clientId, guildId));
+  assert.notEqual(calls[0].route, Routes.applicationCommands(clientId));
+  assert.deepEqual(calls[0].payload.body.map((command) => command.name), ["staff-directory"]);
+  assert.equal(result.guildId, guildId);
+  assert.equal(result.registeredCount, 1);
+});
+
+test("startup command sync rejects an invalid guild ID before making a Discord request", async () => {
+  const { registerCoopFTGuildCommands } = require("../src/utils/coopft-command-registration");
+  let requested = false;
+  await assert.rejects(
+    registerCoopFTGuildCommands({
+      rest: { put: async () => { requested = true; } },
+      clientId: "123456789012345678",
+      guildId: "not-a-guild",
+      commands: new Map()
+    }),
+    /valid CoopFT guild ID/
+  );
+  assert.equal(requested, false);
+});
