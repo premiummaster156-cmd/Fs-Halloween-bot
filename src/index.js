@@ -9,7 +9,7 @@ const runtimeLogger = installConsoleFileLogging();
 installProcessErrorLogging(runtimeLogger);
 const memoryMonitor = startMemoryMonitor(runtimeLogger);
 
-const { Client, Events, MessageFlags, AuditLogEvent, MessageType, SystemChannelFlags, Partials } = require("discord.js");
+const { Client, REST, Events, MessageFlags, AuditLogEvent, MessageType, SystemChannelFlags, Partials } = require("discord.js");
 const { getGatewayIntents } = require("./config/gateway-intents");
 const { DomainError } = require("./utils/core");
 const settings = require("./config/settings");
@@ -19,6 +19,7 @@ const { migrate, migrateCoopFT } = require("./database/migrate");
 const { moveCoopFTGuildData } = require("./database/move-coopft-guild-data");
 const { loadCommands } = require("./commands");
 const { loadCoopFTCommands } = require("./commands/coopft");
+const { registerCoopFTGuildCommands } = require("./utils/coopft-command-registration");
 const { CoopFTCommunityService } = require("./services/coopft-community");
 const { MemberLifecycleService } = require("./services/member-lifecycle");
 const { personaForGuild, coopftGuildId, fukishokaiGuildId } = require("./config/server-personas");
@@ -227,6 +228,22 @@ async function start() {
 
   client.once(Events.ClientReady, async (ready) => {
     console.log("[bot] Logged in as " + ready.user.tag + " with " + client.commands.size + " Fukishōkai commands and " + client.coopftCommands.size + " CoopFT commands.");
+
+    // Slash-command registration is separate from logging in. Sync only the
+    // CoopFT guild here so a normal hosting restart also publishes new CoopFT
+    // commands, without clearing globals or changing Fukishōkai's economy set.
+    try {
+      const rest = new REST({ version: "10" }).setToken(settings.discordToken);
+      const synced = await registerCoopFTGuildCommands({
+        rest,
+        clientId: settings.clientId,
+        guildId: coopftGuildId,
+        commands: coopftCommands
+      });
+      console.info("[coopft] Registered " + synced.registeredCount + " guild slash commands on CoopFT (" + synced.guildId + ").");
+    } catch (error) {
+      console.error("[coopft] Could not register guild slash commands on startup:", error.code || error.name, error.message);
+    }
 
     if (coopftPool && coopftCommunity && coopftGuildId) {
       const coopGuild = ready.guilds.cache.get(coopftGuildId) || await ready.guilds.fetch(coopftGuildId).catch(() => null);
